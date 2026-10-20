@@ -1,4 +1,4 @@
-import { createContext, RenderContext } from '../runtime/server-runtime';
+import { createContext, RenderContext } from '../runtime/server-runtime.ts';
 
 /**
  * The layout values MJML flows down the tree: a section fixes the content width its columns lay out

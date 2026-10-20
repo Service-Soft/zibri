@@ -1,9 +1,9 @@
 
-import { type CurrencyCode } from '../../../localization/models/currency-code.model';
-import { BigNumber } from '../../../utilities/number.utilities';
-import { InvoiceItem } from '../models/invoice-item.model';
-import { Invoice as BaseInvoice } from '../models/invoice.model';
-import { Vat } from '../models/vat.model';
+import { type CurrencyCode } from '../../../localization/models/currency-code.model.ts';
+import { BigNumber } from '../../../utilities/number.utilities.ts';
+import { InvoiceItem } from '../models/invoice-item.model.ts';
+import { Invoice as BaseInvoice } from '../models/invoice.model.ts';
+import { Vat } from '../models/vat.model.ts';
 
 /**
  * Handles calculating anything regarding invoices.

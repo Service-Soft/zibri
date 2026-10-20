@@ -1,18 +1,18 @@
 import { randomBytes } from 'node:crypto';
 
-import { HttpRequestContext } from './http-request.context';
-import { WebsocketRequestContext } from './websocket-request.context';
-import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
-import { AuthServiceInterface } from '../../auth/auth-service.interface';
-import { CurrentUserMetadata } from '../../auth/decorators/current-user.decorator';
-import { BaseUser } from '../../auth/models/base-user.model';
-import { IsLoggedInMetadata } from '../../auth/models/is-logged-in-metadata.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { RouteRegistry } from '../../global/route-registry/route.registry';
-import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
-import { TraceSpanContext } from '../../tracing/trace-span-context.model';
+import { HttpRequestContext } from './http-request.context.ts';
+import { WebsocketRequestContext } from './websocket-request.context.ts';
+import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface.ts';
+import { AuthServiceInterface } from '../../auth/auth-service.interface.ts';
+import { CurrentUserMetadata } from '../../auth/decorators/current-user.decorator.ts';
+import { BaseUser } from '../../auth/models/base-user.model.ts';
+import { IsLoggedInMetadata } from '../../auth/models/is-logged-in-metadata.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { RouteRegistry } from '../../global/route-registry/route.registry.ts';
+import { TraceContextUtilities } from '../../tracing/trace-context.utilities.ts';
+import { TraceSpanContext } from '../../tracing/trace-span-context.model.ts';
 
 const allRequestContextTokenKeys: Set<string> = new Set();
 
@@ -20,7 +20,7 @@ const allRequestContextTokenKeys: Set<string> = new Set();
  * Defines a request context token for the given key.
  */
 export class RequestContextToken<T> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected readonly __brand!: T;
 
     constructor(
@@ -33,7 +33,7 @@ export class RequestContextToken<T> {
         allRequestContextTokenKeys.add(key);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     toString(): string {
         return this.key;
     }
@@ -42,7 +42,7 @@ export class RequestContextToken<T> {
 /**
  * Tokens for the current request.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
     NONCE: new RequestContextToken(
         'nonce',

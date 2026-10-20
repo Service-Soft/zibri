@@ -1,9 +1,9 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { logToConsole } from './log-to-console.function';
-import { BaseLoggerTransportConfig } from './logger-transport.model';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
+import { logToConsole } from './log-to-console.function.ts';
+import { BaseLoggerTransportConfig } from './logger-transport.model.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
 
 function createLog(level: LogLevel, overrides: Partial<Log> = {}): Log {
     return {
@@ -21,7 +21,7 @@ const config: BaseLoggerTransportConfig = { name: 'ConsoleLoggerTransport', leve
 
 describe('logToConsole', () => {
     it('logs a DEBUG message with console.debug', async () => {
-        const spy: jest.SpiedFunction<typeof console.debug> = jest.spyOn(console, 'debug').mockImplementation(() => undefined);
+        const spy: MockInstance<typeof console.debug> = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
 
         await logToConsole([createLog(LogLevel.DEBUG)], config);
 
@@ -31,7 +31,7 @@ describe('logToConsole', () => {
     });
 
     it('logs an INFO message with console.info', async () => {
-        const spy: jest.SpiedFunction<typeof console.info> = jest.spyOn(console, 'info').mockImplementation(() => undefined);
+        const spy: MockInstance<typeof console.info> = vi.spyOn(console, 'info').mockImplementation(() => undefined);
 
         await logToConsole([createLog(LogLevel.INFO)], config);
 
@@ -40,7 +40,7 @@ describe('logToConsole', () => {
     });
 
     it('logs a WARN message with console.warn', async () => {
-        const spy: jest.SpiedFunction<typeof console.warn> = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const spy: MockInstance<typeof console.warn> = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
         await logToConsole([createLog(LogLevel.WARN)], config);
 
@@ -49,7 +49,7 @@ describe('logToConsole', () => {
     });
 
     it('logs an ERROR message with console.error, including each error paragraph', async () => {
-        const spy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const spy: MockInstance<typeof console.error> = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         await logToConsole([
             createLog(LogLevel.ERROR, {
@@ -64,7 +64,7 @@ describe('logToConsole', () => {
     });
 
     it('logs a CRITICAL message with console.error, including each error paragraph', async () => {
-        const spy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const spy: MockInstance<typeof console.error> = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         await logToConsole([
             createLog(LogLevel.CRITICAL, {
@@ -78,7 +78,7 @@ describe('logToConsole', () => {
     });
 
     it('does not throw for ERROR/CRITICAL logs without an attached error', () => {
-        const spy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const spy: MockInstance<typeof console.error> = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         expect(() => logToConsole([createLog(LogLevel.ERROR)], config)).not.toThrow();
 

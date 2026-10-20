@@ -1,4 +1,4 @@
-import { SendSmsData } from './send-sms-data.model';
+import { SendSmsData } from './send-sms-data.model.ts';
 
 /**
  * What sends a text message.

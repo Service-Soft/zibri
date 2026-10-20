@@ -1,26 +1,26 @@
-/* eslint-disable cspell/spellchecker */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+/* cspell:disable */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ZibriInvoicingPlugin } from './invoicing.plugin';
-import { CompanyInfo } from './models/company-info.model';
-import { InvoiceAddress } from './models/invoice-address.model';
-import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
-import { Invoice } from './models/invoice.model';
-import { NumberInvoices } from './models/number-invoices.model';
-import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
-import { InvoiceNumberService } from './services/invoice-number.service';
-import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ZibriInvoicingPlugin } from './invoicing.plugin.ts';
+import { CompanyInfo } from './models/company-info.model.ts';
+import { InvoiceAddress } from './models/invoice-address.model.ts';
+import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from './models/invoice.model.ts';
+import { NumberInvoices } from './models/number-invoices.model.ts';
+import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service.ts';
+import { InvoiceNumberService } from './services/invoice-number.service.ts';
+import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 const ACME: string = UUIDUtilities.generate();
 const GLOBEX: string = UUIDUtilities.generate();

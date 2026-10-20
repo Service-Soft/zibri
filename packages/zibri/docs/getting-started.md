@@ -87,8 +87,8 @@ missing while it starts:
 | Sending emails over smtp with `SmtpEmailTransport`, see [email](./email.md) | `nodemailer` |
 | Generating entities from an OpenAPI document with `OpenApiFileProvider` or `OpenApiUrlProvider` | `swagger2openapi` |
 | Handlebars templates | `handlebars` |
-| TypeScript worker files, see [multithreading](./multithreading.md) | `ts-node` |
-| Extracting source translations, see [localization](./localization.md) | `typescript`, `saxes` |
+| TypeScript worker files, see [multithreading](./multithreading.md) | `oxc-transform` |
+| Extracting source translations, see [localization](./localization.md) | `@typescript/typescript6`, `saxes` |
 
 Install the ones you use, eg. `npm i socket.io`.
 

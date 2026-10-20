@@ -1,4 +1,4 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 /**
  * An error to throw when a data source that hasn't been initialized yet is being used.

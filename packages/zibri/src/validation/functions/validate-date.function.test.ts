@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { validateDate } from './validate-date.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { validateDate } from './validate-date.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 function meta(overrides: Partial<DatePropertyMetadata> = {}): DatePropertyMetadata {
     return {

@@ -30,7 +30,7 @@ export class InProcessRateLimiterLock implements RateLimiterLockInterface {
 
     private readonly queues: Map<string, Promise<unknown>> = new Map();
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async withLock<T>(key: string, run: () => Promise<T>): Promise<T> {
         // chaining onto the pending operation of this key serializes them without blocking other keys
         const pending: Promise<unknown> = this.queues.get(key) ?? Promise.resolve();

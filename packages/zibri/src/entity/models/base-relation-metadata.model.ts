@@ -1,8 +1,8 @@
 import { EntitySchemaRelationOptions } from 'typeorm';
 
-import { BasePropertyMetadata } from './base-property-metadata.model';
-import { Newable } from '../../types/newable.type';
-import { type BaseEntity } from '../base-entity.model';
+import { BasePropertyMetadata } from './base-property-metadata.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
 
 /**
  * Metadata shared by all relation properties.

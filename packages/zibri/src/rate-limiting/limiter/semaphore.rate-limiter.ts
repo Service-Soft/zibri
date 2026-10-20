@@ -1,17 +1,17 @@
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { $ts } from '../../localization/translate.function';
-import { Ms } from '../../utilities/ms';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * Persisted state for a semaphore limiter – simply the number of currently acquired permits.
@@ -74,7 +74,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         this.maxPendingReservations = config.maxPendingReservations ?? config.capacity;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): SemaphoreState {
         return {
             current: 0,
@@ -84,17 +84,17 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: SemaphoreState, count: number): SemaphoreState {
         return { ...state, reservedCount: state.reservedCount + count };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: SemaphoreState, count: number): SemaphoreState {
         return { ...state, reservedCount: Math.max(0, state.reservedCount - count) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: SemaphoreState,
         _reservations: RateLimitReservation[],
@@ -124,7 +124,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         return pending.length >= this.maxPendingReservations ? RateLimitReservationRejectionReason.QUEUE_TOO_LONG : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: SemaphoreState, now: number): SemaphoreState {
         if (state.current + state.reservedCount <= this.config.capacity) {
             return {
@@ -135,7 +135,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
         return state;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         let allowed: boolean = false;
         let currentAfter: number = 0;

@@ -1,4 +1,4 @@
-import { Command } from './command.enum';
+import { Command } from './command.enum.ts';
 
 /**
  * Whether or not the given string is a command.

@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { ReflectUtilities } from './reflect.utilities';
+import { MetadataInjectionKeys } from './metadata-injection-keys.enum.ts';
+import { ReflectUtilities } from './reflect.utilities.ts';
 
 class Target {
     method(): void {}

@@ -3,7 +3,7 @@
         // the suite is the harness's consumer and the framework it imports, both at once. Resolving
         // each to the sources beside this file is what keeps a `DataSourceInterface` from `zibri`
         // and one from `zibri-testing` the same type - through `dist` they are two structurally
-        // identical types that a class can only satisfy one of. It also matches the jest config, so
+        // identical types that a class can only satisfy one of. It also matches the vitest config, so
         // a typecheck and a run agree, and neither depends on a build being current.
         "paths": {
             "zibri": ["./src/index.ts"],

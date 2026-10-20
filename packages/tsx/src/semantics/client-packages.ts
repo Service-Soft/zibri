@@ -1,7 +1,7 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { readImports } from './imports';
-import { parseTemplate, syntaxErrorsOf } from './symbols';
+import { readImports } from './imports.ts';
+import { parseTemplate, syntaxErrorsOf } from './symbols.ts';
 
 /**
  * Parses a template source, or gives up when it has a syntax error.

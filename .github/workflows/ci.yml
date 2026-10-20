@@ -33,7 +33,7 @@ jobs:
             - run: npm run build:prod -w zibri
             - run: npm run build -w zibri-cli
             - run: npm run lint
-            # the tests included: the builds leave them out, and jest only transpiles them, so a type
+            # the tests included: the builds leave them out, and vitest only transpiles them, so a type
             # error in a test - or a type test's @ts-expect-error that no longer fires - is caught here or nowhere
             - run: npm run typecheck
     test:
@@ -60,8 +60,8 @@ jobs:
             - run: npm run build:prod -w zibri
             - run: npm run test:ci -w zibri
             - run: npm run test -w zibri-tsx
-            # the cli's whole suite in one in-band run, which is what lets it report coverage without
-            # merging two of them: its heavy tests need --runInBand anyway
+            # the cli's whole suite in one run, one file at a time, which is what lets it report coverage
+            # without merging two of them: its heavy tests run one at a time anyway
             - run: npm run test:ci -w zibri-cli
             - uses: codecov/codecov-action@v5
               with:

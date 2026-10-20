@@ -3,13 +3,13 @@ import { createReadStream, createWriteStream, Dirent, existsSync, readFileSync, 
 import { access, writeFile, mkdir, readFile, readdir, rm, rmdir, rename, stat, glob, link } from 'node:fs/promises';
 import path from 'node:path';
 
-import { InternalError } from '../error-handling/internal-error.model';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * The type for a file path.
  */
 export type FsPath = string & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     __brand: 'Path'
 };
 

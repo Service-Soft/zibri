@@ -1,6 +1,6 @@
 import inquirer, { Question, Answers } from 'inquirer';
 
-import { exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities';
+import { exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities/index.ts';
 
 /**
  * Inquirer Questions to get the generic object result.

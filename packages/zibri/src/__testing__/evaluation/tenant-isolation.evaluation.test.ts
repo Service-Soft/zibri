@@ -1,50 +1,51 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
-import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator';
-import { Auth } from '../../auth/decorators/auth.decorator';
-import { ApiKeyAuthStrategy } from '../../auth/strategies/api-key/api-key.auth-strategy';
-import { ApiKey } from '../../auth/strategies/api-key/api-key.model';
-import { JwtAuthData } from '../../auth/strategies/jwt/jwt-auth-data.model';
-import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Delete } from '../../routing/decorators/delete.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Param } from '../../routing/decorators/param.decorator';
-import { Patch } from '../../routing/decorators/patch.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { Ms } from '../../utilities/ms';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { WebsocketController } from '../../websocket/decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../../websocket/decorators/websocket-route.decorator';
-import { SocketIOWebsocketConnection } from '../../websocket/models/connection/socket-io-websocket-connection.model';
-import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
-import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
-import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { DefaultTestServerMembershipRepository } from '../test-server/membership-repository';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
-import { waitUntil } from '../wait-until.function';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model.ts';
+import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator.ts';
+import { Auth } from '../../auth/decorators/auth.decorator.ts';
+import { ApiKeyAuthStrategy } from '../../auth/strategies/api-key/api-key.auth-strategy.ts';
+import { ApiKey } from '../../auth/strategies/api-key/api-key.model.ts';
+import { JwtAuthData } from '../../auth/strategies/jwt/jwt-auth-data.model.ts';
+import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Delete } from '../../routing/decorators/delete.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Param } from '../../routing/decorators/param.decorator.ts';
+import { Patch } from '../../routing/decorators/patch.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { WebsocketController } from '../../websocket/decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../../websocket/decorators/websocket-route.decorator.ts';
+import { SocketIOWebsocketConnection } from '../../websocket/models/connection/socket-io-websocket-connection.model.ts';
+import { WebsocketMessage } from '../../websocket/models/websocket-message.model.ts';
+import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model.ts';
+import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { DefaultTestServerMembershipRepository } from '../test-server/membership-repository.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
+import { waitUntil } from '../wait-until.function.ts';
 
 /**
  * Executable form of evaluation/01-data-layer.md, the multi-tenancy entry of the MINOR list.
@@ -92,7 +93,7 @@ class IsolationTask extends BaseEntity {
     title!: string;
 
     @Property.manyToOne({ target: () => IsolationProject, joinColumn: 'projectId', inverseSide: 'tasks' })
-    project?: IsolationProject;
+    project?: Relation<IsolationProject>;
 
     @Property.string({ format: 'uuid', required: false })
     projectId?: string | null;

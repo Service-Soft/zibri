@@ -1,7 +1,6 @@
-import { type UniqueConstraintViolationError } from './unique-constraint-violation.error';
-import { KeyWhere } from '../entity/models/unique-declaration.model';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { $ts } from '../localization/translate.function';
+import { KeyWhere } from '../entity/models/unique-declaration.model.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { $ts } from '../localization/translate.function.ts';
 
 /**
  * An error for a write that a check of its entity refuses.

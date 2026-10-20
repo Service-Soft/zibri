@@ -1,12 +1,12 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
-import { Logger } from './logger';
-import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
-import { DiContainer } from '../di/di-container';
-import { initDiContainer } from '../di/init-di-container.function';
-import { Ms } from '../utilities/ms';
+import { LogLevel } from './log-level.enum.ts';
+import { Log } from './log.model.ts';
+import { Logger } from './logger.ts';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model.ts';
+import { DiContainer } from '../di/di-container.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * How the logger hands work to its transports.

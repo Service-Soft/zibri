@@ -1,4 +1,4 @@
-import { Property } from '../../entity/decorators/property.decorator';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * What the token endpoint answers a client with (RFC 6749, 5.1).

@@ -1,4 +1,4 @@
-import { UnauthorizedError } from './unauthorized.error';
+import { UnauthorizedError } from './unauthorized.error.ts';
 
 /**
  * An error to throw when a credential is presented by what looks like a copy of the device it lives

@@ -1,5 +1,5 @@
-import { HttpRequest } from '../http/http-request.model';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 /**
  * Interface for the service that says which tenant the running work acts in.

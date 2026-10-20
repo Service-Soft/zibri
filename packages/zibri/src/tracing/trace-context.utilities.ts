@@ -1,7 +1,7 @@
 import { randomFillSync } from 'node:crypto';
 
-import { TraceSpanContext } from './trace-span-context.model';
-import { KnownHeader } from '../http/known-header.enum';
+import { TraceSpanContext } from './trace-span-context.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
 
 /**
  * Headers as they arrive, where one that was sent twice is an array.
@@ -31,7 +31,7 @@ const allZeroes: RegExp = /^0+$/;
 /**
  * A tracestate key: lowercase, or a tenant and a system separated by an `@`.
  */
-const traceStateKeyPattern: RegExp = /^[\da-z][\d*/_a-z\-]{0,255}(@[\da-z][\d*/_a-z\-]{0,13})?$/;
+const traceStateKeyPattern: RegExp = /^[\da-z][\d*/_a-z-]{0,255}(@[\da-z][\d*/_a-z-]{0,13})?$/;
 
 /**
  * A tracestate value: printable ascii, without the two characters that separate the list.

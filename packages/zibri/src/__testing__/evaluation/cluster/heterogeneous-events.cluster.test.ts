@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { webInstanceId } from './heterogeneous-events.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { webInstanceId } from './heterogeneous-events.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md 1.4b - emit only knows about
@@ -34,7 +34,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'heterogeneous-events.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'heterogeneous-events.instance-options.ts'),
         instances: 3
     });
 }, 30000);

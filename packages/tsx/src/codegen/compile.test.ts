@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 import { runInNewContext } from 'node:vm';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { compile, CompileResult } from './compile';
-import { CompiledPage, renderPage } from '../runtime/render-page';
-import { createContext } from '../runtime/server-runtime';
-import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
-import { ValidationCode } from '../semantics/validate';
+import { compile, CompileResult } from './compile.ts';
+import { CompiledPage, renderPage } from '../runtime/render-page.ts';
+import { createContext } from '../runtime/server-runtime.ts';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols.ts';
+import { ValidationCode } from '../semantics/validate.ts';
 
 /**
  * Whether a value is a compiled component a page can be rendered from.

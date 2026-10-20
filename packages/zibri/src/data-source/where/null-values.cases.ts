@@ -1,11 +1,11 @@
 /* eslint-disable unicorn/no-null */
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about `not`, `oneOf`, `notOneOf` and `notLike` on a

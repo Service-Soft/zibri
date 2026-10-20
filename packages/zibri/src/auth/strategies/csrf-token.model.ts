@@ -1,4 +1,4 @@
-import { Property } from '../../entity/decorators/property.decorator';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * The token against cross-site request forgery the client of a login sends with its requests.

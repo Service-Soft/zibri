@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { CronExpression } from './cron-expression.utilities';
+import { CronExpression } from './cron-expression.utilities.ts';
 
 /**
  * The builder produces node-cron's six field form, `second minute hour day month weekday`.

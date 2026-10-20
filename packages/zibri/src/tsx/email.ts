@@ -24,7 +24,7 @@ export { Mjml,
     $raw,
     createContext } from 'zibri-tsx';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type { MjmlProps,
     MjBodyProps,
     MjSectionProps,

@@ -1,35 +1,35 @@
 import { ChildProcess, fork } from 'node:child_process';
-import { createRequire } from 'node:module';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { ExecResult } from 'testcontainers';
-import { DataSourceInterface, DiContainer, FsPath, FsUtilities, initDiContainer, inject, Newable, PostgresDataSource } from 'zibri';
+import { DataSourceInterface, DiContainer, FsPath, FsUtilities, initDiContainer, inject, Newable, PostgresDataSource, TypeScriptLoaderUtilities } from 'zibri';
 
-import { defaultClusterDataSources } from './cluster-data-sources';
-import { ClusterMarkRow } from './cluster-mark.model';
-import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_MODULE_PATHS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
-import { clusterModulePaths } from './cluster-module-paths';
-import { createScratchDirectory, removeScratchDirectory } from '../scratch-directory.function';
-import { StartedDataSourceContainer, startDataSourceContainers } from '../start-data-source-containers.function';
-import { StartTestServerOptions } from '../start-test-server-options.model';
+import { defaultClusterDataSources } from './cluster-data-sources.ts';
+import { ClusterMarkRow } from './cluster-mark.model.ts';
+import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_MODULE_PATHS_ENV, CLUSTER_SCRATCH_PATH_ENV, CLUSTER_TYPESCRIPT_LOADER_ENV, ClusterInstanceMessage } from './cluster-message.model.ts';
+import { clusterModulePaths } from './cluster-module-paths.ts';
+import { createScratchDirectory, removeScratchDirectory } from '../scratch-directory.function.ts';
+import { StartedDataSourceContainer, startDataSourceContainers } from '../start-data-source-containers.function.ts';
+import { StartTestServerOptions } from '../start-test-server-options.model.ts';
 
-const requireModule: NodeJS.Require = createRequire(__filename);
+/**
+ * The extension of this file and the ones beside it: `.ts` in the sources, `.js` in the `dist` a
+ * consumer installs. Hardcoding either one leaves the other forking a file that is not there.
+ */
+const ownExtension: string = path.extname(import.meta.filename);
 
 /**
  * The entry point each instance is forked with.
- *
- * Named by this file's own extension, which is what makes the harness work from both sides of the
- * build: `.ts` beside these sources, `.js` in the `dist` a consumer installs. Hardcoding either one
- * leaves the other forking a file that is not there.
  */
-const instanceEntry: FsPath = FsUtilities.getPath(__dirname, `cluster-instance.entry${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
+const instanceEntry: FsPath = FsUtilities.getPath(import.meta.dirname, `cluster-instance.entry${ownExtension}`);
 
 /**
- * The module that points the shared packages at the parent's files, preloaded into each instance.
- *
- * Named by this file's own extension, for the same reason as {@link instanceEntry}.
+ * The module preloaded into every thread of each instance: it registers the framework's TypeScript
+ * loader and points the shared packages at the parent's files.
  */
-const modulePathsPreload: FsPath = FsUtilities.getPath(__dirname, `cluster-module-paths${__filename.endsWith('.ts') ? '.ts' : '.js'}`);
+const instancePreload: FsPath = FsUtilities.getPath(import.meta.dirname, `cluster-instance.preload${ownExtension}`);
 
 const bootTimeoutInMs: number = 15000;
 
@@ -76,7 +76,7 @@ export class ClusterInstance {
 
     private killedOnPurpose: boolean = false;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The base url the instance's http server is reachable under.
      * @throws When the instance is not listening.
@@ -88,7 +88,7 @@ export class ClusterInstance {
         return `http://127.0.0.1:${this.port}`;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Everything the instance has written to stdout and stderr so far.
      */
@@ -190,7 +190,7 @@ function createSqlRunner(started: StartedDataSourceContainer): SqlRunner | undef
 
     return async (statement: string) => {
         const result: ExecResult = await container.exec(
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             ['psql', '--username', username, '--dbname', database, '--no-align', '--tuples-only', '--command', statement]
         );
         if (result.exitCode !== 0) {
@@ -220,7 +220,7 @@ export class StartedTestCluster {
 
     private nextInstanceIndex: number = 0;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The instances that are currently running, in the order they were started.
      */
@@ -435,24 +435,21 @@ export class StartedTestCluster {
     private forkInstance(): ClusterInstance {
         const id: string = `instance-${this.nextInstanceIndex++}`;
         const child: ChildProcess = fork(instanceEntry, [], {
-            // the directory the test run started from, which is where the project's tsconfig and
-            // node_modules are - the instance loads the caller's own options module through ts-node
-            // and has to resolve both the way the caller would.
+            // the directory the test run started from, which is where the project's node_modules
+            // are - the instance loads the caller's own options module and has to resolve its
+            // imports the way the caller would.
             cwd: process.cwd(),
-            // jest's transform only exists inside the jest process, so the instance needs a
-            // typescript hook of its own. ts-node rather than swc: it is already a peer dependency,
-            // and it is the same compiler the framework is built with, so emitDecoratorMetadata
-            // behaves identically instead of merely similarly.
-            // The module paths are preloaded rather than imported by the entry, because a worker
-            // thread starts with the execArgv of the thread that created it and never runs the entry:
-            // imported there, they reached the instance's main thread only, and every thread job
-            // loaded the built packages instead of the copy the instance runs.
-            execArgv: ['-r', 'ts-node/register', '-r', modulePathsPreload],
+            // the test runner's transform only exists inside the test runner, so the instance
+            // registers the framework's own TypeScript loader. Preloaded rather than done by the
+            // entry, because a worker thread starts with the execArgv of the thread that created it
+            // and never runs the entry - see the preload itself.
+            execArgv: ['--import', pathToFileURL(instancePreload).href],
             stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
             env: {
                 ...process.env,
-                TS_NODE_TRANSPILE_ONLY: 'true',
-                TS_NODE_COMPILER_OPTIONS: '{"module":"commonjs"}',
+                // the loader of the copy of the framework this process uses, which is also the copy
+                // the instance is pointed at below
+                [CLUSTER_TYPESCRIPT_LOADER_ENV]: TypeScriptLoaderUtilities.getModuleFile(),
                 // which copy of the framework to use. A bare `zibri` in the instance resolves
                 // through node_modules to the built package, while the options module it boots from
                 // reaches the framework however its own imports say - inside this repository, the
@@ -516,12 +513,12 @@ export async function startTestCluster(options: StartTestClusterOptions): Promis
     // module required afterwards is never registered, and injecting it fails with "no provider,
     // did you forget @Injectable" - on a class that is decorated.
     //
-    // require rather than import(): under module nodenext typescript keeps a dynamic import as a
-    // real one, and jest's commonjs runtime refuses it without --experimental-vm-modules. Both
-    // sides of the harness run as commonjs, so this is what the module system actually is.
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    const optionsModule: { default: StartTestServerOptions } = requireModule(instanceOptions) as {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+    // imported the way the test's own modules are, so inside a test runner it is the runner that
+    // resolves and compiles it - and the classes it declares are the ones the test sees. A file of
+    // the caller's, which a bundler of this package has nothing to resolve
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
+    const optionsModule: { default: StartTestServerOptions } = await import(/** @vite-ignore */ pathToFileURL(instanceOptions).href) as {
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         default: StartTestServerOptions
     };
 

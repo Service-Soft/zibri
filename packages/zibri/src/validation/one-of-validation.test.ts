@@ -1,17 +1,17 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { ValidationProblem } from './validation-problem.model';
-import { ValidationService } from './validation.service';
-import { initDiContainer } from '../di/init-di-container.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { type OneOf } from '../entity/models/one-of.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { JsonBodyParser } from '../parsing/json/json.body-parser';
-import { BodyMetadata, JsonBodyMetadata, JsonBodyShapeMetadataInput } from '../routing/decorators/body-metadata.model';
-import { BodyDeclaration, resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { Newable } from '../types/newable.type';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { ValidationProblem } from './validation-problem.model.ts';
+import { ValidationService } from './validation.service.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type OneOf } from '../entity/models/one-of.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { JsonBodyParser } from '../parsing/json/json.body-parser.ts';
+import { BodyMetadata, JsonBodyMetadata, JsonBodyShapeMetadataInput } from '../routing/decorators/body-metadata.model.ts';
+import { BodyDeclaration, resolveBodyMetadata } from '../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../types/newable.type.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 /**
  * What a body turned into once it was read and checked.

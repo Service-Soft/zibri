@@ -7,18 +7,18 @@ import { SignedXml } from 'xml-crypto';
 import { encrypt } from 'xml-encryption';
 import { KnownHeader, MimeType } from 'zibri';
 
-import { FakeSamlAnswerChanges } from './fake-saml-answer-changes.model';
-import { FakeSamlAnswer } from './fake-saml-answer.model';
-import { FakeSamlBackChannelAnswer } from './fake-saml-back-channel-answer.model';
-import { FakeSamlIdentity } from './fake-saml-identity.model';
-import { FakeSamlLogoutForm } from './fake-saml-logout-form.model';
-import { FakeSamlLogoutOptions } from './fake-saml-logout-options.model';
-import { FakeSamlLogoutRequest } from './fake-saml-logout-request.model';
-import { FakeSamlLogoutResponse } from './fake-saml-logout-response.model';
-import { FakeSamlProviderOptions } from './fake-saml-provider-options.model';
-import { FakeSamlRequest } from './fake-saml-request.model';
-import { createFakeKeyPair } from '../create-fake-key-pair.function';
-import { FakeKeyPair } from '../fake-key-pair.model';
+import { FakeSamlAnswerChanges } from './fake-saml-answer-changes.model.ts';
+import { FakeSamlAnswer } from './fake-saml-answer.model.ts';
+import { FakeSamlBackChannelAnswer } from './fake-saml-back-channel-answer.model.ts';
+import { FakeSamlIdentity } from './fake-saml-identity.model.ts';
+import { FakeSamlLogoutForm } from './fake-saml-logout-form.model.ts';
+import { FakeSamlLogoutOptions } from './fake-saml-logout-options.model.ts';
+import { FakeSamlLogoutRequest } from './fake-saml-logout-request.model.ts';
+import { FakeSamlLogoutResponse } from './fake-saml-logout-response.model.ts';
+import { FakeSamlProviderOptions } from './fake-saml-provider-options.model.ts';
+import { FakeSamlRequest } from './fake-saml-request.model.ts';
+import { createFakeKeyPair } from '../create-fake-key-pair.function.ts';
+import { FakeKeyPair } from '../fake-key-pair.model.ts';
 
 /**
  * The algorithms the answers are signed with: exclusive canonicalization, and RSA with SHA-256.
@@ -271,7 +271,7 @@ export class FakeSamlProvider {
         const path: string = '/*[local-name(.)=\'Envelope\']/*[local-name(.)=\'Body\']/*[local-name(.)=\'LogoutRequest\']';
         const res: Response = await fetch(url, {
             method: 'POST',
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             headers: { [KnownHeader.CONTENT_TYPE]: MimeType.TEXT_XML, soapaction: 'http://www.oasis-open.org/committees/security' },
             body: key == undefined ? envelope : this.sign(envelope, path, key)
         });

@@ -1,14 +1,14 @@
-import { type RateLimitingServiceInterface } from './rate-limiting-service.interface';
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { type RateLimitingServiceInterface } from './rate-limiting-service.interface.ts';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
 
 /**
  * A cron job to cleanup expired rate limit data.
  */
 export class RateLimitingCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'RateLimitingCleanupCronJob',
         cron: CronExpression.every(10, 'seconds').build(),
@@ -27,7 +27,7 @@ export class RateLimitingCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         await this.rateLimitingService.cleanup();
     }

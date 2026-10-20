@@ -1,10 +1,10 @@
-import { ZibriApplication } from '../application/application';
-import { Authenticators } from '../auth/authenticators/authenticators.model';
-import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
-import { CronJob } from '../cron/cron-job.model';
-import { DiProvider } from '../di/models/di-provider.model';
-import { AnyBodyParser } from '../parsing/body-parser.interface';
-import { Newable } from '../types/newable.type';
+import { ZibriApplication } from '../application/application.ts';
+import { Authenticators } from '../auth/authenticators/authenticators.model.ts';
+import { AuthStrategies } from '../auth/strategies/auth-strategies.model.ts';
+import { CronJob } from '../cron/cron-job.model.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { AnyBodyParser } from '../parsing/body-parser.interface.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * A bundle of providers, controllers, cronJobs, bodyParsers, authStrategies and authenticators.

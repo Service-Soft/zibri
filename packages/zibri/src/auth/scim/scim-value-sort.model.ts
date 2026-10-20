@@ -1,4 +1,4 @@
-import { OrderDirection } from '../../entity/models/entity-order.model';
+import { OrderDirection } from '../../entity/models/entity-order.model.ts';
 
 /**
  * A sort of users by an attribute without a column of its own.
@@ -9,6 +9,6 @@ export type ScimValueSort = {
      * a sub-attribute both its own and that of its `value`, which a complex one is sorted by.
      */
     paths: string[],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     direction: OrderDirection
 };

@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { isNumeric } from './is-numeric.function';
+import { isNumeric } from './is-numeric.function.ts';
 
 describe('isNumeric', () => {
     it('returns true for a plain number', () => {

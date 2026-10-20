@@ -2,11 +2,11 @@ import { createHash, generateKeyPairSync, JsonWebKey, KeyObject, randomBytes, si
 
 import { JsonUtilities, PasskeyAuthenticationResponse, PasskeyCreationOptions, PasskeyCredentialType, PasskeyRegistrationResponse, PasskeyRequestOptions } from 'zibri';
 
-import { CborValue } from './cbor-value.type';
-import { CborUtilities } from './cbor.utilities';
-import { FakePasskeyAttestation } from './fake-passkey-attestation.model';
-import { FakePasskeyDeviceOptions } from './fake-passkey-device-options.model';
-import { FakePasskey } from './fake-passkey.model';
+import { CborValue } from './cbor-value.type.ts';
+import { CborUtilities } from './cbor.utilities.ts';
+import { FakePasskeyAttestation } from './fake-passkey-attestation.model.ts';
+import { FakePasskeyDeviceOptions } from './fake-passkey-device-options.model.ts';
+import { FakePasskey } from './fake-passkey.model.ts';
 
 /**
  * A passkey the device holds, with the key it signs with.

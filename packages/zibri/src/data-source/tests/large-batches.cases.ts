@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { scopeFor } from '../../entity/models/entity-scope.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { scopeFor } from '../../entity/models/entity-scope.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about a call reaching more rows than one statement
@@ -78,7 +79,7 @@ export class BulkRow extends BaseEntity {
      * The owner.
      */
     @Property.manyToOne({ target: () => BulkOwner, joinColumn: 'ownerId', inverseSide: 'rows', required: false })
-    owner?: BulkOwner;
+    owner?: Relation<BulkOwner>;
 
     /**
      * The foreign key of the owner.

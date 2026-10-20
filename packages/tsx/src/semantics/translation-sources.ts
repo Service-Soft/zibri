@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { unwrapTypeSyntax, walk, WalkVisitor } from './walk';
+import { unwrapTypeSyntax, walk, WalkVisitor } from './walk.ts';
 
 /**
  * The translation source strings a piece of client code looks up.

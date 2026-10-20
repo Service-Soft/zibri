@@ -1,5 +1,5 @@
-import { FakeSamlProviderOptions } from './fake-saml-provider-options.model';
-import { FakeSamlProvider } from './fake-saml-provider.model';
+import { FakeSamlProviderOptions } from './fake-saml-provider-options.model.ts';
+import { FakeSamlProvider } from './fake-saml-provider.model.ts';
 
 /**
  * Starts a SAML 2.0 identity provider in the test's own process, reached over plain http on the

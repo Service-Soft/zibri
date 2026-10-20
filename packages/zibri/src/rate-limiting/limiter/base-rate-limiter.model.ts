@@ -2,29 +2,29 @@ import assert from 'node:assert';
 
 import { exhaustMap, filter, firstValueFrom, from, interval, Observable, take, throwError, timeout } from 'rxjs';
 
-import { RateLimiterConfig, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimiterInterface } from './rate-limiter.interface';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { $ts } from '../../localization/translate.function';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { RateLimitKeys } from '../rate-limit-keys';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model';
-import { RateLimiterMetrics } from '../rate-limiter-metrics.model';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservationError } from '../reservation/rate-limit-reservation.error';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { RateLimiterConfig, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { RateLimiterInterface } from './rate-limiter.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { RateLimitKeys } from '../rate-limit-keys.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model.ts';
+import { RateLimiterMetrics } from '../rate-limiter-metrics.model.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservationError } from '../reservation/rate-limit-reservation.error.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 const defaultKey: string = 'global';
 
@@ -36,7 +36,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
 
     private readonly inFlightReservationWaits: Map<string, Promise<void>> = new Map();
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The metrics service.
      */
@@ -44,7 +44,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         return inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The limiter metrics.
      */
@@ -55,7 +55,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
 
     constructor(readonly config: RateLimiterConfig<TState>) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(): Promise<void> {
         let total: number = 0;
         const now: number = Date.now();
@@ -68,7 +68,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         this.metrics.activeReservations.set({ limiter: this.config.name }, total);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async commitReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
@@ -84,7 +84,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async cancelReservation(reservationInput: RateLimitReservation): Promise<void> {
         await this.config.store.atomicUpdate(reservationInput.key, (current) => {
             if (!current) {
@@ -105,7 +105,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async waitForReservation(reservationInput: RateLimitReservation, timeoutMs: number): Promise<void> {
         const now: number = Date.now();
         // calculate point in time that the timeout will happen
@@ -309,7 +309,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrap<TArgs extends unknown[], V, TOptions extends RateLimitWrapOptions<TArgs> | undefined>(
         fn: (...args: TArgs) => V | Promise<V>,
         options?: TOptions
@@ -380,7 +380,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         }) as (...args: TArgs) => RateLimitWrapResult<V, TOptions>;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async reserve(key: string, count: number): Promise<RateLimitReservationResult> {
         // Structural check first: free (no store access), and this can never
         // succeed regardless of policy or timing, so it's excluded from
@@ -466,13 +466,13 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
      * @returns A rejection reason if the reservation should be refused, otherwise `undefined`.
      */
     protected checkAdditionalReservationLimits(
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         _state: TState,
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         _pending: RateLimitReservation[],
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         _count: number,
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         _now: number
     ): RateLimitReservationRejectionReason | undefined {
         return undefined;
@@ -583,7 +583,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         return options?.keyFn ?? RateLimitKeys.perConnection();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async getReservation(id: string, key: string = defaultKey): Promise<RateLimitReservation | undefined> {
         const state: TState | undefined = await this.config.store.get(key);
         if (!state) {

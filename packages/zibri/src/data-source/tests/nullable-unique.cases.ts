@@ -1,11 +1,11 @@
 /* eslint-disable unicorn/no-null */
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Repository } from '../repository/repository';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Repository } from '../repository/repository.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
 
 /**
  * The cases every data source answers the same way about a unique property that may hold no value: a

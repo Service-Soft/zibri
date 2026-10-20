@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { lockHoldInMs } from './lock.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { lockHoldInMs } from './lock.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/10-leases-and-claims.md, the withLock half.
@@ -24,7 +24,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'lock.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'lock.instance-options.ts'),
         instances: 3
     });
 }, 20000);

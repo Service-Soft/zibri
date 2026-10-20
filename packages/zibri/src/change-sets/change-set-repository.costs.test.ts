@@ -1,14 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { SoftDeleteEntity } from './models/soft-delete-entity.model';
-import { SoftDeleteRepository } from './soft-delete-repository';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { inject } from '../di/inject.function';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { Newable } from '../types/newable.type';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model.ts';
+import { SoftDeleteRepository } from './soft-delete-repository.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * What the writes of an entity recording change sets cost, as the calls its repositories make on the

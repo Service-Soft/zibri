@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource,
     defaultTestProviders,
     resolveApplicationOptions,
     StartedTestServer,
     startTestServer } from 'zibri-testing';
 
-import { ZibriApplicationOptions } from './application-options.model';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
+import { ZibriApplicationOptions } from './application-options.model.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
 
 /**
  * Testing an application by building it from the options it ships with.

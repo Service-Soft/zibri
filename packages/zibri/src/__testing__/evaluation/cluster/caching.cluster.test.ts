@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 1.9.
@@ -25,7 +25,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'caching.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'caching.instance-options.ts'),
         instances: 2
     });
 }, 15000);

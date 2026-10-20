@@ -1,9 +1,9 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { generateSourceXlf } from './generate-source-xlf.function';
-import { SourceTranslationOrigin } from './transform-source-translation-tokens.function';
-import { testFileFolder } from '../../__testing__/constants';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { generateSourceXlf } from './generate-source-xlf.function.ts';
+import { SourceTranslationOrigin } from './transform-source-translation-tokens.function.ts';
+import { testFileFolder } from '../../__testing__/constants.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
 
 describe('generateSourceXlf', () => {
     const workDir: FsPath = FsUtilities.getPath(testFileFolder, 'generate-source-xlf');
@@ -52,7 +52,7 @@ describe('generateSourceXlf', () => {
         const origin: SourceTranslationOrigin = await makeOrigin('const x = $t`stable content`;');
 
         await generateSourceXlf([origin]);
-        const upsertSpy: jest.SpiedFunction<typeof FsUtilities.upsertFile> = jest.spyOn(FsUtilities, 'upsertFile');
+        const upsertSpy: MockInstance<typeof FsUtilities.upsertFile> = vi.spyOn(FsUtilities, 'upsertFile');
 
         await generateSourceXlf([origin]);
 

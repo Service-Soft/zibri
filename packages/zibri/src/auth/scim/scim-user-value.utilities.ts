@@ -1,6 +1,6 @@
-import { ScimFilterUtilities } from './scim-filter.utilities';
-import { ScimUserValue } from './scim-user-value.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { ScimFilterUtilities } from './scim-filter.utilities.ts';
+import { ScimUserValue } from './scim-user-value.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * A value of a user as it is written, before it has an id, and without the tenant the repository

@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
+import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model.ts';
 
 /**
  * The name a template is parsed under. Nothing is resolved against it: a template is resolved on its own.

@@ -2,45 +2,45 @@ import { randomBytes } from 'node:crypto';
 
 import type { MetadataBLOBPayloadEntry, VerifiedAuthenticationResponse, VerifiedRegistrationResponse } from '@simplewebauthn/server';
 
-import { FIDO_METADATA_SERVICE_ROOT_CERTIFICATES, FIDO_METADATA_SERVICE_URL } from './fido-metadata.service';
-import { PasskeyAttestationOptions } from './passkey-attestation-options.model';
-import { PasskeyAuthenticationResponse } from './passkey-authentication-response.model';
-import { PasskeyCeremony } from './passkey-ceremony.enum';
-import { PasskeyChallenge, PasskeyChallengeCreateData } from './passkey-challenge.model';
-import { PasskeyCleanupCronJob } from './passkey-cleanup.cron-job';
-import { PasskeyCreationOptions } from './passkey-creation-options.model';
-import { PasskeyOptions } from './passkey-options.model';
-import { PasskeyRegistrationResponse } from './passkey-registration-response.model';
-import { PasskeyRegistrationTicket, PasskeyRegistrationTicketCreateData } from './passkey-registration-ticket.model';
-import { PasskeyRequestOptions } from './passkey-request-options.model';
-import { PasskeyServiceInterface } from './passkey-service.interface';
-import { PasskeyAuthenticator } from './passkey.authenticator';
-import { Passkey, PasskeyCreateData } from './passkey.model';
-import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
-import { SimpleWebAuthn } from './simple-web-authn.type';
-import { ZibriApplication } from '../../../application/application';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../di/errors/no-provider.error';
-import { inject } from '../../../di/inject.function';
-import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
-import { CredentialClonedError } from '../../../error-handling/errors/credential-cloned.error';
-import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
-import { ForbiddenError } from '../../../error-handling/errors/forbidden.error';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { OnAppInit } from '../../../global/on-app-init.interface';
-import { $ts } from '../../../localization/translate.function';
-import { Newable } from '../../../types/newable.type';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { PasskeyTwoFactorMethod } from '../../2fa/methods/passkey/passkey.two-factor-method';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { FIDO_METADATA_SERVICE_ROOT_CERTIFICATES, FIDO_METADATA_SERVICE_URL } from './fido-metadata.service.ts';
+import { PasskeyAttestationOptions } from './passkey-attestation-options.model.ts';
+import { PasskeyAuthenticationResponse } from './passkey-authentication-response.model.ts';
+import { PasskeyCeremony } from './passkey-ceremony.enum.ts';
+import { PasskeyChallenge, PasskeyChallengeCreateData } from './passkey-challenge.model.ts';
+import { PasskeyCleanupCronJob } from './passkey-cleanup.cron-job.ts';
+import { PasskeyCreationOptions } from './passkey-creation-options.model.ts';
+import { PasskeyOptions } from './passkey-options.model.ts';
+import { PasskeyRegistrationResponse } from './passkey-registration-response.model.ts';
+import { PasskeyRegistrationTicket, PasskeyRegistrationTicketCreateData } from './passkey-registration-ticket.model.ts';
+import { PasskeyRequestOptions } from './passkey-request-options.model.ts';
+import { PasskeyServiceInterface } from './passkey-service.interface.ts';
+import { PasskeyAuthenticator } from './passkey.authenticator.ts';
+import { Passkey, PasskeyCreateData } from './passkey.model.ts';
+import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type.ts';
+import { SimpleWebAuthn } from './simple-web-authn.type.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../../di/errors/no-provider.error.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error.ts';
+import { CredentialClonedError } from '../../../error-handling/errors/credential-cloned.error.ts';
+import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error.ts';
+import { ForbiddenError } from '../../../error-handling/errors/forbidden.error.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../../global/on-app-init.interface.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { PasskeyTwoFactorMethod } from '../../2fa/methods/passkey/passkey.two-factor-method.ts';
+import { type HashServiceInterface } from '../../hash/hash-service.interface.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
 
 /**
  * The passkey options, with every default filled in.
@@ -110,7 +110,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return inject(ZIBRI_DI_TOKENS.HASH_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         const signsIn: boolean = app.options.authenticators.some(a => this.isOrExtends(a, PasskeyAuthenticator));
         const secondFactor: boolean = app.options.twoFactorMethods.some(m => this.isOrExtends(m, PasskeyTwoFactorMethod));
@@ -140,7 +140,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSignIn(): Promise<PasskeyRequestOptions> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const requestOptions: PasskeyRequestOptions = await this.resolveLibrary().generateAuthenticationOptions({
@@ -153,12 +153,12 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return requestOptions;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSignUp(name: string): Promise<PasskeyCreationOptions> {
         return await this.startCreation(PasskeyCeremony.SIGN_UP, name, undefined, new Uint8Array(randomBytes(32)), []);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startConnection(userId: string, name: string): Promise<PasskeyCreationOptions> {
         const passkeys: Passkey[] = await this.findPasskeys(userId, undefined);
         // the account the device keeps the passkey under. The same for every passkey of the user, so
@@ -169,7 +169,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return await this.startCreation(PasskeyCeremony.CONNECTION, name, userId, userHandle, passkeys);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSecondFactor(userId: string): Promise<PasskeyRequestOptions> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const passkeys: Passkey[] = await this.findPasskeys(userId, undefined);
@@ -186,7 +186,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return requestOptions;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async completeSignUp(response: PasskeyRegistrationResponse): Promise<string> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const [challenge, registration] = await this.verifyRegistration(response, PasskeyCeremony.SIGN_UP, undefined, options);
@@ -211,7 +211,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return ticket;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async completeConnection(userId: string, response: PasskeyRegistrationResponse): Promise<void> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const [challenge, registration] = await this.verifyRegistration(response, PasskeyCeremony.CONNECTION, userId, options);
@@ -232,7 +232,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async verifySignIn(response: PasskeyAuthenticationResponse, transaction: Transaction | undefined): Promise<Passkey> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         // spent outside the login's transaction, so a failed login does not give the challenge back for
@@ -241,7 +241,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return await this.verifyAssertion(response, challenge.value, undefined, options, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async verifySecondFactor(userId: string, response: PasskeyAuthenticationResponse): Promise<void> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const challenge: ClaimedChallenge = await this.claimChallenge(
@@ -252,7 +252,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         await this.verifyAssertion(response, challenge.value, userId, options, undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findRegistrationTicket(ticket: string, transaction: Transaction | undefined): Promise<PasskeyRegistrationTicket> {
         const found: PasskeyRegistrationTicket | undefined = await this.ticketRepository.findOne({
             where: { value: await this.hashService.hash(ticket, { strategy: Sha256HashStrategy }) },
@@ -265,7 +265,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return found;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async linkRegistrationTicket(ticket: string, userId: string, transaction: Transaction | undefined): Promise<void> {
         const found: PasskeyRegistrationTicket = await this.findRegistrationTicket(ticket, transaction);
         if (found.userId != undefined) {
@@ -287,7 +287,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         await this.ticketRepository.updateById(found.id, { userId }, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async spendRegistrationTicket(ticket: string, transaction: Transaction | undefined): Promise<PasskeyRegistrationTicket> {
         const found: PasskeyRegistrationTicket = await this.findRegistrationTicket(ticket, transaction);
         // read in the login's transaction, which is where a registration has just added it
@@ -309,25 +309,25 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
         return found;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findPasskeys(userId: string, transaction: Transaction | undefined): Promise<Passkey[]> {
         const passkeys: Passkey[] = await this.passkeyRepository.findAll({ where: { userId }, transaction });
         return [...passkeys].sort((a: Passkey, b: Passkey) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async removePasskey(userId: string, passkeyId: string, transaction: Transaction | undefined): Promise<void> {
         // throws NotFoundError for a passkey of somebody else, the same as for one that does not exist
         await this.passkeyRepository.findOne({ where: { id: passkeyId, userId }, transaction });
         await this.passkeyRepository.deleteById(passkeyId, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async removePasskeys(userId: string): Promise<void> {
         await this.passkeyRepository.deleteAll({ userId });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteExpired(): Promise<void> {
         const now: Date = new Date();
         await Promise.all([

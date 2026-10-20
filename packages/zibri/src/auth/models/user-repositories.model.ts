@@ -1,6 +1,6 @@
-import { BaseUser } from './base-user.model';
-import { Newable } from '../../types/newable.type';
-import { UserRepositoryInterface } from '../user/user-repository.interface';
+import { BaseUser } from './base-user.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UserRepositoryInterface } from '../user/user-repository.interface.ts';
 
 /**
  * A generic user repository array.

@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { renderWithComponents } from '../__testing__/server-render.helper';
+import { renderWithComponents } from '../__testing__/server-render.helper.ts';
 
 // A section hands layout values down to its columns without threading them through every level as
 // props. The value is provided during the section's render and read while its children render, then

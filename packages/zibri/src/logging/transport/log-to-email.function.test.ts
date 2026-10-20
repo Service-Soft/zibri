@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createLogToEmail, EmailLoggerTransportConfig } from './log-to-email.function';
-import { LogEmailTemplate, LoggerTransportSend } from './logger-transport.model';
-import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { EmailPriority } from '../../email/models/email-priority.enum';
-import { Email } from '../../email/models/email.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
+import { createLogToEmail, EmailLoggerTransportConfig } from './log-to-email.function.ts';
+import { LogEmailTemplate, LoggerTransportSend } from './logger-transport.model.ts';
+import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { EmailPriority } from '../../email/models/email-priority.enum.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
 
 const template: LogEmailTemplate = compileTsxTemplate<LogEmailTemplate>(
     'export const Email = ({ logs }) => <div>{logs.map(l => <p>{l.message}</p>)}</div>;'

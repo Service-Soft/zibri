@@ -1,16 +1,16 @@
 import assert from 'node:assert';
 
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservationError } from '../reservation/rate-limit-reservation.error';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservationError } from '../reservation/rate-limit-reservation.error.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * A single scheduled item in the leaky bucket queue.
@@ -83,7 +83,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): LeakyBucketQueueState {
         return {
             queue: [],
@@ -106,19 +106,19 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         return Math.max(now + this.intervalInMs, latestFinish);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: LeakyBucketQueueState): LeakyBucketQueueState {
         // capacity is managed through the queue, not a separate counter
         return state;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: LeakyBucketQueueState): LeakyBucketQueueState {
         // capacity is managed through the queue, not a separate counter
         return state;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: LeakyBucketQueueState,
         _reservations: RateLimitReservation[],
@@ -177,7 +177,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         return newQueue;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: LeakyBucketQueueState, now: number): LeakyBucketQueueState {
         const newQueue: ScheduledItem[] = this.recomputeQueue(state.queue, now);
 
@@ -199,7 +199,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
         const serviceTime: number = count * this.serviceTimePerUnitMs;

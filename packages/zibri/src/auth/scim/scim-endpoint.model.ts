@@ -1,4 +1,4 @@
-import { ScimProvisionerClass } from './scim-provisioner-class.type';
+import { ScimProvisionerClass } from './scim-provisioner-class.type.ts';
 
 /**
  * The SCIM routes of one controller: where they answer, and what they provision with.

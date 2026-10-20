@@ -1,15 +1,15 @@
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { InternalError } from '../../../../error-handling/internal-error.model';
-import { KnownHeader } from '../../../../http/known-header.enum';
-import { MimeType } from '../../../../http/mime-type.enum';
-import { JsonUtilities } from '../../../../utilities/json.utilities';
-import { BaseUser } from '../../../models/base-user.model';
-import { FederatedProfile } from '../../federated/federated-profile.model';
-import { FederatedProviderIdentity } from '../../federated/federated-provider-identity.model';
-import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model';
-import { OAuthProviderTokens } from '../../oauth/oauth-provider-tokens.model';
-import { BaseOAuth2Authenticator } from '../base-oauth2.authenticator';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { InternalError } from '../../../../error-handling/internal-error.model.ts';
+import { KnownHeader } from '../../../../http/known-header.enum.ts';
+import { MimeType } from '../../../../http/mime-type.enum.ts';
+import { JsonUtilities } from '../../../../utilities/json.utilities.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { FederatedProfile } from '../../federated/federated-profile.model.ts';
+import { FederatedProviderIdentity } from '../../federated/federated-provider-identity.model.ts';
+import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model.ts';
+import { OAuthProviderTokens } from '../../oauth/oauth-provider-tokens.model.ts';
+import { BaseOAuth2Authenticator } from '../base-oauth2.authenticator.ts';
 
 /**
  * What every request to GitHub's api sends: GitHub refuses a request without a user agent, and
@@ -64,16 +64,16 @@ export abstract class BaseGitHubAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > extends BaseOAuth2Authenticator<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'github';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly issuer: string = 'https://github.com';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly authorizationEndpoint: string = 'https://github.com/login/oauth/authorize';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly tokenEndpoint: string = 'https://github.com/login/oauth/access_token';
 
     /**
@@ -81,7 +81,7 @@ export abstract class BaseGitHubAuthenticator<
      */
     readonly apiUrl: string = 'https://api.github.com';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly scopes: string[] = ['read:user', 'user:email'];
 
     // GitHub cannot be told to ask for the password again; letting the user pick the account at least

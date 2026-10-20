@@ -1,35 +1,35 @@
-import { EmailCleanupCronJob } from './email-cleanup.cron-job';
-import { EmailServiceInterface } from './email-service.interface';
-import { ZibriApplication } from '../application/application';
-import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
-import { Email } from './models/email.model';
-import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { TooManyRequestsError } from '../error-handling/errors/too-many-requests.error';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { FsUtilities } from '../utilities/fs.utilities';
-import { Ms } from '../utilities/ms';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
-import { EmailAttachment } from './models/email-attachment.model';
-import { EmailConfig, EmailConfigInput } from './models/email-config.model';
-import { type LeaseServiceInterface } from '../leases/lease-service.interface';
-import { EmailPriority } from './models/email-priority.enum';
-import { EmailStatus } from './models/email-status.enum';
-import { InternalError } from '../error-handling/internal-error.model';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
-import { RateLimited } from '../rate-limiting/decorators/rate-limited.decorator';
-import { RateLimitKeys } from '../rate-limiting/rate-limit-keys';
-import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { TraceSpanKind } from '../tracing/trace-span-kind.enum';
-import { TraceSpanInterface } from '../tracing/trace-span.interface';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { type EmailSendResult, type EmailTransportInterface } from './transports/email-transport.interface';
+import { EmailCleanupCronJob } from './email-cleanup.cron-job.ts';
+import { EmailServiceInterface } from './email-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { CreateEmailData, QueueEmailData } from './models/create-email-data.model.ts';
+import { Email } from './models/email.model.ts';
+import { SendQueuedEmailsCronJob } from './send-queued-emails.cron-job.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { TooManyRequestsError } from '../error-handling/errors/too-many-requests.error.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { FsUtilities } from '../utilities/fs.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
+import { EmailAttachment } from './models/email-attachment.model.ts';
+import { EmailConfig, EmailConfigInput } from './models/email-config.model.ts';
+import { type LeaseServiceInterface } from '../leases/lease-service.interface.ts';
+import { EmailPriority } from './models/email-priority.enum.ts';
+import { EmailStatus } from './models/email-status.enum.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface.ts';
+import { RateLimited } from '../rate-limiting/decorators/rate-limited.decorator.ts';
+import { RateLimitKeys } from '../rate-limiting/rate-limit-keys.ts';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { TraceSpanKind } from '../tracing/trace-span-kind.enum.ts';
+import { TraceSpanInterface } from '../tracing/trace-span.interface.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
+import { type EmailSendResult, type EmailTransportInterface } from './transports/email-transport.interface.ts';
 
 /**
  * The priorities a queued mail can have, most urgent first.
@@ -103,7 +103,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         return inject(repositoryTokenFor(Email));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         // every mail goes through the queue, so the table is needed whenever this is the email service
         validateEntitiesRegistered(EmailService.name, app, Email);
@@ -115,7 +115,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteExpiredFailedEmails(): Promise<number> {
         if (this.config.failedRetentionInMs === 'forever') {
             return 0;
@@ -129,12 +129,12 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppShutdown(): Promise<void> {
         await this.transport.close?.();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async queue(data: QueueEmailData): Promise<void> {
         await this.emailRepository.create({
             status: EmailStatus.QUEUED,
@@ -145,7 +145,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async sendQueuedEmails(): Promise<boolean> {
         // a trace of its own: a pass over the queue is not part of whichever request happened to
         // queue one of the mails it picks up, and usually none of them was queued by a request at

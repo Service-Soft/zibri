@@ -1,4 +1,4 @@
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
 
 /**
  * Result for updating an entry of the rate limiter store.

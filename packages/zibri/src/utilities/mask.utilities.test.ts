@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { MaskUtilities } from './mask.utilities';
+import { MaskUtilities } from './mask.utilities.ts';
 
 describe('MaskUtilities.mask', () => {
     it('returns the input unmasked when length is 3', () => {

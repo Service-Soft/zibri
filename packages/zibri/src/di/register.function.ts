@@ -1,7 +1,7 @@
-import { DiContainer } from './di-container';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { DiProvider } from './models/di-provider.model';
+import { DiContainer } from './di-container.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { DiProvider } from './models/di-provider.model.ts';
 
 /**
  * Registers a new DI provider.

@@ -1,8 +1,8 @@
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { EncryptionKey, EncryptionKeyCreateData } from '../encryption-key.model';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { EncryptionKey, EncryptionKeyCreateData } from '../encryption-key.model.ts';
 
 /**
  * The status that an encryption strategy can have.

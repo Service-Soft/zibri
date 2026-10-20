@@ -1,6 +1,6 @@
-import { BaseParamMetadata } from './base-param-metadata.model';
-import { StoredStringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseParamMetadata } from './base-param-metadata.model.ts';
+import { StoredStringPropertyMetadata } from '../../entity/models/string-property-metadata.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Metadata for string parameters.

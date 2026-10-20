@@ -1,13 +1,18 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Property, PropertyMetadata } from './property.decorator';
-import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy';
-import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { type OneOf } from '../models/one-of.model';
+import { Property, PropertyMetadata } from './property.decorator.ts';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strategy.ts';
+import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ReflectUtilities } from '../../utilities/reflect.utilities.ts';
+import { BaseEntity } from '../base-entity.model.ts';
+import { type OneOf } from '../models/one-of.model.ts';
+import { RelationType } from '../models/relation-type.enum.ts';
+import { type Relation } from '../models/relation.type.ts';
 
 /**
  * Encryption and hashing declared on a string, wherever the string sits: a property, an item of an
@@ -155,5 +160,73 @@ describe('encryption and hashing on a string', () => {
         const secret: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Vault)['secret'];
         expect(secret?.type === 'oneOf' && secret.shapes['Local']?.type === 'string' ? secret.shapes['Local'].encryption : undefined)
             .toEqual({ strategy: AesGcmEncryptionStrategy, encrypt: { aad: 'vault' } });
+    });
+});
+
+describe('a to-one relation', () => {
+    // declared in this order on purpose: the shelf names the plaque before the plaque's class exists, which
+    // is where a property recording the related class would read it too early
+    class Shelf extends BaseEntity {
+        @Property.hasOne({ target: () => Plaque, inverseSide: 'shelf' })
+        plaque?: Relation<Plaque>;
+
+        @Property.manyToOne({ target: () => Plaque, joinColumn: 'favoriteId', inverseSide: 'shelf' })
+        favorite!: Relation<Plaque>;
+
+        @Property.string()
+        favoriteId!: string;
+    }
+
+    class Plaque extends BaseEntity {
+        @Property.belongsToOne({ target: () => Shelf, joinColumn: 'shelfId', inverseSide: 'plaque' })
+        shelf!: Relation<Shelf>;
+
+        @Property.string()
+        shelfId!: string;
+    }
+
+    it('records no reference to the related class', () => {
+        expect(ReflectUtilities.getMetadata(MetadataInjectionKeys.TYPE, Shelf, 'plaque')).toBe(Object);
+        expect(ReflectUtilities.getMetadata(MetadataInjectionKeys.TYPE, Plaque, 'shelf')).toBe(Object);
+        expect(MetadataUtilities.getModelProperties(Shelf)['plaque']?.type).toBe(RelationType.HAS_ONE);
+    });
+
+    it('holds the related entity like its own type does', () => {
+        const plaque: Plaque = new Plaque();
+        const shelf: Shelf = new Shelf();
+        shelf.plaque = plaque;
+        const read: Plaque | undefined = shelf.plaque;
+
+        expect(read).toBe(plaque);
+    });
+
+    it('is declared as Relation<Entity>, while compiling', () => {
+        class Bookend extends BaseEntity {
+            // @ts-expect-error - a has one relation declared as the entity's own type
+            @Property.hasOne({ target: () => Plaque, inverseSide: 'shelf' })
+            plaque?: Plaque;
+
+            // @ts-expect-error - a belongs to one relation declared as the entity's own type
+            @Property.belongsToOne({ target: () => Shelf, joinColumn: 'shelfId', inverseSide: 'plaque' })
+            shelf!: Shelf;
+
+            @Property.string()
+            shelfId!: string;
+
+            // @ts-expect-error - a many to one relation declared as the entity's own type
+            @Property.manyToOne({ target: () => Shelf, joinColumn: 'shelfId', inverseSide: 'plaque' })
+            other!: Shelf;
+        }
+
+        expect(MetadataUtilities.getModelProperties(Bookend)['shelf']?.type).toBe(RelationType.BELONGS_TO_ONE);
+    });
+
+    it('leaves a to-many relation declared as a list of the entity', () => {
+        class Rack extends BaseEntity {
+            @Property.oneToMany({ target: () => Rack, inverseSide: 'racks' })
+            racks!: Rack[];
+        }
+
+        expect(MetadataUtilities.getModelProperties(Rack)['racks']?.type).toBe(RelationType.ONE_TO_MANY);
     });
 });

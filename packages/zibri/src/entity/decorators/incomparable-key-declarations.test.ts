@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Entity } from './entity.decorator';
-import { Property } from './property.decorator';
-import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { BaseEntity } from '../base-entity.model';
+import { Entity } from './entity.decorator.ts';
+import { Property } from './property.decorator.ts';
+import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { BaseEntity } from '../base-entity.model.ts';
 
 /**
  * Which values a unique declaration can be about, as far as that is known where the entity is declared.

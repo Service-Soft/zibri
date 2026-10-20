@@ -1,6 +1,6 @@
-import { XliffDocument } from './models/xliff-document.model';
-import { XliffSegment } from './models/xliff-segment.model';
-import { XmlUtilities } from '../../document/xml.utilities';
+import { XliffDocument } from './models/xliff-document.model.ts';
+import { XliffSegment } from './models/xliff-segment.model.ts';
+import { XmlUtilities } from '../../document/xml.utilities.ts';
 
 /**
  * Parses a translated xlf file into a map of source → translated string.
@@ -25,7 +25,7 @@ export async function parseTranslationXlf(content: string): Promise<Record<strin
     return result;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function resolveTranslation(target: XliffSegment): string {
     return target.parts.map(part => part.shape === 'text' ? part.value : `{${part.value.id}}`).join('');
 }

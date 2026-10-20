@@ -1,9 +1,9 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { AccessShape } from '../../runtime/access-shape';
-import { isBindingIdentifier } from '../../semantics/binding';
-import { symbolOf } from '../../semantics/symbols';
-import { walk } from '../../semantics/walk';
+import { AccessShape } from '../../runtime/access-shape.ts';
+import { isBindingIdentifier } from '../../semantics/binding.ts';
+import { symbolOf } from '../../semantics/symbols.ts';
+import { walk } from '../../semantics/walk.ts';
 
 /**
  * Array methods whose callback receives each element as its first parameter.

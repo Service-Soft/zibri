@@ -1,8 +1,8 @@
-import { CronExpression } from './cron-expression.utilities';
-import { CronJob, InitialCronConfig } from './cron-job.model';
-import { type CronServiceInterface } from './cron-service.interface';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { CronExpression } from './cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from './cron-job.model.ts';
+import { type CronServiceInterface } from './cron-service.interface.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
 
 /**
  * Applies the changes other instances made to the cron jobs: a job enabled, disabled, stopped on an
@@ -11,7 +11,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  * Registered for you whenever the application has cron jobs.
  */
 export class CronSyncCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Cron Sync',
         cron: CronExpression.every(5, 'seconds').build(),
@@ -31,7 +31,7 @@ export class CronSyncCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         await this.cronService.applyStoredChanges();
     }

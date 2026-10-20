@@ -1,5 +1,5 @@
-import { ChalkUtilities } from '../encapsulation';
-import { exitGracefully } from './exit-gracefully.function';
+import { ChalkUtilities } from '../encapsulation/index.ts';
+import { exitGracefully } from './exit-gracefully.function.ts';
 
 /**
  * Exits the cli when an interrupt occurs.

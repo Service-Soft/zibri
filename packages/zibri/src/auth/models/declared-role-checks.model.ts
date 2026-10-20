@@ -1,4 +1,4 @@
-import { HasRoleMetadata, SkipHasRoleMetadata } from './has-role-metadata.model';
+import { HasRoleMetadata, SkipHasRoleMetadata } from './has-role-metadata.model.ts';
 
 /**
  * What a route and its controller declare about one kind of role check.

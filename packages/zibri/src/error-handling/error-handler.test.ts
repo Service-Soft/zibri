@@ -1,25 +1,25 @@
 import assert from 'node:assert';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CustomBodyHttpError } from './errors/custom-body-http.error';
-import { NotFoundError } from './errors/not-found.error';
-import { TooManyRequestsError } from './errors/too-many-requests.error';
-import { InternalError } from './internal-error.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { HttpStatus } from '../http/http-status.enum';
-import { JsonMimeType } from '../http/json-mime-type.type';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { FailedRateLimitResult } from '../rate-limiting/rate-limit-result.model';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
+import { CustomBodyHttpError } from './errors/custom-body-http.error.ts';
+import { NotFoundError } from './errors/not-found.error.ts';
+import { TooManyRequestsError } from './errors/too-many-requests.error.ts';
+import { InternalError } from './internal-error.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { JsonMimeType } from '../http/json-mime-type.type.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { FailedRateLimitResult } from '../rate-limiting/rate-limit-result.model.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
 
 /**
  * An error of a protocol that says what its errors look like.
@@ -89,7 +89,7 @@ describe('errorHandler', () => {
     }, 15000);
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('returns a JSON error response with status, name, message and paragraphs', async () => {
@@ -125,8 +125,8 @@ describe('errorHandler', () => {
 
     it('logs via logger.critical when the thrown value is not an Error instance', async () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const criticalSpy = jest.spyOn(logger, 'critical');
+        // eslint-disable-next-line typescript-js/typedef
+        const criticalSpy = vi.spyOn(logger, 'critical');
 
         const res: Response = await fetch(`${baseUrl}/error-cases/throw-non-error`);
 
@@ -136,8 +136,8 @@ describe('errorHandler', () => {
 
     it('logs the error that was actually thrown, not a wrapper around it', async () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const errorSpy = jest.spyOn(logger, 'error');
+        // eslint-disable-next-line typescript-js/typedef
+        const errorSpy = vi.spyOn(logger, 'error');
 
         await fetch(`${baseUrl}/error-cases/internal`);
 
@@ -155,10 +155,10 @@ describe('errorHandler', () => {
 
     it('does not raise the error level for an external (http) error', async () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const errorSpy = jest.spyOn(logger, 'error');
-        // eslint-disable-next-line typescript/typedef
-        const warnSpy = jest.spyOn(logger, 'warn');
+        // eslint-disable-next-line typescript-js/typedef
+        const errorSpy = vi.spyOn(logger, 'error');
+        // eslint-disable-next-line typescript-js/typedef
+        const warnSpy = vi.spyOn(logger, 'warn');
 
         await fetch(`${baseUrl}/error-cases/not-found`);
 

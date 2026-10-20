@@ -1,6 +1,6 @@
-import { HttpStatus } from '../../http/http-status.enum';
-import { TranslatedString } from '../../localization/models/translated-string.model';
-import { ExternalError } from '../external-error.model';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { TranslatedString } from '../../localization/models/translated-string.model.ts';
+import { ExternalError } from '../external-error.model.ts';
 
 /**
  * A base http error.

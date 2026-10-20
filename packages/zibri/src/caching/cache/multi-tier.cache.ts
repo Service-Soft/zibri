@@ -1,38 +1,37 @@
 
-import { CacheOperation } from './cache-operation.enum';
-import { CacheWrapOptions, CacheWrapWriteOptionsWithResult, CacheWrapWriteOptionsArgsOnly, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheKeyProvider, ResultCacheKeyProvider, OnInvalidationFailure, CacheTagsProvider, CacheSetDirectOptions } from './cache-options.model';
-import { CacheInterface } from './cache.interface';
-import { AlsUtilities } from '../../context/als.utilities';
-import { CacheContext } from '../../context/cache/cache.context';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { CacheMetrics } from '../cache-metrics.model';
-import { CacheServiceInterface } from '../cache-service.interface';
-import { CacheSingleFlight } from '../cache-single-flight.model';
-import { type CacheTagMatcher } from '../cache-tag-matchers';
-import { ExtractCacheWriteResultAvailable } from '../decorators/decorator-types';
-import { CacheStoreInterface } from '../store/cache-store.interface';
-import { CachedValue } from '../store/cached-value.model';
+import { CacheOperation } from './cache-operation.enum.ts';
+import { CacheWrapOptions, CacheWrapWriteOptionsWithResult, CacheWrapWriteOptionsArgsOnly, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheKeyProvider, ResultCacheKeyProvider, OnInvalidationFailure, CacheTagsProvider, CacheSetDirectOptions } from './cache-options.model.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { CacheContext } from '../../context/cache/cache.context.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { CacheMetrics } from '../cache-metrics.model.ts';
+import { CacheServiceInterface } from '../cache-service.interface.ts';
+import { CacheSingleFlight } from '../cache-single-flight.model.ts';
+import { type CacheTagMatcher } from '../cache-tag-matchers.ts';
+import { ExtractCacheWriteResultAvailable } from '../decorators/decorator-types.ts';
+import { CacheStoreInterface } from '../store/cache-store.interface.ts';
+import { CachedValue } from '../store/cached-value.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type TierLike<K, V, CacheTag extends string, N extends string> = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: N,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     store: CacheStoreInterface<K, V>,
     /**
      * The tags values in this tier might carry. Needed so that the multi tier cache can report the
      * tags of everything it holds, which is how the cache service decides whether to invalidate it.
      */
     readonly tags: 'all' | readonly CacheTagMatcher[],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     _writeResultAvailable?: boolean,
     // eslint-disable-next-line typescript/method-signature-style
     setDirect(key: K, value: V, options?: CacheSetDirectOptions<CacheTag>): Promise<void>
 };
 
-// eslint-disable-next-line typescript/no-explicit-any, jsdoc/require-jsdoc
+// eslint-disable-next-line typescript/no-explicit-any, jsdoc-js/require-jsdoc
 type TierName<Tiers extends readonly TierLike<any, any, any, any>[]> = Tiers[number]['name'];
 
 /** Outer WR, true if any tier is true, else false. */
@@ -100,7 +99,7 @@ export abstract class MultiTierCache<
 
     protected abstract metricsService: MetricsServiceInterface;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The cache metrics.
      */
@@ -144,7 +143,7 @@ export abstract class MultiTierCache<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrap<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
         keyFn: CacheKeyProvider<K, TArgs>,
@@ -200,7 +199,7 @@ export abstract class MultiTierCache<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrapWrite<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
         keyFn: OuterWR<Tiers> extends true
@@ -215,7 +214,7 @@ export abstract class MultiTierCache<
                 : await (keyFn as CacheKeyProvider<K, TArgs>)(...args);
 
             const perTier: Partial<Record<TierName<Tiers>, CacheWrapOptions<V, TArgs, CacheTag>>> | undefined = options?.perCache;
-            // eslint-disable-next-line sonar/cognitive-complexity
+            // eslint-disable-next-line sonarjs/cognitive-complexity
             await Promise.all(this.tiers.map(async (tier) => {
                 const tierOpt: CacheWrapWriteOptionsWithResult<V, TArgs, CacheTag>
                     | CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag>
@@ -233,7 +232,6 @@ export abstract class MultiTierCache<
                         : undefined;
                 }
                 else {
-                    // eslint-disable-next-line stylistic/max-len
                     const o: CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag> | undefined = tierOpt as CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag> | undefined;
                     ttl = o?.ttl != undefined
                         ? typeof o.ttl === 'function' ? await o.ttl(...args) : o.ttl
@@ -257,7 +255,7 @@ export abstract class MultiTierCache<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrapDelete<TReturn, TArgs extends unknown[]>(
         fn: (...args: TArgs) => TReturn | Promise<TReturn>,
         keyFn: CacheKeyProvider<K, TArgs>,
@@ -269,7 +267,7 @@ export abstract class MultiTierCache<
                 const res: TReturn = await fn(...args);
                 const key: K = await keyFn(...args);
                 cacheCtx.key = key;
-                await Promise.all(this.tiers.map(tier => tier.store.delete(key)));
+                await Promise.all(this.tiers.map(async tier => await tier.store.delete(key)));
                 this.metrics.deletes.increase({ cache: this.name });
                 if (options?.invalidatesTags) {
                     const tags: CacheTag[] = typeof options.invalidatesTags === 'function'
@@ -282,7 +280,7 @@ export abstract class MultiTierCache<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrapInvalidate<TReturn, TArgs extends unknown[]>(
         fn: (...args: TArgs) => TReturn | Promise<TReturn>,
         options: CacheWrapInvalidateOptions<TArgs, CacheTag>
@@ -300,7 +298,7 @@ export abstract class MultiTierCache<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The tags any value in any tier might carry.
      *
@@ -323,7 +321,7 @@ export abstract class MultiTierCache<
      * @param tags - The tags to invalidate.
      */
     async invalidateTags(tags: string[]): Promise<void> {
-        await Promise.all(this.tiers.map(t => t.store.invalidateTags(tags)));
+        await Promise.all(this.tiers.map(async t => await t.store.invalidateTags(tags)));
     }
 
     /**

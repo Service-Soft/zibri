@@ -1,15 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model.ts';
+import { ChangeSet } from '../../change-sets/models/change-set.model.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * What deleting a row does with the rows that point at it, where no relation removes them along with
@@ -49,7 +50,7 @@ class EvalBook extends BaseEntity {
      * The shelf.
      */
     @Property.manyToOne({ target: () => EvalShelf, joinColumn: 'shelfId', inverseSide: 'books' })
-    shelf!: EvalShelf;
+    shelf!: Relation<EvalShelf>;
 
     /**
      * The key that relation is stored as.

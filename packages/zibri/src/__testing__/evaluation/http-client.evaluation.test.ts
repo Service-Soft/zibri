@@ -1,17 +1,17 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { DiContainer } from '../../di/di-container';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { register } from '../../di/register.function';
-import { HttpClientDispatcher } from '../../http-client/http-client-options.model';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { HttpClientInterface } from '../../http-client/http-client.interface';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { DiContainer } from '../../di/di-container.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { register } from '../../di/register.function.ts';
+import { HttpClientDispatcher } from '../../http-client/http-client-options.model.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { HttpClientInterface } from '../../http-client/http-client.interface.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 4.1.
@@ -237,13 +237,9 @@ describe('evaluation/04-infrastructure-subsystems 4.2 - http client body reads',
  * certificate the finding is about. All three are a `Dispatcher`, and the framework's job is not to
  * build them - it is to send over the one it was handed, which is what these tests assert.
  *
- * **Refusing is what makes the assertion strong**, and it took a failed attempt to see that. The
- * first version delegated to node's own dispatcher so a real response came back, which meant reading
- * `globalThis[Symbol.for('undici.globalDispatcher.1')]` - and inside jest `globalThis` is the test
- * sandbox's rather than node's, so the symbol is not there and never will be. What replaced it is
- * better anyway: a dispatcher that cannot connect proves the request went *through* it rather than
- * around it, because the stub server records nothing. A delegating one could not have told the two
- * apart - the server would have been hit either way.
+ * **Refusing is what makes the assertion strong.** A dispatcher that cannot connect proves the
+ * request went *through* it rather than around it, because the stub server records nothing. One that
+ * delegated to node's own dispatcher could not tell the two apart - the server would be hit either way.
  * @param name - What this dispatcher calls itself when it refuses.
  * @returns The dispatcher.
  */
@@ -255,7 +251,7 @@ function refusingDispatcher(name: string): HttpClientDispatcher {
         dispatch: () => {
             throw new Error(`refused by ${name}`);
         }
-    } as unknown as HttpClientDispatcher;
+    };
 }
 
 /**
@@ -265,12 +261,8 @@ function refusingDispatcher(name: string): HttpClientDispatcher {
  * reason off `cause`, and the client wraps that again as its own error - so the name has to be dug
  * for rather than matched on a message.
  *
- * **`instanceof Error` cannot be used to walk it**, which this cost a run to find out. The
- * `TypeError` fetch throws is built in node's realm and jest runs a test file in a context of its
- * own, so the sandbox's `Error` is a different class and `instanceof` answers no about a value that
- * is exactly what it claims to be. That is the seam
- * [05 §D7](../../../../evaluation/05-di-metadata-and-packaging.md) refuses to let two copies of the
- * framework create, met here for real. Shape is what can be relied on across it.
+ * Walked by shape rather than `instanceof Error`, so the answer does not depend on which realm the
+ * test runner builds a test file's globals in: the `TypeError` fetch throws is always node's.
  * @param error - The error the client rejected with.
  * @returns Every message in the chain, joined.
  */

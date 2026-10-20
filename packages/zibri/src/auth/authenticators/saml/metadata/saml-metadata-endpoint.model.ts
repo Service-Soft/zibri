@@ -1,5 +1,5 @@
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator.ts';
 
 /**
  * An endpoint a SAML metadata document names, such as where an identity provider signs users in.

@@ -1,14 +1,14 @@
 
-import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
-import { type CurrencyCode } from '../../../localization/models/currency-code.model';
-import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities';
-import { InvoiceItem } from '../models/invoice-item.model';
-import { Invoice as BaseInvoice, Invoice } from '../models/invoice.model';
-import { Vat } from '../models/vat.model';
+import { InvoiceCalcServiceInterface } from './invoice-calc-service.interface.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface.ts';
+import { type CurrencyCode } from '../../../localization/models/currency-code.model.ts';
+import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities.ts';
+import { InvoiceItem } from '../models/invoice-item.model.ts';
+import { Invoice as BaseInvoice, Invoice } from '../models/invoice.model.ts';
+import { Vat } from '../models/vat.model.ts';
 
 /**
  * Default implementation of the invoice calculation service.
@@ -20,24 +20,24 @@ export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> 
         private readonly localizeService: LocalizeServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getItemTotalPriceBeforeTax(item: InvoiceItem, currency: CurrencyCode): BigNumber {
         // rounded per line, which EN 16931 states every line's net amount as (BR-DEC-23), and every
         // total adds up from (BR-CO-10, BR-S-08)
         return this.round(NumberUtilities.multiply(item.amount, item.price), currency);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getItemTotalPriceAfterTax(item: InvoiceItem, currency: CurrencyCode): BigNumber {
         return NumberUtilities.add(this.getItemTotalPriceBeforeTax(item, currency), this.getItemTotalTax(item, currency));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getItemTotalTax(item: InvoiceItem, currency: CurrencyCode): BigNumber {
         return this.getTaxOf(this.getItemTotalPriceBeforeTax(item, currency), item.vat, currency);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getTotalBeforeTax<Invoice extends BaseInvoice>(invoice: Invoice): BigNumber {
         let res: BigNumber = NumberUtilities.new(0);
         for (const item of invoice.items) {
@@ -46,12 +46,12 @@ export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> 
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getTotalAfterTax<Invoice extends BaseInvoice>(invoice: Invoice): BigNumber {
         return NumberUtilities.add(this.getTotalBeforeTax(invoice), this.getTotalTax(invoice));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getTotalTax<Invoice extends BaseInvoice>(invoice: Invoice): BigNumber {
         // the sum of the groups rather than of the items, each group taxed once (BR-CO-14)
         let res: BigNumber = NumberUtilities.new(0);
@@ -61,7 +61,7 @@ export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> 
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getTaxGroups<Invoice extends BaseInvoice>(invoice: Invoice, groupOnlyByRate: boolean): Vat[] {
         // by what the VAT is: items read from a data source each hold an object of their own
         const res: Map<string, Vat> = new Map();
@@ -74,14 +74,14 @@ export class InvoiceCalcService implements InvoiceCalcServiceInterface<Invoice> 
         return [...res.values()];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getTotalTaxForTaxGroup<Invoice extends BaseInvoice>(invoice: Invoice, group: Vat, groupOnlyByRate: boolean): BigNumber {
         // the group's taxable amount times its rate, rounded once (BR-S-09 and its siblings), rather
         // than the sum of each item's rounded tax, which can be a cent apart
         return this.getTaxOf(this.getTotalBeforeTaxForTaxGroup(invoice, group, groupOnlyByRate), group, invoice.currency);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getTotalBeforeTaxForTaxGroup<Invoice extends BaseInvoice>(invoice: Invoice, group: Vat, groupOnlyByRate: boolean): BigNumber {
         const itemsInTaxGroup: InvoiceItem[] = this.getItemsForTaxGroup(invoice, group, groupOnlyByRate);
         let res: BigNumber = NumberUtilities.new(0);

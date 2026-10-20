@@ -1,5 +1,5 @@
-import { OpenTelemetryOtlpExporter, OpenTelemetrySpanExporter } from './open-telemetry-api.model';
-import { optionalPeer } from '../../utilities/optional-peer.function';
+import { OpenTelemetryOtlpExporter, OpenTelemetrySpanExporter } from './open-telemetry-api.model.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
 
 /**
  * Where finished spans are sent, and how.

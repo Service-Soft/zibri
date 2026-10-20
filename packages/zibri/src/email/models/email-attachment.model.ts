@@ -1,5 +1,5 @@
-import { Property } from '../../entity/decorators/property.decorator';
-import { type FsPath } from '../../utilities/fs.utilities';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type FsPath } from '../../utilities/fs.utilities.ts';
 
 /**
  * An email attachment, consisting of filename and path.

@@ -1,14 +1,14 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { ClientScript, compileClientScript } from '../codegen/client/client-codegen';
-import { eraseTypes } from '../codegen/erase-types';
-import { compileServerRender, ServerRenderCode } from '../codegen/server/render-codegen';
-import { CompiledPage } from '../runtime/render-page';
-import { SERVER_HOOKS } from '../runtime/server-hooks';
-import { ClientInstanceEntry, CompiledComponent, createContext, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
-import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource, parseCompilableTemplate } from '../semantics/client-packages';
-import { findComponents, ComponentInfo } from '../semantics/component';
-import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
+import { ClientScript, compileClientScript } from '../codegen/client/client-codegen.ts';
+import { eraseTypes } from '../codegen/erase-types.ts';
+import { compileServerRender, ServerRenderCode } from '../codegen/server/render-codegen.ts';
+import { CompiledPage } from '../runtime/render-page.ts';
+import { SERVER_HOOKS } from '../runtime/server-hooks.ts';
+import { ClientInstanceEntry, CompiledComponent, createContext, createServerRuntime, HandlerRegistryEntry, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime.ts';
+import { collectClientGlobalAliasesFromSource, collectClientPackagesFromSource, parseCompilableTemplate } from '../semantics/client-packages.ts';
+import { findComponents, ComponentInfo } from '../semantics/component.ts';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols.ts';
 
 /**
  * The result of rendering a component: the HTML plus the registries collected during the render.

@@ -8,7 +8,7 @@ import type { AttestationConveyancePreference,
     PublicKeyCredentialRpEntity,
     PublicKeyCredentialUserEntityJSON } from '@simplewebauthn/server';
 
-import { Property } from '../../../entity/decorators/property.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * What the browser creates a passkey with, as `PublicKeyCredential.parseCreationOptionsFromJSON` or

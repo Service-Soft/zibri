@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
-import { Injectable } from '../decorators/injectable.decorator';
+import { getDependencyStackTrace } from './get-dependency-stack-trace.function.ts';
+import { Injectable } from '../decorators/injectable.decorator.ts';
 
 class First {}
 
@@ -27,7 +27,7 @@ describe('getDependencyStackTrace', () => {
 
     it('includes the recorded file path when the target was decorated', () => {
         const result: string = getDependencyStackTrace('SomeError', 'msg', [Decorated]);
-        expect(result).toContain(`at Decorated (${__filename})`);
+        expect(result).toContain(`at Decorated (${import.meta.filename})`);
     });
 
     it('labels anonymous functions', () => {

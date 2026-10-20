@@ -1,5 +1,5 @@
-import { OpenApiDefinition } from '../../../open-api/open-api.model';
-import { EntityTenant } from '../../models/entity-tenant.model';
+import { OpenApiDefinition } from '../../../open-api/open-api.model.ts';
+import { EntityTenant } from '../../models/entity-tenant.model.ts';
 
 /**
  * A provider for automatic entity generation.

@@ -1,7 +1,7 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitClass } from '../../../entity/omit-class.model';
-import { PASSWORD_MAX_LENGTH } from '../../hash/hash.utilities';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../../../entity/omit-class.model.ts';
+import { PASSWORD_MAX_LENGTH } from '../../hash/hash.utilities.ts';
 
 /**
  * The data for confirming a password reset.

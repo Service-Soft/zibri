@@ -1,14 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { Response } from '../open-api/decorators/response.decorator';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { Response } from '../open-api/decorators/response.decorator.ts';
 
 class Resource {
     @Property.string()

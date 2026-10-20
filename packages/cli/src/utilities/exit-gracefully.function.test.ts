@@ -1,9 +1,8 @@
 import { spawnSync, SpawnSyncReturns } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-import { describe, expect, it } from '@jest/globals';
-import ts from 'typescript';
+import { describe, expect, it } from 'vitest';
 
 /**
  * How much the child writes before exiting - far more than one write to a pipe takes at once, so
@@ -19,15 +18,15 @@ const WRITTEN_BYTES: number = 1024 * 1024;
  * @returns How the child ended, and what it wrote.
  */
 function runExitingChild(): SpawnSyncReturns<string> {
-    const source: string = readFileSync(path.join(__dirname, 'exit-gracefully.function.ts'), 'utf8');
-    const compiled: string = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+    // the source itself, through node's own type stripping: the file carries nothing but annotations
+    const source: string = pathToFileURL(path.join(import.meta.dirname, 'exit-gracefully.function.ts')).href;
     const script: string = [
-        compiled,
+        `import { exitGracefully } from '${source}';`,
         'setInterval(() => {}, 1000);',
         `process.stdout.write('x'.repeat(${WRITTEN_BYTES}));`,
-        'void exports.exitGracefully(3);'
+        'void exitGracefully(3);'
     ].join('\n');
-    return spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 10000, maxBuffer: WRITTEN_BYTES * 2 });
+    return spawnSync(process.execPath, ['--input-type=module', '--eval', script], { encoding: 'utf8', timeout: 10000, maxBuffer: WRITTEN_BYTES * 2 });
 }
 
 describe('exitGracefully', () => {

@@ -1,9 +1,9 @@
-import { CiiCreditorFinancialAccount } from './cii-creditor-financial-account.model';
-import { CiiCreditorFinancialInstitution } from './cii-creditor-financial-institution.model';
-import { CiiNamespace } from './cii-namespace.enum';
-import { Property } from '../../../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiCreditorFinancialAccount } from './cii-creditor-financial-account.model.ts';
+import { CiiCreditorFinancialInstitution } from './cii-creditor-financial-institution.model.ts';
+import { CiiNamespace } from './cii-namespace.enum.ts';
+import { Property } from '../../../../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator.ts';
+import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator.ts';
 
 /**
  * How the invoice is paid.

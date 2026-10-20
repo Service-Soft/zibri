@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { offsetToLineColumn } from './diagnostic.model';
+import { offsetToLineColumn } from './diagnostic.model.ts';
 
 describe('offsetToLineColumn', () => {
     const source: string = 'const a = 1;\nconst b = 2;\n  const c = 3;';

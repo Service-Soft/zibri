@@ -1,7 +1,7 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
-import { pixels, resolvePadding } from './dimensions';
-import { EmailLayout, EmailLayoutContext } from './email-layout.context';
-import { withDefaults } from './with-defaults';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
+import { pixels, resolvePadding } from './dimensions.ts';
+import { EmailLayout, EmailLayoutContext } from './email-layout.context.ts';
+import { withDefaults } from './with-defaults.ts';
 
 /**
  * Props for {@link MjWrapper}.

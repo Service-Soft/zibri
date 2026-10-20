@@ -1,36 +1,36 @@
 import { Readable } from 'node:stream';
 
-import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
-import { FederatedCallbackForm } from './federated-callback-form.model';
-import { FederatedMetadata } from './federated-metadata.model';
-import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
-import { FederatedProviderLogout } from './federated-provider-logout.model';
-import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
-import { FederatedSignInError } from './federated-sign-in.error';
-import { FederatedSoapLogout } from './federated-soap-logout.model';
-import { FederationOptions } from './federation-options.model';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../di/errors/no-provider.error';
-import { inject } from '../../../di/inject.function';
-import { ErrorUtilities } from '../../../error-handling/error.utilities';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../../global/global-registry';
-import { HttpMethod } from '../../../http/http-method.enum';
-import { MimeType } from '../../../http/mime-type.enum';
-import { RedirectResponse } from '../../../http/redirect-response.model';
-import { $ts } from '../../../localization/translate.function';
-import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
-import { auditReasonFor } from '../../../logging/audit-reason-for.function';
-import { FileResponse } from '../../../parsing/form-data/file-response.model';
-import { CspSource } from '../../../parsing/html/csp-options.model';
-import { HtmlResponse } from '../../../parsing/html/html-response.model';
-import { Newable } from '../../../types/newable.type';
-import { BaseUser } from '../../models/base-user.model';
-import { Authenticators } from '../authenticators.model';
+import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface.ts';
+import { FederatedCallbackForm } from './federated-callback-form.model.ts';
+import { FederatedMetadata } from './federated-metadata.model.ts';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model.ts';
+import { FederatedProviderLogout } from './federated-provider-logout.model.ts';
+import { FederatedSignInFailure } from './federated-sign-in-failure.enum.ts';
+import { FederatedSignInError } from './federated-sign-in.error.ts';
+import { FederatedSoapLogout } from './federated-soap-logout.model.ts';
+import { FederationOptions } from './federation-options.model.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../../di/errors/no-provider.error.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { ErrorUtilities } from '../../../error-handling/error.utilities.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../../global/global-registry.ts';
+import { HttpMethod } from '../../../http/http-method.enum.ts';
+import { MimeType } from '../../../http/mime-type.enum.ts';
+import { RedirectResponse } from '../../../http/redirect-response.model.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model.ts';
+import { auditReasonFor } from '../../../logging/audit-reason-for.function.ts';
+import { FileResponse } from '../../../parsing/form-data/file-response.model.ts';
+import { CspSource } from '../../../parsing/html/csp-options.model.ts';
+import { HtmlResponse } from '../../../parsing/html/html-response.model.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { Authenticators } from '../authenticators.model.ts';
 
 /**
  * A class of an authenticator that signs users in at a provider.
@@ -87,7 +87,6 @@ export abstract class FederatedRouteUtilities {
             const url: URL = new URL(instance.resolveRouteUrl(route));
             if (url.origin !== base.origin || (url.pathname !== basePath && !url.pathname.startsWith(`${basePath}/`))) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
                     `${authenticator.name} gives out ${url.href} for its ${route} route, which is not below the baseUrl ${baseUrl} of the application.`
                 );
             }
@@ -95,13 +94,11 @@ export abstract class FederatedRouteUtilities {
             const methods: HttpMethod[] = inject(ZIBRI_DI_TOKENS.ROUTER).findMethods(path);
             if (!methods.length) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
                     `${authenticator.name} gives out ${url.href} for its ${route} route, which no route of the application answers at ${path}.`
                 );
             }
             if (!methods.includes(method)) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
                     `${authenticator.name} gives out ${url.href} for its ${route} route, which the browser requests with ${method}, and the application answers at ${path} only with ${methods.join(', ')}.`
                 );
             }
@@ -352,7 +349,7 @@ export abstract class FederatedRouteUtilities {
         const html: string = [
             '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Logging out</title></head><body>',
             `<form method="post" action="${this.escape(url)}">${inputs}<noscript><button type="submit">Continue</button></noscript></form>`,
-            // eslint-disable-next-line sonar/no-nested-template-literals
+            // eslint-disable-next-line sonarjs/no-nested-template-literals
             `<script${nonce == undefined ? '' : ` nonce="${this.escape(nonce)}"`}>document.forms[0].submit()</script>`,
             '</body></html>'
         ].join('');

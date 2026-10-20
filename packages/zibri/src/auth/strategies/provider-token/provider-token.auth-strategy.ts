@@ -1,19 +1,19 @@
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { isProviderTokenAuthenticator, ProviderTokenAuthenticatorInterface } from '../../authenticators/provider-token-authenticator.interface';
-import { ProviderToken } from '../../authenticators/provider-token.model';
-import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthStrategyInterface } from '../auth-strategy.interface';
-import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
-import { AuthorizationToken } from '../authorization-token.model';
-import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model.ts';
+import { isProviderTokenAuthenticator, ProviderTokenAuthenticatorInterface } from '../../authenticators/provider-token-authenticator.interface.ts';
+import { ProviderToken } from '../../authenticators/provider-token.model.ts';
+import { type DpopServiceInterface } from '../../dpop/dpop-service.interface.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { AuthStrategyInterface } from '../auth-strategy.interface.ts';
+import { AuthorizationHeaderUtilities } from '../authorization-header.utilities.ts';
+import { AuthorizationToken } from '../authorization-token.model.ts';
+import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities.ts';
 
 /**
  * Provider token auth strategy implementation of Zibri.
@@ -27,10 +27,10 @@ export class ProviderTokenAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > implements AuthStrategyInterface<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'provider-token';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {
         type: 'http',
         scheme: 'bearer',
@@ -45,12 +45,11 @@ export class ProviderTokenAuthStrategy<
         private readonly dpopService: DpopServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(): void {
         const authenticators: ProviderTokenAuthenticatorInterface<string, BaseUser<string>, unknown>[] = this.findAuthenticators();
         if (!authenticators.length) {
             throw new InternalError(
-                // eslint-disable-next-line stylistic/max-len
                 `${ProviderTokenAuthStrategy.name} reads the tokens of identity providers, and no authenticator of the application takes its provider's tokens: register one that does, such as one extending BaseOidcAuthenticator with bearerTokens.`
             );
         }
@@ -61,14 +60,13 @@ export class ProviderTokenAuthStrategy<
             );
             if (taking != undefined && taking !== authenticator) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
                     `${ProviderTokenAuthStrategy.name} reads the tokens of ${authenticator.issuer}, which ${taking.constructor.name} and ${authenticator.constructor.name} both take: have one of them take its provider's tokens.`
                 );
             }
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
         // a jwt naming the issuer of a provider being there, not a valid one, for the reason the jwt
         // strategy gives. That strategy takes the application's own
@@ -76,7 +74,7 @@ export class ProviderTokenAuthStrategy<
         return issuer != undefined && this.findAuthenticator(issuer) != undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const token: ProviderToken | undefined = await this.findRequestToken(context);
         return token == undefined
@@ -84,12 +82,12 @@ export class ProviderTokenAuthStrategy<
             : await this.userService.findById<RoleType, UserType, false>(token.userId, { required: false });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         return (await this.findRequestToken(context))?.authenticatedAt;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         return (await this.findRequestToken(context))?.expiresAt;
     }

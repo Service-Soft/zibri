@@ -1,6 +1,6 @@
-import { Header } from './header.type';
-import { Property } from '../entity/decorators/property.decorator';
-import { SelfDescribing } from '../types/self-describing.type';
+import { Header } from './header.type.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { SelfDescribing } from '../types/self-describing.type.ts';
 
 /**
  * What a json response answers with beside its body.
@@ -26,7 +26,7 @@ export class JsonResponse<T> implements SelfDescribing {
      * gives.
      */
     @Property.string({ exclude: true })
-    readonly className: 'JsonResponse' = 'JsonResponse';
+    readonly className: 'JsonResponse' = 'JsonResponse' as const;
 
     private constructor(
         /**

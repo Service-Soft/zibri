@@ -1,4 +1,4 @@
-import { AuditAction } from '../../../logging/audit-event.model';
+import { AuditAction } from '../../../logging/audit-event.model.ts';
 
 /**
  * What a sign-in at a provider is for, as the audit trail records it: a login, or connecting the

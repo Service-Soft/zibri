@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { toPascalCase } from './to-pascal-case.function';
+import { toPascalCase } from './to-pascal-case.function.ts';
 
 describe('toPascalCase', () => {
     it('converts snake_case to PascalCase', () => {

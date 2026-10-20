@@ -1,22 +1,22 @@
-import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
-import { ZibriPlugin } from '../plugin.model';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens';
-import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
-import { Invoice } from './models/invoice.model';
-import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
-import { InvoicingOptions } from './models/invoicing-options.model';
-import { NumberInvoices } from './models/number-invoices.model';
-import { InvoiceCalcService } from './services/invoice-calc.service';
-import { InvoiceNumberService } from './services/invoice-number.service';
-import { InvoicePdfService } from './services/invoice-pdf.service';
-import { ZibriApplication } from '../../application/application';
-import { NoProviderError } from '../../di/errors/no-provider.error';
-import { inject } from '../../di/inject.function';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
-import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
-import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
+import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model.ts';
+import { ZibriPlugin } from '../plugin.model.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens.ts';
+import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from './models/invoice.model.ts';
+import { InvoicingOptionsInput } from './models/invoicing-options-input.model.ts';
+import { InvoicingOptions } from './models/invoicing-options.model.ts';
+import { NumberInvoices } from './models/number-invoices.model.ts';
+import { InvoiceCalcService } from './services/invoice-calc.service.ts';
+import { InvoiceNumberService } from './services/invoice-number.service.ts';
+import { InvoicePdfService } from './services/invoice-pdf.service.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { NoProviderError } from '../../di/errors/no-provider.error.ts';
+import { inject } from '../../di/inject.function.ts';
+import { DiProvider } from '../../di/models/di-provider.model.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function.ts';
+import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service.ts';
+import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service.ts';
 
 /**
  * Plugin that includes everything for handling invoices.
@@ -81,7 +81,7 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
 
     override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_INVOICING_PLUGIN_DI_TOKENS, this.defaultDiProviders);
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     validate(app: ZibriApplication): void {
         validateEntitiesRegistered(this.constructor.name, app, Invoice, NumberInvoices, InvoiceRecipientAbbreviation);
         validateTokensRegistered(this.constructor.name, ZIBRI_INVOICING_PLUGIN_DI_TOKENS);

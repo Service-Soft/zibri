@@ -1,16 +1,16 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { EmailLoggerTransportConfig } from './log-to-email.function';
-import { LogEmailTemplate, LoggerTransport } from './logger-transport.model';
-import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { Email } from '../../email/models/email.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
+import { EmailLoggerTransportConfig } from './log-to-email.function.ts';
+import { LogEmailTemplate, LoggerTransport } from './logger-transport.model.ts';
+import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md 3.4 - a log storm becoming a mail

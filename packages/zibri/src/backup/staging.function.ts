@@ -3,8 +3,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { ErrorUtilities } from '../error-handling/error.utilities';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { ErrorUtilities } from '../error-handling/error.utilities.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
 
 /**
  * What a backup's data is summed with.

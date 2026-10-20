@@ -1,10 +1,10 @@
 
-import { BackupResourceMetadata, BackupResourceMetadataInput } from './backup-resource-metadata.model';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BackupResourceInterface } from '../backup-resource.interface';
+import { BackupResourceMetadata, BackupResourceMetadataInput } from './backup-resource-metadata.model.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BackupResourceInterface } from '../backup-resource.interface.ts';
 
 /**
  * Marks a resource that should be backed up. Needs to implement "BackupResourceInterface".

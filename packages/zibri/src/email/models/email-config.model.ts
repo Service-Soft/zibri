@@ -1,5 +1,5 @@
-import { OmitStrict } from '../../types/omit-strict.type';
-import { type RetentionInMs } from '../../types/retention-in-ms.type';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { type RetentionInMs } from '../../types/retention-in-ms.type.ts';
 
 /**
  * Configuration for emails.

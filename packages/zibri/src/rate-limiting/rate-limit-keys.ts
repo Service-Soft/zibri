@@ -1,9 +1,9 @@
-import { type AuthServiceInterface } from '../auth/auth-service.interface';
-import { BaseUser } from '../auth/models/base-user.model';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
+import { type AuthServiceInterface } from '../auth/auth-service.interface.ts';
+import { BaseUser } from '../auth/models/base-user.model.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
 
 const GLOBAL_KEY: string = 'global';
 

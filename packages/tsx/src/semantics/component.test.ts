@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
+import { describe, expect, it } from 'vitest';
 
-import { ComponentInfo, findComponents, isJsxExpression, returnsJsx } from './component';
-import { parseTemplateArrow, parseTemplateExpression, parseTemplateOk } from '../__testing__/parse.helper';
+import { ComponentInfo, findComponents, isJsxExpression, returnsJsx } from './component.ts';
+import { parseTemplateArrow, parseTemplateExpression, parseTemplateOk } from '../__testing__/parse.helper.ts';
 
 describe('component detection', () => {
     describe('isJsxExpression', () => {

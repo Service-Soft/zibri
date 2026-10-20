@@ -1,26 +1,26 @@
 import { Readable, Transform } from 'node:stream';
 
-import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
-import { UnsupportedMediaTypeError } from '../../error-handling/errors/unsupported-media-type.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { HttpRequest } from '../../http/http-request.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { StreamBodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { BodyParserInterface } from '../body-parser.interface';
-import { BodyParser } from '../decorators/body-parser.decorator';
+import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error.ts';
+import { UnsupportedMediaTypeError } from '../../error-handling/errors/unsupported-media-type.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { StreamBodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities.ts';
+import { BodyParserInterface } from '../body-parser.interface.ts';
+import { BodyParser } from '../decorators/body-parser.decorator.ts';
 
 /**
  * Body parser for octet streams.
  */
 @BodyParser()
 export class StreamBodyParser implements BodyParserInterface<MimeType.OCTET_STREAM> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly contentType: MimeType.OCTET_STREAM = MimeType.OCTET_STREAM;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromHttpRequest(req: HttpRequest, bodyMetadata: StreamBodyMetadata): unknown {
         const contentLength: string | undefined = req.headers[KnownHeader.CONTENT_LENGTH];
         if (contentLength && NumberUtilities.new(Number(contentLength)).isGreaterThan(bodyMetadata.maxSize)) {
@@ -29,12 +29,12 @@ export class StreamBodyParser implements BodyParserInterface<MimeType.OCTET_STRE
         return this.limitStream(req, bodyMetadata.maxSize);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromWebsocketRequest(): unknown {
         throw new UnsupportedMediaTypeError(MimeType.OCTET_STREAM);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromHttpClientResponse(res: HttpClientResponse, bodyMetadata: StreamBodyMetadata): unknown {
         if (res.body !== undefined) {
             return res.body;

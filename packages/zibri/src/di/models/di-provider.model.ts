@@ -1,7 +1,7 @@
-import { DiToken } from './di-token.model';
-import { DiVariant } from './di-variant.model';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { DiToken } from './di-token.model.ts';
+import { DiVariant } from './di-variant.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * A type safe way to define providers when eg. Inside arrays.
@@ -41,7 +41,7 @@ export type DiProviderWithoutToken<T> = OmitStrict<ClassDiProvider<T>, 'token'>
     | OmitStrict<AsyncFactoryDiProvider<T>, 'token'>
     | OmitStrict<ValueDiProvider<T>, 'token'>;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type BaseDiProvider<T> = {
     /**
      * The token under which the value should be registered.
@@ -53,7 +53,7 @@ type BaseDiProvider<T> = {
     variants?: DiVariant[]
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ClassDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A class to register for the token.
@@ -65,17 +65,17 @@ type ClassDiProvider<T> = BaseDiProvider<T> & {
      * Defaults to 'application'.
      */
     scope?: DiScope,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useFactory?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useAsyncFactory?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     deps?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useValue?: never
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type FactoryDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A factory function that resolves the value to register for the token.
@@ -91,17 +91,17 @@ type FactoryDiProvider<T> = BaseDiProvider<T> & {
      * Defaults to 'application'.
      */
     scope?: DiScope,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useAsyncFactory?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     deps?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useClass?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useValue?: never
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A factory function that is awaited once, while the application initializes, to resolve the
@@ -132,15 +132,15 @@ type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
      * awaited - so this provider has no scope to choose.
      */
     scope?: 'application',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useFactory?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useClass?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useValue?: never
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ValueDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A value to register for the token.
@@ -148,14 +148,14 @@ type ValueDiProvider<T> = BaseDiProvider<T> & {
     useValue: NoInfer<T>,
     // a value that already exists has nothing to build, so there is no point at which a scope
     // could give it a second life
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     scope?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useFactory?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useAsyncFactory?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     deps?: never,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     useClass?: never
 };

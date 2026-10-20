@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { defaultPasswordResetEmailTemplate } from './password-reset-email.template';
-import { UnconfiguredEmailTransport } from './unconfigured.email-transport';
+import { defaultPasswordResetEmailTemplate } from './password-reset-email.template.ts';
+import { UnconfiguredEmailTransport } from './unconfigured.email-transport.ts';
 
 const noOp: () => void = () => {};
 

@@ -1,18 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ValidationService } from './validation.service';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Property } from '../entity/decorators/property.decorator';
-import { ValidationError } from '../error-handling/errors/validation.error';
-import { MimeType } from '../http/mime-type.enum';
-import { BodyMetadata, FormDataBodyMetadataInput, JsonBodyMetadataInput } from '../routing/decorators/body-metadata.model';
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
-import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers';
-import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { Newable } from '../types/newable.type';
+import { type Relation } from '../entity/models/relation.type.ts';
+
+import { ValidationService } from './validation.service.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { ValidationError } from '../error-handling/errors/validation.error.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { BodyMetadata, FormDataBodyMetadataInput, JsonBodyMetadataInput } from '../routing/decorators/body-metadata.model.ts';
+import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers.ts';
+import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../types/newable.type.ts';
 
 class Nested {
     @Property.string()

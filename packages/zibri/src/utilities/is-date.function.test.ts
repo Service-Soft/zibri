@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { isDate } from './is-date.function';
+import { isDate } from './is-date.function.ts';
 
 describe('isDate', () => {
     it('returns true for a Date instance', () => {

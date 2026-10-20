@@ -1,4 +1,4 @@
-import { Property } from '../../entity/decorators/property.decorator';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * Names a master key and the master strategy it is used with, without holding either.

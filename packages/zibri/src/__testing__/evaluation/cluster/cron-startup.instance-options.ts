@@ -1,11 +1,11 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { CronExpression } from '../../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { defineProvider } from '../../../di/models/di-provider.model';
+import { CronExpression } from '../../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
 
 /**
  * What every instance of the cron startup cluster boots with.

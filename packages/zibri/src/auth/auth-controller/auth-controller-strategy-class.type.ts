@@ -1,6 +1,6 @@
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
-import { AuthControllerStrategyInterface } from '../strategies/auth-controller-strategy.interface';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
+import { AuthControllerStrategyInterface } from '../strategies/auth-controller-strategy.interface.ts';
 
 /**
  * A class of an auth strategy the routes of `AuthController` log in with.

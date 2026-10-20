@@ -1,6 +1,6 @@
-import { isUserService } from './user-service.interface';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseUser } from '../models/base-user.model';
+import { isUserService } from './user-service.interface.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for a User Repository.

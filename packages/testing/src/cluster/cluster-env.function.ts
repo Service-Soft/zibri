@@ -1,4 +1,4 @@
-import { CLUSTER_INSTANCE_ID_ENV } from './cluster-message.model';
+import { CLUSTER_INSTANCE_ID_ENV } from './cluster-message.model.ts';
 
 /**
  * Reads a variable that the parent has to have set on a cluster instance.

@@ -1,4 +1,4 @@
-import { HashString } from '../hash.utilities';
+import { HashString } from '../hash.utilities.ts';
 
 /**
  * Interface for a hash strategy.

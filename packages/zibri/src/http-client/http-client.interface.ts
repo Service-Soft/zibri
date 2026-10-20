@@ -1,14 +1,14 @@
-import { FetchForLibraryOptions } from './fetch-for-library-options.model';
-import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
-import { HttpClientDispatcher } from './http-client-options.model';
-import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
-import { XmlString } from '../document/xml-string.type';
-import { HttpMethod } from '../http/http-method.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
-import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
-import { Newable } from '../types/newable.type';
+import { FetchForLibraryOptions } from './fetch-for-library-options.model.ts';
+import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model.ts';
+import { HttpClientDispatcher } from './http-client-options.model.ts';
+import { HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model.ts';
+import { XmlString } from '../document/xml-string.type.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator.ts';
+import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Possible values to send as headers when using the http client.

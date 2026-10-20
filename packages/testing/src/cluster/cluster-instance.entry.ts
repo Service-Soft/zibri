@@ -1,34 +1,32 @@
 // which copy of the framework this process gets is decided before this file runs: the parent
-// preloads cluster-module-paths into every thread of the instance
-import { createRequire } from 'node:module';
+// preloads cluster-instance.preload into every thread of the instance
 import { AddressInfo } from 'node:net';
+import { pathToFileURL } from 'node:url';
 
-// eslint-disable-next-line eslintImport/no-unassigned-import
+// eslint-disable-next-line import/no-unassigned-import
 import 'reflect-metadata'; // has to come before every zibri import below: they are all decorated.
 import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, Newable, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 
-import { defaultClusterDataSources } from './cluster-data-sources';
-import { requireClusterEnv } from './cluster-env.function';
-import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
-import { defaultClusterProviders } from './cluster-providers';
-import { registerAheadOfInit } from '../register-ahead-of-init.function';
-import { resolveApplicationOptions } from '../resolve-application-options.function';
-import { scratchProviders } from '../scratch-directory.function';
-import { applyContainerPort, needsContainer, TestDataSource } from '../start-data-source-containers.function';
-import { StartTestServerOptions } from '../start-test-server-options.model';
+import { defaultClusterDataSources } from './cluster-data-sources.ts';
+import { requireClusterEnv } from './cluster-env.function.ts';
+import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model.ts';
+import { defaultClusterProviders } from './cluster-providers.ts';
+import { registerAheadOfInit } from '../register-ahead-of-init.function.ts';
+import { resolveApplicationOptions } from '../resolve-application-options.function.ts';
+import { scratchProviders } from '../scratch-directory.function.ts';
+import { applyContainerPort, needsContainer, TestDataSource } from '../start-data-source-containers.function.ts';
+import { StartTestServerOptions } from '../start-test-server-options.model.ts';
 
 /**
  * One instance of a Zibri application, in its own process.
  *
  * This is what makes the cluster tests possible at all: GlobalRegistry is static and
  * markAppAsCreated() throws on a second ZibriApplication, so a second replica cannot exist in the
- * jest process. That constraint is itself a finding - see evaluation/02-http-runtime-core.md C7.
+ * test process. That constraint is itself a finding - see evaluation/02-http-runtime-core.md C7.
  *
  * Nothing is stubbed here. The instance boots the real application against the same data sources
  * every other instance is pointed at, which is the entire point.
  */
-
-const requireModule: NodeJS.Require = createRequire(__filename);
 
 /**
  * The name every instance of the cluster boots under.
@@ -73,8 +71,8 @@ async function boot(): Promise<void> {
     const optionsModulePath: string = requireClusterEnv(CLUSTER_INSTANCE_OPTIONS_ENV);
     const ports: number[] = JSON.parse(requireClusterEnv(CLUSTER_DATA_SOURCE_PORTS_ENV)) as number[];
 
-    // the parent is the only reason this process exists. When the ipc channel goes away - jest
-    // crashed, the run was interrupted - exit instead of staying behind as an orphan holding a port
+    // the parent is the only reason this process exists. When the ipc channel goes away - the test
+    // runner crashed, the run was interrupted - exit instead of staying behind as an orphan holding a port
     // and a connection to the shared data source.
     process.on('disconnect', () => process.exit(1));
 
@@ -83,11 +81,9 @@ async function boot(): Promise<void> {
     // once. A module required afterwards is never registered, and injecting anything it declares
     // fails with "no provider, did you forget @Injectable" - on a class that is decorated.
     //
-    // require rather than import(), for the same reason the parent does: one module system on both
-    // sides, so a module that loads here loads there too.
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    const optionsModule: { default: StartTestServerOptions } = requireModule(optionsModulePath) as {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
+    const optionsModule: { default: StartTestServerOptions } = await import(pathToFileURL(optionsModulePath).href) as {
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         default: StartTestServerOptions
     };
     const options: StartTestServerOptions = optionsModule.default;

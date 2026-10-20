@@ -1,5 +1,5 @@
-import { FederatedLogoutAnswer } from './federated-logout-answer.model';
-import { FederatedSessionMatch } from './federated-session-match.model';
+import { FederatedLogoutAnswer } from './federated-logout-answer.model.ts';
+import { FederatedSessionMatch } from './federated-session-match.model.ts';
 
 /**
  * What a provider sent the browser to the logout route with.

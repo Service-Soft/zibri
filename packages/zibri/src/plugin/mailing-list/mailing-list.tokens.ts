@@ -1,16 +1,16 @@
-import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model';
-import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
-import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model';
-import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
-import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
-import { MailingListServiceInterface } from './services/mailing-list-service.interface';
-import { TokenRecord } from '../../di/models/di-token.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
+import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model.ts';
+import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model.ts';
+import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model.ts';
+import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model.ts';
+import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model.ts';
+import { MailingListServiceInterface } from './services/mailing-list-service.interface.ts';
+import { TokenRecord } from '../../di/models/di-token.model.ts';
+import { InjectionToken } from '../../di/models/injection-token.model.ts';
 
 /**
  * The dependency injection tokens used by the ZibriMailingListPlugin.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS = {
     MAILING_LIST_SERVICE: mailingListToken<MailingListServiceInterface>('zi.mailing_list.mailing_list_service'),
     CONFIRMATION_TOKEN_EXPIRES_IN_MS: mailingListToken<number>('zi.mailing_list.subscription_confirmation_token_expires_in_ms'),
@@ -31,7 +31,7 @@ export const ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS = {
     )
 } as const satisfies TokenRecord;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function mailingListToken<T = never>(k: `zi.mailing_list.${string}`): InjectionToken<T> {
     return new InjectionToken<T>(k);
 }

@@ -1,9 +1,9 @@
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
-import { isNamedValue } from '../parsing/functions/parse-one-of.function';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { isNamedValue } from '../parsing/functions/parse-one-of.function.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
 
 /**
  * The data a write works on, as it is taken from its caller and as it lands on a stored row.
@@ -183,11 +183,11 @@ export abstract class WriteDataUtilities {
             case 'string':
             case 'number':
             case 'boolean':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'unknown':
             case 'date':
             case 'file': {

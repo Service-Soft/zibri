@@ -1,12 +1,12 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { createArrayPropertyMetadata, createOneOfPropertyMetadata, PropertyMetadata, Property } from '../../entity/decorators/property.decorator';
-import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { createArrayPropertyMetadata, createOneOfPropertyMetadata, PropertyMetadata, Property } from '../../entity/decorators/property.decorator.ts';
+import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model.ts';
 
 /**
  * Turns what a migration says about an entity into the declarations an entity class carries.

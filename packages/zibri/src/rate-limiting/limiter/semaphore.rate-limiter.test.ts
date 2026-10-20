@@ -1,15 +1,15 @@
 import assert from 'node:assert';
 
-import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { beforeAll, beforeEach, describe, expect, it, vi, Mock } from 'vitest';
 
-import { SemaphoreRateLimiter, SemaphoreState } from './semaphore.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { GlobalRegistry } from '../../global/global-registry';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
-import { RateLimitReservationResult, SuccessRateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { SemaphoreRateLimiter, SemaphoreState } from './semaphore.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum.ts';
+import { RateLimitReservationResult, SuccessRateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 const CAPACITY: number = 3;
 
@@ -134,15 +134,15 @@ describe('SemaphoreRateLimiter', () => {
         type TestFn = (...args: any[]) => Promise<string>;
 
         let limiter: TestSemaphoreLimiter;
-        let fn: jest.Mock<TestFn>;
+        let fn: Mock<TestFn>;
 
         beforeEach(() => {
             limiter = new TestSemaphoreLimiter();
-            fn = jest.fn<TestFn>().mockResolvedValue('ok');
+            fn = vi.fn<TestFn>().mockResolvedValue('ok');
         });
 
         it('returns function result on successful consume', async () => {
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn);
             const result: string = await wrapped();
             expect(result).toBe('ok');
@@ -154,7 +154,7 @@ describe('SemaphoreRateLimiter', () => {
             for (let i: number = 0; i < CAPACITY; i++) {
                 await limiter.consume('global', 1);
             }
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             expect(result).toHaveProperty('allowed', true);
@@ -167,7 +167,7 @@ describe('SemaphoreRateLimiter', () => {
 
         it('throws TooManyRequestsError if reserveIfUnavailable is true but reservation is rejected (e.g., max capacity exceeded)', async () => {
         // Create a strict semaphore with maxReservationCount less than capacity
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const strictLimiter = new class extends SemaphoreRateLimiter {
                 constructor() {
                     super({
@@ -183,7 +183,7 @@ describe('SemaphoreRateLimiter', () => {
             for (let i: number = 0; i < CAPACITY; i++) {
                 await strictLimiter.consume('global', 1);
             }
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = strictLimiter.wrap(fn, { reserveIfUnavailable: true, countFn: () => 3 }); // request 3, exceeds max reservation size
             await expect(wrapped()).rejects.toThrow('Rate limit was reached');
             expect(fn).not.toHaveBeenCalled();
@@ -193,7 +193,7 @@ describe('SemaphoreRateLimiter', () => {
             for (let i: number = 0; i < CAPACITY; i++) {
                 await limiter.consume('global', 1);
             }
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             assert(typeof result === 'object');
@@ -211,7 +211,7 @@ describe('SemaphoreRateLimiter', () => {
             for (let i: number = 0; i < CAPACITY; i++) {
                 await limiter.consume('global', 1);
             }
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             assert(typeof result === 'object');

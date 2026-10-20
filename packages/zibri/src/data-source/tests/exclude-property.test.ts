@@ -1,12 +1,13 @@
 import assert from 'node:assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
-import { removeExcludeProperties } from '../../global/model-registry/remove-exclude-properties.function';
-import { restoreExcludeProperties } from '../../global/model-registry/restore-exclude-properties.function';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { removeExcludeProperties } from '../../global/model-registry/remove-exclude-properties.function.ts';
+import { restoreExcludeProperties } from '../../global/model-registry/restore-exclude-properties.function.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 // ─── Test entities ────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ class Order {
     internalNote!: string;
 
     @Property.manyToOne({ target: () => User, joinColumn: 'userId', inverseSide: 'orders' })
-    user!: unknown;
+    user!: Relation<User>;
 
     @Property.string({ format: 'uuid' })
     userId!: string;
@@ -300,7 +301,7 @@ describe('restoreExcludeProperties', () => {
 
         const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(user, 'passwordHash');
         expect(descriptor?.enumerable).toBe(true);
-        expect(descriptor?.get).toBeUndefined();
+        expect(descriptor).not.toHaveProperty('get');
     });
 
     it('restored value is correct', async () => {

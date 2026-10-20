@@ -1,4 +1,4 @@
-import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
+import { JwtAsymmetricKey } from './jwt-asymmetric-key.model.ts';
 
 /**
  * The options the jwt auth strategy runs with.

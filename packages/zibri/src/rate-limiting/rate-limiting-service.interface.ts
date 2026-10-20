@@ -1,5 +1,5 @@
-import { RateLimiterInterface } from './limiter/rate-limiter.interface';
-import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
+import { RateLimiterInterface } from './limiter/rate-limiter.interface.ts';
+import { BaseRateLimitState } from './stores/rate-limiter-store.interface.ts';
 
 /**
  * Definition of a rate limiting service.

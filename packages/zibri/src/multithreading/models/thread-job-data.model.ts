@@ -1,4 +1,4 @@
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model.ts';
 
 /**
  * The function values of the thread job data.

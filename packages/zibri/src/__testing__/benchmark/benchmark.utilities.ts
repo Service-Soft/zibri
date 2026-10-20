@@ -1,8 +1,8 @@
 import { performance } from 'node:perf_hooks';
 
-import { BenchmarkTiming } from './benchmark-timing.model';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { BenchmarkTiming } from './benchmark-timing.model.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 /**
  * How much slower than its baseline a timing may be before the report calls it slower. Wide on

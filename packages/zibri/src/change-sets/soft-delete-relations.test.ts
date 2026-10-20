@@ -1,17 +1,18 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { SoftDeleteEntity } from './models/soft-delete-entity.model';
-import { SoftDeleteRepository } from './soft-delete-repository';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { Newable } from '../types/newable.type';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model.ts';
+import { SoftDeleteRepository } from './soft-delete-repository.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type Relation } from '../entity/models/relation.type.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * A soft delete hands its rows back with the relations they read, the same as any other write.
@@ -55,7 +56,7 @@ class Step extends BaseEntity {
      * The recipe it belongs to.
      */
     @Property.manyToOne({ target: () => Recipe, joinColumn: 'recipeId', inverseSide: 'steps', required: false })
-    recipe?: Recipe;
+    recipe?: Relation<Recipe>;
 
     /**
      * The key that relation is stored as.

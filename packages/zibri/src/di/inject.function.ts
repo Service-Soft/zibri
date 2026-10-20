@@ -1,5 +1,5 @@
-import { DiContainer } from './di-container';
-import { DiToken } from './models/di-token.model';
+import { DiContainer } from './di-container.ts';
+import { DiToken } from './models/di-token.model.ts';
 
 /**
  * Injects the registered value for the provided token.

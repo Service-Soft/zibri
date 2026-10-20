@@ -2,48 +2,48 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
-import { BackupEncryptionUtilities } from './backup-encryption.utilities';
-import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
-import { READABLE_BACKUP_FORMAT_VERSIONS } from './backup-format';
-import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
-import { BackupResourceInterface, isBackupResource } from './backup-resource.interface';
-import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
-import { BackupStagingCleanupCronJob } from './backup-staging-cleanup.cron-job';
-import { RestoreJournalEntry } from './restore-journal-entry.model';
-import { RestoreJournal } from './restore-journal.model';
-import { RestoreJournalUtilities } from './restore-journal.utilities';
-import { BackupDigest, followFile, stage } from './staging.function';
-import { ZibriApplication } from '../application/application';
-import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model';
-import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getDiTokenName } from '../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
-import { inject } from '../di/inject.function';
-import { BackupTransportInterface, isBackupTransport } from './transports/backup-transport.interface';
-import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface';
-import { type EncryptionString } from '../auth/encryption/encryption.utilities';
-import { KeysInUse } from '../auth/encryption/keys-in-use.model';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { AfterAppInit } from '../global/after-app-init.interface';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { parseObject } from '../parsing/functions/parse-object.function';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { Ms } from '../utilities/ms';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { PromiseUtilities, TimeoutError } from '../utilities/promise.utilities';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { BackupEncryptionUtilities } from './backup-encryption.utilities.ts';
+import { BackupEntity, BackupEntityCreateData } from './backup-entity.model.ts';
+import { READABLE_BACKUP_FORMAT_VERSIONS } from './backup-format.ts';
+import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model.ts';
+import { BackupResourceInterface, isBackupResource } from './backup-resource.interface.ts';
+import { BackupCreateData, BackupServiceInterface } from './backup-service.interface.ts';
+import { BackupStagingCleanupCronJob } from './backup-staging-cleanup.cron-job.ts';
+import { RestoreJournalEntry } from './restore-journal-entry.model.ts';
+import { RestoreJournal } from './restore-journal.model.ts';
+import { RestoreJournalUtilities } from './restore-journal.utilities.ts';
+import { BackupDigest, followFile, stage } from './staging.function.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { BackupResourceMetadata } from './decorators/backup-resource-metadata.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { getDiTokenName } from '../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { BackupTransportInterface, isBackupTransport } from './transports/backup-transport.interface.ts';
+import { type EncryptionServiceInterface } from '../auth/encryption/encryption-service.interface.ts';
+import { type EncryptionString } from '../auth/encryption/encryption.utilities.ts';
+import { KeysInUse } from '../auth/encryption/keys-in-use.model.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { AfterAppInit } from '../global/after-app-init.interface.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { parseObject } from '../parsing/functions/parse-object.function.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { PromiseUtilities, TimeoutError } from '../utilities/promise.utilities.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * An error to throw during backup service initialization.
@@ -227,13 +227,13 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly isCreatingBackup: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly isRestoringBackup: BehaviorSubject<boolean> = new BehaviorSubject(false);
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get shutdownTimeoutInMs(): number {
         return this.shutdownWaitInMs + STOPPING_TIMEOUT_IN_MS;
     }
@@ -249,14 +249,13 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         private readonly shutdownWaitInMs: number
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         const backupResources: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.BACKUP_RESOURCE);
         if (backupResources.length) {
             if (!app.options.cronJobs.includes(BackupStagingCleanupCronJob)) {
                 app.options.cronJobs.push(BackupStagingCleanupCronJob);
             }
-            // eslint-disable-next-line stylistic/max-len
             this.logger.info(`configures ${backupResources.length} ${backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);
             validateEntitiesRegistered(BackupService.name, app, BackupResourceEntity, BackupEntity);
         }
@@ -289,7 +288,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async afterAppInit(): Promise<void> {
         // after every service is initialized rather than during: a transport reads through them, and
         // one in a bucket needs the http client's body parsers, which the parser only registers in its
@@ -300,7 +299,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         await this.syncBackupEntitiesFrom('skip');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppShutdown(): Promise<void> {
         const finished: Promise<unknown> = Promise.all([
             firstValueFrom(this.isCreatingBackup.pipe(first(v => !v))),
@@ -397,7 +396,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async syncBackupEntities(): Promise<void> {
         await this.syncBackupEntitiesFrom('throw');
     }
@@ -545,7 +544,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createBackup(data?: BackupCreateData): Promise<void> {
         // a trace of its own, for the reason a cron tick gets one: a backup is usually taken on a
         // schedule, and the one that is taken by hand is still not part of the request that asked
@@ -663,7 +662,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async restore(backup: BackupEntity): Promise<void> {
         // before anything else is believed about the record, because everything else a restore reads
         // out of it is read in the shape this names
@@ -935,7 +934,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return FsUtilities.getPath(this.stagingFolder, `${backup.id}-${resource.id}`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async delete(backup: BackupEntity): Promise<void> {
         // resolved before anything is deleted, and refused rather than skipped: a resource whose transports
         // are unknown here would keep its data after the record pointing at it is gone, and nothing would
@@ -971,7 +970,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveRecordedBackups(): Promise<BackupEntity[]> {
         // an application that backs nothing up is not asked to declare the backup entities, so there
         // is no table to read
@@ -981,7 +980,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return await this.backupRepository.findAll({ take: 'all' });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveBackupResource(resource: BackupResourceEntity): BackupResourceInterface | undefined {
         return this.findBackupResource(resource.name);
     }
@@ -997,7 +996,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return this.backupResources.find(r => MetadataUtilities.getBackupResourceMetadata(r)?.name === name);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveTransports(resource: BackupResourceEntity): BackupTransportInterface[] | undefined {
         const resourceClass: BackupResourceInterface | undefined = this.resolveBackupResource(resource);
         if (!resourceClass) {
@@ -1020,7 +1019,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         return metadata.transports.map(t => inject(t));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveData(
         transports: BackupTransportInterface[],
         resource: BackupResourceEntity,

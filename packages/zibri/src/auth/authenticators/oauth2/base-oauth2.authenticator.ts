@@ -1,17 +1,17 @@
 import type { ClientAuth, Configuration, CustomFetch, DiscoveryRequestOptions, TokenEndpointResponse, TokenEndpointResponseHelpers } from 'openid-client';
 
-import { ErrorUtilities } from '../../../error-handling/error.utilities';
-import { KnownHeader } from '../../../http/known-header.enum';
-import { MimeType } from '../../../http/mime-type.enum';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { BaseUser } from '../../models/base-user.model';
-import { FederatedProviderIdentity } from '../federated/federated-provider-identity.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
-import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator';
-import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model';
-import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model';
-import { OpenIdClient } from '../oauth/open-id-client.type';
+import { ErrorUtilities } from '../../../error-handling/error.utilities.ts';
+import { KnownHeader } from '../../../http/known-header.enum.ts';
+import { MimeType } from '../../../http/mime-type.enum.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { FederatedProviderIdentity } from '../federated/federated-provider-identity.model.ts';
+import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum.ts';
+import { FederatedSignInError } from '../federated/federated-sign-in.error.ts';
+import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator.ts';
+import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model.ts';
+import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model.ts';
+import { OpenIdClient } from '../oauth/open-id-client.type.ts';
 
 /**
  * Authenticates a user by a sign-in at a provider that speaks plain OAuth2, without OpenID Connect,

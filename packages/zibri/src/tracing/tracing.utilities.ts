@@ -1,12 +1,12 @@
-import { TraceSpanAttributes } from './trace-span-attributes.model';
-import { TraceSpanContext } from './trace-span-context.model';
-import { TraceSpanKind } from './trace-span-kind.enum';
-import { TraceSpanStatus } from './trace-span-status.enum';
-import { TraceSpanInterface } from './trace-span.interface';
-import { TracerInterface } from './tracer.interface';
-import { AlsUtilities } from '../context/als.utilities';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
+import { TraceSpanAttributes } from './trace-span-attributes.model.ts';
+import { TraceSpanContext } from './trace-span-context.model.ts';
+import { TraceSpanKind } from './trace-span-kind.enum.ts';
+import { TraceSpanStatus } from './trace-span-status.enum.ts';
+import { TraceSpanInterface } from './trace-span.interface.ts';
+import { TracerInterface } from './tracer.interface.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
 
 /**
  * What a caller says about the work it is about to do.

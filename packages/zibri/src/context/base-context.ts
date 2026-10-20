@@ -1,4 +1,4 @@
-import { DiToken } from '../di/models/di-token.model';
+import { DiToken } from '../di/models/di-token.model.ts';
 
 /**
  * The base context that any context needs to extend from.

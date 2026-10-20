@@ -1,4 +1,4 @@
-import { BaseEntity, BigNumber, Controller, Entity, Get, Inject, Injectable, MetadataUtilities, Param, Property, inject, initDiContainer } from 'zibri';
+import { BaseEntity, BigNumber, Controller, Entity, Get, HttpStatus, Inject, Injectable, MetadataUtilities, Param, Property, inject, initDiContainer } from 'zibri';
 
 /**
  * What an application declares, written the way a consumer writes it.
@@ -62,6 +62,16 @@ export class UntaggedService {
 }
 
 /**
+ * A service taking a value typed as an enum from another module, without naming a token. Nothing can
+ * inject an enum value, but what each compiler records for the parameter differs: tsc writes Number,
+ * swc and oxc write the enum object itself.
+ */
+@Injectable()
+export class EnumParameterService {
+    constructor(readonly status: HttpStatus) {}
+}
+
+/**
  * A parent naming what its constructor wants, and declaring nothing else.
  */
 abstract class NamingGreetingBase {
@@ -108,6 +118,14 @@ export class Invoice extends BaseEntity {
      */
     @Property.number({ format: 'bignumber' })
     total!: BigNumber;
+
+    /**
+     * The status the invoice was last answered with, typed as an enum from another module. A compiler
+     * that sees only this file cannot know that the enum holds numbers, so what it records for the
+     * property differs: tsc writes Object, swc and oxc write the enum object itself.
+     */
+    @Property.number({ format: 'integer' })
+    lastStatus!: HttpStatus;
 }
 
 /**
@@ -194,6 +212,10 @@ export type ProbeResult = {
      */
     ownEmptyConstructor: ResolutionOutcome,
     /**
+     * What resolving a service whose constructor takes an enum value without naming a token did.
+     */
+    enumParameter: ResolutionOutcome,
+    /**
      * The properties the entity's metadata carries.
      */
     entityProperties: string[],
@@ -248,6 +270,7 @@ export function probe(): ProbeResult {
         untagged: resolveOutcome(() => inject(UntaggedService).greet()),
         inherited: resolveOutcome(() => inject(InheritingService).greeting.greet()),
         ownEmptyConstructor: resolveOutcome(() => inject(SelfSupplyingService).greeting.greet()),
+        enumParameter: resolveOutcome(() => String(inject(EnumParameterService).status)),
         entityProperties: Object.keys(MetadataUtilities.getModelProperties(Invoice)),
         routes: MetadataUtilities.getControllerRoutes(InvoiceController)
             .map(route => `${route.httpMethod} ${route.route}`),

@@ -1,9 +1,9 @@
-import { AlsUtilities } from '../../../context/als.utilities';
-import { CacheContext } from '../../../context/cache/cache.context';
-import { CachedValue } from '../../store/cached-value.model';
-import { BaseCache } from '../base-cache.model';
-import { CacheOperation } from '../cache-operation.enum';
-import { CacheKeyProvider, CacheWrapOptions } from '../cache-options.model';
+import { AlsUtilities } from '../../../context/als.utilities.ts';
+import { CacheContext } from '../../../context/cache/cache.context.ts';
+import { CachedValue } from '../../store/cached-value.model.ts';
+import { BaseCache } from '../base-cache.model.ts';
+import { CacheOperation } from '../cache-operation.enum.ts';
+import { CacheKeyProvider, CacheWrapOptions } from '../cache-options.model.ts';
 
 /**
  * Base class for all read through caches.
@@ -15,7 +15,7 @@ export abstract class ReadThroughCache<
     WriteResultAvailable extends boolean,
     N extends string
 > extends BaseCache<K, V, CacheTag, WriteResultAvailable, N> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrap<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
         keyFn: CacheKeyProvider<K, TArgs>,

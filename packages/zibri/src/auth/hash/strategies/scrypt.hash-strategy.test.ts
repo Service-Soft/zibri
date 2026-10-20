@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { defaultScryptCost, ScryptCost, ScryptHashStrategy } from './scrypt.hash-strategy';
-import { HashString, HashUtilities } from '../hash.utilities';
+import { defaultScryptCost, ScryptCost, ScryptHashStrategy } from './scrypt.hash-strategy.ts';
+import { HashString, HashUtilities } from '../hash.utilities.ts';
 
 /**
  * Cheap enough to run in a test, and below anything this would ship with - which is what makes it

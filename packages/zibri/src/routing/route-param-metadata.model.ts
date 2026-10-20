@@ -1,10 +1,10 @@
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators/param.decorator';
-import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { BodyMetadata } from './decorators/body-metadata.model';
-import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
+import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from './decorators/param.decorator.ts';
+import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { BodyMetadata } from './decorators/body-metadata.model.ts';
+import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator.ts';
 
 /**
  * One decorated parameter of a route handler, with the position it fills already read off the key it

@@ -1,4 +1,4 @@
-/* eslint-disable cspell/spellchecker */
+/* cspell:disable */
 /**
  * Measures how similar two texts are by the runs of three characters they share.
  *

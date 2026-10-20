@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { InProcessRateLimiterLock } from './rate-limiter-lock.interface';
+import { InProcessRateLimiterLock } from './rate-limiter-lock.interface.ts';
 
 describe('InProcessRateLimiterLock', () => {
 

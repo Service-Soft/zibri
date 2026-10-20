@@ -1,10 +1,10 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { errorToLoggedError } from '../../../logging/error-to-logged-error.function';
-import { TraceSpanContext } from '../../../tracing/trace-span-context.model';
-import { Percentage } from '../../../types/percentage.type';
-import { ThreadJobMessage } from '../../models/thread-job-message.model';
-import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model';
+import { errorToLoggedError } from '../../../logging/error-to-logged-error.function.ts';
+import { TraceSpanContext } from '../../../tracing/trace-span-context.model.ts';
+import { Percentage } from '../../../types/percentage.type.ts';
+import { ThreadJobMessage } from '../../models/thread-job-message.model.ts';
+import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model.ts';
 
 /**
  * The trace the running thread job is recorded under, called from within a worker file.

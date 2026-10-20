@@ -1,6 +1,6 @@
 import { Transaction, TransactionAlreadyFinishedError } from 'zibri';
 
-import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
+import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store.ts';
 
 /**
  * A transaction of an in memory data source.
@@ -39,7 +39,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
 
     constructor(private readonly store: InMemoryStore) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get isFinished(): boolean {
         return this.finished;
     }
@@ -69,7 +69,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readRow(tableName: string, id: string): StoredRow | undefined {
         const overlay: Map<string, StoredRow | undefined> | undefined = this.rowOverlay.get(tableName);
         if (overlay == undefined) {
@@ -80,7 +80,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         return overlay.has(id) ? overlay.get(id) : this.store.readRow(tableName, id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     ids(tableName: string): string[] {
         const res: Set<string> = new Set(this.store.ids(tableName));
         for (const [id, row] of this.rowOverlay.get(tableName) ?? []) {
@@ -93,36 +93,36 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         return [...res];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     writeRow(tableName: string, id: string, row: StoredRow): void {
         this.assertOpen();
         this.overlayOf(tableName).set(id, row);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     deleteRow(tableName: string, id: string): void {
         this.assertOpen();
         this.overlayOf(tableName).set(id, undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readJoin(key: string): Set<string> {
         const buffered: Set<string> | undefined = this.joinOverlay.get(key);
         return buffered ? new Set(buffered) : this.store.readJoin(key);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     writeJoin(key: string, members: Set<string>): void {
         this.assertOpen();
         this.joinOverlay.set(key, new Set(members));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     nextSequenceValue(tableName: string): number {
         return this.store.nextSequenceValue(tableName);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async commit(): Promise<void> {
         this.assertOpen();
         this.finished = true;
@@ -146,17 +146,17 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterCommit(work: () => Promise<void>): void {
         this.committedWork.push(work);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterFinish(work: (committed: boolean) => Promise<void>): void {
         this.finishedWork.push(work);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async rollback(): Promise<void> {
         this.finished = true;
         this.committedWork.length = 0;

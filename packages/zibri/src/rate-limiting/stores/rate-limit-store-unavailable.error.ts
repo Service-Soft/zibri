@@ -2,8 +2,8 @@
 // is serialized into the response body, and a caller who gets a 503 has no business learning that
 // the part which gave up was a rate limiter. Inheriting the name is the point.
 /* eslint-disable unicorn/custom-error-definition */
-import { ServiceUnavailableError } from '../../error-handling/errors/service-unavailable.error';
-import { $ts } from '../../localization/translate.function';
+import { ServiceUnavailableError } from '../../error-handling/errors/service-unavailable.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * Thrown when a rate limiter cannot read or write its state at all.

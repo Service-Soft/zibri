@@ -1,5 +1,5 @@
-import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
-import { BigNumber } from '../../../utilities/number.utilities';
+import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model.ts';
+import { BigNumber } from '../../../utilities/number.utilities.ts';
 
 /**
  * Every shape a number takes, for a property that holds all of them.

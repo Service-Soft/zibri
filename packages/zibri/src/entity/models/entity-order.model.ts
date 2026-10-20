@@ -1,4 +1,4 @@
-import { ColumnKeysOf, ToOneRelationKeysOf } from './entity-relations.model';
+import { ColumnKeysOf, ToOneRelationKeysOf } from './entity-relations.model.ts';
 
 /**
  * Which way a property is ordered.

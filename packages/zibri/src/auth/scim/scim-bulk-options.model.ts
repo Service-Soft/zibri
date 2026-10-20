@@ -1,4 +1,4 @@
-import { FileSize } from '../../entity/models/file-property-metadata.model';
+import { FileSize } from '../../entity/models/file-property-metadata.model.ts';
 
 /**
  * How much one bulk request of an identity provider may do.

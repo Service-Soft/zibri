@@ -1,16 +1,16 @@
 
-import { BaseContext } from '../base-context';
-import { RequestContextToken } from './request-context-token.model';
-import { HttpRequest } from '../../http/http-request.model';
-import { HttpResponse } from '../../http/http-response.model';
-import { Newable } from '../../types/newable.type';
+import { BaseContext } from '../base-context.ts';
+import { RequestContextToken } from './request-context-token.model.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { HttpResponse } from '../../http/http-response.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * The context of an incoming http request.
  */
 export class HttpRequestContext extends BaseContext<'http-request'> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly type: 'http-request' = 'http-request';
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
+    readonly type: 'http-request' = 'http-request' as const;
 
     /**
      * The controller the request was routed to, or undefined while routing has not resolved yet.

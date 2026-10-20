@@ -1,29 +1,29 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../../__testing__/wait-until.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { TraceBufferInterface } from '../../tracing/trace-buffer.interface';
-import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
-import { TraceSpanContext } from '../../tracing/trace-span-context.model';
-import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
-import { TraceSpanRecord } from '../../tracing/trace-span-record.model';
-import { TraceSpanStatus } from '../../tracing/trace-span-status.enum';
-import { TracingUtilities } from '../../tracing/tracing.utilities';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { Ms } from '../../utilities/ms';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
-import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './multithreading-service.interface.ts';
+import { MultithreadingService } from './multithreading.service.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../../__testing__/wait-until.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { TraceBufferInterface } from '../../tracing/trace-buffer.interface.ts';
+import { TraceContextUtilities } from '../../tracing/trace-context.utilities.ts';
+import { TraceSpanContext } from '../../tracing/trace-span-context.model.ts';
+import { TraceSpanKind } from '../../tracing/trace-span-kind.enum.ts';
+import { TraceSpanRecord } from '../../tracing/trace-span-record.model.ts';
+import { TraceSpanStatus } from '../../tracing/trace-span-status.enum.ts';
+import { TracingUtilities } from '../../tracing/tracing.utilities.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
+import { ThreadJobStatus } from '../models/thread-job-status.enum.ts';
 
 /**
  * A thread job row as the repository hands it back, for the reason multithreading.service.test.ts gives.
@@ -35,9 +35,9 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
     entities: defaultTestServerEntities
 });
 
-const traceContextWorkerFile: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.trace-context.test.worker.ts');
+const traceContextWorkerFile: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.trace-context.test.worker.ts');
 
-const throwingWorkerFile: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.throwing.test.worker.ts');
+const throwingWorkerFile: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.throwing.test.worker.ts');
 
 /**
  * Reads back the span a job was recorded as, waiting for it to be ended.

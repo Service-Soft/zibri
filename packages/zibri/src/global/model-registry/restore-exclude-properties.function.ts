@@ -1,7 +1,7 @@
-import { ExcludeDescriptor } from './exclude-descriptor';
-import { ModelRegistry } from './model.registry';
-import { AnyObject } from '../../entity/any-object.model';
-import { Newable } from '../../types/newable.type';
+import { ExcludeDescriptor } from './exclude-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Restores all excluded properties back to enumerable own properties before persisting.
@@ -19,7 +19,7 @@ export function restoreExcludeProperties<Data, EntityClass>(
     restoreExcludePropertiesRecursive(data, descriptor, new Set());
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function restoreExcludePropertiesRecursive<Data, EntityClass>(
     data: Data,
     descriptor: ExcludeDescriptor<EntityClass>,

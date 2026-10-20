@@ -1,12 +1,12 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { EmailRateLimiter } from './email.rate-limiter';
-import { EmailConfigInput } from './models/email-config.model';
-import { initDiContainer } from '../di/init-di-container.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { RateLimitResult } from '../rate-limiting/rate-limit-result.model';
-import { Ms } from '../utilities/ms';
+import { EmailRateLimiter } from './email.rate-limiter.ts';
+import { EmailConfigInput } from './models/email-config.model.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { RateLimitResult } from '../rate-limiting/rate-limit-result.model.ts';
+import { Ms } from '../utilities/ms.ts';
 
 function makeConfig(maxEmailsPerHour: number): EmailConfigInput {
     return {
@@ -37,16 +37,16 @@ describe('EmailRateLimiter', () => {
     });
 
     it('resets on an hourly interval', async () => {
-        jest.useFakeTimers();
+        vi.useFakeTimers();
         const now: number = Date.now();
-        jest.setSystemTime(now);
+        vi.setSystemTime(now);
         try {
             const limiter: EmailRateLimiter = new EmailRateLimiter(makeConfig(1));
             const result: RateLimitResult = await limiter.consume('key', 1);
             expect(result.resetsAtMs).toBe(now + Ms.HOUR);
         }
         finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
         }
     });
 });

@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { compileComponent, renderComponent, serverRenderCode } from '../../__testing__/server-render.helper';
-import { CompiledComponent } from '../../runtime/server-runtime';
+import { compileComponent, renderComponent, serverRenderCode } from '../../__testing__/server-render.helper.ts';
+import { CompiledComponent } from '../../runtime/server-runtime.ts';
 
 describe('server render codegen', () => {
     describe('elements, text and expressions', () => {

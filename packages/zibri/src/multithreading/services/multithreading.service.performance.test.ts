@@ -1,22 +1,22 @@
 import os from 'node:os';
 import { performance } from 'perf_hooks';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { Ms } from '../../utilities/ms';
+import { MultithreadingServiceInterface } from './multithreading-service.interface.ts';
+import { MultithreadingService } from './multithreading.service.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { Ms } from '../../utilities/ms.ts';
 
 // This test compares wall-clock timing between sequential main-thread execution and parallel
-// worker-thread execution. It is inherently flaky under CI/parallel-test-runner load (other Jest
+// worker-thread execution. It is inherently flaky under CI/parallel-test-runner load (other test
 // workers competing for the same CPU cores skew the timing), which is why it's kept in its own file
-// and excluded from `test:ci` (see package.json) rather than fixed by tuning the threshold further —
-// timing-based assertions can't be made reliable that way. Run it standalone (`jest
+// in the heavy project (see vitest.config.mts) rather than fixed by tuning the threshold further —
+// timing-based assertions can't be made reliable that way. Run it standalone (`npx vitest run
 // multithreading.service.performance.test.ts`) on an otherwise idle machine to get a meaningful result.
 const allThreads: number = os.availableParallelism();
 const reserveThreadsMain: number = 1;

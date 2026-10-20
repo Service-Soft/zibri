@@ -1,17 +1,17 @@
-import { parseArray } from './parse-array.function';
-import { parseBoolean } from './parse-boolean.function';
-import { parseDate } from './parse-date.function';
-import { parseNumber } from './parse-number.function';
-import { parseOneOf } from './parse-one-of.function';
-import { parseString } from './parse-string.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Relation } from '../../entity/models/relation.enum';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { parseArray } from './parse-array.function.ts';
+import { parseBoolean } from './parse-boolean.function.ts';
+import { parseDate } from './parse-date.function.ts';
+import { parseNumber } from './parse-number.function.ts';
+import { parseOneOf } from './parse-one-of.function.ts';
+import { parseString } from './parse-string.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function parseObject(
     rawValue: unknown,
     cls: Newable<unknown>
@@ -75,11 +75,11 @@ export function parseObject(
                 res[propertyKey] = parseOneOf(res[propertyKey], m);
                 break;
             }
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'file':
             case 'unknown': {
                 break;

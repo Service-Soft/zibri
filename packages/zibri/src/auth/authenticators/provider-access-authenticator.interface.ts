@@ -1,4 +1,4 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
 
 /**
  * Interface for an authenticator that keeps the tokens of a provider for its identities, so the

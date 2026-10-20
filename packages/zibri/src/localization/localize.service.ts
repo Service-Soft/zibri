@@ -1,29 +1,29 @@
 
-import { formatDate } from './format-date.function';
-import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions, LocalizeServiceInterface } from './localize-service.interface';
-import { DateFormatShortcut, DateFormatString, DefinedDateFormatString } from './models/date-format.model';
-import { LocaleCode, resolveLocaleCode } from './models/locale-code.model';
-import { type LocalizeOptions } from './models/localize-options.model';
-import { TranslationRegistry } from './translation.registry';
-import { parseSourceXlf } from './xlf/parse-source-xlf.function';
-import { parseTranslationXlf } from './xlf/parse-translation-xlf.function';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { KnownHeader } from '../http/known-header.enum';
-import { CurrencyCode } from './models/currency-code.model';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { optionalPeer } from '../utilities/optional-peer.function';
-import { ExtractedTranslationString } from './xlf/transform-source-translation-tokens.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { formatDate } from './format-date.function.ts';
+import { FormatDateOptions, FormatPercentOptions, FormatPriceOptions, LocalizeServiceInterface } from './localize-service.interface.ts';
+import { DateFormatShortcut, DateFormatString, DefinedDateFormatString } from './models/date-format.model.ts';
+import { LocaleCode, resolveLocaleCode } from './models/locale-code.model.ts';
+import { type LocalizeOptions } from './models/localize-options.model.ts';
+import { TranslationRegistry } from './translation.registry.ts';
+import { parseSourceXlf } from './xlf/parse-source-xlf.function.ts';
+import { parseTranslationXlf } from './xlf/parse-translation-xlf.function.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { CurrencyCode } from './models/currency-code.model.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { type FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { optionalPeer } from '../utilities/optional-peer.function.ts';
+import { ExtractedTranslationString } from './xlf/transform-source-translation-tokens.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 const acceptLanguageRegex: RegExp = /((([A-Za-z]+(-[\dA-Za-z]+){0,2})|\*)(;q=[01](\.\d+)?)?)*/g;
 
@@ -50,7 +50,7 @@ export const TEXT_COLLATOR_OPTIONS: Intl.CollatorOptions = {
  * Two locales that order all of these the same way order text the same way, as far as anything short
  * of the collation tables themselves can tell.
  */
-// eslint-disable-next-line cspell/spellchecker
+// cspell:disable-next-line
 const TEXT_ORDER_PROBE: string[] = 'a A ä æ å b c ch d h i ı İ l ł n ñ o ö ø s ß ss t u ü v w z Z cote coté côte côté'
     .split(' ');
 
@@ -93,7 +93,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         private readonly translationPath: FsPath
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(): Promise<void> {
         this.logger.info('Initializes localization for the locales');
 
@@ -142,7 +142,6 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
 
         for (const [translation, locales] of missingTranslations.entries()) {
             this.logger.warn(
-                // eslint-disable-next-line stylistic/max-len
                 `Missing translation of "${translation.source}" for ${locales.length > 1 ? 'locales' : 'locale'} "${locales.join()}" (${translation.file}:${translation.line})`
             );
         }
@@ -181,7 +180,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return await parseSourceXlf(sourceXlf);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     compareText(a: string, b: string): number {
         return this.textCollator.compare(a, b);
     }
@@ -257,7 +256,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return this.textCollatorOfDefaultLocale;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveSupportedLocale(
         context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)
     ): LocaleCode {
@@ -279,7 +278,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return this.options.defaultLocale;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveSupportedLocaleFromAcceptLanguageString(acceptLanguage: string): LocaleCode | undefined {
         const parts: RegExpMatchArray | null = acceptLanguage.match(acceptLanguageRegex);
         const resolvedDefinitions: AcceptLanguageDefinition[] = (parts ?? []).map(m => {
@@ -315,7 +314,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return resolveLocaleCode(locale, ObjectUtilities.keys(this.options.supportedLocales));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveCurrencyCodeForLocale(locale: LocaleCode): CurrencyCode {
         const currency: CurrencyCode | undefined = this.options.supportedLocales[locale]?.currencyCode;
         if (currency == undefined) {
@@ -324,9 +323,8 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return currency;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getCurrencyMinorUnits(currency: CurrencyCode): number {
-        // eslint-disable-next-line stylistic/max-len
         const res: number | undefined = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits;
         // set for every currency format, and optional in the type only for the formats rounding by
         // significant digits instead
@@ -336,7 +334,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     formatPrice(price: AnyNumber, options: FormatPriceOptions): string {
         options.locale ??= this.resolveSupportedLocale();
         options.currency ??= this.resolveCurrencyCodeForLocale(options.locale);
@@ -353,13 +351,13 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         }).format(v);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     formatPercent(percent: number, options: FormatPercentOptions = {}): string {
         options.locale ??= this.resolveSupportedLocale();
         return percent.toLocaleString(options.locale, { style: 'percent' });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     formatDate<const S extends string>(
         date: Date,
         format: DateFormatString<S> | DateFormatShortcut = 'date',
@@ -375,7 +373,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
         return formatDate(date, formatString, options.locale, options.timezone);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveDateFormatForLocale<const S extends string>(
         locale: LocaleCode,
         variant: DateFormatShortcut

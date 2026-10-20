@@ -1,10 +1,10 @@
 
-import { ChangeSetType } from './change-set-type.enum';
-import { Change, NewChange } from './change.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { ChangeSetType } from './change-set-type.enum.ts';
+import { Change, NewChange } from './change.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * A single change set.

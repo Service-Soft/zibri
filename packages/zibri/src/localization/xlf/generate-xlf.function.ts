@@ -1,18 +1,18 @@
-import { XliffDocument } from './models/xliff-document.model';
-import { XliffFile } from './models/xliff-file.model';
-import { XliffSegment } from './models/xliff-segment.model';
-import { XliffTransUnit } from './models/xliff-trans-unit.model';
-import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
-import { XmlString } from '../../document/xml-string.type';
-import { XmlWriterUtilities } from '../../document/xml-writer.utilities';
-import { XmlUtilities } from '../../document/xml.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { XliffDocument } from './models/xliff-document.model.ts';
+import { XliffFile } from './models/xliff-file.model.ts';
+import { XliffSegment } from './models/xliff-segment.model.ts';
+import { XliffTransUnit } from './models/xliff-trans-unit.model.ts';
+import { ExtractedTranslationString } from './transform-source-translation-tokens.function.ts';
+import { XmlString } from '../../document/xml-string.type.ts';
+import { XmlWriterUtilities } from '../../document/xml-writer.utilities.ts';
+import { XmlUtilities } from '../../document/xml.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type CollectedString = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     source: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     locations: { file: string, line: number }[]
 };
 
@@ -51,7 +51,7 @@ export function generateXlf(strings: ExtractedTranslationString[]): XmlString {
     return XmlUtilities.resolveXmlString(xml);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function resolveTranslationUnit({ source, locations }: CollectedString): XliffTransUnit {
     return {
         id: source,
@@ -61,7 +61,7 @@ function resolveTranslationUnit({ source, locations }: CollectedString): XliffTr
     };
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function resolveSourceSegment(source: string): XliffSegment {
     const parts: XliffSegment['parts'] = [];
     const regex: RegExp = /{{|}}|{([^}]+)}/g;

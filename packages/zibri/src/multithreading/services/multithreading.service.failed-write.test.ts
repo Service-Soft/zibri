@@ -1,22 +1,22 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../../__testing__/wait-until.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { Ms } from '../../utilities/ms';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
-import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './multithreading-service.interface.ts';
+import { MultithreadingService } from './multithreading.service.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../../__testing__/wait-until.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
+import { ThreadJobStatus } from '../models/thread-job-status.enum.ts';
 
 /**
  * A thread job row as the repository hands it back.
@@ -33,7 +33,7 @@ type ThreadJobRepository = Repository<AnyThreadJobEntity>;
  */
 type ThreadJobUpdate = Parameters<ThreadJobRepository['updateById']>[1];
 
-const computingWorker: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+const computingWorker: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
 
 let server: StartedTestServer;
 let multithreadingService: MultithreadingServiceInterface;
@@ -46,7 +46,7 @@ let threadJobRepository: ThreadJobRepository;
  */
 function failNextWrite(matches: (data: ThreadJobUpdate) => boolean): void {
     const updateById: ThreadJobRepository['updateById'] = threadJobRepository.updateById.bind(threadJobRepository);
-    const spy: jest.SpiedFunction<ThreadJobRepository['updateById']> = jest.spyOn(threadJobRepository, 'updateById')
+    const spy: MockInstance<ThreadJobRepository['updateById']> = vi.spyOn(threadJobRepository, 'updateById')
         .mockImplementation(async (id, data, options) => {
             if (matches(data)) {
                 spy.mockRestore();
@@ -92,7 +92,7 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
     }, 30000);
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     afterAll(async () => {
@@ -117,7 +117,7 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
         failNextWrite(data => data.status === ThreadJobStatus.FAILED);
 
         const crashing: string = await multithreadingService.queueThreadJob({
-            workerData: { filePath: FsUtilities.getPath(__dirname, 'multithreading.service.crashing.test.worker.ts') }
+            workerData: { filePath: FsUtilities.getPath(import.meta.dirname, 'multithreading.service.crashing.test.worker.ts') }
         });
         const next: string = await multithreadingService.queueThreadJob({ workerData: { filePath: computingWorker, amount: 10 } });
 

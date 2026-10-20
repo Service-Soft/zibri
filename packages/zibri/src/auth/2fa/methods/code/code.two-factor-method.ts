@@ -1,33 +1,33 @@
 import { randomInt, timingSafeEqual } from 'node:crypto';
 
-import { TwoFactorCodeCleanupCronJob } from './two-factor-code-cleanup.cron-job';
-import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './two-factor-code-credentials.model';
-import { TwoFactorCodeOptions } from './two-factor-code-options.model';
-import { TwoFactorCode, TwoFactorCodeCreateData } from './two-factor-code.model';
-import { TwoFactorCodeRateLimiter } from './two-factor-code.rate-limiter';
-import { ZibriApplication } from '../../../../application/application';
-import { HttpRequestContext } from '../../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
-import { Where } from '../../../../data-source/models/where/where-filter.model';
-import { Repository } from '../../../../data-source/repository/repository';
-import { Transaction } from '../../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { ForbiddenError } from '../../../../error-handling/errors/forbidden.error';
-import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error';
-import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../../error-handling/internal-error.model';
-import { $ts } from '../../../../localization/translate.function';
-import { RateLimitResult } from '../../../../rate-limiting/rate-limit-result.model';
-import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model';
-import { Newable } from '../../../../types/newable.type';
-import { Ms } from '../../../../utilities/ms';
-import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../../../models/base-user.model';
-import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
-import { TwoFactorMethod } from '../two-factor-method.interface';
+import { TwoFactorCodeCleanupCronJob } from './two-factor-code-cleanup.cron-job.ts';
+import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './two-factor-code-credentials.model.ts';
+import { TwoFactorCodeOptions } from './two-factor-code-options.model.ts';
+import { TwoFactorCode, TwoFactorCodeCreateData } from './two-factor-code.model.ts';
+import { TwoFactorCodeRateLimiter } from './two-factor-code.rate-limiter.ts';
+import { ZibriApplication } from '../../../../application/application.ts';
+import { HttpRequestContext } from '../../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context.ts';
+import { Where } from '../../../../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { ForbiddenError } from '../../../../error-handling/errors/forbidden.error.ts';
+import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error.ts';
+import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../../error-handling/internal-error.model.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { RateLimitResult } from '../../../../rate-limiting/rate-limit-result.model.ts';
+import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model.ts';
+import { Newable } from '../../../../types/newable.type.ts';
+import { Ms } from '../../../../utilities/ms.ts';
+import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error.ts';
+import { TwoFactorMethod } from '../two-factor-method.interface.ts';
 
 /**
  * The data for confirming the enrollment of a method that sends codes.
@@ -57,13 +57,13 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
 
     abstract readonly requestRegisterModel: Newable<RequestData>;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly confirmRegisterModel: Newable<CodeConfirmRegisterData> = CodeConfirmRegisterData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly registrationModel: undefined = undefined;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly secondFactorStartModel: undefined = undefined;
 
     /**
@@ -111,7 +111,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: RequestData
@@ -131,7 +131,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
         await this.sendCode(user, credentials);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: CodeConfirmRegisterData
@@ -161,17 +161,17 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
         await this.deleteCredentials({ userId: user.id, channel: this.channel });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
         return await this.findConfirmedCredentials(user.id) != undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validate<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext

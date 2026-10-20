@@ -3,25 +3,25 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PeppolConformanceService } from './peppol-conformance.service';
-import { XRechnungConformanceService } from './x-rechnung-conformance.service';
-import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../../../../di/inject.function';
-import { type CurrencyCode } from '../../../../../localization/models/currency-code.model';
-import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
-import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
-import { ElectronicAddress } from '../../../models/electronic-address.model';
-import { InvoiceItem } from '../../../models/invoice-item.model';
-import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
-import { Invoice } from '../../../models/invoice.model';
-import { NumberInvoices } from '../../../models/number-invoices.model';
+import { PeppolConformanceService } from './peppol-conformance.service.ts';
+import { XRechnungConformanceService } from './x-rechnung-conformance.service.ts';
+import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function.ts';
+import { defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../../../../../di/inject.function.ts';
+import { type CurrencyCode } from '../../../../../localization/models/currency-code.model.ts';
+import { UUIDUtilities } from '../../../../../utilities/uuid.utilities.ts';
+import { ZibriInvoicingPlugin } from '../../../invoicing.plugin.ts';
+import { ElectronicAddress } from '../../../models/electronic-address.model.ts';
+import { InvoiceItem } from '../../../models/invoice-item.model.ts';
+import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from '../../../models/invoice.model.ts';
+import { NumberInvoices } from '../../../models/number-invoices.model.ts';
 
 // The electronic invoices of the plugin, checked by the validator KoSIT publishes for XRechnung, the one
 // German authorities check what they receive with: EN 16931's rules and XRechnung's for an XRechnung,
@@ -185,7 +185,7 @@ function invoiceOf(items: InvoiceItem[], buyerElectronicAddress: ElectronicAddre
     return {
         id: UUIDUtilities.generate(),
         tenantId: UUIDUtilities.generate(),
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         number: '2026-GREATC-0001',
         items,
         date: new Date(Date.UTC(2026, 9, 16)),
@@ -307,7 +307,7 @@ describe('the electronic invoices, checked by the KoSIT validator', () => {
                     electronicAddress: { scheme: '9930', value: 'DE123456789' },
                     ceo: 'James Smith',
                     iban: 'DE75512108001245126199',
-                    // eslint-disable-next-line cspell/spellchecker
+                    // cspell:disable-next-line
                     bic: 'ABCDDEFFXXX'
                 }))
             ]
@@ -333,10 +333,10 @@ describe('the electronic invoices, checked by the KoSIT validator', () => {
         await run(`mkdir -p ${REPOSITORY} && cd ${REPOSITORY} && jar xf /validation/xrechnung.zip`);
         await run('mkdir -p /validation/schxslt && cd /validation/schxslt && jar xf /validation/schxslt.jar xslt');
         await run([
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             `mkdir -p ${REPOSITORY}/peppol && java -cp /validation/validator.jar net.sf.saxon.Transform`,
             '-s:/validation/PEPPOL-EN16931-CII.sch',
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             '-xsl:/validation/schxslt/xslt/2.0/pipeline-for-svrl.xsl',
             `-o:${REPOSITORY}/peppol/PEPPOL-EN16931-CII.xsl`
         ].join(' '));

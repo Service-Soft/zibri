@@ -3,60 +3,60 @@ import os from 'node:os';
 import type { Registry, Counter, Histogram, Gauge, MetricObjectWithValues, MetricValue } from 'prom-client';
 import type { Systeminformation } from 'systeminformation';
 
-import { CollectMetricsCronJob } from './collect-metrics.cron-job';
-import { CounterInterface } from './counter.interface';
-import { GaugeInterface } from './gauge.interface';
-import { HistogramInterface } from './histogram.interface';
-import { MetricType } from './metric-type.enum';
-import { Metric } from './metric.model';
-import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
-import { ZibriApplication } from '../application/application';
-import { type AssetServiceInterface } from '../assets/asset-service.interface';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { MiddlewarePhase } from '../http/middleware-phase.enum';
-import { RouteLabelUtilities } from '../http/route-label.utilities';
-import { optionalPeer } from '../utilities/optional-peer.function';
+import { CollectMetricsCronJob } from './collect-metrics.cron-job.ts';
+import { CounterInterface } from './counter.interface.ts';
+import { GaugeInterface } from './gauge.interface.ts';
+import { HistogramInterface } from './histogram.interface.ts';
+import { MetricType } from './metric-type.enum.ts';
+import { Metric } from './metric.model.ts';
+import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { type AssetServiceInterface } from '../assets/asset-service.interface.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { MiddlewarePhase } from '../http/middleware-phase.enum.ts';
+import { RouteLabelUtilities } from '../http/route-label.utilities.ts';
+import { optionalPeer } from '../utilities/optional-peer.function.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class PromCounter implements CounterInterface {
     constructor(private readonly inner: Counter<string>) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     increase(labels: Record<string, string> = {}, v = 1): void {
         this.inner.inc(labels, v);
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class PromGauge implements GaugeInterface {
     constructor(private readonly inner: Gauge<string>) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     increase(labels: Record<string, string> = {}, v = 1): void {
         this.inner.inc(labels, v);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     decrease(labels: Record<string, string> = {}, v = 1): void {
         this.inner.dec(labels, v);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     set(labels: Record<string, string>, v: number): void {
         this.inner.set(labels, v);
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class PromHistogram implements HistogramInterface {
     constructor(private readonly inner: Histogram<string>) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     observe(labels: Record<string, string>, v: number): void {
         this.inner.observe(labels, v);
     }
@@ -73,9 +73,9 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     private readonly histograms: Map<string, Histogram<string>> = new Map<string, Histogram<string>>();
     private readonly metricSnapshots: MetricsSnapshot[] = [];
 
-    // eslint-disable-next-line sonar/no-duplicate-string
+    // eslint-disable-next-line sonarjs/no-duplicate-string
     private get promClient(): typeof import('prom-client') {
-        // eslint-disable-next-line sonar/no-duplicate-string
+        // eslint-disable-next-line sonarjs/no-duplicate-string
         return optionalPeer<typeof import('prom-client')>('prom-client', 'Default metrics service implementation of Zibri.');
     }
 
@@ -97,7 +97,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         this.getGauge('process_cpu_count').set({ }, os.availableParallelism());
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         optionalPeer('systeminformation', 'Default metrics service implementation of Zibri.');
 
@@ -118,7 +118,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         }, MiddlewarePhase.OBSERVABILITY);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     measureFinishedRequest(req: HttpRequest, res: HttpResponse, durationInMs: number): void {
         if (req.path.startsWith(this.assetService.assetsRoute)) {
             return;
@@ -136,7 +136,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         this.getHistogram('http_request_duration_ms').observe({ method, route, status_code: statusCode }, durationInMs);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getCounter(name: CounterMetricName, labelNames: string[] = []): PromCounter {
         if (!this.counters.has(name)) {
             this.counters.set(name, new this.promClient.Counter({ name, help: name, labelNames, registers: [this.registry] }));
@@ -145,7 +145,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         return new PromCounter(this.counters.get(name)!);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getGauge(name: GaugeMetricName, labelNames: string[] = []): PromGauge {
         if (!this.gauges.has(name)) {
             this.gauges.set(name, new this.promClient.Gauge({ name, help: name, labelNames, registers: [this.registry] }));
@@ -154,7 +154,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         return new PromGauge(this.gauges.get(name)!);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getHistogram(name: HistogramMetricName, labelNames: string[] = [], buckets: number[] = []): PromHistogram {
         if (!this.histograms.has(name)) {
             this.histograms.set(name, new this.promClient.Histogram({ name, help: name, labelNames, buckets, registers: [this.registry] }));
@@ -163,7 +163,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         return new PromHistogram(this.histograms.get(name)!);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async collect(): Promise<void> {
         // one entry per interface, and there can be none: a container with no interface of its own,
         // or a probe the host would not answer
@@ -204,7 +204,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getMetricSnapshots(): MetricsSnapshot[] {
         return this.metricSnapshots;
     }

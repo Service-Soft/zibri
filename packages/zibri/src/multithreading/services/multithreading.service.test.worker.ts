@@ -1,8 +1,8 @@
 import { workerData } from 'node:worker_threads';
 
-import { reportCompletion } from './worker/helpers';
+import { reportCompletion } from './worker/helpers.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function fib(n: number): number {
     if (n < 2) {
         return n;

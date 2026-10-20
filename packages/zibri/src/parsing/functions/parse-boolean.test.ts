@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { parseBoolean } from './parse-boolean.function';
+import { parseBoolean } from './parse-boolean.function.ts';
 
 describe('parseBoolean', () => {
     it('returns true for string "true"', () => {

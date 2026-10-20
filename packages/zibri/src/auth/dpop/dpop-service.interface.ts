@@ -1,7 +1,7 @@
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AuthorizationToken } from '../strategies/authorization-token.model';
-import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorithm.type';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AuthorizationToken } from '../strategies/authorization-token.model.ts';
+import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorithm.type.ts';
 
 /**
  * Interface for the service checking the DPoP proofs of requests (RFC 9449).

@@ -1,6 +1,6 @@
-import { AuthControllerAuthenticatorInterface, isAuthControllerAuthenticator } from './auth-controller-authenticator.interface';
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
+import { AuthControllerAuthenticatorInterface, isAuthControllerAuthenticator } from './auth-controller-authenticator.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an authenticator whose login answers a challenge it hands out first, such as a passkey.

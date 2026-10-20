@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { CheckConstraintViolationError } from '../check-constraint-violation.error';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { whereFor } from '../models/where/where-for.function';
-import { Repository } from '../repository/repository';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { CheckConstraintViolationError } from '../check-constraint-violation.error.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { whereFor } from '../models/where/where-for.function.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * Indexes and uniques follow the entity: a boot creates what it declares and the store lacks, and
@@ -46,11 +46,11 @@ export class PlainWidget extends BaseEntity {
  */
 @Entity({ tenant: 'shared', tableName: 'reconciled_widget', allowOrphan: true, allowDuplicate: true, uniques: [['code']] })
 export class KeyedWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string({ index: true })
     shelf!: string;
 }
@@ -66,11 +66,11 @@ export class KeyedWidget extends BaseEntity {
     uniques: [{ properties: ['code'], where: whereFor<ShelfXWidget>({ shelf: 'x' }) }]
 })
 export class ShelfXWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     shelf!: string;
 }
@@ -86,11 +86,11 @@ export class ShelfXWidget extends BaseEntity {
     uniques: [{ properties: ['code'], where: whereFor<ShelfYWidget>({ shelf: 'y' }) }]
 })
 export class ShelfYWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     shelf!: string;
 }
@@ -106,11 +106,11 @@ export class ShelfYWidget extends BaseEntity {
     checks: [whereFor<CheckedWidget>({ shelf: { not: 'z' } })]
 })
 export class CheckedWidget extends BaseEntity {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     code!: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string()
     shelf!: string;
 }

@@ -1,10 +1,10 @@
-import { inject } from '../../di/inject.function';
-import { DiToken } from '../../di/models/di-token.model';
-import { CacheKeyProvider, CacheWrapOptions } from '../cache/cache-options.model';
-import { CacheInterface } from '../cache/cache.interface';
-import { MultiTierCache, MultiWrapOptions } from '../cache/multi-tier.cache';
+import { inject } from '../../di/inject.function.ts';
+import { DiToken } from '../../di/models/di-token.model.ts';
+import { CacheKeyProvider, CacheWrapOptions } from '../cache/cache-options.model.ts';
+import { CacheInterface } from '../cache/cache.interface.ts';
+import { MultiTierCache, MultiWrapOptions } from '../cache/multi-tier.cache.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ExtractWrapOptions<C, TArgs extends unknown[]>
     // eslint-disable-next-line typescript/no-explicit-any
     = C extends MultiTierCache<any, infer V, infer Tiers, infer CacheTag>
@@ -14,14 +14,14 @@ type ExtractWrapOptions<C, TArgs extends unknown[]>
             ? CacheWrapOptions<V, TArgs, CacheTag>
             : never;
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Marks the method for caching via the given cache token.
  * @param cacheToken - The token of the cache to use.
  * @param keyFn - How to resolve the key under which results are cached.
  * @param options - Additional options like ttl or tags.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+// eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/no-explicit-any
 export function Cached<C extends { wrap: (...args: any[]) => any }, K, V, TArgs extends unknown[]>(
     cacheToken: DiToken<C>,
     // TArgs and V are the decorated method's, inferred from the method alone through the decorator
@@ -40,7 +40,7 @@ export function Cached<C extends { wrap: (...args: any[]) => any }, K, V, TArgs 
 
         descriptor.value = async function(this: object, ...args: TArgs): Promise<V> {
             if (!wrappedFns.has(this)) {
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
                 const cache = inject(cacheToken);
                 // eslint-disable-next-line typescript/no-unsafe-argument
                 wrappedFns.set(this, cache.wrap(original.bind(this), keyFn, options));

@@ -1,13 +1,13 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Relation } from '../../entity/models/relation.enum';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { OneOfWhereFilterUtilities } from '../models/where/one-of-where-filter.utilities';
-import { isWhereFilterKey, WhereFilterKeys } from '../models/where/where-filter-keys.model';
-import { Where, WhereFilter } from '../models/where/where-filter.model';
-import { WhereValueUtilities } from '../models/where/where-value.utilities';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { OneOfWhereFilterUtilities } from '../models/where/one-of-where-filter.utilities.ts';
+import { isWhereFilterKey, WhereFilterKeys } from '../models/where/where-filter-keys.model.ts';
+import { Where, WhereFilter } from '../models/where/where-filter.model.ts';
+import { WhereValueUtilities } from '../models/where/where-value.utilities.ts';
 
 /**
  * A caller's where filter with the entity's scopes applied to it.
@@ -435,11 +435,11 @@ export abstract class ScopeWhereUtilities {
             return MetadataUtilities.getModelProperties(metadata.items.cls());
         }
         if (
-            metadata?.type === Relation.HAS_ONE
-            || metadata?.type === Relation.BELONGS_TO_ONE
-            || metadata?.type === Relation.MANY_TO_ONE
-            || metadata?.type === Relation.ONE_TO_MANY
-            || metadata?.type === Relation.MANY_TO_MANY
+            metadata?.type === RelationType.HAS_ONE
+            || metadata?.type === RelationType.BELONGS_TO_ONE
+            || metadata?.type === RelationType.MANY_TO_ONE
+            || metadata?.type === RelationType.ONE_TO_MANY
+            || metadata?.type === RelationType.MANY_TO_MANY
         ) {
             return MetadataUtilities.getModelProperties(metadata.target());
         }

@@ -1,5 +1,5 @@
-import { Property } from '../entity/decorators/property.decorator';
-import { SelfDescribing } from '../types/self-describing.type';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { SelfDescribing } from '../types/self-describing.type.ts';
 
 /**
  * A response that sends the caller on to another url.
@@ -13,7 +13,7 @@ export class RedirectResponse implements SelfDescribing {
      * gives.
      */
     @Property.string({ exclude: true })
-    readonly className: 'RedirectResponse' = 'RedirectResponse';
+    readonly className: 'RedirectResponse' = 'RedirectResponse' as const;
 
     private constructor(
         /**

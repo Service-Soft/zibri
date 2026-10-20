@@ -1,13 +1,13 @@
-import { MigrationEntity } from './migration-entity.model';
-import { AlsUtilities } from '../../context/als.utilities';
-import { OperationLimitUtilities } from '../../context/operation-limit.utilities';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { MigrationEntity } from './migration-entity.model.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { OperationLimitUtilities } from '../../context/operation-limit.utilities.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * Base class for a data source migration.

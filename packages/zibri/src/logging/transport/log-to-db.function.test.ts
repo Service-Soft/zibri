@@ -1,13 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { logToDb } from './log-to-db.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
+import { logToDb } from './log-to-db.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
 
 describe('logToDb', () => {
     let server: StartedTestServer;

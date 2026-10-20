@@ -44,4 +44,4 @@ export const defaultPasswordResetEmailTemplate: PasswordResetEmailTemplate<strin
         name: 'DefaultPasswordResetEmail',
         client: {},
         render: (props: Record<string, unknown>) => `<a href="${String(props['confirmPasswordResetLink'])}">Reset your password</a>`
-    } as CompiledEmailComponent as unknown as PasswordResetEmailTemplate<string, BaseUser<string>>;
+    } as unknown as PasswordResetEmailTemplate<string, BaseUser<string>>;

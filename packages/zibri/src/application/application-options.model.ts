@@ -1,19 +1,19 @@
-import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
-import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
-import { Authenticators } from '../auth/authenticators/authenticators.model';
-import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
-import { BackupTransportInterface } from '../backup/transports/backup-transport.interface';
-import { CronJob } from '../cron/cron-job.model';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { DiProvider } from '../di/models/di-provider.model';
-import { CorsOptions } from '../http/cors.middleware';
-import { KnownHeader } from '../http/known-header.enum';
-import { AnyBodyParser } from '../parsing/body-parser.interface';
-import { ZibriPlugin } from '../plugin/plugin.model';
-import { DeepPartial } from '../types/deep-partial.type';
-import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
-import { SemVerVersion } from '../versioning/sem-ver.utilities';
+import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model.ts';
+import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model.ts';
+import { Authenticators } from '../auth/authenticators/authenticators.model.ts';
+import { AuthStrategies } from '../auth/strategies/auth-strategies.model.ts';
+import { BackupTransportInterface } from '../backup/transports/backup-transport.interface.ts';
+import { CronJob } from '../cron/cron-job.model.ts';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { CorsOptions } from '../http/cors.middleware.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { AnyBodyParser } from '../parsing/body-parser.interface.ts';
+import { ZibriPlugin } from '../plugin/plugin.model.ts';
+import { DeepPartial } from '../types/deep-partial.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { SemVerVersion } from '../versioning/sem-ver.utilities.ts';
 
 /**
  * Configuration options for strict transport security / hsts.

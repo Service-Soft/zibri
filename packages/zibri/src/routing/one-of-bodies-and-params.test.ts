@@ -1,34 +1,34 @@
 import assert from 'assert';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { Param } from './decorators/param.decorator';
-import { Post } from './decorators/post.decorator';
-import { RouterInterface } from './router.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { HttpMethod } from '../http/http-method.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { HttpClientResponse } from '../http-client/http-client-response.model';
-import { HttpClientInterface } from '../http-client/http-client.interface';
-import { Response as ZibriResponse } from '../open-api/decorators/response.decorator';
-import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiReferenceObject, OpenApiSchemaObject } from '../open-api/open-api.model';
-import { File } from '../parsing/form-data/file.model';
-import { FormData as ZibriFormData } from '../parsing/form-data/form-data.model';
-import { JsonBodyParser } from '../parsing/json/json.body-parser';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ValidationProblem } from '../validation/validation-problem.model';
-import { ValidationService } from '../validation/validation.service';
-import { WebsocketBody } from '../websocket/decorators/websocket-body.decorator';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { Body } from './decorators/body.decorator.ts';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { Param } from './decorators/param.decorator.ts';
+import { Post } from './decorators/post.decorator.ts';
+import { RouterInterface } from './router.interface.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../http-client/http-client-response.model.ts';
+import { HttpClientInterface } from '../http-client/http-client.interface.ts';
+import { Response as ZibriResponse } from '../open-api/decorators/response.decorator.ts';
+import { OpenApiDefinition, OpenApiOperation, OpenApiParameter, OpenApiReferenceObject, OpenApiSchemaObject } from '../open-api/open-api.model.ts';
+import { File } from '../parsing/form-data/file.model.ts';
+import { FormData as ZibriFormData } from '../parsing/form-data/form-data.model.ts';
+import { JsonBodyParser } from '../parsing/json/json.body-parser.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ValidationProblem } from '../validation/validation-problem.model.ts';
+import { ValidationService } from '../validation/validation.service.ts';
+import { WebsocketBody } from '../websocket/decorators/websocket-body.decorator.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 class Signup {
     @Property.string({ regex: /^[^\s@]+@[^\s@]+$/ })

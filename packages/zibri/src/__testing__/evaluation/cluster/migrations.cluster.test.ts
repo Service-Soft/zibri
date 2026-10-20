@@ -1,7 +1,7 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from 'vitest';
 import { StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/01-data-layer.md C2.
@@ -33,7 +33,7 @@ describe('evaluation/01-data-layer C2 - migrations across replicas', () => {
 
     it('starts every instance when they run migrations at the same time', async () => {
         cluster = await startTestCluster({
-            instanceOptions: FsUtilities.getPath(__dirname, 'migrations.instance-options.ts'),
+            instanceOptions: FsUtilities.getPath(import.meta.dirname, 'migrations.instance-options.ts'),
             instances: 3,
             bootMode: 'simultaneous'
         });

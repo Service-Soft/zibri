@@ -1,6 +1,6 @@
 import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from 'zibri';
 
-import { zibriFrameworkEntities } from './framework-entities';
+import { zibriFrameworkEntities } from './framework-entities.ts';
 
 /**
  * What can be configured about a data source built by {@link createPostgresTestDataSource}.

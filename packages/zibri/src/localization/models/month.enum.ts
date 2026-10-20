@@ -1,4 +1,4 @@
-import { $t, TranslationToken } from '../translate.function';
+import { $t, TranslationToken } from '../translate.function.ts';
 
 /**
  * Definition of the months in a year as defined by the js Date object.

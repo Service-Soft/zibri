@@ -1,9 +1,9 @@
 import { createHmac } from 'node:crypto';
 
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, Mock } from 'vitest';
 import { Request, Response } from 'express';
 
-import { cookieMiddleware } from './cookie.middleware';
+import { cookieMiddleware } from './cookie.middleware.ts';
 
 // Mirrors the cookie-signature format used by express's res.cookie({ signed: true }),
 // independent of cookie.middleware.ts's own implementation, so the test doesn't just echo the source.
@@ -19,8 +19,8 @@ function createReq(cookieHeader: string | undefined): Request {
 
 function invoke(secret: string | undefined, cookieHeader: string | undefined): Request {
     const req: Request = createReq(cookieHeader);
-    const next: jest.Mock = jest.fn();
-    cookieMiddleware(secret)(req, {} as Response, next as unknown as () => void);
+    const next: Mock = vi.fn();
+    cookieMiddleware(secret)(req, {} as Response, next);
     expect(next).toHaveBeenCalledTimes(1);
     return req;
 }

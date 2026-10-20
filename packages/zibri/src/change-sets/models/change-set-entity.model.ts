@@ -1,6 +1,6 @@
-import { ChangeSet } from './change-set.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { ChangeSet } from './change-set.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * An entity that can be handled by the ChangeSetRepository.

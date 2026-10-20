@@ -1,10 +1,10 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { generateXlf } from './generate-xlf.function';
-import { parseSourceXlf } from './parse-source-xlf.function';
-import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { GlobalRegistry } from '../../global/global-registry';
+import { generateXlf } from './generate-xlf.function.ts';
+import { parseSourceXlf } from './parse-source-xlf.function.ts';
+import { ExtractedTranslationString } from './transform-source-translation-tokens.function.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
 
 beforeAll(() => {
     initDiContainer();

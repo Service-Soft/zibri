@@ -1,9 +1,9 @@
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { FederatedSessionMatch } from '../authenticators/federated/federated-session-match.model';
-import { FederatedSession } from '../authenticators/federated/federated-session.model';
-import { Authentication } from '../models/authentication.model';
-import { BaseUser } from '../models/base-user.model';
+import { AuthStrategyInterface } from './auth-strategy.interface.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { FederatedSessionMatch } from '../authenticators/federated/federated-session-match.model.ts';
+import { FederatedSession } from '../authenticators/federated/federated-session.model.ts';
+import { Authentication } from '../models/authentication.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an auth strategy that carries a login from one request to the next.

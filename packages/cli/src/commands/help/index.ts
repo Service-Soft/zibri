@@ -1,1 +1,1 @@
-export * from './help.command';
+export * from './help.command.ts';

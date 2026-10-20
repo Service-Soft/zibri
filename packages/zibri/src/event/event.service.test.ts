@@ -1,23 +1,23 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
-import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventStatus } from './event.model';
-import { EventSubscription } from './event.service';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../__testing__/wait-until.function';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { LoggerInterface } from '../logging/logger.interface';
-import { Ms } from '../utilities/ms';
+import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface.ts';
+import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model.ts';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model.ts';
+import { Event, EventStatus } from './event.model.ts';
+import { EventSubscription } from './event.service.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../__testing__/wait-until.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * The payload of an event whose scenario is about delivery rather than about content.
@@ -27,7 +27,7 @@ import { Ms } from '../utilities/ms';
  */
 type MarkerPayload = Record<string, number>;
 
-declare module './event-service.interface' {
+declare module './event-service.interface.ts' {
     /**
      * What this suite emits, declared the way an application declares its own events.
      *
@@ -175,8 +175,8 @@ describe('EventService', () => {
         }) as EventSubscription;
 
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const warnSpy = jest.spyOn(logger, 'warn');
+        // eslint-disable-next-line typescript-js/typedef
+        const warnSpy = vi.spyOn(logger, 'warn');
 
         const second: EventSubscription = await eventService.subscribe('dup.event', () => undefined, {
             subscriberId: 'dup-sub'
@@ -284,8 +284,8 @@ describe('EventService', () => {
         ) as EventSubscription;
 
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const errorSpy = jest.spyOn(logger, 'error');
+        // eslint-disable-next-line typescript-js/typedef
+        const errorSpy = vi.spyOn(logger, 'error');
 
         await eventService.emit('always-fails.event', { y: 1 });
 

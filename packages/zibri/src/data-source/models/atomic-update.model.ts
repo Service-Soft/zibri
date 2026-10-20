@@ -1,4 +1,4 @@
-import { BaseEntity } from '../../entity/base-entity.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
 
 /**
  * The change applied to a single property when an atomic upsert lands on a row that already exists.

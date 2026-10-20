@@ -3,57 +3,57 @@ import { StringDecoder } from 'node:string_decoder';
 
 import type { Batch, GlideClient, GlideClientConfiguration, GlideString, PubSubMsg, Script } from '@valkey/valkey-glide';
 
-import { scanValKeyKeys } from './scan-val-key-keys.function';
-import { valKeyGlide } from './val-key-glide.function';
-import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
-import { ChangeSetRepository } from '../../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../../../change-sets/models/change-set.model';
-import { isChangeSetEntityNewable } from '../../../change-sets/models/is-change-set-entity.function';
-import { isSoftDeleteEntityNewable } from '../../../change-sets/models/is-soft-delete-entity.function';
-import { SoftDeleteEntity } from '../../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../../change-sets/soft-delete-repository';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
-import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
-import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { HeldLease, KeptGrant } from '../../../leases/held-lease.model';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { PromiseUtilities } from '../../../utilities/promise.utilities';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
-import { RepositoryDriverInterface } from '../../driver/repository-driver.interface';
-import { StoredRowChange, ValKeyRepositoryDriver } from '../../driver/val-key.repository-driver';
-import { registerRepositoryProvidersFor } from '../../entity-ownership.function';
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../hooks/hooks.default';
-import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
-import { Migration } from '../../migration/migration.model';
-import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../../migration/run-migrations.function';
-import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
-import { ChangePropertyOfEntityInput } from '../../models/change-property-of-entity-input.model';
-import { ConvertedValue } from '../../models/converted-value.model';
-import { MergeEntityInput } from '../../models/merge-entity-input.model';
-import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model';
-import { RefusedValue } from '../../models/refused-value.model';
-import { RemovePropertyFromEntityInput } from '../../models/remove-property-from-entity-input.model';
-import { RenameEntityInput } from '../../models/rename-entity-input.model';
-import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
-import { Repository } from '../../repository/repository';
-import { Transaction } from '../../transaction/transaction.model';
-import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model';
-import { ValueConversionUtilities } from '../../value-conversion.utilities';
-import { DataSourceInitializationError } from '../data-source-initialization.error';
-import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from '../data-source.interface';
-import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-data-source.interface';
+import { scanValKeyKeys } from './scan-val-key-keys.function.ts';
+import { valKeyGlide } from './val-key-glide.function.ts';
+import { type AuthServiceInterface } from '../../../auth/auth-service.interface.ts';
+import { ChangeSetRepository } from '../../../change-sets/change-set-repository.ts';
+import { ChangeSetEntity } from '../../../change-sets/models/change-set-entity.model.ts';
+import { ChangeSet } from '../../../change-sets/models/change-set.model.ts';
+import { isChangeSetEntityNewable } from '../../../change-sets/models/is-change-set-entity.function.ts';
+import { isSoftDeleteEntityNewable } from '../../../change-sets/models/is-soft-delete-entity.function.ts';
+import { SoftDeleteEntity } from '../../../change-sets/models/soft-delete-entity.model.ts';
+import { SoftDeleteRepository } from '../../../change-sets/soft-delete-repository.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { HeldLease, KeptGrant } from '../../../leases/held-lease.model.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
+import { PromiseUtilities } from '../../../utilities/promise.utilities.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { SemVerVersion } from '../../../versioning/sem-ver.utilities.ts';
+import { RepositoryDriverInterface } from '../../driver/repository-driver.interface.ts';
+import { StoredRowChange, ValKeyRepositoryDriver } from '../../driver/val-key.repository-driver.ts';
+import { registerRepositoryProvidersFor } from '../../entity-ownership.function.ts';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../hooks/hooks.default.ts';
+import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities.ts';
+import { Migration } from '../../migration/migration.model.ts';
+import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../../migration/run-migrations.function.ts';
+import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model.ts';
+import { ChangePropertyOfEntityInput } from '../../models/change-property-of-entity-input.model.ts';
+import { ConvertedValue } from '../../models/converted-value.model.ts';
+import { MergeEntityInput } from '../../models/merge-entity-input.model.ts';
+import { MigrationPropertyMetadata } from '../../models/migration-property-metadata.model.ts';
+import { RefusedValue } from '../../models/refused-value.model.ts';
+import { RemovePropertyFromEntityInput } from '../../models/remove-property-from-entity-input.model.ts';
+import { RenameEntityInput } from '../../models/rename-entity-input.model.ts';
+import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model.ts';
+import { Repository } from '../../repository/repository.ts';
+import { Transaction } from '../../transaction/transaction.model.ts';
+import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model.ts';
+import { ValueConversionUtilities } from '../../value-conversion.utilities.ts';
+import { DataSourceInitializationError } from '../data-source-initialization.error.ts';
+import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from '../data-source.interface.ts';
+import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-data-source.interface.ts';
 
 /**
  * ValKey-specific connection options.
@@ -257,7 +257,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
     abstract readonly entities: Newable<BaseEntity>[];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
 
     /**
@@ -275,7 +275,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         requestTimeout: 5000
     };
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Combination of the default and user provided options.
      */
@@ -286,7 +286,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The prefix that all keys of this data source are stored under.
      */
@@ -299,7 +299,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      */
     protected client?: GlideClient;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The client that is connected to the valkey server.
      *
@@ -322,13 +322,13 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         protected readonly authService: AuthServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async init(): Promise<void> {
         if (this.client) {
             throw new InternalError('The data source has already been initialized.');
         }
 
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         const { host, port, keyPrefix, ...clientOptions } = this.fullOptions;
         await this.validateOptions(this.fullOptions);
 
@@ -371,7 +371,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         return changed;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async publish(channel: string, message: string): Promise<void> {
         if (!this.client) {
             throw new DataSourceInitializationError();
@@ -379,9 +379,9 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         await this.client.publish(message, `${this.keyPrefix}:${channel}`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async subscribe(channel: string, onMessage: (message: string) => void): Promise<DataSourceSubscription> {
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         const { host, port, keyPrefix, ...clientOptions } = this.fullOptions;
 
         // its own client: a connection that is subscribed is not a connection that should also be
@@ -457,6 +457,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             }
         }
         catch (error) {
+            // oxlint-disable-next-line typescript/restrict-template-expressions
             this.logger.warn(`Could not renew the lock "${name}": ${error instanceof Error ? error.message : error}`);
         }
     }
@@ -618,7 +619,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async schemaLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
         const holdInMs: number = inject(ZIBRI_DI_TOKENS.SCHEMA_LOCK_HOLD_IN_MS);
 
@@ -635,13 +636,13 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         return await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).hold(lease, holdInMs, fn);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async shutDown(): Promise<void> {
         this.client?.close();
         this.client = undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getRepository<T extends BaseEntity>(cls: Newable<T>): RepositoryTypeForEntity<T> {
         if (!this.client) {
             throw new DataSourceInitializationError();
@@ -653,7 +654,6 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             ]);
         }
 
-        // eslint-disable-next-line stylistic/max-len
         const existingRepository: RepositoryTypeForEntity<T> | undefined = this.repositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
         if (existingRepository) {
             return existingRepository;
@@ -702,7 +702,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     startTransaction(options?: StartTransactionOptions): Transaction {
         if (!this.client) {
             throw new DataSourceInitializationError();
@@ -725,12 +725,12 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async runMigrations(): Promise<void> {
         await runMigrations(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revertMigrationsAfter(targetVersion: SemVerVersion): Promise<void> {
         await revertMigrationsAfter(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger, targetVersion);
     }
@@ -800,7 +800,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         ValueConversionUtilities.validateNothingRefused(conversion, refused);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
         await this.updateStoredRows(
             input.entity,
@@ -809,7 +809,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async renameEntity<T extends BaseEntity>(input: RenameEntityInput<T>): Promise<void> {
         if (!this.client) {
             throw new DataSourceInitializationError();
@@ -818,7 +818,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             .moveStoredKeysFrom(input.currentTableName, input.transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async mergeEntity<T extends BaseEntity>(input: MergeEntityInput<T>): Promise<void> {
         if (!this.client) {
             throw new DataSourceInitializationError();
@@ -827,13 +827,13 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             .mergeStoredKeysFrom(input.currentTableName, input.transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createEntity(): Promise<void> {
         // valkey has no schema: an entity's keys come into being with its first row, and the keys of
         // its indexes and uniques with the reconciliation that follows the migrations
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     validateBackupConfiguration(): void {
         // a valkey backup only needs the connection that the data source already has
     }
@@ -858,7 +858,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 if (payload == undefined) {
                     continue;
                 }
-                // eslint-disable-next-line cspell/spellchecker
+                // cspell:disable-next-line
                 const ttlMs: number = await client.pttl(key);
                 const entry: ValKeyBackupEntry = {
                     key,
@@ -961,7 +961,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * Validates the data source options.
      * @param options - The full options to validate.
      */
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     protected validateOptions(options: ValKeyOptions): void | Promise<void> {
         // do nothing by default.
     }
@@ -1024,14 +1024,14 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
         const idsKey: string = `${this.keyPrefix}:${entityMetadata.tableName}:ids`;
         const changes: StoredRowChange[] = [];
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const storedIds: string[] = [...await this.client.smembers(idsKey)].map(id => toStringValue(id));
         // with the ids the transaction holds besides, which are the rows the migration created or
         // moved here by renaming the entity, before this step
         for (const id of transaction.resolveSetMembers(idsKey, storedIds)) {
             const key: string = `${this.keyPrefix}:${entityMetadata.tableName}:${id}`;
             const stored: Record<string, string> = Object.fromEntries(
-                // eslint-disable-next-line cspell/spellchecker
+                // cspell:disable-next-line
                 (await this.client.hgetall(key)).map(e => [toStringValue(e.field), toStringValue(e.value)])
             );
             const row: Record<string, string> | undefined = transaction.resolveHash(key, stored);

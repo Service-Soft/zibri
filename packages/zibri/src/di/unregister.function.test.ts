@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { NoProviderError } from './errors/no-provider.error';
-import { inject } from './inject.function';
-import { register } from './register.function';
-import { unregister } from './unregister.function';
-import { AppState } from '../global/app-state.enum';
-import { GlobalRegistry } from '../global/global-registry';
+import { NoProviderError } from './errors/no-provider.error.ts';
+import { inject } from './inject.function.ts';
+import { register } from './register.function.ts';
+import { unregister } from './unregister.function.ts';
+import { AppState } from '../global/app-state.enum.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
 
 function resetToOffline(): void {
     GlobalRegistry['appData'].state = AppState.OFFLINE;

@@ -1,7 +1,7 @@
 import { execSync, ExecSyncOptions } from 'child_process';
 
-import { ChalkUtilities } from './chalk.utilities';
-import { exitGracefully, exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities';
+import { ChalkUtilities } from './chalk.utilities.ts';
+import { exitGracefully, exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities/index.ts';
 
 /**
  * Encapsulates functionality of the child_process package.

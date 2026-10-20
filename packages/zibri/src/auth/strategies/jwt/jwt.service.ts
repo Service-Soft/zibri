@@ -1,28 +1,28 @@
-import { type AccessTokenRevocation } from './access-token-revocation.type';
-import { EncodedJwt } from './encoded-jwt-access-token.model';
-import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
-import { type JwtAuthOptions } from './jwt-auth-options.model';
-import { JwtKey } from './jwt-key.model';
-import { JwtServiceInterface } from './jwt-service.interface';
-import { JwtSignOptions } from './jwt-sign-options.model';
-import { JwtVerifyOptions } from './jwt-verify-options.model';
-import { JwtUtilities } from './jwt.utilities';
-import { MissingJwtSecretError } from './missing-jwt-secret.error';
-import { VerifiedJwt } from './verified-jwt.model';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../../global/global-registry';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { type AccessTokenRevocation } from './access-token-revocation.type.ts';
+import { EncodedJwt } from './encoded-jwt-access-token.model.ts';
+import { JwtAsymmetricKey } from './jwt-asymmetric-key.model.ts';
+import { type JwtAuthOptions } from './jwt-auth-options.model.ts';
+import { JwtKey } from './jwt-key.model.ts';
+import { JwtServiceInterface } from './jwt-service.interface.ts';
+import { JwtSignOptions } from './jwt-sign-options.model.ts';
+import { JwtVerifyOptions } from './jwt-verify-options.model.ts';
+import { JwtUtilities } from './jwt.utilities.ts';
+import { MissingJwtSecretError } from './missing-jwt-secret.error.ts';
+import { VerifiedJwt } from './verified-jwt.model.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../../global/global-registry.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * Default implementation of the service signing and verifying the access tokens of the application.
  */
 @Injectable({ register: 'onUse' })
 export class JwtService implements JwtServiceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly accessTokenExpiresInMs: number;
 
     // only the current key ever signs. Verifying takes the current one first and then every previous
@@ -77,7 +77,7 @@ export class JwtService implements JwtServiceInterface {
         return baseUrl.replace(/\/+$/, '');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async signAccessToken(payload: Record<string, unknown>, audience: string | string[]): Promise<string> {
         return await this.sign(payload, {
             expiresInMs: this.accessTokenExpiresInMs,
@@ -87,17 +87,17 @@ export class JwtService implements JwtServiceInterface {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findAccessToken(token: string, audience: string | undefined): Promise<VerifiedJwt | undefined> {
         return await this.verify(token, { audience, type: 'at+jwt' });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async sign(payload: Record<string, unknown>, options: OmitStrict<JwtSignOptions, 'issuer'>): Promise<string> {
         return await JwtUtilities.sign(payload, this.signingKey, { ...options, issuer: this.issuer });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async verify(token: string, options: OmitStrict<JwtVerifyOptions, 'issuer'>): Promise<VerifiedJwt | undefined> {
         const data: EncodedJwt | undefined = await JwtUtilities.verify(token, this.verificationKeys, { ...options, issuer: this.issuer });
         if (data == undefined || typeof data.payload !== 'object' || data.payload == undefined) {
@@ -115,7 +115,7 @@ export class JwtService implements JwtServiceInterface {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getVerificationKeys(): JwtKey[] {
         return this.verificationKeys;
     }

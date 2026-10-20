@@ -1,15 +1,15 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Migration } from './migration.model';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { Migration } from './migration.model.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * A gizmo as the first version of the application stores it, under a table name the second version

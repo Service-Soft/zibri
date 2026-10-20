@@ -1,18 +1,18 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { RateLimitStateEntity } from './rate-limit-state-entity.model';
-import { InProcessRateLimiterLock } from './rate-limiter-lock.interface';
-import { BaseRateLimitState } from './rate-limiter-store.interface';
-import { RepositoryRateLimiterStore, RepositoryRateLimiterStoreOptions } from './repository.rate-limiter-store';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Ms } from '../../utilities/ms';
+import { RateLimitStateEntity } from './rate-limit-state-entity.model.ts';
+import { InProcessRateLimiterLock } from './rate-limiter-lock.interface.ts';
+import { BaseRateLimitState } from './rate-limiter-store.interface.ts';
+import { RepositoryRateLimiterStore, RepositoryRateLimiterStoreOptions } from './repository.rate-limiter-store.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
 
 /**
  * A state that counts, so that two stores writing to one row show up as a count neither wrote.
@@ -97,13 +97,13 @@ describe('RepositoryRateLimiterStore', () => {
 
     describe('how many keys it holds', () => {
         afterEach(() => {
-            jest.restoreAllMocks();
+            vi.restoreAllMocks();
         });
 
         it('refuses a key it has never seen once it holds maxKeys, says so once, and keeps counting the keys it holds', async () => {
             // a caller cycling addresses used to grow the table at request rate, a row per address
             const store: RepositoryRateLimiterStore<CountingState> = createStore('sign-ups', { maxKeys: 2 });
-            const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
+            const logged: MockInstance<LoggerInterface['error']> = vi.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
             await countOn(store, 'address:1');
             await countOn(store, 'address:2');
 
@@ -123,7 +123,7 @@ describe('RepositoryRateLimiterStore', () => {
 
             // the size is counted again at most every ten seconds, rather than on every new key
             const later: number = Date.now() + (11 * Ms.SECOND);
-            jest.spyOn(Date, 'now').mockReturnValue(later);
+            vi.spyOn(Date, 'now').mockReturnValue(later);
 
             expect(await countOn(store, 'address:2')).toBe(1);
         });

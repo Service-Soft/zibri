@@ -1,4 +1,4 @@
-import { Property } from '../../entity/decorators/property.decorator';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * What the authorization server publishes about itself (RFC 8414), for clients and resource servers

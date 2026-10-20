@@ -1,26 +1,26 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EmailCleanupCronJob } from './email-cleanup.cron-job';
-import { CreateEmailData } from './models/create-email-data.model';
-import { EmailConfigInput } from './models/email-config.model';
-import { EmailPriority } from './models/email-priority.enum';
-import { EmailStatus } from './models/email-status.enum';
-import { Email } from './models/email.model';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { RetentionInMs } from '../types/retention-in-ms.type';
-import { Ms } from '../utilities/ms';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { EmailCleanupCronJob } from './email-cleanup.cron-job.ts';
+import { CreateEmailData } from './models/create-email-data.model.ts';
+import { EmailConfigInput } from './models/email-config.model.ts';
+import { EmailPriority } from './models/email-priority.enum.ts';
+import { EmailStatus } from './models/email-status.enum.ts';
+import { Email } from './models/email.model.ts';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { RetentionInMs } from '../types/retention-in-ms.type.ts';
+import { Ms } from '../utilities/ms.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 // in memory, so that what the cleanup leaves behind can be read without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({

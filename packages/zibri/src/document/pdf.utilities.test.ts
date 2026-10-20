@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { PdfDocument, PdfUtilities } from './pdf.utilities';
+import { PdfDocument, PdfUtilities } from './pdf.utilities.ts';
 
 /**
  * Reads a created document to its end.

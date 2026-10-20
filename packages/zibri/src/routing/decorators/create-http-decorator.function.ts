@@ -1,9 +1,9 @@
-import { HttpMethod } from '../../http/http-method.enum';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Route, ControllerRouteConfiguration } from '../controller-route-configuration.model';
-import { BaseHttpDecoratorInput } from './http-decorator-option-input.model';
+import { HttpMethod } from '../../http/http-method.enum.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { Route, ControllerRouteConfiguration } from '../controller-route-configuration.model.ts';
+import { BaseHttpDecoratorInput } from './http-decorator-option-input.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function createHttpDecorator(method: HttpMethod, path: Route, options: BaseHttpDecoratorInput): MethodDecorator {
     return (target, propertyKey) => {
         const ctor: Function = target.constructor;

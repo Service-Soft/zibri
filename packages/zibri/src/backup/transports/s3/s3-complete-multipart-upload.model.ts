@@ -1,7 +1,7 @@
-import { S3CompletedPart } from './s3-completed-part.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
-import { XmlRoot } from '../../../parsing/xml/xml-root.decorator';
+import { S3CompletedPart } from './s3-completed-part.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../parsing/xml/xml-element.decorator.ts';
+import { XmlRoot } from '../../../parsing/xml/xml-root.decorator.ts';
 
 /**
  * The request that completes a multipart upload, naming the parts it is made of.

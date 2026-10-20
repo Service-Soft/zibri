@@ -1,21 +1,21 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { SemaphoreRateLimiter, SemaphoreState } from './semaphore.rate-limiter';
-import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
-import { GlobalRegistry } from '../../global/global-registry';
-import { HttpStatus } from '../../http/http-status.enum';
-import { Ms } from '../../utilities/ms';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
-import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error';
-import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../stores/rate-limiter-store.interface';
+import { RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { SemaphoreRateLimiter, SemaphoreState } from './semaphore.rate-limiter.ts';
+import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
+import { RateLimitStoreUnavailableError } from '../stores/rate-limit-store-unavailable.error.ts';
+import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../stores/rate-limiter-store.interface.ts';
 
 const CAPACITY: number = 10;
 
@@ -215,7 +215,7 @@ describe('BaseRateLimiter.cleanup', () => {
 
         await limiter.cleanup();
 
-        expect(await store.keys()).toEqual([]);
+        expect(store.keys()).toEqual([]);
         // the whole point of the rewrite: one bulk delete instead of a get plus an atomic update per
         // key, which against a shared store is a lock round trip each
         expect(store.deleteExpiredCalls).toBe(1);
@@ -241,7 +241,7 @@ describe('BaseRateLimiter.cleanup', () => {
         await limiter.cleanup();
 
         expect(store.atomicUpdateCalls).toBe(1);
-        expect((await store.get('abandoned'))?.reservations).toEqual([]);
+        expect(store.get('abandoned')?.reservations).toEqual([]);
     });
 
     it('gives the capacity of an abandoned reservation back', async () => {

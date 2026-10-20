@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { blockedSectionKey, httpDrainTimeoutInMs, leaseDrainTimeoutInMs, lockHoldInMs, sectionKey } from './shutdown.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { blockedSectionKey, httpDrainTimeoutInMs, leaseDrainTimeoutInMs, lockHoldInMs, sectionKey } from './shutdown.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Covers the shutdown half of evaluation/10-leases-and-claims.md.
@@ -21,7 +21,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'shutdown.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'shutdown.instance-options.ts'),
         instances: 2
     });
 }, 15000);

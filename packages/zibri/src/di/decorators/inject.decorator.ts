@@ -1,6 +1,6 @@
 
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { DiToken } from '../models/di-token.model';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { DiToken } from '../models/di-token.model.ts';
 
 /**
  * Marks the parameter to be injected.

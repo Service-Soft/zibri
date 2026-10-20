@@ -1,23 +1,23 @@
-import { HttpRequestContext } from '../../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
-import { Inject } from '../../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
-import { MimeType } from '../../../../http/mime-type.enum';
-import { $ts } from '../../../../localization/translate.function';
-import { JsonBodyMetadata, XmlBodyMetadata } from '../../../../routing/decorators/body-metadata.model';
-import { resolveStructuredBodyMetadata } from '../../../../routing/resolve-body-metadata.function';
-import { Newable } from '../../../../types/newable.type';
-import { JsonUtilities } from '../../../../utilities/json.utilities';
-import { PasskeyAuthenticationResponse } from '../../../authenticators/passkey/passkey-authentication-response.model';
-import { PasskeyConnectionRequest } from '../../../authenticators/passkey/passkey-connection-request.model';
-import { PasskeyCreationOptions } from '../../../authenticators/passkey/passkey-creation-options.model';
-import { PasskeyRegistrationResponse } from '../../../authenticators/passkey/passkey-registration-response.model';
-import { PasskeyRequestOptions } from '../../../authenticators/passkey/passkey-request-options.model';
-import { type PasskeyServiceInterface } from '../../../authenticators/passkey/passkey-service.interface';
-import { BaseUser } from '../../../models/base-user.model';
-import { TwoFactorMethod } from '../two-factor-method.interface';
+import { HttpRequestContext } from '../../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context.ts';
+import { Inject } from '../../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error.ts';
+import { MimeType } from '../../../../http/mime-type.enum.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { JsonBodyMetadata, XmlBodyMetadata } from '../../../../routing/decorators/body-metadata.model.ts';
+import { resolveStructuredBodyMetadata } from '../../../../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../../../../types/newable.type.ts';
+import { JsonUtilities } from '../../../../utilities/json.utilities.ts';
+import { PasskeyAuthenticationResponse } from '../../../authenticators/passkey/passkey-authentication-response.model.ts';
+import { PasskeyConnectionRequest } from '../../../authenticators/passkey/passkey-connection-request.model.ts';
+import { PasskeyCreationOptions } from '../../../authenticators/passkey/passkey-creation-options.model.ts';
+import { PasskeyRegistrationResponse } from '../../../authenticators/passkey/passkey-registration-response.model.ts';
+import { PasskeyRequestOptions } from '../../../authenticators/passkey/passkey-request-options.model.ts';
+import { type PasskeyServiceInterface } from '../../../authenticators/passkey/passkey-service.interface.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { TwoFactorMethod } from '../two-factor-method.interface.ts';
 
 /**
  * A passkey as the second factor of an operation. The device always verifies its user, with a
@@ -32,19 +32,19 @@ import { TwoFactorMethod } from '../two-factor-method.interface';
  */
 export class PasskeyTwoFactorMethod
 implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse, PasskeyCreationOptions, PasskeyRequestOptions> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'passkey';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly requestRegisterModel: Newable<PasskeyConnectionRequest> = PasskeyConnectionRequest;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly confirmRegisterModel: Newable<PasskeyRegistrationResponse> = PasskeyRegistrationResponse;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly registrationModel: Newable<PasskeyCreationOptions> = PasskeyCreationOptions;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly secondFactorStartModel: Newable<PasskeyRequestOptions> = PasskeyRequestOptions;
 
     constructor(
@@ -54,12 +54,12 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
         private readonly passkeyHeader: string
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSecondFactor<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<PasskeyRequestOptions> {
         return await this.passkeyService.startSecondFactor(user.id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: PasskeyConnectionRequest
@@ -67,7 +67,7 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
         return await this.passkeyService.startConnection(user.id, data.name);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: PasskeyRegistrationResponse
@@ -75,17 +75,17 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
         await this.passkeyService.completeConnection(user.id, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
         await this.passkeyService.removePasskeys(user.id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
         return (await this.passkeyService.findPasskeys(user.id, undefined)).length > 0;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validate<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext

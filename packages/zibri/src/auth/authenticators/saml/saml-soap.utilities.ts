@@ -1,7 +1,7 @@
-import { NodeSamlXml } from './node-saml-xml.type';
-import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
-import { $ts } from '../../../localization/translate.function';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { NodeSamlXml } from './node-saml-xml.type.ts';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * The namespace of SOAP 1.1 envelopes, which the SAML SOAP binding carries messages in.

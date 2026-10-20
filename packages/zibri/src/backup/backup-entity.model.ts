@@ -1,16 +1,16 @@
-import { BACKUP_FORMAT_VERSION } from './backup-format';
-import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
-import { MasterKeyReference } from '../auth/encryption/master-key-reference.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { LocalizeServiceInterface } from '../localization/localize-service.interface';
-import { LocaleCode } from '../localization/models/locale-code.model';
-import { OmitStrict } from '../types/omit-strict.type';
-import { type SemVerVersion } from '../versioning/sem-ver.utilities';
-import { zibriVersion } from '../versioning/zibri-version.function';
+import { BACKUP_FORMAT_VERSION } from './backup-format.ts';
+import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model.ts';
+import { MasterKeyReference } from '../auth/encryption/master-key-reference.model.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { LocalizeServiceInterface } from '../localization/localize-service.interface.ts';
+import { LocaleCode } from '../localization/models/locale-code.model.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { type SemVerVersion } from '../versioning/sem-ver.utilities.ts';
+import { zibriVersion } from '../versioning/zibri-version.function.ts';
 
 /**
  * The entity of a single backup.
@@ -90,7 +90,7 @@ export type BackupEntityCreateData = OmitStrict<BackupEntity, GeneratedBackupKey
         resources: BackupResourceEntityCreateData[]
     };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function defaultName(): string {
     const localizeService: LocalizeServiceInterface = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE);
     const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).defaultLocale;

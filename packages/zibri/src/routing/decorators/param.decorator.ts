@@ -1,13 +1,13 @@
-import { Header } from '../../http/header.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ArrayParamMetadata, ArrayParamMetadataInput } from '../models/array-param-metadata.model';
-import { BooleanParamMetadata, BooleanParamMetadataInput } from '../models/boolean-param-metadata.model';
-import { DateParamMetadata, DateParamMetadataInput } from '../models/date-param-metadata.model';
-import { NumberParamMetadata, NumberParamMetadataInput } from '../models/number-param-metadata.model';
-import { ObjectParamMetadata, ObjectParamMetadataInput } from '../models/object-param-metadata.model';
-import { OneOfParamMetadata, OneOfPathParamMetadataInput, OneOfQueryParamMetadataInput } from '../models/one-of-param-metadata.model';
-import { StringParamMetadata, StringParamMetadataInput } from '../models/string-param-metadata.model';
-import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../param-metdata.helpers';
+import { Header } from '../../http/header.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ArrayParamMetadata, ArrayParamMetadataInput } from '../models/array-param-metadata.model.ts';
+import { BooleanParamMetadata, BooleanParamMetadataInput } from '../models/boolean-param-metadata.model.ts';
+import { DateParamMetadata, DateParamMetadataInput } from '../models/date-param-metadata.model.ts';
+import { NumberParamMetadata, NumberParamMetadataInput } from '../models/number-param-metadata.model.ts';
+import { ObjectParamMetadata, ObjectParamMetadataInput } from '../models/object-param-metadata.model.ts';
+import { OneOfParamMetadata, OneOfPathParamMetadataInput, OneOfQueryParamMetadataInput } from '../models/one-of-param-metadata.model.ts';
+import { StringParamMetadata, StringParamMetadataInput } from '../models/string-param-metadata.model.ts';
+import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../param-metdata.helpers.ts';
 
 /**
  * Metadata of path parameters.

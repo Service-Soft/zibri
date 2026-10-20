@@ -1,4 +1,4 @@
-import { type BaseEntity } from '../base-entity.model';
+import { type BaseEntity } from '../base-entity.model.ts';
 
 /**
  * The entity a relation property holds, whether it holds one of them or many.

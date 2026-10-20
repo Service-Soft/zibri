@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { collectClientPackagesFromSource } from './client-packages';
-import { vendorFileName } from '../vendor-file-name';
+import { collectClientPackagesFromSource } from './client-packages.ts';
+import { vendorFileName } from '../vendor-file-name.ts';
 
 describe('collectClientPackagesFromSource', () => {
     it('collects packages imported with ?client', () => {

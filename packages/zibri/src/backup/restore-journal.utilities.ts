@@ -1,6 +1,6 @@
-import { RestoreJournal } from './restore-journal.model';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { RestoreJournal } from './restore-journal.model.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * Reads and writes the journals a restore keeps beside its snapshots.

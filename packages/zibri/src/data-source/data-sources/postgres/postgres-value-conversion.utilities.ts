@@ -1,15 +1,15 @@
-import { PostgresColumnSql } from './postgres-column-sql.model';
-import { NumberFormat, NumberPropertyMetadata } from '../../../entity/models/number-property-metadata.model';
-import { StoredStringPropertyMetadata } from '../../../entity/models/string-property-metadata.model';
-import { INTEGER_REGEX } from '../../../parsing/functions/parse-number.function';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { UUID_REGEX } from '../../../validation/functions/validate-string.function';
-import { literalToSql } from '../../literal-to-sql.function';
-import { ConversionRefusal } from '../../models/conversion-refusal.enum';
-import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
-import { ValueConversion } from '../../models/value-conversion.enum';
-import { ValueConversionUtilities } from '../../value-conversion.utilities';
+import { PostgresColumnSql } from './postgres-column-sql.model.ts';
+import { NumberFormat, NumberPropertyMetadata } from '../../../entity/models/number-property-metadata.model.ts';
+import { StoredStringPropertyMetadata } from '../../../entity/models/string-property-metadata.model.ts';
+import { INTEGER_REGEX } from '../../../parsing/functions/parse-number.function.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
+import { UUID_REGEX } from '../../../validation/functions/validate-string.function.ts';
+import { literalToSql } from '../../literal-to-sql.function.ts';
+import { ConversionRefusal } from '../../models/conversion-refusal.enum.ts';
+import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model.ts';
+import { ValueConversion } from '../../models/value-conversion.enum.ts';
+import { ValueConversionUtilities } from '../../value-conversion.utilities.ts';
 
 /**
  * A string property of any kind, which is all a conversion reads of one.

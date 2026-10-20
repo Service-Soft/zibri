@@ -1,25 +1,25 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
-import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
-import { EncryptionRotationProgress } from './encryption-rotation-progress.model';
-import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
-import { type EncryptionServiceInterface } from './encryption-service.interface';
-import { EncryptionString } from './encryption.utilities';
-import { RetiredKeyUsage } from './retired-key-usage.model';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { Ms } from '../../utilities/ms';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model.ts';
+import { EncryptionRotationFailure } from './encryption-rotation-failure.model.ts';
+import { EncryptionRotationProgress } from './encryption-rotation-progress.model.ts';
+import { EncryptionRotationCronJob } from './encryption-rotation.cron-job.ts';
+import { type EncryptionServiceInterface } from './encryption-service.interface.ts';
+import { EncryptionString } from './encryption.utilities.ts';
+import { RetiredKeyUsage } from './retired-key-usage.model.ts';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model.ts';
 
 describe('EncryptionRotationCronJob', () => {
     let server: StartedTestServer;
@@ -148,7 +148,7 @@ describe('EncryptionRotationCronJob', () => {
         // spend all of its budget on the same rows that fail every time
         const job: EncryptionRotationCronJob = startJob();
         // each stuck row is said once, which is a thousand errors nobody here reads
-        const quiet: jest.Spied<typeof job['logger']['error']> = jest.spyOn(job['logger'], 'error').mockImplementation(() => undefined);
+        const quiet: MockInstance<typeof job['logger']['error']> = vi.spyOn(job['logger'], 'error').mockImplementation(() => undefined);
         await job.onTick();
         await job.onTick();
         await job.onTick();
@@ -167,7 +167,7 @@ describe('EncryptionRotationCronJob', () => {
         const keyId: string = await findStoredKeyId(broken.id);
         await retireKey(keyId);
         const job: EncryptionRotationCronJob = startJob();
-        const logged: jest.Spied<typeof job['logger']['error']> = jest.spyOn(job['logger'], 'error');
+        const logged: MockInstance<typeof job['logger']['error']> = vi.spyOn(job['logger'], 'error');
 
         await job.onTick();
 

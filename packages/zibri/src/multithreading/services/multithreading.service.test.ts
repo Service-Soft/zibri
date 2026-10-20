@@ -1,27 +1,27 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
-import { ThreadJobWorker } from './thread-job-worker';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../../__testing__/wait-until.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { CreateLeaseData, Lease } from '../../leases/lease.model';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { Ms } from '../../utilities/ms';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { MultithreadingOptions } from '../models/multithreading-options.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
-import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { MultithreadingServiceInterface } from './multithreading-service.interface.ts';
+import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service.ts';
+import { ThreadJobWorker } from './thread-job-worker.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../../__testing__/wait-until.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { CreateLeaseData, Lease } from '../../leases/lease.model.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { MultithreadingOptions } from '../models/multithreading-options.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
+import { ThreadJobStatus } from '../models/thread-job-status.enum.ts';
 
 let multithreadingService: MultithreadingServiceInterface;
 let server: StartedTestServer;
@@ -37,9 +37,9 @@ let server: StartedTestServer;
  */
 function validateWorkerBuildIsCurrent(): void {
     const builtWorker: string = path.join(
-        __dirname, '..', '..', '..', 'dist', 'cjs', 'multithreading', 'services', 'worker', 'thread-job.worker.js'
+        import.meta.dirname, '..', '..', '..', 'dist', 'multithreading', 'services', 'worker', 'thread-job.worker.js'
     );
-    const sourceDir: string = path.join(__dirname, 'worker');
+    const sourceDir: string = path.join(import.meta.dirname, 'worker');
     const newestSource: number = readdirSync(sourceDir)
         .map(f => statSync(path.join(sourceDir, f)).mtimeMs)
         .reduce((acc, m) => Math.max(acc, m), 0);
@@ -124,19 +124,19 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('can run a ts worker file', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath, amount: 40 } });
         expect(res.result).toEqual(102334155);
     });
 
     it('can run a js worker file', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.js');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.cjs');
         const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath, amount: 40 } });
         expect(res.result).toEqual(102334155);
     });
 
     it('refuses a ts worker file when the deployment said it ships compiled ones', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const options: MultithreadingOptions = inject(ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS);
 
         options.enableTsWorkerFiles = false;
@@ -153,7 +153,7 @@ describe('MultithreadingService', () => {
     });
 
     it('can run an es module worker file, twice on the same thread', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.esm.test.worker.mjs');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.esm.test.worker.mjs');
 
         const first: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath, amount: 21 }
@@ -173,7 +173,7 @@ describe('MultithreadingService', () => {
     }, 30000);
 
     it('marks the job as FAILED with the propagated error when the worker file throws synchronously', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.throwing.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.throwing.test.worker.ts');
         const res: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath } });
 
         expect(res.status).toBe(ThreadJobStatus.FAILED);
@@ -181,13 +181,13 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('marks the job as FAILED and recovers a fresh worker when the worker thread crashes outright', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.crashing.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.crashing.test.worker.ts');
         const res: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath } });
 
         expect(res.status).toBe(ThreadJobStatus.FAILED);
 
         // the pool should have recovered a replacement worker and still be able to run further jobs
-        const followUpFilePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const followUpFilePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const followUp: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath: followUpFilePath, amount: 10 }
         });
@@ -208,7 +208,7 @@ describe('MultithreadingService', () => {
             setTimeout(resolve, 500);
         });
 
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath, amount: 10 },
             // without the replacement this posts to a terminated thread and waits for an answer that
@@ -222,7 +222,7 @@ describe('MultithreadingService', () => {
     }, 30000);
 
     it('fails the job with a timeout error when it does not complete in time', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath, amount: 45 },
             timeout: 1
@@ -233,7 +233,7 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('requeueThreadJob resets and reruns a completed job to completion again', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const jobId: string = await multithreadingService.queueThreadJob({ workerData: { filePath, amount: 10 } });
         const first: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.waitForThreadJob(jobId);
         expect(first.status).toBe(ThreadJobStatus.COMPLETED);
@@ -245,7 +245,7 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('reportProgress updates the job entity progress while the worker is still running', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.progress.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.progress.test.worker.ts');
         const jobId: string = await multithreadingService.queueThreadJob({ workerData: { filePath } });
 
         const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
@@ -273,7 +273,7 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('reportError marks the job as FAILED with the reported error', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.report-error.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.report-error.test.worker.ts');
         const res: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath } });
 
         expect(res.status).toBe(ThreadJobStatus.FAILED);
@@ -317,7 +317,7 @@ describe('MultithreadingService', () => {
     }, 15000);
 
     it('gives the worker the job that has waited longest, not the one that just arrived', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
 
         // takes the only worker and keeps it, so everything queued after it has to wait
@@ -349,7 +349,7 @@ describe('MultithreadingService', () => {
     }, 60000);
 
     it('orders a function job against the queued ones rather than before or after them', async () => {
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
 
         // a function job cannot be stored - it exists only in this process - while a queued job
         // exists only as a row. They are still queued against the same single worker, so the one
@@ -399,7 +399,7 @@ describe('MultithreadingService', () => {
     it('leaves a job alone while another instance is still holding its claim', async () => {
         const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
         const leaseRepo: Repository<Lease, CreateLeaseData> = inject(repositoryTokenFor(Lease));
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
 
         // a row that says a job is being worked on. Which is all it says: an instance that is
         // running this and one that was killed while running it leave exactly the same row, and no
@@ -448,7 +448,7 @@ describe('MultithreadingService', () => {
     // container this replaces
     it('picks up work a previous run left behind, whether or not it had started', async () => {
         const threadJobRepo: ThreadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
         const workerData: BaseThreadJobWorkerData & { amount: number } = { filePath, amount: 10 };
 
         // a row a process died holding. Its own timeout is deliberately an hour and nowhere near
@@ -489,13 +489,13 @@ describe('MultithreadingService', () => {
     }, 40000);
 
     it('replaces a worker that hit an uncaught exception instead of handing it the next job', async () => {
-        const threadIdPath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.thread-id.test.worker.ts');
+        const threadIdPath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.thread-id.test.worker.ts');
         const before: ThreadJobEntity<BaseThreadJobWorkerData, number> = await multithreadingService.runThreadJob({
             workerData: { filePath: threadIdPath }
         });
         expect(before.status).toBe(ThreadJobStatus.COMPLETED);
 
-        const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.uncaught.test.worker.ts');
+        const filePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.uncaught.test.worker.ts');
         const failed: ThreadJobEntity<BaseThreadJobWorkerData, unknown> = await multithreadingService.runThreadJob({ workerData: { filePath } });
 
         // the error still reaches the job, which is why the worker reports before it exits - the

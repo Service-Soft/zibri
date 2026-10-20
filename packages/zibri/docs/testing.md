@@ -52,6 +52,7 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `ClusterInstance` | class | One replica: its `baseUrl`, its `output`, and `kill` |
 | `ClusterMark` | entity | The row an instance writes to record that it, specifically, did something |
 | `clusterInstanceId` | function | Which instance the current process is |
+| `clusterModulePaths` | function | The files this process loaded `zibri` and `zibri-testing` from, which every instance loads too |
 | `defaultClusterTestEntities` | value | The framework's entities plus `ClusterMark` |
 | `defaultClusterDataSources` | value | The postgres data source a cluster boots on |
 | `defaultClusterProviders` | value | What a cluster instance boots with |
@@ -628,7 +629,7 @@ let cluster: StartedTestCluster;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'cron.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'cron.instance-options.ts'),
         instances: 3
     });
 });
@@ -637,6 +638,10 @@ beforeAll(async () => {
 Every instance is forked with the same options module and gets the ports of the containers the parent
 started. `bootMode` decides whether they come up one after another (the default, letting the first
 settle the schema) or all at once, which is what a rolling deploy does.
+
+An instance loads the same copies of `zibri` and `zibri-testing` as the test that started it, and
+compiles the TypeScript it boots from as it loads it, which needs the optional peer dependency
+`oxc-transform` installed.
 
 ### The instance options module
 A class cannot cross a process boundary, so what the instances boot with is named by a path. The

@@ -1,18 +1,18 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EntityMetadata as TOEntityMetadata } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 
-import { TypeOrmUtilities } from './typeorm.utilities';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { Newable } from '../types/newable.type';
+import { TypeOrmUtilities } from './typeorm.utilities.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface.ts';
+import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
 
 @Entity({ tenant: 'shared' })
 class TypeOrmUtilitiesTestItem extends BaseEntity {

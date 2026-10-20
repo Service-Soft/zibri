@@ -1,4 +1,4 @@
-import type { AuthControllerClass } from './auth-controller-class.type';
+import type { AuthControllerClass } from './auth-controller-class.type.ts';
 
 /**
  * Checks whether a controller class was defined by `AuthController`.

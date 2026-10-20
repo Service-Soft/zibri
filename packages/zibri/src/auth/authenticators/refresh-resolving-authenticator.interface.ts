@@ -1,5 +1,5 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseUser } from '../models/base-user.model';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an authenticator that has a say in every refresh of a login, whichever authenticator

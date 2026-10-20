@@ -1,5 +1,5 @@
-import { SkipMetadata } from './skip-auth-metadata.model';
-import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { SkipMetadata } from './skip-auth-metadata.model.ts';
+import { AuthStrategies } from '../strategies/auth-strategies.model.ts';
 
 /**
  * Metadata for the \@Auth.hasRole and \@Auth.hasPlatformRole decorators.

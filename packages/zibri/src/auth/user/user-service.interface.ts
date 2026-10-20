@@ -1,9 +1,9 @@
-import { UserRepositoryInterface } from './user-repository.interface';
-import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
+import { UserRepositoryInterface } from './user-repository.interface.ts';
+import { FindByIdOptions } from '../../data-source/models/options/find-by-id-options.model.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Options for looking a user up.

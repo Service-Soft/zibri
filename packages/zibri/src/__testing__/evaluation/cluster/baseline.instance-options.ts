@@ -1,24 +1,24 @@
 import { ClusterMark, clusterInstanceId, createPostgresTestDataSource, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
-import { Auth } from '../../../auth/decorators/auth.decorator';
-import { DataSourceInterface } from '../../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { inject } from '../../../di/inject.function';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Get } from '../../../routing/decorators/get.decorator';
-import { Param } from '../../../routing/decorators/param.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { Newable } from '../../../types/newable.type';
-import { JwtTestAuthController } from '../../mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../mocks/entities/jwt-user.entity';
-import { Roles } from '../../mocks/entities/roles.enum';
-import { TestMembership } from '../../mocks/entities/test-membership.entity';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/membership-repository';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model.ts';
+import { Auth } from '../../../auth/decorators/auth.decorator.ts';
+import { DataSourceInterface } from '../../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository, repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../../routing/decorators/get.decorator.ts';
+import { Param } from '../../../routing/decorators/param.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { JwtTestAuthController } from '../../mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../mocks/entities/roles.enum.ts';
+import { TestMembership } from '../../mocks/entities/test-membership.entity.ts';
+// eslint-disable-next-line import/no-unassigned-import
+import '../../test-server/membership-repository.ts';
+// eslint-disable-next-line import/no-unassigned-import
+import '../../test-server/user-repository.ts'; // this import is needed so that the DI system can pick up the user repository.
 
 /**
  * The data sources every instance of this scenario boots on.

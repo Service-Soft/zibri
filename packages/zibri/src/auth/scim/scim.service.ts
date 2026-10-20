@@ -1,64 +1,64 @@
-import { BaseScimProvisioner } from './base-scim-provisioner';
-import { ScimBody } from './scim-body.model';
-import { isScimControllerClass } from './scim-controller.model';
-import { ScimEndpoint } from './scim-endpoint.model';
-import { ScimErrorType } from './scim-error-type.enum';
-import { ScimFilterMatch } from './scim-filter-match.model';
-import { ScimFilter } from './scim-filter.model';
-import { ScimFilterUtilities } from './scim-filter.utilities';
-import { ScimGroupMember } from './scim-group-member.model';
-import { ScimGroupResource } from './scim-group-resource.model';
-import { ScimGroup } from './scim-group.model';
-import { ScimIndexedFilter } from './scim-indexed-filter.model';
-import { ScimListQuery } from './scim-list-query.model';
-import { ScimMemberType } from './scim-member-type.enum';
-import { ScimPatchOperation } from './scim-patch-operation.model';
-import { ScimPatchUtilities } from './scim-patch.utilities';
-import { ScimProvisionerClass } from './scim-provisioner-class.type';
-import { ScimResourceResponse } from './scim-resource-response.model';
-import { ScimSchema } from './scim-schema.enum';
-import { ScimSchemaUtilities } from './scim-schema.utilities';
-import { ScimServiceInterface } from './scim-service.interface';
-import { ScimUserResource } from './scim-user-resource.model';
-import { ScimUserValue } from './scim-user-value.model';
-import { ScimUserValueUtilities } from './scim-user-value.utilities';
-import { ScimUser } from './scim-user.model';
-import { ScimValueSort } from './scim-value-sort.model';
-import { ScimWhereUtilities } from './scim-where.utilities';
-import { ScimError } from './scim.error';
-import { ZibriApplication } from '../../application/application';
-import { Where, WhereFilter } from '../../data-source/models/where/where-filter.model';
-import { Repository } from '../../data-source/repository/repository';
-import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { register } from '../../di/register.function';
-import { EntityOrder } from '../../entity/models/entity-order.model';
-import { ConflictError } from '../../error-handling/errors/conflict.error';
-import { HttpError } from '../../error-handling/errors/http.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
-import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { type AuthServiceInterface } from '../auth-service.interface';
-import { BaseUser } from '../models/base-user.model';
-import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
-import { type UserServiceInterface } from '../user/user-service.interface';
+import { BaseScimProvisioner } from './base-scim-provisioner.ts';
+import { ScimBody } from './scim-body.model.ts';
+import { isScimControllerClass } from './scim-controller.model.ts';
+import { ScimEndpoint } from './scim-endpoint.model.ts';
+import { ScimErrorType } from './scim-error-type.enum.ts';
+import { ScimFilterMatch } from './scim-filter-match.model.ts';
+import { ScimFilter } from './scim-filter.model.ts';
+import { ScimFilterUtilities } from './scim-filter.utilities.ts';
+import { ScimGroupMember } from './scim-group-member.model.ts';
+import { ScimGroupResource } from './scim-group-resource.model.ts';
+import { ScimGroup } from './scim-group.model.ts';
+import { ScimIndexedFilter } from './scim-indexed-filter.model.ts';
+import { ScimListQuery } from './scim-list-query.model.ts';
+import { ScimMemberType } from './scim-member-type.enum.ts';
+import { ScimPatchOperation } from './scim-patch-operation.model.ts';
+import { ScimPatchUtilities } from './scim-patch.utilities.ts';
+import { ScimProvisionerClass } from './scim-provisioner-class.type.ts';
+import { ScimResourceResponse } from './scim-resource-response.model.ts';
+import { ScimSchema } from './scim-schema.enum.ts';
+import { ScimSchemaUtilities } from './scim-schema.utilities.ts';
+import { ScimServiceInterface } from './scim-service.interface.ts';
+import { ScimUserResource } from './scim-user-resource.model.ts';
+import { ScimUserValue } from './scim-user-value.model.ts';
+import { ScimUserValueUtilities } from './scim-user-value.utilities.ts';
+import { ScimUser } from './scim-user.model.ts';
+import { ScimValueSort } from './scim-value-sort.model.ts';
+import { ScimWhereUtilities } from './scim-where.utilities.ts';
+import { ScimError } from './scim.error.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { Where, WhereFilter } from '../../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { register } from '../../di/register.function.ts';
+import { EntityOrder } from '../../entity/models/entity-order.model.ts';
+import { ConflictError } from '../../error-handling/errors/conflict.error.ts';
+import { HttpError } from '../../error-handling/errors/http.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { AuditAction, AuditOutcome } from '../../logging/audit-event.model.ts';
+import { auditReasonFor } from '../../logging/audit-reason-for.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { BaseMembership } from '../../tenancy/membership/base-membership.model.ts';
+import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { type AuthServiceInterface } from '../auth-service.interface.ts';
+import { BaseUser } from '../models/base-user.model.ts';
+import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy.ts';
+import { type UserServiceInterface } from '../user/user-service.interface.ts';
 
 /**
  * The most resources a list answers with.
@@ -115,9 +115,9 @@ type ScimGroupInput = OmitStrict<ScimGroupResource, 'id'> & {
  * A member of a group, and what it is.
  */
 type ScimMember = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     id: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     type: ScimMemberType
 };
 
@@ -129,17 +129,17 @@ type ScimBulkOperation = {
      * Its position in the request.
      */
     index: number,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     method: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     bulkId: string | undefined,
     /**
      * The etag the resource has to have, if the operation names one.
      */
     version: string | undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     path: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     data: unknown
 };
 
@@ -173,9 +173,9 @@ type ScimBulkRun = {
  * A group a user is a member of, and whether directly or through another group.
  */
 type ScimUserGroup = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     group: ScimGroup,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     direct: boolean
 };
 
@@ -183,9 +183,9 @@ type ScimUserGroup = {
  * What a change answers with, and the user it was about, for the audit trail.
  */
 type AuditedResult<T> = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     result: T,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     userId: string | undefined
 };
 
@@ -231,7 +231,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         const provisioners: ScimProvisionerClass[] = app.options.controllers
             .filter(controller => isScimControllerClass(controller))
@@ -249,7 +249,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getServiceProviderConfig(endpoint: ScimEndpoint): ScimBody {
         return {
             schemas: [ScimSchema.SERVICE_PROVIDER_CONFIG],
@@ -264,13 +264,13 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getResourceTypes(endpoint: ScimEndpoint): ScimBody {
         const resources: ScimBody[] = this.resolveResourceTypes(endpoint);
         return this.toListBody(resources, resources.length, 1);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findResourceType(endpoint: ScimEndpoint, id: string): ScimBody {
         const resource: ScimBody | undefined = this.resolveResourceTypes(endpoint).find(r => r['id'] === id);
         if (resource == undefined) {
@@ -279,13 +279,13 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return resource;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getSchemas(endpoint: ScimEndpoint): ScimBody {
         const schemas: ScimBody[] = ScimSchemaUtilities.getSchemas(endpoint.url);
         return this.toListBody(schemas, schemas.length, 1);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findSchema(endpoint: ScimEndpoint, id: string): ScimBody {
         const schema: ScimBody | undefined = ScimSchemaUtilities.getSchemas(endpoint.url).find(s => s['id'] === id);
         if (schema == undefined) {
@@ -294,7 +294,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return schema;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createUser(endpoint: ScimEndpoint, body: unknown): Promise<ScimResourceResponse> {
         return await this.audited(AuditAction.SCIM_USER_CREATED, async () => {
             const input: ScimUserInput = this.resolveUserInput(body);
@@ -339,7 +339,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findUser(
         endpoint: ScimEndpoint,
         id: string,
@@ -348,7 +348,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return await this.resolveUserResponse(endpoint, await this.findLiveUser(id), query, undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findUsers(endpoint: ScimEndpoint, query: ScimListQuery): Promise<ScimBody> {
         const filter: ScimFilter | undefined = query.filter == undefined ? undefined : ScimFilterUtilities.parse(query.filter);
         const where: WhereFilter<ScimUser>[] | undefined = filter == undefined
@@ -367,7 +367,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return await this.resolveUserPage(endpoint, query, where, order);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async replaceUser(endpoint: ScimEndpoint, id: string, body: unknown, ifMatch: string | undefined): Promise<ScimResourceResponse> {
         return await this.audited(AuditAction.SCIM_USER_UPDATED, async () => {
             const input: ScimUserInput = this.resolveUserInput(body);
@@ -380,7 +380,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async patchUser(endpoint: ScimEndpoint, id: string, body: unknown, ifMatch: string | undefined): Promise<ScimResourceResponse> {
         return await this.audited(AuditAction.SCIM_USER_UPDATED, async () => {
             const operations: ScimPatchOperation[] = ScimPatchUtilities.resolveOperations(body);
@@ -400,7 +400,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteUser(endpoint: ScimEndpoint, id: string, ifMatch: string | undefined): Promise<void> {
         await this.audited(AuditAction.SCIM_USER_DELETED, async () => {
             await this.findLiveUser(id);
@@ -426,7 +426,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createGroup(endpoint: ScimEndpoint, body: unknown): Promise<ScimResourceResponse> {
         return await this.audited(AuditAction.SCIM_GROUP_CREATED, async () => {
             const input: ScimGroupInput = this.resolveGroupInput(body);
@@ -446,7 +446,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findGroup(
         endpoint: ScimEndpoint,
         id: string,
@@ -455,7 +455,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return await this.toGroupResponse(endpoint, await this.findScimGroup(id, undefined), query, undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findGroups(endpoint: ScimEndpoint, query: ScimListQuery): Promise<ScimBody> {
         const filter: ScimFilter | undefined = query.filter == undefined ? undefined : ScimFilterUtilities.parse(query.filter);
         const where: WhereFilter<ScimGroup>[] | undefined = filter == undefined
@@ -477,7 +477,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return this.toListBody(resources, totalResults, startIndex);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async replaceGroup(endpoint: ScimEndpoint, id: string, body: unknown, ifMatch: string | undefined): Promise<ScimResourceResponse> {
         return await this.audited(AuditAction.SCIM_GROUP_UPDATED, async () => {
             const input: ScimGroupInput = this.resolveGroupInput(body);
@@ -490,7 +490,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async patchGroup(endpoint: ScimEndpoint, id: string, body: unknown, ifMatch: string | undefined): Promise<ScimResourceResponse> {
         return await this.audited(AuditAction.SCIM_GROUP_UPDATED, async () => {
             const operations: ScimPatchOperation[] = ScimPatchUtilities.resolveOperations(body);
@@ -509,7 +509,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteGroup(endpoint: ScimEndpoint, id: string, ifMatch: string | undefined): Promise<void> {
         await this.audited(AuditAction.SCIM_GROUP_DELETED, async () => await this.inTransaction(async transaction => {
             const group: ScimGroup = await this.findScimGroup(id, transaction);
@@ -524,7 +524,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         }));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async bulk(endpoint: ScimEndpoint, body: unknown): Promise<ScimBody> {
         const run: ScimBulkRun = {
             endpoint,

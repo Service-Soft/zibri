@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import figlet from 'figlet';
 
-import { ChalkUtilities } from '.';
+import { ChalkUtilities } from './index.ts';
 
 /**
  * Encapsulates functionality of the figlet package.

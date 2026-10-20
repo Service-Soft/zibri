@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
 
 class NotAController {}
 

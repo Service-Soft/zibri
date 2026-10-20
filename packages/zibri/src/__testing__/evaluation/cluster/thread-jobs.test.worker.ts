@@ -7,7 +7,7 @@ import { workerData } from 'node:worker_threads';
 
 import { CLUSTER_INSTANCE_ID_ENV } from 'zibri-testing';
 
-import { reportCompletion, reportError } from '../../../multithreading/services/worker/helpers';
+import { reportCompletion, reportError } from '../../../multithreading/services/worker/helpers.ts';
 
 /**
  * What this fixture is given.

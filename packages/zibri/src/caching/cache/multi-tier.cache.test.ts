@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { MultiTierCache } from './multi-tier.cache';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
-import { Cache } from '../decorators/cache.decorator';
-import { CachedValue } from '../store/cached-value.model';
+import { MultiTierCache } from './multi-tier.cache.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache.ts';
+import { Cache } from '../decorators/cache.decorator.ts';
+import { CachedValue } from '../store/cached-value.model.ts';
 
 // ---------------------------------------------------------------------------
 // Two simple tiers of WriteThroughReadThrough caches.
@@ -85,9 +85,9 @@ describe('MultiTierCache basic integration', () => {
         const fast: FastCache = inject(FastCache);
         const slow: SlowCache = inject(SlowCache);
 
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_key: string) => Promise.resolve(42));
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_key: string) => Promise.resolve(42));
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = multi.wrap(fn, key => key);
 
         const first: number = await wrapped('alpha');
@@ -107,17 +107,17 @@ describe('MultiTierCache basic integration', () => {
     // 2. write through: populate both tiers with per‑tier options
     // ------------------------------------------------------------------
     it('wrapWrite populates all tiers and honours per‑tier ttl', async () => {
-        jest.useFakeTimers();
-        jest.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
 
         const multi: TestMultiTierCache = inject(TestMultiTierCache);
         const fast: FastCache = inject(FastCache);
         const slow: SlowCache = inject(SlowCache);
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const fn = (name: string): Promise<number> => Promise.resolve(name.length);
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = multi.wrapWrite(
             fn,
             (res, name) => `user:${name}:${res}`,
@@ -142,6 +142,6 @@ describe('MultiTierCache basic integration', () => {
         expect(slowEntry?.value).toBe(5);
         expect(slowEntry?.expiresAt).toEqual(new Date('2026-01-01T00:01:00.000Z'));
 
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 });

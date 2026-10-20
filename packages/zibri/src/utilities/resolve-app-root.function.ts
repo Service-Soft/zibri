@@ -1,4 +1,4 @@
-import { FsPath, FsUtilities } from './fs.utilities';
+import { FsPath, FsUtilities } from './fs.utilities.ts';
 
 /**
  * Resolves the root of the application that is running, meaning the nearest package.json above its
@@ -15,7 +15,7 @@ import { FsPath, FsUtilities } from './fs.utilities';
  * @param entryPath - The entry file to walk up from. Overridable for tests.
  * @returns The application root, falling back to the working directory when nothing can be found.
  */
-export function resolveAppRoot(entryPath: string | undefined = require.main?.filename ?? process.argv[1]): FsPath {
+export function resolveAppRoot(entryPath: string | undefined = process.argv[1]): FsPath {
     if (entryPath == undefined) {
         return FsUtilities.getPath(process.cwd());
     }

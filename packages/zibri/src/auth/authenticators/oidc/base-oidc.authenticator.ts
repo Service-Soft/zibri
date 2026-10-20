@@ -1,31 +1,31 @@
 import type { JWTPayload } from 'jose';
 import type { ClientAuth, Configuration, DiscoveryRequestOptions, IDToken, ServerMetadata, TokenEndpointResponse, TokenEndpointResponseHelpers } from 'openid-client';
 
-import { OidcBearerTokens } from './oidc-bearer-tokens.model';
-import { ZibriApplication } from '../../../application/application';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { type HttpClientInterface } from '../../../http-client/http-client.interface';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { Ms } from '../../../utilities/ms';
-import { BaseUser } from '../../models/base-user.model';
-import { EncodedJwt } from '../../strategies/jwt/encoded-jwt-access-token.model';
-import { isJwtConfirmation, JwtConfirmation } from '../../strategies/jwt/jwt-confirmation.model';
-import { JwtRemoteKeySet } from '../../strategies/jwt/jwt-remote-key-set.type';
-import { JwtUtilities } from '../../strategies/jwt/jwt.utilities';
-import { FederatedCredentials } from '../federated/federated-credentials.model';
-import { FederatedIdentity } from '../federated/federated-identity.model';
-import { FederatedProfile } from '../federated/federated-profile.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
-import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator';
-import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model';
-import { OAuthOfflineAccess } from '../oauth/oauth-offline-access.model';
-import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model';
-import { OpenIdClient } from '../oauth/open-id-client.type';
-import { ProviderTokenAuthenticatorInterface } from '../provider-token-authenticator.interface';
-import { ProviderToken } from '../provider-token.model';
+import { OidcBearerTokens } from './oidc-bearer-tokens.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { type HttpClientInterface } from '../../../http-client/http-client.interface.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { EncodedJwt } from '../../strategies/jwt/encoded-jwt-access-token.model.ts';
+import { isJwtConfirmation, JwtConfirmation } from '../../strategies/jwt/jwt-confirmation.model.ts';
+import { JwtRemoteKeySet } from '../../strategies/jwt/jwt-remote-key-set.type.ts';
+import { JwtUtilities } from '../../strategies/jwt/jwt.utilities.ts';
+import { FederatedCredentials } from '../federated/federated-credentials.model.ts';
+import { FederatedIdentity } from '../federated/federated-identity.model.ts';
+import { FederatedProfile } from '../federated/federated-profile.model.ts';
+import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum.ts';
+import { FederatedSignInError } from '../federated/federated-sign-in.error.ts';
+import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator.ts';
+import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model.ts';
+import { OAuthOfflineAccess } from '../oauth/oauth-offline-access.model.ts';
+import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model.ts';
+import { OpenIdClient } from '../oauth/open-id-client.type.ts';
+import { ProviderTokenAuthenticatorInterface } from '../provider-token-authenticator.interface.ts';
+import { ProviderToken } from '../provider-token.model.ts';
 
 /**
  * Authenticates a user by a sign-in at an OpenID Connect provider, which proves who signed in with a
@@ -44,7 +44,7 @@ export abstract class BaseOidcAuthenticator<
      */
     abstract override readonly issuer: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly scopes: string[] = ['openid', 'email', 'profile'];
 
     /**
@@ -70,7 +70,7 @@ export abstract class BaseOidcAuthenticator<
         return inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get acceptsProviderTokens(): boolean {
         return this.bearerTokens != undefined;
     }
@@ -83,7 +83,6 @@ export abstract class BaseOidcAuthenticator<
             && !this.bearerTokens.idTokenAudiences.length
         ) {
             throw new InternalError(
-                // eslint-disable-next-line stylistic/max-len
                 `${this.constructor.name} takes bearer tokens for no audience: name the api's in accessTokenAudiences, or the clients' in idTokenAudiences.`
             );
         }
@@ -155,7 +154,7 @@ export abstract class BaseOidcAuthenticator<
      */
     protected resolveProfile(
         claims: IDToken,
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         answer: URLSearchParams
     ): FederatedProfile {
         return {

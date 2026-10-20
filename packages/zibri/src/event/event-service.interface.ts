@@ -1,5 +1,5 @@
-import { type EventReplayOptions } from './event-replay-options.model';
-import { Event } from './event.model';
+import { type EventReplayOptions } from './event-replay-options.model.ts';
+import { Event } from './event.model.ts';
 
 /**
  * Options for subscribing to events.

@@ -1,5 +1,4 @@
-import { MigrationPropertyMetadata } from './migration-property-metadata.model';
-import { ValueConversion } from './value-conversion.enum';
+import { MigrationPropertyMetadata } from './migration-property-metadata.model.ts';
 
 /**
  * The types a property of the given type can become through {@link ValueConversion.CAST}: its own

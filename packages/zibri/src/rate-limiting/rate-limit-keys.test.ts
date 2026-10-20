@@ -1,14 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { RateLimited } from './decorators/rate-limited.decorator';
-import { RateLimiter } from './decorators/rate-limiter.decorator';
-import { TokenBucketRateLimiter, TokenBucketState } from './limiter/token-bucket.rate-limiter';
-import { RateLimitKeys } from './rate-limit-keys';
-import { InMemoryRateLimiterStore } from './stores/in-memory.rate-limiter-store';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Ms } from '../utilities/ms';
+import { RateLimited } from './decorators/rate-limited.decorator.ts';
+import { RateLimiter } from './decorators/rate-limiter.decorator.ts';
+import { TokenBucketRateLimiter, TokenBucketState } from './limiter/token-bucket.rate-limiter.ts';
+import { RateLimitKeys } from './rate-limit-keys.ts';
+import { InMemoryRateLimiterStore } from './stores/in-memory.rate-limiter-store.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * One call, then nothing for an hour.

@@ -1,10 +1,10 @@
-import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
-import { CachedValue } from './cached-value.model';
-import { Bytes } from '../../utilities/bytes';
-import { DoublyLinkedList, LinkedListNode } from '../../utilities/doubly-linked-list';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { cacheKeyOf } from '../cache-key.function';
+import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface.ts';
+import { CachedValue } from './cached-value.model.ts';
+import { Bytes } from '../../utilities/bytes.ts';
+import { DoublyLinkedList, LinkedListNode } from '../../utilities/doubly-linked-list.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { cacheKeyOf } from '../cache-key.function.ts';
 
 /**
  * Internal linked list node.
@@ -51,7 +51,7 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
     private readonly frequencyMap: Map<number, Set<string>> = new Map();
     private minFrequency: number = 0;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly config: CacheStoreConfig;
 
     constructor(configInput?: Partial<CacheStoreConfig>) {
@@ -63,7 +63,7 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get(key: K): CachedValue<V> | undefined {
         const id: string = cacheKeyOf(key);
         const entry: CacheEntry<V> | undefined = this.entries.get(id);
@@ -83,7 +83,7 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
         return entry.value;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     set(key: K, value: CachedValue<V>): void {
         const id: string = cacheKeyOf(key);
         const existing: CacheEntry<V> | undefined = this.entries.get(id);
@@ -128,18 +128,18 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     delete(key: K): void {
         this.deleteById(cacheKeyOf(key));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     has(key: K): boolean {
         const entry: CacheEntry<V> | undefined = this.entries.get(cacheKeyOf(key));
         return entry != undefined && !this.hasExpired(entry);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     removeExpired(): number {
         for (const [id, entry] of this.entries.entries()) {
             if (this.hasExpired(entry)) {
@@ -197,7 +197,7 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
         this.entries.delete(id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     clear(): void {
         this.entries.clear();
         this.orderList.clear();
@@ -206,12 +206,12 @@ export class InMemoryCacheStore<K, V> implements CacheStoreInterface<K, V> {
         this.minFrequency = 0;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     size(): number {
         return this.entries.size;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     invalidateTags(tags: string[]): void {
         for (const [id, entry] of this.entries.entries()) {
             if (entry.value.tags.some(t => tags.includes(t))) {

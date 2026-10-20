@@ -1,21 +1,22 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { DataSource } from './decorators/data-source.decorator';
-import { MigrationEntity } from './migration/migration-entity.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../change-sets/models/change-set.model';
-import { Change } from '../change-sets/models/change.model';
-import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { Newable } from '../types/newable.type';
+import { DataSource } from './decorators/data-source.decorator.ts';
+import { MigrationEntity } from './migration/migration-entity.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model.ts';
+import { ChangeSet } from '../change-sets/models/change-set.model.ts';
+import { Change } from '../change-sets/models/change.model.ts';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type Relation } from '../entity/models/relation.type.ts';
+import { Newable } from '../types/newable.type.ts';
 
 // every entity and data source below is allowed to go unused, because each case boots only some of them
 
@@ -56,7 +57,7 @@ class CustomerInvoice extends BaseEntity {
     tenantId!: string;
 
     @Property.manyToOne({ target: () => Customer, joinColumn: 'customerId', inverseSide: 'invoices' })
-    customer!: Customer;
+    customer!: Relation<Customer>;
 
     @Property.string({ format: 'uuid' })
     customerId!: string;
@@ -72,7 +73,7 @@ class Member extends SoftDeleteEntity {
 @Entity({ tenant: 'shared', allowOrphan: true })
 class PostalAddress extends BaseEntity {
     @Property.manyToOne({ target: () => Member, joinColumn: 'memberId', inverseSide: 'addresses' })
-    member!: Member;
+    member!: Relation<Member>;
 
     @Property.string({ format: 'uuid' })
     memberId!: string;

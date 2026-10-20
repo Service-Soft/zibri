@@ -4,10 +4,10 @@ import { AddressInfo } from 'node:net';
 
 import { JsonUtilities, KnownHeader, MimeType } from 'zibri';
 
-import { FakeJwtAccessTokenOptions } from './fake-jwt-access-token-options.model';
-import { FakeOAuthApiRequest } from './fake-oauth-api-request.model';
-import { FakeOAuthIdentity } from './fake-oauth-identity.model';
-import { FakeOAuthProviderOptions } from './fake-oauth-provider-options.model';
+import { FakeJwtAccessTokenOptions } from './fake-jwt-access-token-options.model.ts';
+import { FakeOAuthApiRequest } from './fake-oauth-api-request.model.ts';
+import { FakeOAuthIdentity } from './fake-oauth-identity.model.ts';
+import { FakeOAuthProviderOptions } from './fake-oauth-provider-options.model.ts';
 
 /**
  * The claims of an ID token, before it is signed.
@@ -432,7 +432,6 @@ export class FakeOAuthProvider {
             || code == undefined
             || issued?.redirectUri !== body.get('redirect_uri')
             || verifier == undefined
-            // eslint-disable-next-line stylistic/newline-per-chained-call
             || createHash('sha256').update(verifier).digest('base64url') !== issued.codeChallenge
         ) {
             this.sendJson(res, 400, { error: 'invalid_grant' });

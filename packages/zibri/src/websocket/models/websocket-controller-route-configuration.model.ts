@@ -1,5 +1,5 @@
-import { HandlerTimeout } from '../../http/handler-timeout.type';
-import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
+import { HandlerTimeout } from '../../http/handler-timeout.type.ts';
+import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model.ts';
 
 /**
  * The configuration for a websocket controller route.

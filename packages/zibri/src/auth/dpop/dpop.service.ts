@@ -1,24 +1,24 @@
 import { createHash } from 'node:crypto';
 
-import { DpopServiceInterface } from './dpop-service.interface';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { HttpStatus } from '../../http/http-status.enum';
-import { KnownHeader } from '../../http/known-header.enum';
-import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
-import { TranslatedString } from '../../localization/models/translated-string.model';
-import { $ts } from '../../localization/translate.function';
-import { Ms } from '../../utilities/ms';
-import { OAuth2ErrorCode } from '../authorization-server/oauth2-error-code.enum';
-import { OAuth2Error } from '../authorization-server/oauth2.error';
-import { AuthorizationToken } from '../strategies/authorization-token.model';
-import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorithm.type';
-import { type JwtServiceInterface } from '../strategies/jwt/jwt-service.interface';
-import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
-import { VerifiedDpopProof } from '../strategies/jwt/verified-dpop-proof.model';
+import { DpopServiceInterface } from './dpop-service.interface.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { type LeaseServiceInterface } from '../../leases/lease-service.interface.ts';
+import { TranslatedString } from '../../localization/models/translated-string.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { OAuth2ErrorCode } from '../authorization-server/oauth2-error-code.enum.ts';
+import { OAuth2Error } from '../authorization-server/oauth2.error.ts';
+import { AuthorizationToken } from '../strategies/authorization-token.model.ts';
+import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorithm.type.ts';
+import { type JwtServiceInterface } from '../strategies/jwt/jwt-service.interface.ts';
+import { JwtUtilities } from '../strategies/jwt/jwt.utilities.ts';
+import { VerifiedDpopProof } from '../strategies/jwt/verified-dpop-proof.model.ts';
 
 /**
  * What a proof may be signed with.
@@ -41,7 +41,7 @@ const NONCE_LIFETIME_IN_MS: number = 5 * Ms.MINUTE;
  */
 @Injectable({ register: 'onUse' })
 export class DpopService implements DpopServiceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly algorithms: JwtAsymmetricAlgorithm[] = DPOP_ALGORITHMS;
 
     /**
@@ -65,7 +65,7 @@ export class DpopService implements DpopServiceInterface {
         private readonly leaseService: LeaseServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveProofThumbprint(
         context: HttpRequestContext | WebsocketRequestContext,
         accessToken: string | undefined
@@ -78,7 +78,7 @@ export class DpopService implements DpopServiceInterface {
         return await pending;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isSentAsBound(
         context: HttpRequestContext | WebsocketRequestContext,
         token: AuthorizationToken,
@@ -206,7 +206,7 @@ export class DpopService implements DpopServiceInterface {
             ? new OAuth2Error(error, description, { dpopNonce })
             : new OAuth2Error(error, description, {
                 status: HttpStatus.UNAUTHORIZED,
-                // eslint-disable-next-line cspell/spellchecker
+                // cspell:disable-next-line
                 challenge: `DPoP error="${error}", algs="${this.algorithms.join(' ')}"`,
                 dpopNonce
             });

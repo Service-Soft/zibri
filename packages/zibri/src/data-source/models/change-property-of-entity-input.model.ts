@@ -1,9 +1,8 @@
-import { CastablePropertyType } from './castable-property-type.type';
-import { EntityMigrationInput } from './entity-migration-input.model';
-import { MigrationPropertyMetadata } from './migration-property-metadata.model';
-import { PropertyConversion } from './property-conversion.model';
-import { ValueConversion } from './value-conversion.enum';
-import { BaseEntity } from '../../entity/base-entity.model';
+import { CastablePropertyType } from './castable-property-type.type.ts';
+import { EntityMigrationInput } from './entity-migration-input.model.ts';
+import { MigrationPropertyMetadata } from './migration-property-metadata.model.ts';
+import { PropertyConversion } from './property-conversion.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
 
 /**
  * Everything a migration says when it changes a property of an entity.

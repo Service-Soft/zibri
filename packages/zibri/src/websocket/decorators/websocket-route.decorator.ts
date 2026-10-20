@@ -1,7 +1,7 @@
-import { HandlerTimeout } from '../../http/handler-timeout.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
-import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
+import { HandlerTimeout } from '../../http/handler-timeout.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model.ts';
+import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model.ts';
 
 /**
  * Options for a websocket route.

@@ -1,6 +1,6 @@
-import { PaymentMethod } from './payment-method.model';
-import { PaymentPluginOptions } from './payment-plugin-options.model';
-import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentMethod } from './payment-method.model.ts';
+import { PaymentPluginOptions } from './payment-plugin-options.model.ts';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface.ts';
 
 /**
  * Input for configuring the payment plugin.

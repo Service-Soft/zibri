@@ -1,4 +1,4 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
 
 /**
  * The document head container. Mirrors MJML's `mj-head`: it produces no body output itself - its

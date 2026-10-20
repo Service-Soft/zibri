@@ -1,8 +1,8 @@
-import { Email } from './email.model';
-import { IntersectionClass } from '../../entity/intersection-class.model';
-import { OmitClass } from '../../entity/omit-class.model';
-import { PartialClass } from '../../entity/partial-class.model';
-import { PickClass } from '../../entity/pick-class.model';
+import { Email } from './email.model.ts';
+import { IntersectionClass } from '../../entity/intersection-class.model.ts';
+import { OmitClass } from '../../entity/omit-class.model.ts';
+import { PartialClass } from '../../entity/partial-class.model.ts';
+import { PickClass } from '../../entity/pick-class.model.ts';
 
 /**
  * Data for creating a new email in the db.

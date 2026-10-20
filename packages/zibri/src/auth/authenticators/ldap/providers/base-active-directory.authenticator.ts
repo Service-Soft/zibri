@@ -1,10 +1,10 @@
 import type { Client, Filter } from 'ldapts';
 
-import { InternalError } from '../../../../error-handling/internal-error.model';
-import { BaseUser } from '../../../models/base-user.model';
-import { BaseLdapAuthenticator } from '../base-ldap.authenticator';
-import { LdapEntry } from '../ldap-entry.model';
-import { Ldapts } from '../ldapts.type';
+import { InternalError } from '../../../../error-handling/internal-error.model.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { BaseLdapAuthenticator } from '../base-ldap.authenticator.ts';
+import { LdapEntry } from '../ldap-entry.model.ts';
+import { Ldapts } from '../ldapts.type.ts';
 
 /**
  * The matching rule of Active Directory that follows a group's members through the groups among them,
@@ -91,7 +91,7 @@ export abstract class BaseActiveDirectoryAuthenticator<
     protected override isEntryActive(entry: LdapEntry): boolean {
         // a lockout after too many wrong passwords is `lockoutTime` rather than a flag, and is left alone
         // for the reason the base class leaves OpenLDAP's: whoever typed them must not end the logins
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const [flags] = entry.attributes['useraccountcontrol'] ?? [];
         return flags == undefined || (Number(flags) & ACCOUNT_DISABLED) === 0;
     }

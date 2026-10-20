@@ -1,12 +1,12 @@
 /* eslint-disable unicorn/no-null */
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Where } from '../models/where/where-filter.model';
-import { Repository } from '../repository/repository';
-import { StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { Repository } from '../repository/repository.ts';
+import { StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error.ts';
 
 /**
  * The cases every data source answers the same way about a stored value that is not of the type its

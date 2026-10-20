@@ -1,0 +1,25 @@
+{
+    "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+    "version": "0.2",
+    "language": "en,de",
+    "import": ["@cspell/dict-de-de/cspell-ext.json"],
+    "dictionaryDefinitions": [{ "name": "project-words", "path": "./cspell.words.txt", "addWords": true }],
+    "dictionaries": ["project-words"],
+    "ignorePaths": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/coverage/**",
+        "**/__testing__/file-output/**",
+        "**/package-lock.json",
+        "**/*.migration.ts",
+        "**/*secrets*.ts",
+        "**/*environment*.ts",
+        ".zibri/**",
+        "packages/zibri/docs/**",
+        "packages/zibri/src/di/default/temp/**",
+        "packages/cli/assets/**",
+        "packages/cli/sandbox/**",
+        "packages/cli/src/__testing__/recorded-sandbox-diffs.json",
+        "packages/sandbox/**"
+    ]
+}

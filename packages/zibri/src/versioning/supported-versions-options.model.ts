@@ -1,7 +1,7 @@
-import { SemVerVersion } from './sem-ver.utilities';
-import { ExcludeStrict } from '../types/exclude-strict.type';
+import { SemVerVersion } from './sem-ver.utilities.ts';
+import { ExcludeStrict } from '../types/exclude-strict.type.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type SemVerRange = `^${number}` | `^${number}.${number}` | `^${SemVerVersion}`
     | `~${number}` | `~${number}.${number}` | `~${SemVerVersion}`
     | `>=${SemVerVersion}`

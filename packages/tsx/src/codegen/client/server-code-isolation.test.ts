@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { ClientScript } from './client-codegen';
-import { compilePage } from '../../__testing__/server-render.helper';
-import { renderPage } from '../../runtime/render-page';
-import { ValidationCode } from '../../semantics/validate';
-import { compile, CompileResult } from '../compile';
+import { ClientScript } from './client-codegen.ts';
+import { compilePage } from '../../__testing__/server-render.helper.ts';
+import { renderPage } from '../../runtime/render-page.ts';
+import { ValidationCode } from '../../semantics/validate.ts';
+import { compile, CompileResult } from '../compile.ts';
 
 /**
  * Globals the pages these templates stand for provide, so client code in the tests can call something

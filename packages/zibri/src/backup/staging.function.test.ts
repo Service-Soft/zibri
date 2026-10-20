@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { BackupDigest, followFile, stage } from './staging.function';
-import { testFileFolder } from '../__testing__/constants';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { BackupDigest, followFile, stage } from './staging.function.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
 
 const stagingFolder: FsPath = FsUtilities.getPath(testFileFolder, 'staging-function');
 

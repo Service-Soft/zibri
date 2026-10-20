@@ -1,6 +1,6 @@
-import { XmlRootMetadataInput } from './xml-root-metadata.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { XmlRootMetadataInput } from './xml-root-metadata.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Names the root element a model is written as, the namespace of the document, and the prefixes it declares.

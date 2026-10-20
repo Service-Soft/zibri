@@ -1,5 +1,5 @@
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model.ts';
 
 /**
  * What every write that hands one row back takes, so that the row is the one finding it by its id

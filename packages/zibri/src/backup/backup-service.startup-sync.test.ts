@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupServiceInterface } from './backup-service.interface';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BackupTransportInterface } from './transports/backup-transport.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Logger } from '../logging/logger';
-import { Newable } from '../types/newable.type';
+import { BackupEntity } from './backup-entity.model.ts';
+import { BackupResourceEntity } from './backup-resource-entity.model.ts';
+import { BackupServiceInterface } from './backup-service.interface.ts';
+import { Backup } from './decorators/backup-resource.decorator.ts';
+import { BackupTransport } from './decorators/backup-transport.decorator.ts';
+import { BackupTransportInterface } from './transports/backup-transport.interface.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Logger } from '../logging/logger.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * A transport whose server cannot be reached, the way one that is down or refusing this application fails.
@@ -58,7 +58,7 @@ describe('BackupService', () => {
     let server: StartedTestServer | undefined;
     // on the class rather than on an instance: the sync runs while the application starts, before a
     // test can reach the logger it starts with
-    const warn: jest.SpiedFunction<Logger['warn']> = jest.spyOn(Logger.prototype, 'warn');
+    const warn: MockInstance<Logger['warn']> = vi.spyOn(Logger.prototype, 'warn');
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [BackedUpDataSource] });

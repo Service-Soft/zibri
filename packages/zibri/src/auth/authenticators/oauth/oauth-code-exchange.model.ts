@@ -1,4 +1,4 @@
-import { FederatedSignInAction } from '../federated/federated-sign-in-action.type';
+import { FederatedSignInAction } from '../federated/federated-sign-in-action.type.ts';
 
 /**
  * What the answer to a sign-in is checked and exchanged with, worked out from the attempt it answers.

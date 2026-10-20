@@ -1,14 +1,14 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { afterCursorWhere, KeysetStep, keysetStepsFor } from './after-cursor-where.function';
-import { KeysetOrderKey, resolveKeysetOrder } from './keyset-order.model';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
-import { ScopedWhere } from '../scopes/scope-where.utilities';
+import { afterCursorWhere, KeysetStep, keysetStepsFor } from './after-cursor-where.function.ts';
+import { KeysetOrderKey, resolveKeysetOrder } from './keyset-order.model.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator.ts';
+import { ScopedWhere } from '../scopes/scope-where.utilities.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class WalkedRow extends BaseEntity {

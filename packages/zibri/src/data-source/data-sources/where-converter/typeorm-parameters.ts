@@ -1,4 +1,4 @@
-import { InternalError } from '../../../error-handling/internal-error.model';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
 
 /**
  * Collects the values of a raw sql statement so that they are bound instead of written into it.

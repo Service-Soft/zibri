@@ -1,5 +1,5 @@
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator.ts';
 
 /**
  * A placeholder inside a translation string, `<x id="name" equiv-text="{name}"/>`, which a translator moves but

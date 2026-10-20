@@ -1,14 +1,14 @@
-import { UserRepo } from '../../auth/decorators/user-repo.decorator';
-import { UserRepositoryInterface } from '../../auth/user/user-repository.interface';
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { Roles } from '../mocks/entities/roles.enum';
+import { UserRepo } from '../../auth/decorators/user-repo.decorator.ts';
+import { UserRepositoryInterface } from '../../auth/user/user-repository.interface.ts';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
 
 @UserRepo()
 export class DefaultTestServerUserRepository extends Repository<JwtUser>

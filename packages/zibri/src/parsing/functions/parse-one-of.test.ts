@@ -1,13 +1,13 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { parseObject } from './parse-object.function';
-import { parseShape } from './parse-one-of.function';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { type OneOf } from '../../entity/models/one-of.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { BodyShapeMetadata, JsonBodyShapeMetadataInput } from '../../routing/decorators/body-metadata.model';
-import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function';
+import { parseObject } from './parse-object.function.ts';
+import { parseShape } from './parse-one-of.function.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type OneOf } from '../../entity/models/one-of.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { BodyShapeMetadata, JsonBodyShapeMetadataInput } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function.ts';
 
 class EmailChannel {
     @Property.string({ regex: /^[^\s@]+@[^\s@]+$/ })

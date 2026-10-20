@@ -1,6 +1,6 @@
-import { AmountUnit } from './amount-unit.model';
-import { Vat } from './vat.model';
-import { Property } from '../../../entity/decorators/property.decorator';
+import { AmountUnit } from './amount-unit.model.ts';
+import { Vat } from './vat.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * Contains information about a single item of an invoice.

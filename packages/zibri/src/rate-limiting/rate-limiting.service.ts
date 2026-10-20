@@ -1,20 +1,20 @@
-import { isRateLimiter, RateLimiterInterface } from './limiter/rate-limiter.interface';
-import { RateLimitingCleanupCronJob } from './rate-limiting-cleanup.cron-job';
-import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
-import { ZibriApplication } from '../application/application';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function';
-import { getDiTokenName } from '../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
-import { inject } from '../di/inject.function';
-import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { type LoggerInterface } from '../logging/logger.interface';
+import { isRateLimiter, RateLimiterInterface } from './limiter/rate-limiter.interface.ts';
+import { RateLimitingCleanupCronJob } from './rate-limiting-cleanup.cron-job.ts';
+import { RateLimitingServiceInterface } from './rate-limiting-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function.ts';
+import { getDiTokenName } from '../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseRateLimitState } from './stores/rate-limiter-store.interface.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
 
 /**
  * An error to throw during rate limiting service initialization.
@@ -33,7 +33,7 @@ class InitRateLimitingServiceError extends InternalError {
 @Injectable({ register: 'onUse' })
 export class RateLimitingService implements RateLimitingServiceInterface, OnAppInit {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly limiters: RateLimiterInterface<BaseRateLimitState>[] = [];
 
     constructor(
@@ -41,7 +41,7 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
         private readonly logger: LoggerInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         const providers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.RATE_LIMITER);
         if (providers.length) {
@@ -91,7 +91,7 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/no-explicit-any
     addLimiter(limiter: RateLimiterInterface<any>): void {
         // a limiter whose state only some applications have a table for is built by the feature that
         // needs it, while the application starts - before or after the sweep above, so both add it.
@@ -107,8 +107,8 @@ export class RateLimitingService implements RateLimitingServiceInterface, OnAppI
         this.limiters.push(limiter);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async cleanup(): Promise<void> {
-        await Promise.all(this.limiters.map(l => l.cleanup()));
+        await Promise.all(this.limiters.map(async l => await l.cleanup()));
     }
 }

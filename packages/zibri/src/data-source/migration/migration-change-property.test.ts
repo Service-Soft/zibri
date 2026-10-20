@@ -1,30 +1,30 @@
 import { randomBytes } from 'node:crypto';
 
-import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
+import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Table, TableColumn } from 'typeorm';
 import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
 
-import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { inject } from '../../di/inject.function';
-import { register } from '../../di/register.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../decorators/data-source.decorator';
-import { SchemaManagement } from '../models/schema-management.model';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { Migration } from './migration.model.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { register } from '../../di/register.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../models/schema-management.model.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 @Entity({ tenant: 'shared', tableName: 'measurement' })
 class LegacyMeasurement {

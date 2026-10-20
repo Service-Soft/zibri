@@ -1,82 +1,82 @@
-import { type UserServiceInterface } from '../../auth/user/user-service.interface';
-import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
-import { AlsUtilities } from '../../context/als.utilities';
-import { OpenedOperationLimit, OperationLimitUtilities } from '../../context/operation-limit.utilities';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { type EntityOrder } from '../../entity/models/entity-order.model';
-import { type RelationTree } from '../../entity/models/entity-relations.model';
-import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
-import { denyAll, type DenyAll } from '../../entity/models/entity-scope.model';
-import { Relation } from '../../entity/models/relation.enum';
-import { ConflictError } from '../../error-handling/errors/conflict.error';
-import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { boundEncryptionProperties } from '../../global/model-registry/encrypt-encryption-properties.function';
-import { ModelRegistry } from '../../global/model-registry/model.registry';
-import { $ts } from '../../localization/translate.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
-import { DeadlineAwareRepositoryDriver } from '../driver/deadline-aware.repository-driver';
-import { MembershipReportingRepositoryDriver } from '../driver/membership-reporting.repository-driver';
-import { DriverFindOptions, DriverStreamOptions, RepositoryDriverInterface } from '../driver/repository-driver.interface';
-import { TracedRepositoryDriver } from '../driver/traced.repository-driver';
-import { BeforeReturnHook } from '../hooks/before-return';
-import { BeforeSaveHook, SaveOperation } from '../hooks/before-save';
-import { isDefaultBeforeSaveHook } from '../hooks/hooks.default';
-import { afterCursorWhere, keysetStepsFor, keysetValuesOf } from '../keyset/after-cursor-where.function';
-import { keysetFingerprint, KeysetOrderKey, resolveKeysetOrder } from '../keyset/keyset-order.model';
-import { AtomicUpdate } from '../models/atomic-update.model';
-import { decodeKeysetCursor, encodeKeysetCursor } from '../models/keyset-cursor.model';
-import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
-import { BulkWriteOptions } from '../models/options/bulk-write-options.model';
-import { CountOptions } from '../models/options/count-options.model';
-import { CreateAllOptions } from '../models/options/create-all-options.model';
-import { CreateOptions } from '../models/options/create-options.model';
-import { DeleteAllOptions } from '../models/options/delete-all-options.model';
-import { DeleteByIdOptions } from '../models/options/delete-by-id-options.model';
-import { FindAllOptions } from '../models/options/find-all-options.model';
-import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
-import { FindByIdOptions } from '../models/options/find-by-id-options.model';
-import { FindOneOptions } from '../models/options/find-one-options.model';
-import { StreamOptions } from '../models/options/stream-options.model';
-import { UpdateAllOptions } from '../models/options/update-all-options.model';
-import { UpdateByIdOptions } from '../models/options/update-by-id-options.model';
-import { UpsertAllOptions } from '../models/options/upsert-all-options.model';
-import { UpsertOptions } from '../models/options/upsert-options.model';
-import { WriteRelationsOptions } from '../models/options/write-relations-options.model';
-import { OwnedRelationWrite } from '../models/owned-relation-write.model';
-import { OwnedRelation } from '../models/owned-relation.model';
-import { UpsertRow } from '../models/upsert-row.model';
-import { FuzzySearchUtilities } from '../models/where/fuzzy-search.utilities';
-import { Where, WhereFilter } from '../models/where/where-filter.model';
-import { OwnedRelationUtilities } from '../owned-relation.utilities';
-import { resolveEntityScope } from '../scopes/resolve-entity-scope.function';
-import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
-import { TenantOwnership, TenantRowData, TenantUtilities } from '../tenancy/tenant.utilities';
-import { WrittenRowTenantUtilities } from '../tenancy/written-row-tenant.utilities';
-import { Transaction } from '../transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
-import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
-import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
-import { dropImpossibleConditions } from '../where/drop-impossible-conditions.function';
-import { WriteDataUtilities } from '../write-data.utilities';
+import { type UserServiceInterface } from '../../auth/user/user-service.interface.ts';
+import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { OpenedOperationLimit, OperationLimitUtilities } from '../../context/operation-limit.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error.ts';
+import { type EntityOrder } from '../../entity/models/entity-order.model.ts';
+import { type RelationTree } from '../../entity/models/entity-relations.model.ts';
+import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities.ts';
+import { denyAll, type DenyAll } from '../../entity/models/entity-scope.model.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { ConflictError } from '../../error-handling/errors/conflict.error.ts';
+import { ForbiddenError } from '../../error-handling/errors/forbidden.error.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { boundEncryptionProperties } from '../../global/model-registry/encrypt-encryption-properties.function.ts';
+import { ModelRegistry } from '../../global/model-registry/model.registry.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator.ts';
+import { DeadlineAwareRepositoryDriver } from '../driver/deadline-aware.repository-driver.ts';
+import { MembershipReportingRepositoryDriver } from '../driver/membership-reporting.repository-driver.ts';
+import { DriverFindOptions, DriverStreamOptions, RepositoryDriverInterface } from '../driver/repository-driver.interface.ts';
+import { TracedRepositoryDriver } from '../driver/traced.repository-driver.ts';
+import { BeforeReturnHook } from '../hooks/before-return.ts';
+import { BeforeSaveHook, SaveOperation } from '../hooks/before-save.ts';
+import { isDefaultBeforeSaveHook } from '../hooks/hooks.default.ts';
+import { afterCursorWhere, keysetStepsFor, keysetValuesOf } from '../keyset/after-cursor-where.function.ts';
+import { keysetFingerprint, KeysetOrderKey, resolveKeysetOrder } from '../keyset/keyset-order.model.ts';
+import { AtomicUpdate } from '../models/atomic-update.model.ts';
+import { decodeKeysetCursor, encodeKeysetCursor } from '../models/keyset-cursor.model.ts';
+import { BaseRepositoryOptions } from '../models/options/base-repository-options.model.ts';
+import { BulkWriteOptions } from '../models/options/bulk-write-options.model.ts';
+import { CountOptions } from '../models/options/count-options.model.ts';
+import { CreateAllOptions } from '../models/options/create-all-options.model.ts';
+import { CreateOptions } from '../models/options/create-options.model.ts';
+import { DeleteAllOptions } from '../models/options/delete-all-options.model.ts';
+import { DeleteByIdOptions } from '../models/options/delete-by-id-options.model.ts';
+import { FindAllOptions } from '../models/options/find-all-options.model.ts';
+import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model.ts';
+import { FindByIdOptions } from '../models/options/find-by-id-options.model.ts';
+import { FindOneOptions } from '../models/options/find-one-options.model.ts';
+import { StreamOptions } from '../models/options/stream-options.model.ts';
+import { UpdateAllOptions } from '../models/options/update-all-options.model.ts';
+import { UpdateByIdOptions } from '../models/options/update-by-id-options.model.ts';
+import { UpsertAllOptions } from '../models/options/upsert-all-options.model.ts';
+import { UpsertOptions } from '../models/options/upsert-options.model.ts';
+import { WriteRelationsOptions } from '../models/options/write-relations-options.model.ts';
+import { OwnedRelationWrite } from '../models/owned-relation-write.model.ts';
+import { OwnedRelation } from '../models/owned-relation.model.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { FuzzySearchUtilities } from '../models/where/fuzzy-search.utilities.ts';
+import { Where, WhereFilter } from '../models/where/where-filter.model.ts';
+import { OwnedRelationUtilities } from '../owned-relation.utilities.ts';
+import { resolveEntityScope } from '../scopes/resolve-entity-scope.function.ts';
+import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities.ts';
+import { TenantOwnership, TenantRowData, TenantUtilities } from '../tenancy/tenant.utilities.ts';
+import { WrittenRowTenantUtilities } from '../tenancy/written-row-tenant.utilities.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities.ts';
+import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function.ts';
+import { dropImpossibleConditions } from '../where/drop-impossible-conditions.function.ts';
+import { WriteDataUtilities } from '../write-data.utilities.ts';
 
 /**
  * How many rows a bulk update may touch before it says out loud that it is writing them one by one.
@@ -187,7 +187,7 @@ type OwnedRowsById = Map<string, Map<string, BaseEntity[]>>;
 /**
  * The property types that name another entity rather than a value stored in the row.
  */
-const RELATION_TYPES: Set<string> = new Set(Object.values(Relation));
+const RELATION_TYPES: Set<string> = new Set(Object.values(RelationType));
 
 /**
  * A repository that handles data source related things for its entity.
@@ -220,7 +220,7 @@ export class Repository<
      */
     private readonly evaluator: WhereFilterEvaluator = new WhereFilterEvaluator();
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The data source that this repository is connected to.
      */
@@ -282,7 +282,7 @@ export class Repository<
         options: FindAllOptions<T> | FindOneOptions<T> | undefined,
         where: Where<T> | undefined
     ): DriverFindOptions<T> {
-        const allOptions: FindAllOptions<T> | undefined = options as FindAllOptions<T> | undefined;
+        const allOptions: FindAllOptions<T> | undefined = options;
         // 'all' is the absence of a limit as far as the store is concerned. The difference
         // between saying it and saying nothing is handled by findAll, which is where it matters
         const take: number | undefined = allOptions?.take === 'all' ? undefined : allOptions?.take;
@@ -1545,7 +1545,7 @@ export class Repository<
             if (metadata == undefined || !RELATION_TYPES.has(metadata.type)) {
                 continue;
             }
-            if (metadata.type !== Relation.BELONGS_TO_ONE && metadata.type !== Relation.MANY_TO_ONE) {
+            if (metadata.type !== RelationType.BELONGS_TO_ONE && metadata.type !== RelationType.MANY_TO_ONE) {
                 throw new InternalError([
                     `"${this.entityClass.name}.${String(key)}" cannot be part of an upsert.`,
                     `A ${metadata.type} relation is not stored on this row, so writing it means writing rows beside`,
@@ -1690,7 +1690,7 @@ export class Repository<
     ): Promise<T[]> {
         const relations: FindAllOptions<T>['relations'] = this.relationsToResolve(options);
         if (relations == undefined || !written.length || this.isAnsweredByOwnedRows(relations, written, ownedRows)) {
-            await Promise.all(written.map(r => this.beforeReturn(r, this.entityClass, true)));
+            await Promise.all(written.map(async r => await this.beforeReturn(r, this.entityClass, true)));
             return written;
         }
 
@@ -1699,7 +1699,7 @@ export class Repository<
             relations,
             transaction: options?.transaction
         });
-        await Promise.all(read.map(r => this.beforeReturn(r, this.entityClass, true)));
+        await Promise.all(read.map(async r => await this.beforeReturn(r, this.entityClass, true)));
 
         // paired by id rather than by position: the read is a query of its own, and nothing says a
         // store answers one in the order the ids went into it. The order the rows were written in is
@@ -1838,7 +1838,7 @@ export class Repository<
                 );
             }
 
-            await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass, options?.autoDecrypt ?? true)));
+            await Promise.all(res.map(async r => await this.beforeReturn(r, this.entityClass, options?.autoDecrypt ?? true)));
             return res;
         });
     }
@@ -1947,7 +1947,7 @@ export class Repository<
                 scoped.where
             ));
 
-            await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
+            await Promise.all(res.items.map(async i => await this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
             return res;
         });
     }
@@ -2032,7 +2032,7 @@ export class Repository<
                 totalWhere: cursor == undefined ? undefined : scoped.where ?? {}
             });
 
-            await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
+            await Promise.all(res.items.map(async i => await this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
 
             // a short page is the end of the walk. A page that filled up may also be, and the caller
             // hears that from the next call handing back nothing - which is one read more than
@@ -2848,14 +2848,14 @@ export class Repository<
         // every matching row, because every matching row is handed to somebody: the hook, and the
         // caller when they asked for them
         const toDelete: T[] = await this.findAll({ where: reach.where, ...options, take: 'all' });
-        await Promise.all(toDelete.map(r => this.beforeSave(r, SaveOperation.DELETE, this.entityClass)));
+        await Promise.all(toDelete.map(async r => await this.beforeSave(r, SaveOperation.DELETE, this.entityClass)));
 
         await this.removeRows(toDelete.map(r => r.id), options);
         // only for a caller who is being handed the rows, and without decrypting them again - the
         // read above already did. What is left of this hook is hiding what an entity excludes, which
         // is about what somebody receives, and a caller counting what went away receives none of it
         if (options?.returnDeleted === true) {
-            await Promise.all(toDelete.map(r => this.beforeReturn(r, this.entityClass, false)));
+            await Promise.all(toDelete.map(async r => await this.beforeReturn(r, this.entityClass, false)));
         }
         return toDelete;
     }

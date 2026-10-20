@@ -1,4 +1,4 @@
-import { Property } from '../../../entity/decorators/property.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * What adding a passkey to a user takes. A body the application's own route can take as it is.

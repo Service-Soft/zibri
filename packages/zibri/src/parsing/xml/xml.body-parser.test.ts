@@ -1,23 +1,23 @@
 import assert from 'assert';
 
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { XmlAttribute } from './xml-attribute.decorator';
-import { XmlText } from './xml-text.decorator';
-import { XmlBodyParser } from './xml.body-parser';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function';
-import { Newable } from '../../types/newable.type';
-import { ValidationProblem } from '../../validation/validation-problem.model';
-import { ValidationService } from '../../validation/validation.service';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { XmlAttribute } from './xml-attribute.decorator.ts';
+import { XmlText } from './xml-text.decorator.ts';
+import { XmlBodyParser } from './xml.body-parser.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { ValidationProblem } from '../../validation/validation-problem.model.ts';
+import { ValidationService } from '../../validation/validation.service.ts';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model.ts';
 
 /**
  * What a body turned into once it was read and checked.

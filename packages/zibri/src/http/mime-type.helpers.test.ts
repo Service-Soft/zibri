@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { MimeType } from './mime-type.enum';
-import { isMimeType, resolveFileExtension, resolveMimeType } from './mime-type.helpers';
+import { MimeType } from './mime-type.enum.ts';
+import { isMimeType, resolveFileExtension, resolveMimeType } from './mime-type.helpers.ts';
 
 describe('resolveMimeType', () => {
     it('resolves a known extension to its mime type', () => {
@@ -22,7 +22,7 @@ describe('resolveMimeType', () => {
     });
 
     it('falls back to octet-stream for an unknown extension', () => {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         expect(resolveMimeType('file.unknownext')).toBe(MimeType.OCTET_STREAM);
     });
 
@@ -42,7 +42,7 @@ describe('resolveFileExtension', () => {
     });
 
     it('returns undefined for a mime type with no known extension', () => {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         expect(resolveFileExtension(MimeType.JSON_LD)).toBe('.jsonld');
         expect(resolveFileExtension('unknown/mime-type')).toBeUndefined();
     });

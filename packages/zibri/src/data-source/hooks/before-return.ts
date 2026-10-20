@@ -1,5 +1,5 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * A hook that runs before an entity is returned.

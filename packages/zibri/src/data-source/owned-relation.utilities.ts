@@ -3,18 +3,18 @@
 // relations is part of the contract rather than of any one implementation: a store answering
 // differently makes the same save delete a row on one and keep it on another. Each store only does
 // the writes this resolves, in its own way and inside its own transaction.
-import { BaseEntity } from '../entity/base-entity.model';
-import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
-import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
-import { Relation } from '../entity/models/relation.enum';
-import { InternalError } from '../error-handling/internal-error.model';
-import { DeepPartial } from '../types/deep-partial.type';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { OwnedRelationWrite } from './models/owned-relation-write.model';
-import { OwnedRelation } from './models/owned-relation.model';
-import { Where } from './models/where/where-filter.model';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator.ts';
+import { isRelationMetadata } from '../entity/models/is-relation-metadata.function.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { DeepPartial } from '../types/deep-partial.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { OwnedRelationWrite } from './models/owned-relation-write.model.ts';
+import { OwnedRelation } from './models/owned-relation.model.ts';
+import { Where } from './models/where/where-filter.model.ts';
 
 /**
  * Resolves what saving and deleting a row does with the rows of its one to many and has one
@@ -31,7 +31,7 @@ export class OwnedRelationUtilities {
     static resolveAll(entityClass: Newable<BaseEntity>): OwnedRelation[] {
         const res: OwnedRelation[] = [];
         for (const [key, metadata] of ObjectUtilities.entries(MetadataUtilities.getModelProperties(entityClass))) {
-            if (metadata.type !== Relation.ONE_TO_MANY && metadata.type !== Relation.HAS_ONE) {
+            if (metadata.type !== RelationType.ONE_TO_MANY && metadata.type !== RelationType.HAS_ONE) {
                 continue;
             }
             const target: Newable<BaseEntity> = metadata.target();
@@ -43,7 +43,7 @@ export class OwnedRelationUtilities {
             if (!isRelationMetadata(inverse)) {
                 continue;
             }
-            if ((inverse.type !== Relation.MANY_TO_ONE && inverse.type !== Relation.BELONGS_TO_ONE) || inverse.joinColumn == undefined) {
+            if ((inverse.type !== RelationType.MANY_TO_ONE && inverse.type !== RelationType.BELONGS_TO_ONE) || inverse.joinColumn == undefined) {
                 throw new InternalError(
                     `The relation "${entityClass.name}.${key}" needs "${target.name}.${metadata.inverseSide}" `
                     + 'to be a to one relation with "joinColumn" set.'
@@ -59,7 +59,7 @@ export class OwnedRelationUtilities {
             const keyMetadata: PropertyMetadata = targetProperties[inverse.joinColumn] ?? inverse;
             res.push({
                 key,
-                holdsOne: metadata.type === Relation.HAS_ONE,
+                holdsOne: metadata.type === RelationType.HAS_ONE,
                 target,
                 foreignKey: inverse.joinColumn,
                 cascadesInsert: hasFlag('insert'),
@@ -82,7 +82,7 @@ export class OwnedRelationUtilities {
      * with one, and the id it is saved under.
      * @returns One write per relation that some owner gives a value for.
      */
-    // eslint-disable-next-line sonar/cognitive-complexity
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     static resolveWrites(relations: OwnedRelation[], entries: [Record<string, unknown>, string][]): OwnedRelationWrite[] {
         const res: OwnedRelationWrite[] = [];
         for (const relation of relations) {

@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteAroundReadAsideCache } from './write-around-read-aside.cache';
-import { flushMicrotasks } from '../../../__testing__/constants';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../../cache-service.interface';
-import { Cache } from '../../decorators/cache.decorator';
-import { CachedValue } from '../../store/cached-value.model';
-import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteAroundReadAsideCache } from './write-around-read-aside.cache.ts';
+import { flushMicrotasks } from '../../../__testing__/constants.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../../cache-service.interface.ts';
+import { Cache } from '../../decorators/cache.decorator.ts';
+import { CachedValue } from '../../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../../store/in-memory.cache-store.ts';
 
 @Cache()
 class ReadAsideTestCache extends WriteAroundReadAsideCache<string, number, 'Read Aside Test Cache'> {
@@ -50,9 +50,9 @@ describe('ReadAsideCache', () => {
         const cache: ReadAsideTestCache = inject(ReadAsideTestCache);
         await cache.store.set('key:a', createCachedValue(123, ['tag-a'], new Date()));
 
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string): number => 999);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string): number => 999);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
         await expect(wrapped('a')).resolves.toBe(123);
@@ -62,9 +62,9 @@ describe('ReadAsideCache', () => {
     it('calls fn on a miss and never populates the cache', async () => {
         const cache: ReadAsideTestCache = inject(ReadAsideTestCache);
 
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn((id: string): number => id.length);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn((id: string): number => id.length);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
         await expect(wrapped('abc')).resolves.toBe(3);
@@ -85,13 +85,13 @@ describe('ReadAsideCache', () => {
         );
 
         const cache: ReadAsideTestCache = inject(ReadAsideTestCache);
-        // eslint-disable-next-line typescript/typedef
-        const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2025-01-01T00:00:02.000Z').getTime());
+        // eslint-disable-next-line typescript-js/typedef
+        const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2025-01-01T00:00:02.000Z').getTime());
 
         try {
-            // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-            const fn = jest.fn((_id: string): number => 999);
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+            const fn = vi.fn((_id: string): number => 999);
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
             await expect(wrapped('a')).resolves.toBe(999);
@@ -108,16 +108,16 @@ describe('ReadAsideCache', () => {
         const cache: ReadAsideTestCache = inject(ReadAsideTestCache);
 
         let resolveFn!: (value: number) => void;
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string) => new Promise<number>(resolve => {
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string) => new Promise<number>(resolve => {
             resolveFn = resolve;
         }));
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const first = wrapped('a');
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const second = wrapped('a');
 
         await flushMicrotasks();

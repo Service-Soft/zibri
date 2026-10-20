@@ -1,4 +1,4 @@
-import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
+import { MetadataInjectionKeys } from './metadata-injection-keys.enum.ts';
 
 /**
  * Utilities for dealing with reflection.
@@ -14,7 +14,7 @@ export abstract class ReflectUtilities {
     static setMetadata<T>(
         key: MetadataInjectionKeys,
         value: T,
-        target: Object,
+        target: object,
         propertyKey?: string
     ): void {
         if (propertyKey != undefined) {
@@ -35,7 +35,7 @@ export abstract class ReflectUtilities {
      */
     static getMetadata<T>(
         key: MetadataInjectionKeys,
-        target: Object,
+        target: object,
         propertyKey?: string
     ): T | undefined {
         return propertyKey != undefined
@@ -51,7 +51,7 @@ export abstract class ReflectUtilities {
      * @param propertyKey - Optional property name.
      * @returns The stored value or undefined.
      */
-    static getOwnMetadata<T>(key: MetadataInjectionKeys, target: Object, propertyKey?: string): T | undefined {
+    static getOwnMetadata<T>(key: MetadataInjectionKeys, target: object, propertyKey?: string): T | undefined {
         return propertyKey != undefined
             // eslint-disable-next-line typescript/no-unsafe-argument
             ? Reflect.getOwnMetadata(key, (target as Function).prototype, propertyKey) as T
@@ -64,7 +64,7 @@ export abstract class ReflectUtilities {
      * @param propertyKey - Optional property name.
      * @returns The found metadata keys.
      */
-    static getMetadataKeys(target: Object, propertyKey?: string): string[] {
+    static getMetadataKeys(target: object, propertyKey?: string): string[] {
         // eslint-disable-next-line typescript/no-unsafe-return
         return propertyKey != undefined
             // eslint-disable-next-line typescript/no-unsafe-argument

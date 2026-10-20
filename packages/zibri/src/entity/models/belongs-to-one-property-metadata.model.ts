@@ -1,7 +1,7 @@
-import { OmitStrict } from '../../types/omit-strict.type';
-import { BaseEntity } from '../base-entity.model';
-import { BaseRelationMetadata } from './base-relation-metadata.model';
-import { Relation } from './relation.enum';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { BaseEntity } from '../base-entity.model.ts';
+import { BaseRelationMetadata } from './base-relation-metadata.model.ts';
+import { RelationType } from './relation-type.enum.ts';
 
 /**
  * Metadata for belongs to one properties.
@@ -10,7 +10,7 @@ export type BelongsToOnePropertyMetadata<T extends BaseEntity> = BaseRelationMet
     /**
      * The type of the property.
      */
-    type: Relation.BELONGS_TO_ONE,
+    type: RelationType.BELONGS_TO_ONE,
     /**
      * The column on the current entity that holds the foreign key.
      */

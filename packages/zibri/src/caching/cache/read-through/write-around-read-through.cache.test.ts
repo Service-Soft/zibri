@@ -1,18 +1,18 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteAroundReadThroughCache } from './write-around-read-through.cache';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../../cache-service.interface';
-import { CacheService } from '../../cache.service';
-import { Cache } from '../../decorators/cache.decorator';
-import { CachedValue } from '../../store/cached-value.model';
-import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
-import { CacheInterface } from '../cache.interface';
+import { WriteAroundReadThroughCache } from './write-around-read-through.cache.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../../cache-service.interface.ts';
+import { CacheService } from '../../cache.service.ts';
+import { Cache } from '../../decorators/cache.decorator.ts';
+import { CachedValue } from '../../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../../store/in-memory.cache-store.ts';
+import { CacheInterface } from '../cache.interface.ts';
 
 @Cache()
 class MainCache extends WriteAroundReadThroughCache<string, string, 'Write Around Read Through Main Cache'> {
@@ -72,9 +72,9 @@ describe('WriteAroundReadThroughCache', () => {
 
         await affectedCache.store.set('a1', createCachedValue('affected', ['invalidate-me']));
 
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn((name: string): string => `written:${name}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn((name: string): string => `written:${name}`);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = mainCache.wrapWrite(fn, () => 'key:a', { invalidatesTags: ['invalidate-me'] });
 
         await expect(wrapped('abc')).resolves.toBe('written:abc');
@@ -86,9 +86,9 @@ describe('WriteAroundReadThroughCache', () => {
     it('reads still go through the cache (inherited from ReadThroughCache)', async () => {
         const cache: MainCache = inject(MainCache);
 
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn((id: string): string => `computed:${id}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn((id: string): string => `computed:${id}`);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
         await expect(wrapped('a')).resolves.toBe('computed:a');

@@ -1,7 +1,7 @@
-import { TraceSpanAttributes } from './trace-span-attributes.model';
-import { TraceSpanContext } from './trace-span-context.model';
-import { TraceSpanKind } from './trace-span-kind.enum';
-import { TraceSpanInterface } from './trace-span.interface';
+import { TraceSpanAttributes } from './trace-span-attributes.model.ts';
+import { TraceSpanContext } from './trace-span-context.model.ts';
+import { TraceSpanKind } from './trace-span-kind.enum.ts';
+import { TraceSpanInterface } from './trace-span.interface.ts';
 
 /**
  * Everything a tracer needs to be told to start a span.

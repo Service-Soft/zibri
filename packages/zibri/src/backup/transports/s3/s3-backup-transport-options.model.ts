@@ -1,4 +1,4 @@
-import { FileSize } from '../../../entity/models/file-property-metadata.model';
+import { FileSize } from '../../../entity/models/file-property-metadata.model.ts';
 
 /**
  * Where and how an S3 backup transport stores backups.

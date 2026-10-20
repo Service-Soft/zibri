@@ -1,15 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { type Relation } from '../../entity/models/relation.type.ts';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Repository } from './repository';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
+import { Repository } from './repository.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 // When a property's `default` fills it in: when a row is created, the models it holds included, and
 // when a write creates a related row. An update writes what it is given - a partial update changing

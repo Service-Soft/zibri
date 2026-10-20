@@ -1,12 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ErrorUtilities } from './error.utilities';
-import { HttpError } from './errors/http.error';
-import { InternalServerError } from './errors/internal-server.error';
-import { NotFoundError } from './errors/not-found.error';
-import { InternalError } from './internal-error.model';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { $ts } from '../localization/translate.function';
+import { ErrorUtilities } from './error.utilities.ts';
+import { HttpError } from './errors/http.error.ts';
+import { InternalServerError } from './errors/internal-server.error.ts';
+import { NotFoundError } from './errors/not-found.error.ts';
+import { InternalError } from './internal-error.model.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { $ts } from '../localization/translate.function.ts';
 
 describe('ErrorUtilities', () => {
     let server: StartedTestServer;

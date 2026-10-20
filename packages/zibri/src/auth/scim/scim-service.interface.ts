@@ -1,7 +1,7 @@
-import { ScimBody } from './scim-body.model';
-import { ScimEndpoint } from './scim-endpoint.model';
-import { ScimListQuery } from './scim-list-query.model';
-import { ScimResourceResponse } from './scim-resource-response.model';
+import { ScimBody } from './scim-body.model.ts';
+import { ScimEndpoint } from './scim-endpoint.model.ts';
+import { ScimListQuery } from './scim-list-query.model.ts';
+import { ScimResourceResponse } from './scim-resource-response.model.ts';
 
 /**
  * Which attributes a request for one resource asks for.

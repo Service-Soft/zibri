@@ -1,8 +1,8 @@
-import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
-import { IntrospectionResponse } from './introspection-response.model';
-import { TokenPresentation } from './token-presentation.model';
-import { TokenRequest } from './token-request.model';
-import { TokenResponse } from './token-response.model';
+import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model.ts';
+import { IntrospectionResponse } from './introspection-response.model.ts';
+import { TokenPresentation } from './token-presentation.model.ts';
+import { TokenRequest } from './token-request.model.ts';
+import { TokenResponse } from './token-response.model.ts';
 
 /**
  * Interface for the service answering the routes of the authorization server.

@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { acceptedSandboxDifferences } from './accepted-sandbox-differences';
-import { SANDBOX_DIR } from './generated-file-paths';
+import { acceptedSandboxDifferences } from './accepted-sandbox-differences.ts';
+import { SANDBOX_DIR } from './generated-file-paths.ts';
 
 describe('acceptedSandboxDifferences', () => {
     it('describes only files the sandbox still has', () => {

@@ -1,6 +1,6 @@
-import { ZibriApplication } from '../application/application';
+import { ZibriApplication } from '../application/application.ts';
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Checks if the given value implements the BeforeAppInit interface.
  * @param value - The value to check.

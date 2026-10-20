@@ -1,4 +1,4 @@
-import { DiToken } from './models/di-token.model';
+import { DiToken } from './models/di-token.model.ts';
 
 /**
  * Gets the name of the given token.

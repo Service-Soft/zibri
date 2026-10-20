@@ -1,6 +1,6 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
-import { HeadChannel } from './head-channels';
-import { textContent } from './text-content';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
+import { HeadChannel } from './head-channels.ts';
+import { textContent } from './text-content.ts';
 
 /**
  * The inbox preview text. Mirrors MJML's `mj-preview`: recorded here, then emitted by `Mjml`

@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetRepository } from './change-set-repository';
-import { ChangeSetEntity } from './models/change-set-entity.model';
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
+import { ChangeSetRepository } from './change-set-repository.ts';
+import { ChangeSetEntity } from './models/change-set-entity.model.ts';
+import { ChangeSetType } from './models/change-set-type.enum.ts';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class Gauge extends BaseEntity implements ChangeSetEntity {

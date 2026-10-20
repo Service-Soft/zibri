@@ -1,5 +1,5 @@
-import { HttpRequest } from './http-request.model';
-import { HttpResponse } from './http-response.model';
+import { HttpRequest } from './http-request.model.ts';
+import { HttpResponse } from './http-response.model.ts';
 
 /**
  * The label every request that matched no route shares.

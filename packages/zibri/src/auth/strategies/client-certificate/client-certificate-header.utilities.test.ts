@@ -1,9 +1,9 @@
 import { X509Certificate } from 'node:crypto';
 
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createFakeKeyPair, FakeKeyPair } from 'zibri-testing';
 
-import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities';
+import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities.ts';
 
 let client: X509Certificate;
 let authority: X509Certificate;

@@ -1,18 +1,18 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
-import { DataSource } from '../../../data-source/decorators/data-source.decorator';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
-import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function.ts';
+import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function.ts';
 
 /**
  * What every instance of the valkey transaction cluster boots with.

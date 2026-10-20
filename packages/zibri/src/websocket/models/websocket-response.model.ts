@@ -1,4 +1,4 @@
-import { WebsocketMessage } from './websocket-message.model';
+import { WebsocketMessage } from './websocket-message.model.ts';
 
 /**
  * A handler for processing websocket responses. Is sent by the client.

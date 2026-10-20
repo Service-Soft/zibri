@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { MissedLifecycleHooksError } from '../di/errors/missed-lifecycle-hooks.error';
-import { inject } from '../di/inject.function';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { MissedLifecycleHooksError } from '../di/errors/missed-lifecycle-hooks.error.ts';
+import { inject } from '../di/inject.function.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
 
 /**
  * What an application that merely imports the package gets, and what it does not.
@@ -147,6 +147,7 @@ let reachForEarlyService: boolean = false;
  * A service that reaches for {@link EarlyService} from a hook of a later phase.
  */
 @Injectable()
+// oxlint-disable-next-line no-unused-vars
 class ReachingService {
     /**
      * Reaches for the service once the phase it declares has finished, and records what it got.

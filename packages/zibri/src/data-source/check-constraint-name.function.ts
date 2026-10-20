@@ -1,7 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import { type uniqueConstraintName } from './unique-constraint-name.function';
-
 /**
  * Builds the name of the check constraint holding the given predicate.
  *

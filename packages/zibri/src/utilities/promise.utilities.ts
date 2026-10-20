@@ -1,9 +1,9 @@
 import { setTimeout } from 'node:timers/promises';
 
-import { ExternalError } from '../error-handling/external-error.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { TranslatedString } from '../localization/models/translated-string.model';
-import { $ts } from '../localization/translate.function';
+import { ExternalError } from '../error-handling/external-error.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { TranslatedString } from '../localization/models/translated-string.model.ts';
+import { $ts } from '../localization/translate.function.ts';
 
 /**
  * Options for chunking.
@@ -172,7 +172,7 @@ export abstract class PromiseUtilities {
         // held in an object so that the listener taken off again is the one that went on. One
         // request's signal is read by everything that request waits for, so a listener left behind
         // per wait is a leak on exactly the requests doing the most work
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const listener: { onAbort: () => void } = { onAbort: () => {} };
         const aborted: Promise<never> = new Promise<never>((_resolve, reject) => {
             listener.onAbort = () => reject(signal.reason);

@@ -1,4 +1,4 @@
-import { InternalError } from '../error-handling/internal-error.model';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * An error for a route handler that returned a kind of value none of its responses declare - a

@@ -1,15 +1,15 @@
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { EmailServiceInterface } from '../../email/email-service.interface';
-import { EmailPriority } from '../../email/models/email-priority.enum';
-import { Email } from '../../email/models/email.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { TsxUtilities } from '../../tsx/tsx.utilities';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { Ms } from '../../utilities/ms';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
-import { BaseLoggerTransportConfig, LogEmailTemplate, LoggerTransportSend } from './logger-transport.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { EmailServiceInterface } from '../../email/email-service.interface.ts';
+import { EmailPriority } from '../../email/models/email-priority.enum.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { TsxUtilities } from '../../tsx/tsx.utilities.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
+import { BaseLoggerTransportConfig, LogEmailTemplate, LoggerTransportSend } from './logger-transport.model.ts';
 
 /**
  * The input for creating a email logger transport.
@@ -17,9 +17,9 @@ import { BaseLoggerTransportConfig, LogEmailTemplate, LoggerTransportSend } from
 export type EmailLoggerTransportConfigInput = OmitStrict<BaseLoggerTransportConfig, 'register' | 'name'>
     & Partial<{ [K in keyof Email]: (logs: Log[]) => Email[K] }>
     & {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         recipients: (logs: Log[]) => string[],
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         emailTemplate: LogEmailTemplate,
         /**
          * How many entries one email carries at most.

@@ -1,6 +1,6 @@
-import { FederatedProviderIdentity } from './federated-provider-identity.model';
-import { FederatedProviderSession } from './federated-provider-session.model';
-import { ProviderTokenGrant } from './provider-token-grant.model';
+import { FederatedProviderIdentity } from './federated-provider-identity.model.ts';
+import { FederatedProviderSession } from './federated-provider-session.model.ts';
+import { ProviderTokenGrant } from './provider-token-grant.model.ts';
 
 /**
  * What a provider's verified answer to a sign-in proves: who signed in, and the tokens of its apis

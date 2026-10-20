@@ -1,15 +1,15 @@
 import { Readable } from 'node:stream';
 
-import { ShapeType } from '../entity/models/shape-type.model';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { FormData } from '../parsing/form-data/form-data.model';
-import { FormDataBodyMetadataInput, FormDataBodyShapeMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadataInput } from '../routing/decorators/body-metadata.model';
-import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
+import { ShapeType } from '../entity/models/shape-type.model.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { FormData } from '../parsing/form-data/form-data.model.ts';
+import { FormDataBodyMetadataInput, FormDataBodyShapeMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, StreamBodyMetadataInput, XmlBodyMetadataInput } from '../routing/decorators/body-metadata.model.ts';
+import { Newable } from '../types/newable.type.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type JsonResponseBodyInput<
     T extends object,
     IsArray extends boolean
@@ -37,7 +37,7 @@ type JsonResponseBodyInput<
     shapes: JsonBodyShapeMetadataInput[]
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type XmlResponseBodyInput<
     T extends object,
     IsArray extends boolean
@@ -65,7 +65,7 @@ type XmlResponseBodyInput<
     shapes: JsonBodyShapeMetadataInput[]
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type FormDataResponseBodyInput<T extends object> = OmitStrict<FormDataBodyMetadataInput, 'type'> & {
     /**
      * The type of the response.
@@ -86,7 +86,7 @@ type FormDataResponseBodyInput<T extends object> = OmitStrict<FormDataBodyMetada
     shapes: JsonBodyShapeMetadataInput[]
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type FormUrlEncodedResponseBodyInput<T extends object> = OmitStrict<FormUrlEncodedBodyMetadataInput, 'type'> & {
     /**
      * The type of the response.
@@ -107,14 +107,14 @@ type FormUrlEncodedResponseBodyInput<T extends object> = OmitStrict<FormUrlEncod
     shapes: FormDataBodyShapeMetadataInput[]
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type StreamResponseBodyInput = StreamBodyMetadataInput & Pick<StreamBodyMetadataInput, 'type'>;
 
 // the types whose body is a model or several shapes, and is read the same way either way
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type StructuredMimeType = MimeType.JSON | MimeType.XML;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type HttpClientResponseBodyInput<T extends object, IsArray extends boolean> = Newable<T>
     | JsonResponseBodyInput<T, IsArray>
     | XmlResponseBodyInput<T, IsArray>
@@ -164,25 +164,25 @@ export type HttpClientResponseForBody<
 // no responseBody given: checked non-distributively, because a distributive conditional over never is never
 > = [ResponseBody] extends [never]
     ? HttpClientResponse<undefined, HeaderParamsObject>
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     : ResponseBody extends { type: MimeType.OCTET_STREAM }
         ? HttpClientResponse<Readable, HeaderParamsObject>
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         : ResponseBody extends { type: MimeType.FORM_DATA, modelClass: Newable<infer Model extends object> }
             ? HttpClientResponse<FormData<Model>, HeaderParamsObject>
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             : ResponseBody extends { type: MimeType.FORM_DATA, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
                 ? HttpClientResponse<FormData<Extract<ShapeType<Shapes[number]>, object>>, HeaderParamsObject>
-                // eslint-disable-next-line jsdoc/require-jsdoc
+                // eslint-disable-next-line jsdoc-js/require-jsdoc
                 : ResponseBody extends { type: MimeType.FORM_URL_ENCODED, modelClass: Newable<infer Model> }
                     ? HttpClientResponse<Model, HeaderParamsObject>
-                    // eslint-disable-next-line jsdoc/require-jsdoc
+                    // eslint-disable-next-line jsdoc-js/require-jsdoc
                     : ResponseBody extends { type: MimeType.FORM_URL_ENCODED, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
                         ? HttpClientResponse<ShapeType<Shapes[number]>, HeaderParamsObject>
-                        // eslint-disable-next-line jsdoc/require-jsdoc
+                        // eslint-disable-next-line jsdoc-js/require-jsdoc
                         : ResponseBody extends { type?: StructuredMimeType, modelClass: Newable<infer Model> }
                             ? HttpClientResponse<IsArray extends true ? Model[] : Model, HeaderParamsObject>
-                            // eslint-disable-next-line jsdoc/require-jsdoc
+                            // eslint-disable-next-line jsdoc-js/require-jsdoc
                             : ResponseBody extends { type?: StructuredMimeType, shapes: infer Shapes extends JsonBodyShapeMetadataInput[] }
                                 ? HttpClientResponse<ShapeType<Shapes[number]>, HeaderParamsObject>
                                 : ResponseBody extends Newable<infer Model>

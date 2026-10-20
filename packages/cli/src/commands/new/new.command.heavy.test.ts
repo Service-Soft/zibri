@@ -1,14 +1,14 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { NewCommand } from './new.command';
-import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
-import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
-import { quietly } from '../../__testing__/quietly.function';
-import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { NewCommand } from './new.command.ts';
+import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function.ts';
+import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function.ts';
+import { quietly } from '../../__testing__/quietly.function.ts';
+import { CPUtilities, FsUtilities } from '../../encapsulation/index.ts';
+import { Path } from '../../utilities/index.ts';
 
 // three installs rather than two: the harness goes in after the framework it peer depends on, so
 // that npm resolves the peer to the copy this generator just installed rather than fetching one
@@ -28,7 +28,7 @@ describe('NewCommand (real npm install)', () => {
     });
 
     // the generated project is left where it is and cleared by emptyWorkDirectory at the start of the
-    // next run. Removing it here raced the install whenever the test timed out - jest stops waiting
+    // next run. Removing it here raced the install whenever the test timed out - the runner stops waiting
     // but the npm child keeps writing into the folder, so the removal failed with ENOTEMPTY on top of
     // the timeout - and it deleted the half installed project that says why the install was slow
     afterEach(() => {

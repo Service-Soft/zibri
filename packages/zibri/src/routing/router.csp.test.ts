@@ -1,32 +1,32 @@
 import { Readable } from 'node:stream';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { WriteThroughReadThroughCache } from '../caching/cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../caching/cache-service.interface';
-import { Cache } from '../caching/decorators/cache.decorator';
-import { Cached } from '../caching/decorators/cached.decorator';
-import { InMemoryCacheStore } from '../caching/store/in-memory.cache-store';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider, DiProvider } from '../di/models/di-provider.model';
-import { KnownHeader } from '../http/known-header.enum';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
-import { Response } from '../open-api/decorators/response.decorator';
-import { FileResponse } from '../parsing/form-data/file-response.model';
-import { CspOptionsInput } from '../parsing/html/csp-options.model';
-import { HtmlResponse } from '../parsing/html/html-response.model';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { WriteThroughReadThroughCache } from '../caching/cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../caching/cache-service.interface.ts';
+import { Cache } from '../caching/decorators/cache.decorator.ts';
+import { Cached } from '../caching/decorators/cached.decorator.ts';
+import { InMemoryCacheStore } from '../caching/store/in-memory.cache-store.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../di/models/di-provider.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../metrics/metrics-service.interface.ts';
+import { Response } from '../open-api/decorators/response.decorator.ts';
+import { FileResponse } from '../parsing/form-data/file-response.model.ts';
+import { CspOptionsInput } from '../parsing/html/csp-options.model.ts';
+import { HtmlResponse } from '../parsing/html/html-response.model.ts';
 
 /**
  * Holds rendered pages the way the caching documentation does it: in process, handing back the very
@@ -163,7 +163,7 @@ describe('the content security policy a response is written with', () => {
     }, 30000);
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('allows the page\'s own script by the nonce its body carries', async () => {
@@ -175,7 +175,7 @@ describe('the content security policy a response is written with', () => {
         expect(directives.get('script-src')).toStrictEqual(['\'self\'', `'nonce-${nonce}'`]);
         expect(directives.get('default-src')).toStrictEqual(['\'self\'']);
         expect(directives.get('frame-ancestors')).toStrictEqual(['\'self\'']);
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         expect(res.headers.get(KnownHeader.X_FRAME_OPTIONS)).toBe('SAMEORIGIN');
     });
 
@@ -240,7 +240,7 @@ describe('the content security policy a response is written with', () => {
 
     it('warns about a policy on a file no browser renders, and not about one on an svg', async () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        const warn: jest.Spied<LoggerInterface['warn']> = jest.spyOn(logger, 'warn');
+        const warn: MockInstance<LoggerInterface['warn']> = vi.spyOn(logger, 'warn');
 
         await (await fetch(`${baseUrl}/csp/icon`)).text();
         expect(warn).not.toHaveBeenCalled();

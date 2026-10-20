@@ -1,8 +1,8 @@
-import { BaseMembership } from './base-membership.model';
-import { ChangedMembership } from './changed-membership.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
+import { BaseMembership } from './base-membership.model.ts';
+import { ChangedMembership } from './changed-membership.model.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Interface for the service that answers which tenants a user belongs to, and with which roles.

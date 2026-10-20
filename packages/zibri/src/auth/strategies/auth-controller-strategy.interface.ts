@@ -1,8 +1,8 @@
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './login-auth-strategy.interface';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
+import { AuthStrategyInterface } from './auth-strategy.interface.ts';
+import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './login-auth-strategy.interface.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an auth strategy the routes of `AuthController` log in, refresh and log out with.

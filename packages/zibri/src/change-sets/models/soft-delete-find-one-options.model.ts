@@ -1,8 +1,8 @@
-import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { SoftDeleteWhere } from './soft-delete-where.model';
-import { SoftDeletedRows } from './soft-deleted-rows.type';
-import { FindOneOptions } from '../../data-source/models/options/find-one-options.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { SoftDeleteEntity } from './soft-delete-entity.model.ts';
+import { SoftDeleteWhere } from './soft-delete-where.model.ts';
+import { SoftDeletedRows } from './soft-deleted-rows.type.ts';
+import { FindOneOptions } from '../../data-source/models/options/find-one-options.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Options for finding a single entity.

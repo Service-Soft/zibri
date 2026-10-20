@@ -1,9 +1,9 @@
-import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
-import { ApiKeyCreateData } from './api-key-create-data.model';
-import { ApiKey } from './api-key.model';
-import { CreatedApiKey } from './created-api-key.model';
-import { ZibriApplication } from '../../../application/application';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { ApiKeyClientAuthentication } from './api-key-client-authentication.model.ts';
+import { ApiKeyCreateData } from './api-key-create-data.model.ts';
+import { ApiKey } from './api-key.model.ts';
+import { CreatedApiKey } from './created-api-key.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
 
 /**
  * Interface for the service keeping the api keys of the users.

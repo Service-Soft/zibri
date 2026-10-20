@@ -4,32 +4,32 @@ import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
 import { setTimeout as wait } from 'node:timers/promises';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import express from 'express';
 import NodeFormData from 'form-data';
 
-import { CircuitOpenError } from './circuit-open.error';
-import { HttpClientOptionsInput } from './http-client-options.model';
-import { HttpClientResponse } from './http-client-response.model';
-import { HttpClientError } from './http-client.error';
-import { HttpClientInterface } from './http-client.interface';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { DiContainer } from '../di/di-container';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { register } from '../di/register.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { HttpMethod } from '../http/http-method.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser';
-import { FormData } from '../parsing/form-data/form-data.model';
-import { JsonBodyParser } from '../parsing/json/json.body-parser';
-import { Parser } from '../parsing/parser';
-import { StreamBodyParser } from '../parsing/stream/stream.body-parser';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { Ms } from '../utilities/ms';
+import { CircuitOpenError } from './circuit-open.error.ts';
+import { HttpClientOptionsInput } from './http-client-options.model.ts';
+import { HttpClientResponse } from './http-client-response.model.ts';
+import { HttpClientError } from './http-client.error.ts';
+import { HttpClientInterface } from './http-client.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { DiContainer } from '../di/di-container.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { register } from '../di/register.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser.ts';
+import { FormData } from '../parsing/form-data/form-data.model.ts';
+import { JsonBodyParser } from '../parsing/json/json.body-parser.ts';
+import { Parser } from '../parsing/parser.ts';
+import { StreamBodyParser } from '../parsing/stream/stream.body-parser.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
 
 class Item {
     @Property.string()
@@ -389,7 +389,7 @@ describe('fetchForLibrary', () => {
 
         const error: unknown = await http.fetchForLibrary(`${baseUrl}/no-content`, {}).catch((error_: unknown) => error_);
 
-        // fetch hangs the reason off `cause`, and instanceof does not work across jest's realms
+        // fetch hangs the reason off `cause`
         expect(error).toMatchObject({ cause: { message: 'refused by the corporate proxy' } });
     });
 });

@@ -1,4 +1,4 @@
-import { ScimBulkOptions } from './scim-bulk-options.model';
+import { ScimBulkOptions } from './scim-bulk-options.model.ts';
 
 /**
  * How the SCIM routes of an application are guarded.

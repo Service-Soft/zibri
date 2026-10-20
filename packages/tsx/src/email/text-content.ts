@@ -1,4 +1,4 @@
-import { RenderServerRuntime } from '../runtime/server-runtime';
+import { RenderServerRuntime } from '../runtime/server-runtime.ts';
 
 /**
  * The plain text of a component's children. A string child is taken as-is (so head text is recorded

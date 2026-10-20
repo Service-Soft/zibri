@@ -1,6 +1,6 @@
-import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Marks a class that should be used as a rate limiter.

@@ -1,5 +1,5 @@
-import { CacheOperation } from '../../caching/cache/cache-operation.enum';
-import { Property } from '../../entity/decorators/property.decorator';
+import { CacheOperation } from '../../caching/cache/cache-operation.enum.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * Context information about a cache that the program is currently using.

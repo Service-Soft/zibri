@@ -1,18 +1,18 @@
-import { XmlElementNode } from '../../document/xml-element-node.model';
-import { XmlReaderUtilities } from '../../document/xml-reader.utilities';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { HttpRequest } from '../../http/http-request.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { $ts } from '../../localization/translate.function';
-import { XmlBodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
-import { BodyParserInterface } from '../body-parser.interface';
-import { BodyParserUtilities } from '../body-parser.utilities';
-import { BodyParser } from '../decorators/body-parser.decorator';
-import { parseShape } from '../functions/parse-one-of.function';
+import { XmlElementNode } from '../../document/xml-element-node.model.ts';
+import { XmlReaderUtilities } from '../../document/xml-reader.utilities.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { XmlBodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model.ts';
+import { BodyParserInterface } from '../body-parser.interface.ts';
+import { BodyParserUtilities } from '../body-parser.utilities.ts';
+import { BodyParser } from '../decorators/body-parser.decorator.ts';
+import { parseShape } from '../functions/parse-one-of.function.ts';
 
 /**
  * Body parser for xml.
@@ -24,7 +24,7 @@ import { parseShape } from '../functions/parse-one-of.function';
  */
 @BodyParser()
 export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly contentType: MimeType.XML = MimeType.XML;
 
     constructor() {
@@ -33,7 +33,7 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
         optionalPeer('saxes', 'The xml body parser');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromHttpClientResponse(res: HttpClientResponse, metadata: XmlBodyMetadata): unknown {
         if (res.body !== undefined) {
             return res.body;
@@ -41,12 +41,12 @@ export class XmlBodyParser implements BodyParserInterface<MimeType.XML> {
         return this.parseXml(res.rawBody, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromWebsocketRequest(req: WebsocketRequest, metadata: XmlBodyMetadata): unknown {
         return this.parseXml(req.body, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async parseFromHttpRequest(req: HttpRequest, metadata: XmlBodyMetadata): Promise<unknown> {
         if (req.body !== undefined) {
             return req.body;

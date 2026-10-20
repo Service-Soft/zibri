@@ -1,5 +1,5 @@
-import { IntrinsicElements as HtmlIntrinsicElements } from './jsx/intrinsic-elements.model';
-import { TsxChildren, TsxElement } from './jsx/jsx.model';
+import { IntrinsicElements as HtmlIntrinsicElements } from './jsx/intrinsic-elements.model.ts';
+import { TsxChildren, TsxElement } from './jsx/jsx.model.ts';
 
 /**
  * The jsx contract typescript resolves through `jsxImportSource: 'zibri-tsx'`.
@@ -49,8 +49,8 @@ export namespace JSX {
 function notCompiled(at: string): never {
     throw new Error(
         `'${at}' was called at runtime, which means a .tsx file was compiled by typescript instead of `
-        + 'by zibri-tsx. Route your template files through the zibri-tsx webpack loader, for example:\n'
-        + '{ test: /\\.tsx$/, include: /src[\\\\/]templates/, use: \'zibri-tsx/webpack\' }'
+        + 'by zibri-tsx. Route your template files through the zibri-tsx Vite plugin from \'zibri-tsx/vite\', for example:\n'
+        + 'plugins: [zibriTsx({ templateDirs: [path.resolve(\'src\', \'templates\')], vendorOutDir: path.resolve(\'assets\', \'public\', \'vendor\') })]'
     );
 }
 
@@ -68,9 +68,9 @@ export function jsx(): never {
  * code, so this is never called in a correctly set up build.
  * @returns Never, it always throws.
  */
-// eslint-disable-next-line cspell/spellchecker
+// cspell:disable-next-line
 export function jsxs(): never {
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     return notCompiled('jsxs');
 }
 

@@ -1,14 +1,14 @@
-import { type LooseWebsocketEvent } from './websocket-event.enum';
-import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from './websocket-message-sequence.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { OmitClass } from '../../entity/omit-class.model';
-import { HttpError } from '../../error-handling/errors/http.error';
-import { HttpStatus } from '../../http/http-status.enum';
+import { type LooseWebsocketEvent } from './websocket-event.enum.ts';
+import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from './websocket-message-sequence.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../../entity/omit-class.model.ts';
+import { HttpError } from '../../error-handling/errors/http.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
 
 /**
  * The type of a websocket message recipient.
@@ -96,7 +96,7 @@ export class WebsocketMessage extends BaseEntity {
  */
 export class CreateWebsocketMessageData extends OmitClass(WebsocketMessage, ['id', 'seq', 'createdAt']) {}
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function resolveNewSeqNumber(): Promise<number> {
     const repo: Repository<WebsocketMessageSequence, WebsocketMessageSequenceCreateData> = inject(
         repositoryTokenFor(WebsocketMessageSequence)

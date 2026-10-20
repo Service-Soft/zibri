@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { collectTranslationSources, TranslationSources } from './translation-sources';
-import { compileComponent } from '../__testing__/server-render.helper';
-import { ComponentClientMeta } from '../runtime/server-runtime';
+import { collectTranslationSources, TranslationSources } from './translation-sources.ts';
+import { compileComponent } from '../__testing__/server-render.helper.ts';
+import { ComponentClientMeta } from '../runtime/server-runtime.ts';
 
 /**
  * Compiles a component and returns what its client code looks up.

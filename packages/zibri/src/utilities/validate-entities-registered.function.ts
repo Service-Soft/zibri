@@ -1,9 +1,9 @@
-import { ZibriApplication } from '../application/application';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { inject } from '../di/inject.function';
-import type { BaseEntity } from '../entity/base-entity.model';
-import { MissingEntitiesError } from '../error-handling/errors/missing-entities.error';
-import { Newable } from '../types/newable.type';
+import { ZibriApplication } from '../application/application.ts';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface.ts';
+import { inject } from '../di/inject.function.ts';
+import type { BaseEntity } from '../entity/base-entity.model.ts';
+import { MissingEntitiesError } from '../error-handling/errors/missing-entities.error.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Validates that the given entities are registered in a data source somewhere.

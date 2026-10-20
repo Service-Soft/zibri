@@ -1,4 +1,4 @@
-import { CborValue } from './cbor-value.type';
+import { CborValue } from './cbor-value.type.ts';
 
 /**
  * The major types of CBOR (RFC 8949 §3.1) a fake device writes.

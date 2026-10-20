@@ -1,4 +1,4 @@
-import { Property } from '../../../entity/decorators/property.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * Whether a reset link still works.

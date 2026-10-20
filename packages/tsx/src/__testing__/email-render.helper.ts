@@ -1,5 +1,5 @@
-import { TsxComponent } from '../email/define-email-component';
-import { CompiledComponent, createServerRuntime, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime';
+import { TsxComponent } from '../email/define-email-component.ts';
+import { CompiledComponent, createServerRuntime, Raw, renderChild, RenderServerRuntime } from '../runtime/server-runtime.ts';
 
 /**
  * Mounts an email component, deferring its children so they render inside its frame - the same lazy

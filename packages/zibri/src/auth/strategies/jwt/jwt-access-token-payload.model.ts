@@ -1,5 +1,5 @@
-import { isJwtConfirmation, JwtConfirmation } from './jwt-confirmation.model';
-import { BaseUser } from '../../models/base-user.model';
+import { isJwtConfirmation, JwtConfirmation } from './jwt-confirmation.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
 
 /**
  * The payload of a jwt access token.

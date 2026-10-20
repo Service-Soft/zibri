@@ -1,14 +1,14 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { Repository } from './repository';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
+import { Repository } from './repository.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
 
 // ==================== ENTITIES ====================
 
@@ -27,7 +27,7 @@ class Child extends BaseEntity {
     name!: string;
 
     @Property.manyToOne({ target: () => Parent, inverseSide: 'children', joinColumn: 'parentId' })
-    parent!: Parent;
+    parent!: Relation<Parent>;
 
     @Property.string({ format: 'uuid' })
     parentId!: string;
@@ -68,7 +68,7 @@ class Bookmark extends BaseEntity {
     page!: string;
 
     @Property.belongsToOne({ target: () => Reader, inverseSide: 'bookmark', joinColumn: 'readerId' })
-    reader!: Reader;
+    reader!: Relation<Reader>;
 
     @Property.string({ format: 'uuid' })
     readerId!: string;

@@ -1,6 +1,6 @@
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { $ts } from '../../localization/translate.function';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 /**
  * What a keyset cursor carries, before it is encoded.
@@ -47,7 +47,7 @@ function isKeysetCursorPayload(value: unknown): value is KeysetCursorPayload {
     if (typeof value !== 'object' || value == undefined) {
         return false;
     }
-    const candidate: Partial<KeysetCursorPayload> = value as Partial<KeysetCursorPayload>;
+    const candidate: Partial<KeysetCursorPayload> = value;
     return typeof candidate.order === 'string'
         && Array.isArray(candidate.values)
         && candidate.values.every(v => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean');

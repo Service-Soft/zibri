@@ -1,24 +1,24 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MultiTierCache } from '../../caching/cache/multi-tier.cache';
-import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../../caching/cache-service.interface';
-import { Cache } from '../../caching/decorators/cache.decorator';
-import { CachedValue } from '../../caching/store/cached-value.model';
-import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
-import { ValKeyCacheStore } from '../../caching/store/val-key.cache-store';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { Newable } from '../../types/newable.type';
-import { Bytes } from '../../utilities/bytes';
-import { createTestDataSource } from '../test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { MultiTierCache } from '../../caching/cache/multi-tier.cache.ts';
+import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../../caching/cache-service.interface.ts';
+import { Cache } from '../../caching/decorators/cache.decorator.ts';
+import { CachedValue } from '../../caching/store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store.ts';
+import { ValKeyCacheStore } from '../../caching/store/val-key.cache-store.ts';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Bytes } from '../../utilities/bytes.ts';
+import { createTestDataSource } from '../test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md sections 3.6, 3.8, 3.9, 3.10 and
@@ -110,7 +110,7 @@ class EvalObjectKeyMultiTierCache extends MultiTierCache<EvalObjectKey, number, 
 /**
  * The tag the tier below declares, and the one invalidation is asked for.
  */
-const evalCacheTag: 'eval-user' = 'eval-user';
+const evalCacheTag: 'eval-user' = 'eval-user' as const;
 
 @Cache()
 class EvalTaggedTierCache extends WriteThroughReadThroughCache<string, number, 'EvalTaggedTierCache', 'eval-user'> {

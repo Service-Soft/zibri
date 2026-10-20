@@ -1,13 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { SchemaManagement } from '../../data-source/models/schema-management.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { startTestServer } from '../test-server/start-test-server.function';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../../data-source/models/schema-management.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/01-data-layer.md C1.

@@ -1,12 +1,12 @@
-import { ModelDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { DefaultPropertyValue } from '../../entity/models/base-property-metadata.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { ModelDescriptor } from './model-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { DefaultPropertyValue } from '../../entity/models/base-property-metadata.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type DefaultValue = DefaultPropertyValue<string | number | boolean | Date>;
 
 /**

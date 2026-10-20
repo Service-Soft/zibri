@@ -1,8 +1,8 @@
-import { BaseRepositoryOptions } from './base-repository-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { EntityOrder } from '../../../entity/models/entity-order.model';
-import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model';
-import { Where } from '../where/where-filter.model';
+import { BaseRepositoryOptions } from './base-repository-options.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { EntityOrder } from '../../../entity/models/entity-order.model.ts';
+import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model.ts';
+import { Where } from '../where/where-filter.model.ts';
 
 /**
  * Options for finding multiple entities.

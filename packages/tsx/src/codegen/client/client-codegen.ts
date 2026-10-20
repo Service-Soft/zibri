@@ -1,20 +1,20 @@
 import { createHash } from 'node:crypto';
 
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { accessShapeOf } from './access-shape-analysis';
-import { CLIENT_PROP_VALUES, CLIENT_PROPS_RUNTIME, ClientPropSite, collectClientPropSites } from './client-props';
-import { collectHandlerSites, HandlerSite } from './handlers';
-import { REATTACH_RUNTIME, SETUP_RUNTIME_PARAM } from './reattach';
-import { SourceSpan } from '../../diagnostics/diagnostic.model';
-import { AccessShape } from '../../runtime/access-shape';
-import { collectOuterNames, collectOuterReferences, collectPatternBindings, collectReferencedSymbols, declaredSymbols, OuterOrigin } from '../../semantics/binding';
-import { ClientGlobalAlias } from '../../semantics/client-packages';
-import { ComponentFunction, isJsxExpression, nestedStatements } from '../../semantics/component';
-import { symbolOf } from '../../semantics/symbols';
-import { collectTranslationSources, TranslationSources } from '../../semantics/translation-sources';
-import { unwrapTypeSyntax, walk } from '../../semantics/walk';
-import { printNode } from '../server/print';
+import { accessShapeOf } from './access-shape-analysis.ts';
+import { CLIENT_PROP_VALUES, CLIENT_PROPS_RUNTIME, ClientPropSite, collectClientPropSites } from './client-props.ts';
+import { collectHandlerSites, HandlerSite } from './handlers.ts';
+import { REATTACH_RUNTIME, SETUP_RUNTIME_PARAM } from './reattach.ts';
+import { SourceSpan } from '../../diagnostics/diagnostic.model.ts';
+import { AccessShape } from '../../runtime/access-shape.ts';
+import { collectOuterNames, collectOuterReferences, collectPatternBindings, collectReferencedSymbols, declaredSymbols, OuterOrigin } from '../../semantics/binding.ts';
+import { ClientGlobalAlias } from '../../semantics/client-packages.ts';
+import { ComponentFunction, isJsxExpression, nestedStatements } from '../../semantics/component.ts';
+import { symbolOf } from '../../semantics/symbols.ts';
+import { collectTranslationSources, TranslationSources } from '../../semantics/translation-sources.ts';
+import { unwrapTypeSyntax, walk } from '../../semantics/walk.ts';
+import { printNode } from '../server/print.ts';
 
 /**
  * The generated client behavior for a component.

@@ -1,5 +1,5 @@
-import { FakeLdapDirectoryOptions } from './fake-ldap-directory-options.model';
-import { FakeLdapDirectory } from './fake-ldap-directory.model';
+import { FakeLdapDirectoryOptions } from './fake-ldap-directory-options.model.ts';
+import { FakeLdapDirectory } from './fake-ldap-directory.model.ts';
 
 /**
  * Starts a directory in the test's own process, reached over TLS on the loopback interface.

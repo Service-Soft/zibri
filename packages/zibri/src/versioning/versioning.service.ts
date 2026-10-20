@@ -1,36 +1,36 @@
 import { Dirent } from 'node:fs';
 
-import { RouteWithVersionData } from './route-with-version-data.model';
-import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities';
-import { StoredRoute } from './stored-route.model';
-import { SemVerMatcher, SupportedVersionsOptions, VersionMatcher } from './supported-versions-options.model';
-import { Version, VersionFile } from './version.model';
-import { VersioningServiceInterface } from './versioning-service.interface';
-import { ZibriApplication } from '../application/application';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { AfterAppInit } from '../global/after-app-init.interface';
-import { type Header } from '../http/header.type';
-import { $f } from '../localization/format.function';
-import { $ts } from '../localization/translate.function';
-import { parseObject } from '../parsing/functions/parse-object.function';
-import { isNamedValue } from '../parsing/functions/parse-one-of.function';
-import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
-import { ControllerData } from '../routing/decorators/controller.decorator';
-import { type RouterInterface } from '../routing/router.interface';
-import { OmitStrict } from '../types/omit-strict.type';
-import { type FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { isDate } from '../utilities/is-date.function';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
-import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
+import { RouteWithVersionData } from './route-with-version-data.model.ts';
+import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities.ts';
+import { StoredRoute } from './stored-route.model.ts';
+import { SemVerMatcher, SupportedVersionsOptions, VersionMatcher } from './supported-versions-options.model.ts';
+import { Version, VersionFile } from './version.model.ts';
+import { VersioningServiceInterface } from './versioning-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { AfterAppInit } from '../global/after-app-init.interface.ts';
+import { type Header } from '../http/header.type.ts';
+import { $f } from '../localization/format.function.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { parseObject } from '../parsing/functions/parse-object.function.ts';
+import { isNamedValue } from '../parsing/functions/parse-one-of.function.ts';
+import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model.ts';
+import { ControllerData } from '../routing/decorators/controller.decorator.ts';
+import { type RouterInterface } from '../routing/router.interface.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { type FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { isDate } from '../utilities/is-date.function.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator.ts';
+import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model.ts';
 
 /**
  * An error to throw when there were routes with mismatching versions.
@@ -75,7 +75,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         private readonly versionsPath: FsPath
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async afterAppInit(app: ZibriApplication): Promise<void> {
         // the folder belongs to the project rather than to a run: `zi new` creates it and git carries
         // it from there. Creating it here would make a deployment that failed to bring it look
@@ -357,7 +357,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         const candidateVersions: SemVerVersion[] = [...knownVersions, newVersion];
         const errors: string[] = [];
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const validateRoute = (route: RouteWithVersionData, latest: SemVerVersion, location: string): void => {
             if (route.versions === 'all') {
                 return;
@@ -447,7 +447,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveVersion(context: HttpRequestContext | WebsocketRequestContext): Promise<Version> {
         if (context.has(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION)) {
             return await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
@@ -482,7 +482,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findOverlappingVersions(
         a: SupportedVersionsOptions,
         b: SupportedVersionsOptions,
@@ -512,7 +512,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         return version;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasOverlappingVersions(
         a: SupportedVersionsOptions,
         b: SupportedVersionsOptions,
@@ -522,7 +522,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         return result === 'all' || !!result.length;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     matchesVersion(versions: SupportedVersionsOptions, resolvedVersion: Version): boolean {
         if (versions === 'all') {
             return true;
@@ -539,7 +539,7 @@ export class VersioningService implements VersioningServiceInterface, AfterAppIn
         return SemVerUtilities.matches(resolvedVersion.value, resolvedMatchers);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getVersions(): VersionFile[] {
         return this.versionFiles;
     }

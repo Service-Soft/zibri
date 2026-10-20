@@ -1,26 +1,26 @@
-import { ScimBody } from './scim-body.model';
-import { ScimSchema } from './scim-schema.enum';
+import { ScimBody } from './scim-body.model.ts';
+import { ScimSchema } from './scim-schema.enum.ts';
 
 /**
  * What an attribute definition (RFC 7643, 7) may say beside its name and type, where it differs from
  * the defaults.
  */
 type ScimAttributeOptions = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     multiValued?: boolean,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     required?: boolean,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     mutability?: 'readOnly' | 'readWrite' | 'immutable' | 'writeOnly',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     returned?: 'always' | 'never' | 'default' | 'request',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     uniqueness?: 'none' | 'server' | 'global',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     canonicalValues?: string[],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     referenceTypes?: string[],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     subAttributes?: ScimBody[]
 };
 

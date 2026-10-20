@@ -1,7 +1,7 @@
-import { AuditEvent } from './audit-event.model';
-import { LogContextInput } from './log-context.model';
-import { OmitStrict } from '../types/omit-strict.type';
-import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
+import { AuditEvent } from './audit-event.model.ts';
+import { LogContextInput } from './log-context.model.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model.ts';
 
 /**
  * Interface for a logger.

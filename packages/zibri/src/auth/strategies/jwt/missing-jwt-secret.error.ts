@@ -1,4 +1,4 @@
-import { InternalError } from '../../../error-handling/internal-error.model';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
 
 /**
  * An error to throw when the access token key or the refresh token secret has not been configured.

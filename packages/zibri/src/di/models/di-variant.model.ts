@@ -1,4 +1,4 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 const allDiVariants: string[] = [];
 
@@ -6,8 +6,8 @@ const allDiVariants: string[] = [];
  * A variant of a injectable. Can be created using the "defineDiVariant" function.
  */
 export class DiVariant {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly __brand: 'DiVariant' = 'DiVariant';
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
+    protected readonly __brand: 'DiVariant' = 'DiVariant' as const;
 
     constructor(readonly variant: string) {
         if (allDiVariants.includes(variant)) {
@@ -16,7 +16,7 @@ export class DiVariant {
         allDiVariants.push(variant);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     toString(): string {
         return this.variant;
     }
@@ -25,7 +25,7 @@ export class DiVariant {
 /**
  * The different di variants of zibri.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const DiVariants = {
     RATE_LIMITER: new DiVariant('rate-limiter'),
     CACHE: new DiVariant('cache'),

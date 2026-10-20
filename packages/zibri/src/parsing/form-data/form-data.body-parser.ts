@@ -4,43 +4,43 @@ import { pipeline } from 'stream/promises';
 
 import type { BusboyFileStream, BusboyInstance } from '@fastify/busboy';
 
-import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job';
-import { FormDataLimits } from './form-data-limits.model';
-import { FormData, FormDataValue } from './form-data.model';
-import { ZibriApplication } from '../../application/application';
-import { inject } from '../../di/inject.function';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { HttpRequest } from '../../http/http-request.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { Newable } from '../../types/newable.type';
-import { shapeProblems } from '../../validation/functions/shape-problems.function';
-import { BodyParserInterface } from '../body-parser.interface';
-import { File } from './file.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error';
-import { KnownHeader } from '../../http/known-header.enum';
-import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers';
-import { $ts } from '../../localization/translate.function';
-import { BodyShapeMetadata, FormDataBodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { BodyParser } from '../decorators/body-parser.decorator';
-import { parseFormField } from '../functions/parse-form-field.function';
+import { FormDataBodyParserCleanupCronJob } from './form-data-body-parser-cleanup.cron-job.ts';
+import { FormDataLimits } from './form-data-limits.model.ts';
+import { FormData, FormDataValue } from './form-data.model.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { shapeProblems } from '../../validation/functions/shape-problems.function.ts';
+import { BodyParserInterface } from '../body-parser.interface.ts';
+import { File } from './file.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { ContentTooLargeError } from '../../error-handling/errors/content-too-large.error.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { FileExtension, resolveFileExtension } from '../../http/mime-type.helpers.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { BodyShapeMetadata, FormDataBodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator.ts';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { BodyParser } from '../decorators/body-parser.decorator.ts';
+import { parseFormField } from '../functions/parse-form-field.function.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ParsedForm = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     fields: Record<string, string | string[]>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     filesMap: Record<string, File[]>
 };
 
@@ -58,15 +58,15 @@ function isTextList(value: FormDataValue): value is string[] {
  */
 @BodyParser()
 export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DATA>, OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly contentType: MimeType.FORM_DATA = MimeType.FORM_DATA;
 
-    // eslint-disable-next-line sonar/no-duplicate-string
+    // eslint-disable-next-line sonarjs/no-duplicate-string
     private get busboy(): typeof import('@fastify/busboy') {
         return optionalPeer<typeof import('@fastify/busboy')>('@fastify/busboy', 'Default FormData body parser of Zibri');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         if (!app.options.cronJobs.includes(FormDataBodyParserCleanupCronJob)) {
             app.options.cronJobs.push(FormDataBodyParserCleanupCronJob);
@@ -75,17 +75,17 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         optionalPeer('@fastify/busboy', 'Default FormData body parser of Zibri');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromWebsocketRequest(): unknown {
         throw new InternalError('A form data body cannot be used with websocket requests');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async parseFromHttpRequest(req: HttpRequest, metadata: FormDataBodyMetadata): Promise<unknown> {
         return await this.parseFromBody(req.body, metadata, req.headers, req);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async parseFromHttpClientResponse(
         res: HttpClientResponse,
         metadata: FormDataBodyMetadata

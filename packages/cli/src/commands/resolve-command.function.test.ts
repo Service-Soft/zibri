@@ -1,12 +1,12 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { Command } from './command.enum';
-import { resolveCommand } from './resolve-command.function';
-import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function';
+import { Command } from './command.enum.ts';
+import { resolveCommand } from './resolve-command.function.ts';
+import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function.ts';
 
 describe('resolveCommand', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('resolves known commands, both long and short form', async () => {

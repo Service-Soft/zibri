@@ -1,7 +1,7 @@
-import { BaseEntity, CheckConstraintViolationError, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, KeyWhere, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderComparator, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator, WriteDataUtilities } from 'zibri';
+import { BaseEntity, CheckConstraintViolationError, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, KeyWhere, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderComparator, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelationMetadata, RelationTree, RelationTreeByRowId, RelationType, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator, WriteDataUtilities } from 'zibri';
 
-import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
-import { InMemoryTransaction } from './in-memory-transaction.model';
+import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store.ts';
+import { InMemoryTransaction } from './in-memory-transaction.model.ts';
 
 /**
  * How many rows a stream loads at once.
@@ -96,12 +96,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return transaction;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         return this.persist(data, this.scope(transaction), reload);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         // finding a stored row is a lookup in memory, so there is nothing for a new row to skip
         return this.persist(data, this.scope(transaction), true);
@@ -158,7 +158,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         const res: Map<string, RelationTree> = new Map();
         for (const key of ObjectUtilities.keys(this.properties)) {
             const type: string | undefined = this.properties[key]?.type;
-            const provided: boolean = (type === Relation.MANY_TO_MANY || type === Relation.MANY_TO_ONE || type === Relation.BELONGS_TO_ONE)
+            const provided: boolean = (type === RelationType.MANY_TO_MANY || type === RelationType.MANY_TO_ONE || type === RelationType.BELONGS_TO_ONE)
                 && (data as Record<string, unknown>)[key] != undefined;
             if (provided) {
                 res.set(key, new Map());
@@ -167,12 +167,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         return this.findRows(options, this.scope(options.transaction));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         const counted: T[] = this.findRows(
             { ...options, where: options.totalWhere ?? options.where, skip: undefined, take: undefined },
@@ -217,12 +217,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return window;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return this.findRows({ ...options, skip: undefined, take: 1 }, this.scope(options.transaction)).at(0);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         const scope: InMemoryScope = this.scope(options.transaction);
         const ids: string[] = scope.ids(this.tableName);
@@ -238,7 +238,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async count(options: DriverFindOptions<T>): Promise<number> {
         const scope: InMemoryScope = this.scope(options.transaction);
         if (!options.where) {
@@ -247,7 +247,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return this.findRows({ where: options.where }, scope).length;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         const scope: InMemoryScope = this.scope(transaction);
 
@@ -257,12 +257,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         return this.findRows(options, this.scope(options.transaction)).map(e => e.id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async updateAll<R extends boolean = false>(
         options: DriverUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
@@ -290,7 +290,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         return (returnUpdated === true ? updated : matched.length) as R extends true ? T[] : number;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
         const scope: InMemoryScope = this.scope(transaction);
         // nothing is awaited between finding the rows and writing them, as in updateAll
@@ -305,7 +305,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
@@ -440,7 +440,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         const ids: string[] = scope.ids(currentTableName);
         const moved: Map<string, StoredRow> = this.resolveMovedRows(currentTableName, ids, scope);
         for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type === Relation.MANY_TO_MANY) {
+            if (metadata.type === RelationType.MANY_TO_MANY) {
                 this.moveRelation(currentTableName, key, metadata.target(), metadata.inverseSide, ids, moved, scope);
             }
         }
@@ -583,7 +583,6 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 : this.checks.find(check => !this.evaluator.matches<BaseEntity>(entity, check, this.entityClass));
             if (broken != undefined) {
                 throw new InternalError([
-                    // eslint-disable-next-line stylistic/max-len
                     `Cannot hold ${this.entityClass.name} to the check on ${CheckConstraintViolationError.resolveProperties(broken).join(', ')}:`,
                     `the stored row ${id} breaks it.`,
                     'Change the rows breaking it in a migration.'
@@ -771,8 +770,8 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         const targetDriver: InMemoryRepositoryDriver<BaseEntity> = new InMemoryRepositoryDriver(targetClass, this.store);
 
         switch (metadata.type) {
-            case Relation.MANY_TO_ONE:
-            case Relation.BELONGS_TO_ONE: {
+            case RelationType.MANY_TO_ONE:
+            case RelationType.BELONGS_TO_ONE: {
                 const foreignKey: unknown = (entity as Record<string, unknown>)[this.resolveJoinColumn(metadata, key)];
                 if (foreignKey == undefined) {
                     return undefined;
@@ -780,16 +779,16 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 // eslint-disable-next-line typescript/no-base-to-string
                 return targetDriver.loadRows([String(foreignKey)], { relations: below }, scope).at(0);
             }
-            case Relation.ONE_TO_MANY:
-            case Relation.HAS_ONE: {
+            case RelationType.ONE_TO_MANY:
+            case RelationType.HAS_ONE: {
                 const foreignKeyColumn: string = this.requireInverseJoinColumn(metadata, key);
                 const targets: BaseEntity[] = targetDriver.findRows(
-                    { where: { [foreignKeyColumn]: entity.id } as never, relations: below },
+                    { where: { [foreignKeyColumn]: entity.id }, relations: below },
                     scope
                 );
-                return metadata.type === Relation.HAS_ONE ? targets.at(0) : targets;
+                return metadata.type === RelationType.HAS_ONE ? targets.at(0) : targets;
             }
-            case Relation.MANY_TO_MANY: {
+            case RelationType.MANY_TO_MANY: {
                 const ids: string[] = [...scope.readJoin(this.joinKey(entity.id, key))];
                 return targetDriver.loadRows(ids, { relations: below }, scope);
             }
@@ -805,7 +804,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      */
     private saveManyToManyRelations(id: string, data: DeepPartial<T>, scope: InMemoryScope): void {
         for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type !== Relation.MANY_TO_MANY) {
+            if (metadata.type !== RelationType.MANY_TO_MANY) {
                 continue;
             }
             const value: unknown = (data as Record<string, unknown>)[key];
@@ -899,7 +898,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      */
     private removeManyToManyRelations(id: string, scope: InMemoryScope): void {
         for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type !== Relation.MANY_TO_MANY) {
+            if (metadata.type !== RelationType.MANY_TO_MANY) {
                 continue;
             }
             const joinKey: string = this.joinKey(id, key);
@@ -984,7 +983,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         metadata: RelationMetadata<BaseEntity>,
         fields: StoredRow
     ): void {
-        if (metadata.type !== Relation.MANY_TO_ONE && metadata.type !== Relation.BELONGS_TO_ONE) {
+        if (metadata.type !== RelationType.MANY_TO_ONE && metadata.type !== RelationType.BELONGS_TO_ONE) {
             return;
         }
         const value: unknown = (data as Record<string, unknown>)[key];
@@ -1067,11 +1066,11 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             }
             case 'string':
             case 'boolean':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'unknown': {
                 return value;
             }
@@ -1096,7 +1095,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             return entities;
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const sorts: { path: string[], compare: OrderComparator }[] = keys.map(key => ({
             path: key.path,
             compare: EntityOrderUtilities.resolveComparator(key, (a, b) => this.compareValues(a, b))
@@ -1118,7 +1117,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param b - The second value.
      * @returns A negative number when a sorts first, a positive one when b does, 0 when they tie.
      */
-    // eslint-disable-next-line sonar/cognitive-complexity
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     private compareValues(a: unknown, b: unknown): number {
         if (a == undefined && b == undefined) {
             return 0;
@@ -1168,11 +1167,11 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @returns True when it is a relation of any kind.
      */
     private isRelation(metadata: PropertyMetadata | undefined): metadata is RelationMetadata<BaseEntity> {
-        return metadata?.type === Relation.HAS_ONE
-            || metadata?.type === Relation.BELONGS_TO_ONE
-            || metadata?.type === Relation.MANY_TO_ONE
-            || metadata?.type === Relation.ONE_TO_MANY
-            || metadata?.type === Relation.MANY_TO_MANY;
+        return metadata?.type === RelationType.HAS_ONE
+            || metadata?.type === RelationType.BELONGS_TO_ONE
+            || metadata?.type === RelationType.MANY_TO_ONE
+            || metadata?.type === RelationType.ONE_TO_MANY
+            || metadata?.type === RelationType.MANY_TO_MANY;
     }
 
     /**
@@ -1184,7 +1183,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      */
     private resolveJoinColumn(metadata: RelationMetadata<BaseEntity>, key: string): string {
         if (
-            (metadata.type === Relation.MANY_TO_ONE || metadata.type === Relation.BELONGS_TO_ONE)
+            (metadata.type === RelationType.MANY_TO_ONE || metadata.type === RelationType.BELONGS_TO_ONE)
             && metadata.joinColumn != undefined
         ) {
             return metadata.joinColumn;

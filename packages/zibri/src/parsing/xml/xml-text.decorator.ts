@@ -1,5 +1,5 @@
-import { setXmlContentProperty } from './set-xml-content-property.function';
-import { Newable } from '../../types/newable.type';
+import { setXmlContentProperty } from './set-xml-content-property.function.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Reads and writes the decorated property as the element's own text, instead of as a child element.

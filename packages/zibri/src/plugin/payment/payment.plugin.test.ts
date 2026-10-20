@@ -1,18 +1,18 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { Payment } from './models/payment.model';
-import { ZibriPaymentPlugin } from './payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { AppState } from '../../global/app-state.enum';
-import { GlobalRegistry } from '../../global/global-registry';
+import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model.ts';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model.ts';
+import { Payment } from './models/payment.model.ts';
+import { ZibriPaymentPlugin } from './payment.plugin.ts';
+import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens.ts';
+import { AnyPaymentProviderInterface } from './providers/payment-provider.interface.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { AppState } from '../../global/app-state.enum.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
 
 // eslint-disable-next-line typescript/no-explicit-any
 function createFakeProvider(name: string): AnyPaymentProviderInterface & Record<string, any> {
@@ -26,14 +26,14 @@ function createFakeProvider(name: string): AnyPaymentProviderInterface & Record<
         __cancellationSupportMap: {},
         __refundSupportMap: {},
         __reservationSupportMap: {},
-        validatePaymentData: jest.fn(),
-        startPayment: jest.fn(),
-        startPaymentReservation: jest.fn(),
-        confirmPaymentReservation: jest.fn(),
-        confirmPayment: jest.fn(),
-        collectPaymentFromReservation: jest.fn(),
-        cancelPayment: jest.fn(),
-        refundPayment: jest.fn()
+        validatePaymentData: vi.fn(),
+        startPayment: vi.fn(),
+        startPaymentReservation: vi.fn(),
+        confirmPaymentReservation: vi.fn(),
+        confirmPayment: vi.fn(),
+        collectPaymentFromReservation: vi.fn(),
+        cancelPayment: vi.fn(),
+        refundPayment: vi.fn()
     };
 }
 
@@ -58,7 +58,7 @@ async function startWith(
                         paymentProviders,
                         providerNameForMethod
                     };
-                    return res as PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>;
+                    return res;
                 }
             })
         ]
@@ -82,7 +82,7 @@ describe('ZibriPaymentPlugin — starting', () => {
                             paymentProviders: [provider],
                             providerNameForMethod
                         };
-                        return res as PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>;
+                        return res;
                     }
                 })
             ]

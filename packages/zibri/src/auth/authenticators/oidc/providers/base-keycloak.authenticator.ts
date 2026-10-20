@@ -1,5 +1,5 @@
-import { BaseUser } from '../../../models/base-user.model';
-import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { BaseOidcAuthenticator } from '../base-oidc.authenticator.ts';
 
 /**
  * Authenticates a user by a sign-in at a Keycloak realm.
@@ -11,7 +11,7 @@ export abstract class BaseKeycloakAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > extends BaseOidcAuthenticator<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'keycloak';
 
     /**
@@ -24,7 +24,7 @@ export abstract class BaseKeycloakAuthenticator<
      */
     abstract readonly realm: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get issuer(): string {
         return `${this.baseUrl.replace(/\/+$/, '')}/realms/${this.realm}`;
     }

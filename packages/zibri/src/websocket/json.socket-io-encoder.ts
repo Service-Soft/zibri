@@ -1,6 +1,6 @@
 import type { Packet } from 'socket.io-parser';
 
-import { JsonUtilities } from '../utilities/json.utilities';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * Writes every packet the server sends as the one json string socket.io's protocol carries it in.

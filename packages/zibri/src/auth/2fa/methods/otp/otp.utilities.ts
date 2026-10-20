@@ -1,6 +1,6 @@
 import type { TOTP } from 'otpauth';
 
-import { optionalPeer } from '../../../../utilities/optional-peer.function';
+import { optionalPeer } from '../../../../utilities/optional-peer.function.ts';
 
 /**
  * How long one code is shown for, in seconds.

@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { testFileFolder } from '../../__testing__/constants';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { AstProgram } from '../ast.model';
-import { generateHandlebarType } from '../generate-handlebar-type-files.function';
-import { HandlebarUtilities } from '../handlebar.utilities';
+import { testFileFolder } from '../../__testing__/constants.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { AstProgram } from '../ast.model.ts';
+import { generateHandlebarType } from '../generate-handlebar-type-files.function.ts';
+import { HandlebarUtilities } from '../handlebar.utilities.ts';
 
 // the type file is written next to the template path it is given, so that path points into the test
 // output folder - a cwd-relative one put the generated files into the package root
@@ -16,7 +16,7 @@ describe('generateHandlebarType', () => {
     });
 
     it('example.hbs', async () => {
-        const src: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, 'example.hbs'));
+        const src: string = await FsUtilities.readFile(FsUtilities.getPath(import.meta.dirname, 'example.hbs'));
         const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: './example.hbs' });
         const lines: string[] = await generateHandlebarType(ast, FsUtilities.getPath(outputFolder, 'example.hbs'));
 
@@ -50,7 +50,7 @@ describe('generateHandlebarType', () => {
     });
 
     it('example-2.hbs', async () => {
-        const src: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, 'example-2.hbs'));
+        const src: string = await FsUtilities.readFile(FsUtilities.getPath(import.meta.dirname, 'example-2.hbs'));
         const ast: AstProgram = HandlebarUtilities.parse(src, { srcName: './example-2.hbs' });
         const lines: string[] = await generateHandlebarType(ast, FsUtilities.getPath(outputFolder, 'example-2.hbs'));
 

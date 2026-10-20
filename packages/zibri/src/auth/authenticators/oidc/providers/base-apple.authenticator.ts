@@ -2,12 +2,12 @@ import { createPrivateKey, KeyObject, sign } from 'node:crypto';
 
 import type { IDToken } from 'openid-client';
 
-import { JsonUtilities } from '../../../../utilities/json.utilities';
-import { BaseUser } from '../../../models/base-user.model';
-import { FederatedProfile } from '../../federated/federated-profile.model';
-import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model';
-import { OAuthResponseMode } from '../../oauth/oauth-response-mode.type';
-import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
+import { JsonUtilities } from '../../../../utilities/json.utilities.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { FederatedProfile } from '../../federated/federated-profile.model.ts';
+import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model.ts';
+import { OAuthResponseMode } from '../../oauth/oauth-response-mode.type.ts';
+import { BaseOidcAuthenticator } from '../base-oidc.authenticator.ts';
 
 /**
  * The name Apple posts next to the code, on the first sign-in only.
@@ -39,10 +39,10 @@ export abstract class BaseAppleAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > extends BaseOidcAuthenticator<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'apple';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly issuer: string = 'https://appleid.apple.com';
 
     override readonly scopes: string[] = ['openid', 'email', 'name'];
@@ -68,7 +68,7 @@ export abstract class BaseAppleAuthenticator<
     private signingKey: KeyObject | undefined;
 
     // Apple's client secret is a JWT the application signs itself, so it is signed for every exchange
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get clientAuthentication(): OAuthClientAuthentication {
         return { method: 'client_secret_post', clientSecret: () => Promise.resolve(this.resolveClientSecret()) };
     }

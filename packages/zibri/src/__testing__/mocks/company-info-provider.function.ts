@@ -1,7 +1,7 @@
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens';
-import { CompanyInfo } from '../../plugin/invoicing/models/company-info.model';
-import { CompanyInfoServiceInterface } from '../../plugin/invoicing/services/company-info-service.interface';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../plugin/invoicing/invoicing.tokens.ts';
+import { CompanyInfo } from '../../plugin/invoicing/models/company-info.model.ts';
+import { CompanyInfoServiceInterface } from '../../plugin/invoicing/services/company-info-service.interface.ts';
 
 /**
  * Provides the company each tenant issues its invoices as.

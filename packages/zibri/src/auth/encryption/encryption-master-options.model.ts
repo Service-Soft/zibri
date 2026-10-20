@@ -1,4 +1,4 @@
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface.ts';
 
 /**
  * Definition of the key used to encrypt encryption keys.

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { collectClientPackagesFromSource } from '../semantics/client-packages';
+import { collectClientPackagesFromSource } from '../semantics/client-packages.ts';
 
 /**
  * Recursively finds the `.tsx` template files under the given directories, skipping tests.

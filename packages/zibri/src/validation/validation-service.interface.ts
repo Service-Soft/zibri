@@ -1,5 +1,5 @@
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator.ts';
 
 /**
  * Interface for a validation service.

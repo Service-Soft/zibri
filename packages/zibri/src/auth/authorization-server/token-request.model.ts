@@ -1,5 +1,5 @@
-import { OAuth2ClientCredentials } from './oauth2-client-credentials.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { OAuth2ClientCredentials } from './oauth2-client-credentials.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * What a client sends to the token endpoint (RFC 6749, 4.4.2).

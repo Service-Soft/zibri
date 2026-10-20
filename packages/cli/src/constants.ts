@@ -1,5 +1,5 @@
-import { Command } from './commands/command.enum';
-import { ChalkUtilities } from './encapsulation';
+import { Command } from './commands/command.enum.ts';
+import { ChalkUtilities } from './encapsulation/index.ts';
 
 /**
  * The base command of the cli.

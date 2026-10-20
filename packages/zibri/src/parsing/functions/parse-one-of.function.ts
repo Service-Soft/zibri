@@ -1,15 +1,15 @@
-import { parseArray } from './parse-array.function';
-import { parseBoolean } from './parse-boolean.function';
-import { parseDate } from './parse-date.function';
-import { parseNumber } from './parse-number.function';
-import { parseObject } from './parse-object.function';
-import { parseString } from './parse-string.function';
-import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
-import { AnyOfShapesMetadata, OneOfPropertyMetadata, OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { shapeProblems } from '../../validation/functions/shape-problems.function';
-import { ValidationProblem } from '../../validation/validation-problem.model';
+import { parseArray } from './parse-array.function.ts';
+import { parseBoolean } from './parse-boolean.function.ts';
+import { parseDate } from './parse-date.function.ts';
+import { parseNumber } from './parse-number.function.ts';
+import { parseObject } from './parse-object.function.ts';
+import { parseString } from './parse-string.function.ts';
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model.ts';
+import { AnyOfShapesMetadata, OneOfPropertyMetadata, OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { shapeProblems } from '../../validation/functions/shape-problems.function.ts';
+import { ValidationProblem } from '../../validation/validation-problem.model.ts';
 
 /**
  * A shape a value was tried as and did not fit, with why.
@@ -29,7 +29,7 @@ export type ShapeAttempt = {
  * Which of several shapes a value is, or why it is none of them.
  */
 export type ShapeChoice = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     fits: true,
     /**
      * The first shape the value fits.
@@ -40,7 +40,7 @@ export type ShapeChoice = {
      */
     value: unknown
 } | {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     fits: false,
     /**
      * Every shape, in the order it was tried, with what kept the value from fitting it.

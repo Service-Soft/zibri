@@ -1,6 +1,6 @@
-import { User } from './user.entity';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
+import { User } from './user.entity.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class Role {

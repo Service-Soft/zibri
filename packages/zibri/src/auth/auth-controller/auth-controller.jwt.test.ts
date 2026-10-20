@@ -1,27 +1,27 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { Email } from '../../email/models/email.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { Ms } from '../../utilities/ms';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
-import { Auth } from '../decorators/auth.decorator';
-import { PASSWORD_MAX_LENGTH } from '../hash/hash.utilities';
-import { PasswordResetToken } from '../models/password-reset-token.model';
-import { JwtKey } from '../strategies/jwt/jwt-key.model';
-import { JwtRefreshToken } from '../strategies/jwt/jwt-refresh-token.model';
-import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
-import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model.ts';
+import { Auth } from '../decorators/auth.decorator.ts';
+import { PASSWORD_MAX_LENGTH } from '../hash/hash.utilities.ts';
+import { PasswordResetToken } from '../models/password-reset-token.model.ts';
+import { JwtKey } from '../strategies/jwt/jwt-key.model.ts';
+import { JwtRefreshToken } from '../strategies/jwt/jwt-refresh-token.model.ts';
+import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy.ts';
+import { JwtUtilities } from '../strategies/jwt/jwt.utilities.ts';
 
 /**
  * Something to present an access token to.
@@ -358,7 +358,7 @@ describe('AuthController / JwtAuthStrategy — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JsonUtilities.stringify({ resetToken })
             });
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const verifyBody = await verifyRes.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(verifyBody.isValid).toBe(true);
@@ -409,7 +409,7 @@ describe('AuthController / JwtAuthStrategy — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JsonUtilities.stringify({ resetToken: 'not-a-real-token' })
             });
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const body = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(body.isValid).toBe(false);
@@ -430,7 +430,7 @@ describe('AuthController / JwtAuthStrategy — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JsonUtilities.stringify({ resetToken: tokenValue })
             });
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const body = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(body.isValid).toBe(false);

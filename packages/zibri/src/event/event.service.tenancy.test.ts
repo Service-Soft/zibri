@@ -1,25 +1,25 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
-import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventStatus } from './event.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../__testing__/wait-until.function';
-import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { RetentionInMs } from '../types/retention-in-ms.type';
-import { Ms } from '../utilities/ms';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { EventCleanupCronJob } from './event-cleanup.cron-job.ts';
+import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface.ts';
+import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model.ts';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model.ts';
+import { Event, EventStatus } from './event.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../__testing__/wait-until.function.ts';
+import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { RetentionInMs } from '../types/retention-in-ms.type.ts';
+import { Ms } from '../utilities/ms.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
-declare module './event-service.interface' {
+declare module './event-service.interface.ts' {
     /**
      * What this suite emits.
      */

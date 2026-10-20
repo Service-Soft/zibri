@@ -1,20 +1,21 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { afterEach, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { ChangeSetType } from '../../change-sets/models/change-set-type.enum';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { scopeFor } from '../../entity/models/entity-scope.model';
-import { ConflictError } from '../../error-handling/errors/conflict.error';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { Newable } from '../../types/newable.type';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { type Relation } from '../../entity/models/relation.type.ts';
+
+import { ChangeSetType } from '../../change-sets/models/change-set-type.enum.ts';
+import { ChangeSet } from '../../change-sets/models/change-set.model.ts';
+import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model.ts';
+import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { scopeFor } from '../../entity/models/entity-scope.model.ts';
+import { ConflictError } from '../../error-handling/errors/conflict.error.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about what saving and deleting a row does with
@@ -63,7 +64,7 @@ export class Resident extends BaseEntity {
     nickname?: string | null;
 
     @Property.manyToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'residents' })
-    household!: Household;
+    household!: Relation<Household>;
 
     // required, so a resident left out of the list has nothing to be unlinked to and is deleted
     @Property.string({ format: 'uuid' })
@@ -79,7 +80,7 @@ export class Chore extends BaseEntity {
     title!: string;
 
     @Property.manyToOne({ target: () => Resident, joinColumn: 'residentId', inverseSide: 'chores' })
-    resident!: Resident;
+    resident!: Relation<Resident>;
 
     @Property.string({ format: 'uuid' })
     residentId!: string;
@@ -100,7 +101,7 @@ export class Pet extends BaseEntity {
     keeper?: string;
 
     @Property.manyToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'pets', required: false })
-    household?: Household;
+    household?: Relation<Household>;
 
     // optional, so a pet left out of the list is unlinked rather than deleted
     @Property.string({ format: 'uuid', required: false })
@@ -113,7 +114,7 @@ export class Doorplate extends BaseEntity {
     text!: string;
 
     @Property.belongsToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'doorplate' })
-    household!: Household;
+    household!: Relation<Household>;
 
     @Property.string({ format: 'uuid' })
     householdId!: string;
@@ -125,7 +126,7 @@ export class Guest extends SoftDeleteEntity {
     name!: string;
 
     @Property.manyToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'guests' })
-    household!: Household;
+    household!: Relation<Household>;
 
     @Property.string({ format: 'uuid' })
     householdId!: string;
@@ -146,7 +147,7 @@ export class Stop extends SoftDeleteEntity {
     name!: string;
 
     @Property.manyToOne({ target: () => Trip, joinColumn: 'tripId', inverseSide: 'stops' })
-    trip!: Trip;
+    trip!: Relation<Trip>;
 
     @Property.string({ format: 'uuid' })
     tripId!: string;
@@ -161,7 +162,7 @@ export class Ticket extends SoftDeleteEntity {
     seat!: string;
 
     @Property.manyToOne({ target: () => Stop, joinColumn: 'stopId', inverseSide: 'tickets' })
-    stop!: Stop;
+    stop!: Relation<Stop>;
 
     @Property.string({ format: 'uuid' })
     stopId!: string;
@@ -173,7 +174,7 @@ export class Lodger extends SoftDeleteEntity {
     name!: string;
 
     @Property.manyToOne({ target: () => Household, joinColumn: 'householdId', inverseSide: 'lodgers' })
-    household!: Household;
+    household!: Relation<Household>;
 
     @Property.string({ format: 'uuid' })
     householdId!: string;
@@ -189,7 +190,7 @@ export class Folder extends BaseEntity {
     children!: Folder[];
 
     @Property.manyToOne({ target: () => Folder, joinColumn: 'parentId', inverseSide: 'children', required: false })
-    parent?: Folder;
+    parent?: Relation<Folder>;
 
     @Property.string({ format: 'uuid', required: false })
     parentId?: string;

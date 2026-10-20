@@ -1,15 +1,15 @@
 import assert from 'assert';
 
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { FileToGenerate, generateEntityFilesForProvider } from './generate-entity-files-for-provider.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { OpenApiUrlProvider } from './providers/open-api-url.provider';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { OpenApiDefinition } from '../../open-api/open-api.model';
-import { toKebabCase } from '../../utilities/to-kebab-case.function';
-import { toPascalCase } from '../../utilities/to-pascal-case.function';
-import { EntityTenant } from '../models/entity-tenant.model';
+import { FileToGenerate, generateEntityFilesForProvider } from './generate-entity-files-for-provider.function.ts';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface.ts';
+import { OpenApiUrlProvider } from './providers/open-api-url.provider.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { OpenApiDefinition } from '../../open-api/open-api.model.ts';
+import { toKebabCase } from '../../utilities/to-kebab-case.function.ts';
+import { toPascalCase } from '../../utilities/to-pascal-case.function.ts';
+import { EntityTenant } from '../models/entity-tenant.model.ts';
 
 // small InlineProvider so tests are offline and deterministic
 class InlineProvider implements EntityGenerationProvider {
@@ -705,7 +705,7 @@ describe('generateEntityFiles', () => {
     it('a property with no "type" at all maps to an "undefined" TS type and no decorator', async () => {
         const spec: OpenApiDefinition = {
             openapi: '3.1.0',
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             info: { title: 'typeless', version: '1.0' },
             components: {
                 schemas: {

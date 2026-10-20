@@ -1,10 +1,10 @@
-import { hasPlatformRoleDecorator } from './has-platform-role.decorator';
-import { hasRoleDecorator, HasRoleFn } from './has-role.decorator';
-import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
-import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
-import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { SkipAuthMetadata } from '../models/skip-auth-metadata.model';
+import { hasPlatformRoleDecorator } from './has-platform-role.decorator.ts';
+import { hasRoleDecorator, HasRoleFn } from './has-role.decorator.ts';
+import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator.ts';
+import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator.ts';
+import { require2faDecorator, Require2faFn } from './require-2fa.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { SkipAuthMetadata } from '../models/skip-auth-metadata.model.ts';
 
 /**
  * Bundles decorators for marking controller endpoints for authentication and authorization.
@@ -53,13 +53,13 @@ export namespace Auth {
     export function skip(options: Partial<SkipAuthMetadata> = {}): MethodDecorator & ClassDecorator {
         const fullMetadata: SkipAuthMetadata = { allowRedundant: false, ...options };
 
-        return ((target: Object, propertyKey?: string | symbol) => {
+        return ((target: object, propertyKey?: string | symbol) => {
             if (propertyKey !== undefined) {
                 MetadataUtilities.setRouteSkipAuth(target.constructor, fullMetadata, propertyKey as string);
             }
             else {
                 MetadataUtilities.setControllerSkipAuth(target as Function, fullMetadata);
             }
-        }) as MethodDecorator & ClassDecorator;
+        });
     }
 }

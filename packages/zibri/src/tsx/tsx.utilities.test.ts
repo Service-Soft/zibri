@@ -1,14 +1,14 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { CompiledPage } from 'zibri-tsx';
 
-import { TsxComponent } from './tsx-component.model';
-import { TsxUtilities } from './tsx.utilities';
-import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { LocaleCode } from '../localization/models/locale-code.model';
-import { TranslationRegistry } from '../localization/translation.registry';
+import { TsxComponent } from './tsx-component.model.ts';
+import { TsxUtilities } from './tsx.utilities.ts';
+import { compileTsxTemplate } from '../__testing__/compile-tsx-template.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { LocaleCode } from '../localization/models/locale-code.model.ts';
+import { TranslationRegistry } from '../localization/translation.registry.ts';
 
 /**
  * Globals the pages these templates stand for provide, so client code in the tests can call something
@@ -170,7 +170,7 @@ describe('TsxUtilities', () => {
         it('throws an actionable error for a template that was not compiled', () => {
             const notCompiled: TsxComponent = (() => undefined) as unknown as TsxComponent;
             expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/was not compiled by zibri-tsx/);
-            expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/zibri-tsx\/webpack/);
+            expect(() => TsxUtilities.renderPage(notCompiled)).toThrow(/zibri-tsx\/vite/);
         });
     });
 

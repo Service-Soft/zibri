@@ -1,7 +1,7 @@
-import { isChangeSetEntityNewable } from './is-change-set-entity.function';
-import { type SoftDeleteEntity } from './soft-delete-entity.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { isChangeSetEntityNewable } from './is-change-set-entity.function.ts';
+import { type SoftDeleteEntity } from './soft-delete-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Checks whether the given class is a SoftDeleteEntity class.

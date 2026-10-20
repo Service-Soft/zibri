@@ -1,6 +1,6 @@
-import { FindAllOptions } from './find-all-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
+import { FindAllOptions } from './find-all-options.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
 
 /**
  * Options for reading every matching entity without holding them all at once.

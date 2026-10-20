@@ -1,15 +1,15 @@
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { TraceSpanAttributeName } from '../../tracing/trace-span-attributes.model';
-import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
-import { TraceSpanInterface } from '../../tracing/trace-span.interface';
-import { TracingUtilities } from '../../tracing/tracing.utilities';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where } from '../models/where/where-filter.model';
-import { Transaction } from '../transaction/transaction.model';
+import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { TraceSpanAttributeName } from '../../tracing/trace-span-attributes.model.ts';
+import { TraceSpanKind } from '../../tracing/trace-span-kind.enum.ts';
+import { TraceSpanInterface } from '../../tracing/trace-span.interface.ts';
+import { TracingUtilities } from '../../tracing/tracing.utilities.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * How many rows the store answered with, which every operation that answers with rows records.
@@ -46,7 +46,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         private readonly entityClass: Newable<T>
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         return await this.traced('save', async span => {
             const res: T[] = await this.inner.save(data, transaction, reload);
@@ -55,7 +55,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         return await this.traced('insert', async span => {
             const res: T[] = await this.inner.insert(data, transaction);
@@ -64,7 +64,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
         return await this.traced('updateEach', async span => {
             const res: T[] = await this.inner.updateEach(rows, where, transaction);
@@ -73,7 +73,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         return await this.traced('find', async span => {
             const res: T[] = await this.inner.find(options);
@@ -82,7 +82,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return await this.traced('findOne', async span => {
             const res: T | undefined = await this.inner.findOne(options);
@@ -91,12 +91,12 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async count(options: DriverFindOptions<T>): Promise<number> {
         return await this.traced('count', async () => await this.inner.count(options));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         return await this.traced('findAndCount', async span => {
             const res: PaginationResult<T> = await this.inner.findAndCount(options);
@@ -105,7 +105,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         await this.traced('remove', async span => {
             span.recordAttribute(returnedRows, ids.length);
@@ -113,7 +113,7 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         return await this.traced('findIds', async span => {
             const res: string[] = await this.inner.findIds(options);
@@ -122,12 +122,12 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
         return await this.traced('updateAll', async () => await this.inner.updateAll(options));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async upsert(
         identity: string[],
         rows: UpsertRow<T>[],

@@ -1,5 +1,5 @@
 /**
- * Everything that crosses the boundary between the jest process and a cluster instance.
+ * Everything that crosses the boundary between the test process and a cluster instance.
  *
  * Deliberately small. Instances are driven over http like any other server - the parent holds one
  * base url per instance, so it can already address a specific one - and observed through the data
@@ -42,6 +42,16 @@ export const CLUSTER_DATA_SOURCE_PORTS_ENV: string = 'ZIBRI_CLUSTER_DATA_SOURCE_
  * is using, so that both processes agree on exactly one.
  */
 export const CLUSTER_MODULE_PATHS_ENV: string = 'ZIBRI_CLUSTER_MODULE_PATHS';
+
+/**
+ * The environment variable holding the absolute path of the file declaring the framework's
+ * TypeScript loader, in the copy of the framework the parent is using.
+ *
+ * An instance registers it before it loads anything else, because the files it boots from - the
+ * options module, and in this repository the instance entry and the framework itself - are
+ * TypeScript, and a test runner's own transform only exists inside the test runner.
+ */
+export const CLUSTER_TYPESCRIPT_LOADER_ENV: string = 'ZIBRI_CLUSTER_TYPESCRIPT_LOADER';
 
 /**
  * The environment variable holding the directory the instances write into.

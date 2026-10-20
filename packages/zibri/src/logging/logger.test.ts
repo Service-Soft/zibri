@@ -1,28 +1,28 @@
 import assert from 'node:assert';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, Mock, MockInstance } from 'vitest';
 
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
-import { Logger } from './logger';
-import { LoggerInterface } from './logger.interface';
-import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { CronService } from '../cron/cron.service';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { HttpMethod } from '../http/http-method.enum';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Ms } from '../utilities/ms';
+import { LogLevel } from './log-level.enum.ts';
+import { Log } from './log.model.ts';
+import { Logger } from './logger.ts';
+import { LoggerInterface } from './logger.interface.ts';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { CronService } from '../cron/cron.service.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * The first entry of the first batch a transport was handed.
@@ -30,7 +30,7 @@ import { Ms } from '../utilities/ms';
  * @returns The entry.
  */
 function firstLogHandedTo(
-    send: jest.Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>
+    send: Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>
 ): Log {
     const [firstCall] = send.mock.calls;
     assert(firstCall, 'the transport was never called');
@@ -65,25 +65,25 @@ describe('Logger — starting', () => {
 
 describe('Logger', () => {
     let logger: LoggerInterface;
-    let infoTransportSend: jest.Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>;
-    let warnTransportSend: jest.Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>;
+    let infoTransportSend: Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>;
+    let warnTransportSend: Mock<(logs: Log[], config: BaseLoggerTransportConfig) => void | Promise<void>>;
 
     beforeAll(() => {
         initDiContainer();
         GlobalRegistry.markAppAsCreated();
 
-        infoTransportSend = jest.fn();
-        warnTransportSend = jest.fn();
+        infoTransportSend = vi.fn();
+        warnTransportSend = vi.fn();
 
         const infoConfig: BaseLoggerTransportConfig = { name: 'InfoTransport', level: LogLevel.INFO, register: 'directly' };
         const warnConfig: BaseLoggerTransportConfig = { name: 'WarnTransport', level: LogLevel.WARN, register: 'directly' };
         const infoTransport: LoggerTransport<BaseLoggerTransportConfig> = LoggerTransport.create(
             infoConfig,
-            infoTransportSend as unknown as (logs: Log[], config: BaseLoggerTransportConfig) => void
+            infoTransportSend
         );
         const warnTransport: LoggerTransport<BaseLoggerTransportConfig> = LoggerTransport.create(
             warnConfig,
-            warnTransportSend as unknown as (logs: Log[], config: BaseLoggerTransportConfig) => void
+            warnTransportSend
         );
 
         logger = new Logger([infoTransport, warnTransport], {
@@ -172,7 +172,7 @@ describe('Logger', () => {
     });
 
     it('does not throw and logs to the console when a transport rejects', async () => {
-        const consoleErrorSpy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const consoleErrorSpy: MockInstance<typeof console.error> = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         warnTransportSend.mockImplementationOnce(() => Promise.reject(new Error('transport failed')));
 
         // returns immediately now - the entry is queued rather than written, so nothing here could

@@ -1,6 +1,6 @@
-import { SamlMetadataX509Data } from './saml-metadata-x509-data.model';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../parsing/xml/xml-element.decorator';
+import { SamlMetadataX509Data } from './saml-metadata-x509-data.model.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../../parsing/xml/xml-element.decorator.ts';
 
 /**
  * A key a SAML metadata document names, as an XML signature key info.

@@ -1,6 +1,6 @@
 import { setTimeout } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource,
     InMemoryDataSource,
     inMemoryStoreFor,
@@ -8,44 +8,44 @@ import { createInMemoryDataSource,
     RecordingSmsService,
     TestBrowser } from 'zibri-testing';
 
-import { EmailTwoFactorMethod } from './email.two-factor-method';
-import { SmsCodeLimits } from './sms-code-limits.model';
-import { SmsTwoFactorMethod } from './sms.two-factor-method';
-import { TwoFactorCodeCredentials } from './two-factor-code-credentials.model';
-import { TwoFactorCodeOptions } from './two-factor-code-options.model';
-import { TwoFactorCode } from './two-factor-code.model';
-import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { defineProvider } from '../../../../di/models/di-provider.model';
-import { EmailConfigInput } from '../../../../email/models/email-config.model';
-import { EntityMetadata } from '../../../../entity/decorators/entity.decorator';
-import { BadRequestError } from '../../../../error-handling/errors/bad-request.error';
-import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error';
-import { KnownHeader } from '../../../../http/known-header.enum';
-import { MimeType } from '../../../../http/mime-type.enum';
-import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model';
-import { Controller } from '../../../../routing/decorators/controller.decorator';
-import { Post } from '../../../../routing/decorators/post.decorator';
-import { JsonUtilities } from '../../../../utilities/json.utilities';
-import { MetadataUtilities } from '../../../../utilities/metadata.utilities';
-import { Ms } from '../../../../utilities/ms';
-import { AuthController } from '../../../auth-controller/auth-controller.model';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../authenticators/password/password-credentials.model';
-import { PasswordAuthenticator } from '../../../authenticators/password/password.authenticator';
-import { Auth } from '../../../decorators/auth.decorator';
-import { CookieAuthData } from '../../../strategies/cookie/cookie-auth-data.model';
-import { CookieAuthRefreshSession } from '../../../strategies/cookie/cookie-auth-refresh-session.model';
-import { CookieAuthSession } from '../../../strategies/cookie/cookie-auth-session.model';
-import { CookieAuthStrategy } from '../../../strategies/cookie/cookie-auth.auth-strategy';
-import { type TwoFactorServiceInterface } from '../../two-factor-service.interface';
+import { EmailTwoFactorMethod } from './email.two-factor-method.ts';
+import { SmsCodeLimits } from './sms-code-limits.model.ts';
+import { SmsTwoFactorMethod } from './sms.two-factor-method.ts';
+import { TwoFactorCodeCredentials } from './two-factor-code-credentials.model.ts';
+import { TwoFactorCodeOptions } from './two-factor-code-options.model.ts';
+import { TwoFactorCode } from './two-factor-code.model.ts';
+import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../../../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { defineProvider } from '../../../../di/models/di-provider.model.ts';
+import { EmailConfigInput } from '../../../../email/models/email-config.model.ts';
+import { EntityMetadata } from '../../../../entity/decorators/entity.decorator.ts';
+import { BadRequestError } from '../../../../error-handling/errors/bad-request.error.ts';
+import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error.ts';
+import { KnownHeader } from '../../../../http/known-header.enum.ts';
+import { MimeType } from '../../../../http/mime-type.enum.ts';
+import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model.ts';
+import { Controller } from '../../../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../../../routing/decorators/post.decorator.ts';
+import { JsonUtilities } from '../../../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../../../utilities/metadata.utilities.ts';
+import { Ms } from '../../../../utilities/ms.ts';
+import { AuthController } from '../../../auth-controller/auth-controller.model.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../authenticators/password/password-credentials.model.ts';
+import { PasswordAuthenticator } from '../../../authenticators/password/password.authenticator.ts';
+import { Auth } from '../../../decorators/auth.decorator.ts';
+import { CookieAuthData } from '../../../strategies/cookie/cookie-auth-data.model.ts';
+import { CookieAuthRefreshSession } from '../../../strategies/cookie/cookie-auth-refresh-session.model.ts';
+import { CookieAuthSession } from '../../../strategies/cookie/cookie-auth-session.model.ts';
+import { CookieAuthStrategy } from '../../../strategies/cookie/cookie-auth.auth-strategy.ts';
+import { type TwoFactorServiceInterface } from '../../two-factor-service.interface.ts';
 
 const EMAIL_HEADER: string = 'x-authorization-email-code';
 const SMS_HEADER: string = 'x-authorization-sms-code';

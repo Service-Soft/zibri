@@ -1,34 +1,34 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-// eslint-disable-next-line eslintImport/no-unassigned-import
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// eslint-disable-next-line import/no-unassigned-import
 import 'dotenv/config';
 import { Browser, chromium, Page } from 'playwright';
 
-import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider';
-import { testFileFolder } from '../../../../__testing__/constants';
-import { createTestDataSource, defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { defineProvider } from '../../../../di/models/di-provider.model';
-import { isHttpClientError } from '../../../../http-client/http-client.error';
-import { CurrencyCode } from '../../../../localization/models/currency-code.model';
-import { type TenantServiceInterface } from '../../../../tenancy/tenant-service.interface';
-import { FsPath, FsUtilities } from '../../../../utilities/fs.utilities';
-import { JsonUtilities } from '../../../../utilities/json.utilities';
-import { BigNumber, NumberUtilities } from '../../../../utilities/number.utilities';
-import { UUIDUtilities } from '../../../../utilities/uuid.utilities';
-import { KnownPaymentMethod, PaymentMethod } from '../../models/payment-method.model';
-import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-input.model';
-import { PaymentStatus } from '../../models/payment-status.enum';
-import { Payment } from '../../models/payment.model';
-import { ZibriPaymentPlugin } from '../../payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../payment.tokens';
-import { PaymentServiceInterface } from '../../services/payment-service.interface';
+import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider.ts';
+import { testFileFolder } from '../../../../__testing__/constants.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { defineProvider } from '../../../../di/models/di-provider.model.ts';
+import { isHttpClientError } from '../../../../http-client/http-client.error.ts';
+import { CurrencyCode } from '../../../../localization/models/currency-code.model.ts';
+import { type TenantServiceInterface } from '../../../../tenancy/tenant-service.interface.ts';
+import { FsPath, FsUtilities } from '../../../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../../../utilities/json.utilities.ts';
+import { BigNumber, NumberUtilities } from '../../../../utilities/number.utilities.ts';
+import { UUIDUtilities } from '../../../../utilities/uuid.utilities.ts';
+import { KnownPaymentMethod, PaymentMethod } from '../../models/payment-method.model.ts';
+import { PaymentPluginOptionsInput } from '../../models/payment-plugin-options-input.model.ts';
+import { PaymentStatus } from '../../models/payment-status.enum.ts';
+import { Payment } from '../../models/payment.model.ts';
+import { ZibriPaymentPlugin } from '../../payment.plugin.ts';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../../payment.tokens.ts';
+import { PaymentServiceInterface } from '../../services/payment-service.interface.ts';
 
 const testDir: FsPath = FsUtilities.getPath(testFileFolder, 'pay-pal-payment-provider');
 

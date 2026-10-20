@@ -1,10 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { CorsOrigin, corsMiddleware } from './cors.middleware';
-import { KnownHeader } from './known-header.enum';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
+import { CorsOrigin, corsMiddleware } from './cors.middleware.ts';
+import { KnownHeader } from './known-header.enum.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
 
 /**
  * Cors decides what a browser lets one origin do with a user's credentials, so what is worth

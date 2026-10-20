@@ -1,24 +1,24 @@
-import { CodeTwoFactorMethod } from './code.two-factor-method';
-import { SmsCodeBudgetRateLimiter } from './sms-code-budget.rate-limiter';
-import { type SmsCodeLimits } from './sms-code-limits.model';
-import { SmsCodeNumberRateLimiter } from './sms-code-number.rate-limiter';
-import { SmsRegisterData } from './sms-register-data.model';
-import { ZibriApplication } from '../../../../application/application';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../../di/errors/no-provider.error';
-import { inject } from '../../../../di/inject.function';
-import { BadRequestError } from '../../../../error-handling/errors/bad-request.error';
-import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error';
-import { InternalError } from '../../../../error-handling/internal-error.model';
-import { MimeType } from '../../../../http/mime-type.enum';
-import { $ts } from '../../../../localization/translate.function';
-import { RateLimitResult } from '../../../../rate-limiting/rate-limit-result.model';
-import { JsonBodyMetadata, XmlBodyMetadata } from '../../../../routing/decorators/body-metadata.model';
-import { resolveStructuredBodyMetadata } from '../../../../routing/resolve-body-metadata.function';
-import { type SmsServiceInterface } from '../../../../sms/sms-service.interface';
-import { Newable } from '../../../../types/newable.type';
-import { Ms } from '../../../../utilities/ms';
-import { BaseUser } from '../../../models/base-user.model';
+import { CodeTwoFactorMethod } from './code.two-factor-method.ts';
+import { SmsCodeBudgetRateLimiter } from './sms-code-budget.rate-limiter.ts';
+import { type SmsCodeLimits } from './sms-code-limits.model.ts';
+import { SmsCodeNumberRateLimiter } from './sms-code-number.rate-limiter.ts';
+import { SmsRegisterData } from './sms-register-data.model.ts';
+import { ZibriApplication } from '../../../../application/application.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../../../di/errors/no-provider.error.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { BadRequestError } from '../../../../error-handling/errors/bad-request.error.ts';
+import { TooManyRequestsError } from '../../../../error-handling/errors/too-many-requests.error.ts';
+import { InternalError } from '../../../../error-handling/internal-error.model.ts';
+import { MimeType } from '../../../../http/mime-type.enum.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { RateLimitResult } from '../../../../rate-limiting/rate-limit-result.model.ts';
+import { JsonBodyMetadata, XmlBodyMetadata } from '../../../../routing/decorators/body-metadata.model.ts';
+import { resolveStructuredBodyMetadata } from '../../../../routing/resolve-body-metadata.function.ts';
+import { type SmsServiceInterface } from '../../../../sms/sms-service.interface.ts';
+import { Newable } from '../../../../types/newable.type.ts';
+import { Ms } from '../../../../utilities/ms.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
 
 /**
  * A code sent as a text message to a phone number of the user as the second factor.
@@ -32,10 +32,10 @@ import { BaseUser } from '../../../models/base-user.model';
  * text messages may cost under `ZIBRI_DI_TOKENS.SMS_CODE_LIMITS`, see `SmsCodeLimits`.
  */
 export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected readonly channel: string = 'sms';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly requestRegisterModel: Newable<SmsRegisterData> = SmsRegisterData;
 
     override init(app: ZibriApplication): void {
@@ -85,7 +85,7 @@ export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async deliver(_user: BaseUser<string>, destination: string | undefined, code: string): Promise<void> {
         if (destination == undefined) {
             throw new InternalError('Text message credentials without a phone number.');
@@ -97,12 +97,12 @@ export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected resolveDestination(data: SmsRegisterData): string {
         return data.phoneNumber;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected resolveHeader(): string {
         return inject(ZIBRI_DI_TOKENS.SMS_CODE_HEADER);
     }

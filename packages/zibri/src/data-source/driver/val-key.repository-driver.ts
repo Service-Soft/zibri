@@ -2,48 +2,48 @@ import { createHash } from 'node:crypto';
 
 import type { Batch, GlideClient, GlideReturnType, GlideString, Script } from '@valkey/valkey-glide';
 
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
-import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { EntityOrderUtilities, OrderComparator, OrderKey } from '../../entity/models/entity-order.utilities';
-import { RelationTree, RelationTreeByRowId } from '../../entity/models/entity-relations.model';
-import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
-import { Relation } from '../../entity/models/relation.enum';
-import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { ModelRegistry } from '../../global/model-registry/model.registry';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { parseArray } from '../../parsing/functions/parse-array.function';
-import { parseNumber } from '../../parsing/functions/parse-number.function';
-import { parseObject } from '../../parsing/functions/parse-object.function';
-import { parseOneOf } from '../../parsing/functions/parse-one-of.function';
-import { toJsonValue } from '../../parsing/functions/to-json-value.function';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { CheckConstraintViolationError } from '../check-constraint-violation.error';
-import { scanValKeyKeys } from '../data-sources/val-key/scan-val-key-keys.function';
-import { type ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
-import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
-import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where, WhereFilter } from '../models/where/where-filter.model';
-import { applyGuardedValKeyWrites } from '../transaction/apply-guarded-val-key-writes.function';
-import { KeyDeclarationsChangedError } from '../transaction/key-declarations-changed.error';
-import { queueValKeyWrite } from '../transaction/queue-val-key-write.function';
-import { Transaction } from '../transaction/transaction.model';
-import { ValKeyBufferedWrite, ValKeyTransaction } from '../transaction/val-key-transaction.model';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
-import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
-import { WriteDataUtilities } from '../write-data.utilities';
+import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator.ts';
+import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error.ts';
+import { EntityOrderUtilities, OrderComparator, OrderKey } from '../../entity/models/entity-order.utilities.ts';
+import { RelationTree, RelationTreeByRowId } from '../../entity/models/entity-relations.model.ts';
+import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { ModelRegistry } from '../../global/model-registry/model.registry.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { parseArray } from '../../parsing/functions/parse-array.function.ts';
+import { parseNumber } from '../../parsing/functions/parse-number.function.ts';
+import { parseObject } from '../../parsing/functions/parse-object.function.ts';
+import { parseOneOf } from '../../parsing/functions/parse-one-of.function.ts';
+import { toJsonValue } from '../../parsing/functions/to-json-value.function.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { CheckConstraintViolationError } from '../check-constraint-violation.error.ts';
+import { scanValKeyKeys } from '../data-sources/val-key/scan-val-key-keys.function.ts';
+import { type ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model.ts';
+import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function.ts';
+import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where, WhereFilter } from '../models/where/where-filter.model.ts';
+import { applyGuardedValKeyWrites } from '../transaction/apply-guarded-val-key-writes.function.ts';
+import { KeyDeclarationsChangedError } from '../transaction/key-declarations-changed.error.ts';
+import { queueValKeyWrite } from '../transaction/queue-val-key-write.function.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
+import { ValKeyBufferedWrite, ValKeyTransaction } from '../transaction/val-key-transaction.model.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities.ts';
+import { WriteDataUtilities } from '../write-data.utilities.ts';
 
 /**
  * How many rows a stream reads back at once.
@@ -226,7 +226,7 @@ function resolveBuildEntriesScript(): Script {
     buildEntriesScript ??= new (valKeyGlide().Script)(
         'local conflicts = {} '
         + 'for _, row in ipairs(cjson.decode(ARGV[1])) do '
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         + 'local current = redis.call("hgetall", row[1]) '
         + 'local same = #current == #row[3] '
         + 'if same then '
@@ -235,13 +235,13 @@ function resolveBuildEntriesScript(): Script {
         + 'for i = 1, #current, 2 do if expected[current[i]] ~= current[i + 1] then same = false break end end '
         + 'end '
         + 'if same then for _, entry in ipairs(row[4]) do '
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         + 'if entry[2] then for _, holder in ipairs(redis.call("smembers", entry[1])) do '
         + 'if holder ~= row[2] then '
         + 'table.insert(conflicts, entry[1]) table.insert(conflicts, holder) table.insert(conflicts, row[2]) '
         + 'end '
         + 'end end '
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         + 'redis.call("sadd", entry[1], row[2]) '
         + 'end end '
         + 'end return conflicts'
@@ -438,7 +438,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         // a relation given an empty list saves its children with nothing, and nothing has no write -
         // adding to the id set in particular is refused without a member
@@ -457,7 +457,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         return await this.inTransaction(transaction, async own => await this.saveThrough(data, own, reload));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         // a save of rows nobody stored reads nothing it would not read for these as well: the stored
         // row and the keys come back in the one request that also tells it which uniques to hold
@@ -628,7 +628,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const res: Map<string, RelationTree> = new Map();
         for (const key of ObjectUtilities.keys(this.properties)) {
             const type: string | undefined = this.properties[key]?.type;
-            const provided: boolean = (type === Relation.MANY_TO_MANY || type === Relation.MANY_TO_ONE || type === Relation.BELONGS_TO_ONE)
+            const provided: boolean = (type === RelationType.MANY_TO_MANY || type === RelationType.MANY_TO_ONE || type === RelationType.BELONGS_TO_ONE)
                 && (data as Record<string, unknown>)[key] != undefined;
             if (provided) {
                 res.set(key, new Map());
@@ -637,7 +637,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(options.transaction);
         // a filter that pins the id, everything a unique declaration names, or everything a complete
@@ -671,12 +671,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         return window;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return (await this.find({ ...options, skip: undefined, take: 1 })).at(0);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         // one read rather than two. Valkey has no snapshot to hold two reads together in - a
         // transaction here is a set of grants on the rows it writes, which says nothing about what
@@ -702,7 +702,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(options.transaction);
         // the ids, then the rows a page at a time. There is no cursor to hold here and nothing to
@@ -725,7 +725,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async count(options: DriverFindOptions<T>): Promise<number> {
         if (!options.where) {
             return (await this.readIds(this.toValKeyTransaction(options.transaction))).length;
@@ -733,7 +733,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         return (await this.find({ where: options.where, transaction: options.transaction })).length;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateAll<R extends boolean = false>(
         options: DriverUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
@@ -747,7 +747,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
         if (!rows.length) {
             return [];
@@ -857,7 +857,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         return filters.every(f => Object.keys(f).length === 1) ? ids : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
@@ -1011,7 +1011,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         return `${this.keyPrefix}:${this.tableName}:upsert:${values}`;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         if (!ids.length) {
             return;
@@ -1059,7 +1059,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         throw new KeyDeclarationsChangedError();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         // through `find`, since a row is only judged by a filter once it is read: what this saves a
         // valkey caller is the rows being handed up and held, not the reading of them
@@ -1204,7 +1204,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             this.builtKey()
         ]);
         for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type !== Relation.MANY_TO_MANY) {
+            if (metadata.type !== RelationType.MANY_TO_MANY) {
                 continue;
             }
             const currentJoinKeys: string[] = ids.map(id => toCurrentKey(this.joinKey(id, key)));
@@ -1261,7 +1261,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
         const rowReplies: GlideReturnType[] = await this.readPipelined(
             ids.map(id => toCurrentKey(this.rowKey(id))),
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             (batch, key) => batch.hgetall(key)
         );
         const res: Map<string, Record<string, string>> = new Map();
@@ -1673,7 +1673,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const batch: Batch = new (valKeyGlide().Batch)(true);
         batch.set(this.keysKey(), stored);
         if (unbuilt.length) {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             batch.srem(this.builtKey(), unbuilt);
         }
         await this.client.exec(batch, true);
@@ -1871,7 +1871,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * values. A declaration of one property may also be named by a `oneOf` of plain values.
      */
     private indexLookupForFilter(filter: WhereFilter<T>): IndexLookup | undefined {
-        const conditions: Record<string, unknown> = filter as Record<string, unknown>;
+        const conditions: Record<string, unknown> = filter;
         for (const group of this.indexGroups) {
             const [only] = group;
             const listed: unknown[] | undefined = group.length === 1 && only != undefined
@@ -2050,12 +2050,12 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             this.dataSource
         );
         switch (metadata.type) {
-            case Relation.MANY_TO_ONE:
-            case Relation.BELONGS_TO_ONE: {
+            case RelationType.MANY_TO_ONE:
+            case RelationType.BELONGS_TO_ONE: {
                 return await this.resolveToOneOf(entities, this.resolveJoinColumn(metadata, key), targetDriver, below, transaction);
             }
-            case Relation.ONE_TO_MANY:
-            case Relation.HAS_ONE: {
+            case RelationType.ONE_TO_MANY:
+            case RelationType.HAS_ONE: {
                 const owned: Map<string, BaseEntity[]> = await this.resolveOwnedOf(
                     entities,
                     key,
@@ -2064,11 +2064,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
                     below,
                     transaction
                 );
-                return metadata.type === Relation.HAS_ONE
+                return metadata.type === RelationType.HAS_ONE
                     ? new Map([...owned].map(([id, rows]) => [id, rows.at(0)]))
                     : owned;
             }
-            case Relation.MANY_TO_MANY: {
+            case RelationType.MANY_TO_MANY: {
                 return await this.resolveManyToManyOf(entities, key, targetDriver, below, transaction);
             }
         }
@@ -2135,7 +2135,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const foreignKeyColumn: string = this.resolveJoinColumn(inverse, metadata.inverseSide);
         // through the transaction, so that rows written in it and not yet committed are found
         const targets: BaseEntity[] = await targetDriver.find({
-            where: { [foreignKeyColumn]: { oneOf: entities.map(e => e.id) } } as Where<BaseEntity>,
+            where: { [foreignKeyColumn]: { oneOf: entities.map(e => e.id) } },
             relations: below,
             transaction
         });
@@ -2194,7 +2194,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     ): Promise<ValKeyBufferedWrite[]> {
         const writes: ValKeyBufferedWrite[] = [];
         for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type !== Relation.MANY_TO_MANY) {
+            if (metadata.type !== RelationType.MANY_TO_MANY) {
                 continue;
             }
             const given: [unknown[], string][] = this.resolveGivenMembers(entries, key);
@@ -2360,7 +2360,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     private async resolveManyToManyRemovals(ids: string[], transaction: ValKeyTransaction | undefined): Promise<ValKeyBufferedWrite[]> {
         const writes: ValKeyBufferedWrite[] = [];
         for (const [key, metadata] of ObjectUtilities.entries(this.properties)) {
-            if (metadata.type !== Relation.MANY_TO_MANY) {
+            if (metadata.type !== RelationType.MANY_TO_MANY) {
                 continue;
             }
             const inverseDriver: ValKeyRepositoryDriver<BaseEntity> = new ValKeyRepositoryDriver(
@@ -2423,7 +2423,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         metadata: RelationMetadata<BaseEntity>,
         fields: Record<string, string>
     ): void {
-        if (metadata.type !== Relation.MANY_TO_ONE && metadata.type !== Relation.BELONGS_TO_ONE) {
+        if (metadata.type !== RelationType.MANY_TO_ONE && metadata.type !== RelationType.BELONGS_TO_ONE) {
             return;
         }
         const value: unknown = (data as Record<string, unknown>)[key];
@@ -2492,11 +2492,11 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             }
             case 'string':
             case 'boolean':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'unknown': {
                 return value;
             }
@@ -2515,7 +2515,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             return entities;
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const sorts: { path: string[], compare: OrderComparator }[] = keys.map(key => ({
             path: key.path,
             compare: EntityOrderUtilities.resolveComparator(key, (a, b) => this.compareValues(a, b))
@@ -2531,7 +2531,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         });
     }
 
-    // eslint-disable-next-line sonar/cognitive-complexity
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     private compareValues(a: unknown, b: unknown): number {
         if (a == undefined && b == undefined) {
             return 0;
@@ -2649,7 +2649,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns The key, or undefined when no group is pinned by plain values.
      */
     private uniqueKeyForFilter(filter: WhereFilter<T>): string | undefined {
-        const conditions: Record<string, unknown> = filter as Record<string, unknown>;
+        const conditions: Record<string, unknown> = filter;
 
         for (const group of this.uniqueGroups) {
             // a key covering part of the table indexes part of the table: a row it leaves out is
@@ -2690,7 +2690,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @returns The members of each set, in the order of the keys. A set that does not exist has none.
      */
     private async readSets(keys: string[], transaction: ValKeyTransaction | undefined): Promise<string[][]> {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const replies: GlideReturnType[] = await this.readPipelined(keys, (batch, key) => batch.smembers(key));
         return keys.map((key, i) => {
             const stored: string[] = this.toMembers(replies[i]);
@@ -2756,7 +2756,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const keysKey: string = this.keysKey();
         const replies: GlideReturnType[] = await this.readPipelined(
             [...withKeys ? [keysKey] : [], ...wanted.map(id => this.rowKey(id))],
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             (batch, key) => key === keysKey ? batch.get(key) : batch.hgetall(key)
         );
         const rowReplies: GlideReturnType[] = withKeys ? replies.slice(1) : replies;
@@ -2936,16 +2936,16 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     private isRelation(metadata: PropertyMetadata | undefined): metadata is RelationMetadata<BaseEntity> {
-        return metadata?.type === Relation.HAS_ONE
-            || metadata?.type === Relation.BELONGS_TO_ONE
-            || metadata?.type === Relation.MANY_TO_ONE
-            || metadata?.type === Relation.ONE_TO_MANY
-            || metadata?.type === Relation.MANY_TO_MANY;
+        return metadata?.type === RelationType.HAS_ONE
+            || metadata?.type === RelationType.BELONGS_TO_ONE
+            || metadata?.type === RelationType.MANY_TO_ONE
+            || metadata?.type === RelationType.ONE_TO_MANY
+            || metadata?.type === RelationType.MANY_TO_MANY;
     }
 
     private resolveJoinColumn(metadata: RelationMetadata<BaseEntity>, key: string): string {
         if (
-            (metadata.type === Relation.MANY_TO_ONE || metadata.type === Relation.BELONGS_TO_ONE)
+            (metadata.type === RelationType.MANY_TO_ONE || metadata.type === RelationType.BELONGS_TO_ONE)
             && metadata.joinColumn != undefined
         ) {
             return metadata.joinColumn;

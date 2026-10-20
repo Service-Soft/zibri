@@ -1,8 +1,9 @@
-import { ChangeSet } from './change-set.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { ChangeSet } from './change-set.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Defines a single value change of an change set.
@@ -33,7 +34,7 @@ export class Change<T = unknown> extends BaseEntity {
      * The change set that this change belongs to.
      */
     @Property.manyToOne({ target: () => ChangeSet, inverseSide: 'changes', joinColumn: 'changeSetId' })
-    changeSet!: ChangeSet;
+    changeSet!: Relation<ChangeSet>;
     /**
      * The id of the change set that this change belongs to.
      */

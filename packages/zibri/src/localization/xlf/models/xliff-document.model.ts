@@ -1,8 +1,8 @@
-import { XliffFile } from './xliff-file.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator';
-import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
-import { XmlRoot } from '../../../parsing/xml/xml-root.decorator';
+import { XliffFile } from './xliff-file.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator.ts';
+import { XmlElement } from '../../../parsing/xml/xml-element.decorator.ts';
+import { XmlRoot } from '../../../parsing/xml/xml-root.decorator.ts';
 
 /**
  * An XLIFF 1.2 document, which holds translation strings and their translations.

@@ -1,24 +1,24 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
-import { Auth } from '../../auth/decorators/auth.decorator';
-import { HasRoleMetadata } from '../../auth/models/has-role-metadata.model';
-import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { InvalidDecoratorCombinationError } from '../../error-handling/errors/invalid-decorator-combination.error';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model.ts';
+import { Auth } from '../../auth/decorators/auth.decorator.ts';
+import { HasRoleMetadata } from '../../auth/models/has-role-metadata.model.ts';
+import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InvalidDecoratorCombinationError } from '../../error-handling/errors/invalid-decorator-combination.error.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/02-http-runtime-core.md M3.

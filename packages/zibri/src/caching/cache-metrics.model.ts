@@ -1,6 +1,6 @@
-import { CounterInterface } from '../metrics/counter.interface';
-import { GaugeInterface } from '../metrics/gauge.interface';
-import { HistogramInterface } from '../metrics/histogram.interface';
+import { CounterInterface } from '../metrics/counter.interface.ts';
+import { GaugeInterface } from '../metrics/gauge.interface.ts';
+import { HistogramInterface } from '../metrics/histogram.interface.ts';
 
 /**
  * Metrics regarding caching.

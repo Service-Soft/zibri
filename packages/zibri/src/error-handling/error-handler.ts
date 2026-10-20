@@ -1,30 +1,30 @@
 import { NextFunction } from 'express';
 
-import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model';
-import { ErrorResponseBody } from './error-response-body.model';
-import { ErrorUtilities } from './error.utilities';
-import { CustomBodyHttpError } from './errors/custom-body-http.error';
-import { InternalError } from './internal-error.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { XmlWriterUtilities } from '../document/xml-writer.utilities';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { HttpError } from './errors/http.error';
-import { HttpStatus } from '../http/http-status.enum';
-import { JsonMimeType } from '../http/json-mime-type.type';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { AuditAction, AuditOutcome } from '../logging/audit-event.model';
-import { LoggerInterface } from '../logging/logger.interface';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { TsxUtilities } from '../tsx/tsx.utilities';
-import { GlobalError } from './errors/global.error';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MethodNotAllowedError } from './errors/method-not-allowed.error';
-import { TooManyRequestsError } from './errors/too-many-requests.error';
-import { NumberUtilities } from '../utilities/number.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { ErrorPageTemplate, GlobalErrorHandler } from './error-handler.model.ts';
+import { ErrorResponseBody } from './error-response-body.model.ts';
+import { ErrorUtilities } from './error.utilities.ts';
+import { CustomBodyHttpError } from './errors/custom-body-http.error.ts';
+import { InternalError } from './internal-error.model.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { XmlWriterUtilities } from '../document/xml-writer.utilities.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { HttpError } from './errors/http.error.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { JsonMimeType } from '../http/json-mime-type.type.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { AuditAction, AuditOutcome } from '../logging/audit-event.model.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
+import { TsxUtilities } from '../tsx/tsx.utilities.ts';
+import { GlobalError } from './errors/global.error.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MethodNotAllowedError } from './errors/method-not-allowed.error.ts';
+import { TooManyRequestsError } from './errors/too-many-requests.error.ts';
+import { NumberUtilities } from '../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
 /**
  * The default error handler implementation of Zibri.
@@ -143,7 +143,7 @@ function handleAllowHeader(error: unknown, res: HttpResponse): void {
     res.setHeader(KnownHeader.ALLOW, error.allowedMethods.join(', '));
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function handleRateLimitHeaders(error: unknown, res: HttpResponse): void {
     if (!(error instanceof TooManyRequestsError)) {
         return;

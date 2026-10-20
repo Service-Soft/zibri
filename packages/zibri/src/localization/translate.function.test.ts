@@ -1,7 +1,7 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { $t, TranslationToken } from './translate.function';
-import { TranslationRegistry } from './translation.registry';
+import { $t, TranslationToken } from './translate.function.ts';
+import { TranslationRegistry } from './translation.registry.ts';
 
 describe('$t function', () => {
     beforeAll(() => {

@@ -2,11 +2,11 @@ import { Readable } from 'node:stream';
 
 import { BehaviorSubject } from 'rxjs';
 
-import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { OmitStrict } from '../types/omit-strict.type';
-import { BackupTransportInterface } from './transports/backup-transport.interface';
+import { BackupEntity, BackupEntityCreateData } from './backup-entity.model.ts';
+import { BackupResourceEntity } from './backup-resource-entity.model.ts';
+import { BackupResourceInterface } from './backup-resource.interface.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { BackupTransportInterface } from './transports/backup-transport.interface.ts';
 
 /**
  * The data needed to create a new backup.

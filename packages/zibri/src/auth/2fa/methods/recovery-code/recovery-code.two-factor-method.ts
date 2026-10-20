@@ -1,27 +1,27 @@
 import { randomBytes } from 'node:crypto';
 
-import { TwoFactorRecoveryCode, TwoFactorRecoveryCodeCreateData } from './two-factor-recovery-code.model';
-import { ZibriApplication } from '../../../../application/application';
-import { HttpRequestContext } from '../../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
-import { Repository } from '../../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../../../localization/translate.function';
-import { Newable } from '../../../../types/newable.type';
-import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
-import { type HashServiceInterface } from '../../../hash/hash-service.interface';
-import { type HashString } from '../../../hash/hash.utilities';
-import { Sha256HashStrategy } from '../../../hash/strategies/sha256.hash-strategy';
-import { BaseUser } from '../../../models/base-user.model';
-import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
-import { NoRegisterData } from '../no-register-data.model';
-import { base32Encode } from '../otp/base32-encode.function';
-import { TwoFactorMethod } from '../two-factor-method.interface';
+import { TwoFactorRecoveryCode, TwoFactorRecoveryCodeCreateData } from './two-factor-recovery-code.model.ts';
+import { ZibriApplication } from '../../../../application/application.ts';
+import { HttpRequestContext } from '../../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context.ts';
+import { Repository } from '../../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { Newable } from '../../../../types/newable.type.ts';
+import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function.ts';
+import { type HashServiceInterface } from '../../../hash/hash-service.interface.ts';
+import { type HashString } from '../../../hash/hash.utilities.ts';
+import { Sha256HashStrategy } from '../../../hash/strategies/sha256.hash-strategy.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error.ts';
+import { NoRegisterData } from '../no-register-data.model.ts';
+import { base32Encode } from '../otp/base32-encode.function.ts';
+import { TwoFactorMethod } from '../two-factor-method.interface.ts';
 
 /**
  * How many codes a set holds.
@@ -63,22 +63,22 @@ export class RecoveryCodeRegistration {
  * many wrong codes: presenting one then removes the locked methods and lifts the lock.
  */
 export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, RecoveryCodeConfirmRegisterData, RecoveryCodeRegistration> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'recovery-code';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly requestRegisterModel: Newable<void> = NoRegisterData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly confirmRegisterModel: Newable<RecoveryCodeConfirmRegisterData> = RecoveryCodeConfirmRegisterData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly registrationModel: Newable<RecoveryCodeRegistration> = RecoveryCodeRegistration;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly secondFactorStartModel: undefined = undefined;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly unlocksLockedFactors: boolean = true;
 
     // read when used rather than injected, so that an application without the entity is told to
@@ -94,12 +94,12 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         private readonly hashService: HashServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(RecoveryCodeTwoFactorMethod.name, app, TwoFactorRecoveryCode);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType
     ): Promise<RecoveryCodeRegistration> {
@@ -111,12 +111,12 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         return { codes: codes.map(c => `${c.slice(0, RECOVERY_CODE_LENGTH / 2)}-${c.slice(RECOVERY_CODE_LENGTH / 2)}`) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSecondFactor(): Promise<void> {
         // the user holds the codes, so there is nothing to start
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: RecoveryCodeConfirmRegisterData
@@ -133,12 +133,12 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         await this.recoveryCodeRepository.updateAll({ userId: user.id, confirmed: false }, { confirmed: true });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
         await this.recoveryCodeRepository.deleteAll({ userId: user.id });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
         const found: TwoFactorRecoveryCode | undefined = await this.recoveryCodeRepository.findOne({
             where: { userId: user.id, confirmed: true },
@@ -147,7 +147,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
         return found != undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validate<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext

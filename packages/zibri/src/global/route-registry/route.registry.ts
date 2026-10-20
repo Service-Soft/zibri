@@ -1,9 +1,9 @@
-import { AuthServiceInterface } from '../../auth/auth-service.interface';
-import { ResolvedRouteAuth } from '../../auth/models/resolved-auth-metadata.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { resolveRouteParamMetadata, RouteParamMetadata } from '../../routing/route-param-metadata.model';
-import { Newable } from '../../types/newable.type';
+import { AuthServiceInterface } from '../../auth/auth-service.interface.ts';
+import { ResolvedRouteAuth } from '../../auth/models/resolved-auth-metadata.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { resolveRouteParamMetadata, RouteParamMetadata } from '../../routing/route-param-metadata.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Data stored per route in the registry.

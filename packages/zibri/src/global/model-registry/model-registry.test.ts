@@ -1,24 +1,25 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { DefaultDescriptor } from './default-descriptor';
-import { NestedDescriptor } from './model-descriptor';
-import { ModelRegistry } from './model.registry';
-import { restoreExcludeProperties } from './restore-exclude-properties.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
-import { type HashString } from '../../auth/hash/hash.utilities';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { OmitClass } from '../../entity/omit-class.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { type Relation } from '../../entity/models/relation.type.ts';
+
+import { DefaultDescriptor } from './default-descriptor.ts';
+import { NestedDescriptor } from './model-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { restoreExcludeProperties } from './restore-exclude-properties.function.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { type HashServiceInterface } from '../../auth/hash/hash-service.interface.ts';
+import { type HashString } from '../../auth/hash/hash.utilities.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../../entity/omit-class.model.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 // This entity exercises all four model-registry descriptors together (exclude, default, hash,
 // encryption), created/read through a real repository. These descriptors are wired as the default

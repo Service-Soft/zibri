@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetEntity } from './models/change-set-entity.model';
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { ChangeSetEntity } from './models/change-set-entity.model.ts';
+import { ChangeSetType } from './models/change-set-type.enum.ts';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 @Entity({ allowOrphan: true })
 class TenantGadget extends BaseEntity implements ChangeSetEntity {

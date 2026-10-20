@@ -1,30 +1,30 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MailingListServiceInterface, MailingListSubscriberCreateData } from './mailing-list-service.interface';
-import { MailingListService } from './mailing-list.service';
-import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository/repository';
-import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider } from '../../../di/models/di-provider.model';
-import { Email } from '../../../email/models/email.model';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { MailingListConfirmationTokenCleanupCronJob } from '../mailing-list-confirmation-token-cleanup.cron-job';
-import { ZibriMailingListPlugin } from '../mailing-list.plugin';
-import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
-import { MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model';
-import { MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model';
-import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
-import { MailingList } from '../models/mailing-list.model';
+import { MailingListServiceInterface, MailingListSubscriberCreateData } from './mailing-list-service.interface.ts';
+import { MailingListService } from './mailing-list.service.ts';
+import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
+import { Email } from '../../../email/models/email.model.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { MailingListConfirmationTokenCleanupCronJob } from '../mailing-list-confirmation-token-cleanup.cron-job.ts';
+import { ZibriMailingListPlugin } from '../mailing-list.plugin.ts';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens.ts';
+import { MailingListBaseEmailTemplate } from '../models/mailing-list-base-email-template.model.ts';
+import { MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model.ts';
+import { MailingListSubscriber } from '../models/mailing-list-subscriber.model.ts';
+import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model.ts';
+import { MailingList } from '../models/mailing-list.model.ts';
 
 const baseEmailTemplate: MailingListBaseEmailTemplate = compileTsxTemplate<MailingListBaseEmailTemplate>(
     'export const Email = ({ title }) => <div>{title}</div>;'

@@ -1,15 +1,15 @@
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { StoredStringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model';
-import { $ts } from '../../localization/translate.function';
-import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
-import { StringParamMetadata } from '../../routing/models/string-param-metadata.model';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { RegexUtilities } from '../../utilities/regex.utilities';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { StoredStringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator.ts';
+import { StringParamMetadata } from '../../routing/models/string-param-metadata.model.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { RegexUtilities } from '../../utilities/regex.utilities.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 /**
  * Regex that matches a uuid.
@@ -86,7 +86,7 @@ export function stringValueProblems(
     return [];
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function isFormatValid(format: StringFormat, value: string): boolean {
     switch (format) {
         case 'uuid': {

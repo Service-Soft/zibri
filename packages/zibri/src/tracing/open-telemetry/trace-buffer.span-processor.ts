@@ -1,6 +1,6 @@
-import { OpenTelemetryApi, OpenTelemetryReadableSpan, OpenTelemetrySpanProcessor } from './open-telemetry-api.model';
-import { OpenTelemetryUtilities } from './open-telemetry.utilities';
-import { TraceBufferInterface } from '../trace-buffer.interface';
+import { OpenTelemetryApi, OpenTelemetryReadableSpan, OpenTelemetrySpanProcessor } from './open-telemetry-api.model.ts';
+import { OpenTelemetryUtilities } from './open-telemetry.utilities.ts';
+import { TraceBufferInterface } from '../trace-buffer.interface.ts';
 
 /**
  * Puts every span the application finishes into the buffer it keeps.
@@ -24,7 +24,7 @@ export class TraceBufferSpanProcessor implements OpenTelemetrySpanProcessor {
         // nothing to keep until the span has finished
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onEnd(span: OpenTelemetryReadableSpan): void {
         this.buffer.record({
             traceId: span.spanContext().traceId,
@@ -40,13 +40,13 @@ export class TraceBufferSpanProcessor implements OpenTelemetrySpanProcessor {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async forceFlush(): Promise<void> {
         // nothing is held on the way anywhere, so there is nothing a flush could do
         await Promise.resolve();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async shutdown(): Promise<void> {
         // the buffer is this process's memory and goes when it does
         await Promise.resolve();

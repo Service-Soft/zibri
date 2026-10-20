@@ -1,6 +1,6 @@
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { IntrospectionResponse } from '../authorization-server/introspection-response.model';
-import { BaseUser } from '../models/base-user.model';
+import { AuthStrategyInterface } from './auth-strategy.interface.ts';
+import { IntrospectionResponse } from '../authorization-server/introspection-response.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an auth strategy that answers for the tokens it reads: whether one is active, and

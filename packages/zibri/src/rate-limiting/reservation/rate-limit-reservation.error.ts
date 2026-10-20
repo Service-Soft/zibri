@@ -1,6 +1,6 @@
 // rate-limit-reservation-error.model.ts
-import { RateLimitReservationRejectionReason } from './rate-limit-reservation-rejection-reason.enum';
-import { InternalError } from '../../error-handling/internal-error.model';
+import { RateLimitReservationRejectionReason } from './rate-limit-reservation-rejection-reason.enum.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 /**
  * Error to throw when reserving from a limit failed.

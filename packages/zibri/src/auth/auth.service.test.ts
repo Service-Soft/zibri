@@ -1,42 +1,42 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthServiceInterface } from './auth-service.interface';
-import { LinkedIdentity } from './authenticators/linked-identity.model';
-import { Auth } from './decorators/auth.decorator';
-import { HasRoleMetadata } from './models/has-role-metadata.model';
-import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
-import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
-import { PasswordResetToken, PasswordResetTokenCreateData } from './models/password-reset-token.model';
-import { Require2faMetadata } from './models/require-2fa-metadata.model';
-import { AuthStrategies } from './strategies/auth-strategies.model';
-import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { DefaultTestServerMembershipRepository } from '../__testing__/test-server/membership-repository';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { Email } from '../email/models/email.model';
-import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
-import { LoggerInterface } from '../logging/logger.interface';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
-import { FederatedIdentity } from './authenticators/federated/federated-identity.model';
-import { FederatedRegistration } from './authenticators/federated/federated-registration.model';
-import { OAuthClientAuthentication } from './authenticators/oauth/oauth-client-authentication.model';
-import { BaseGoogleAuthenticator } from './authenticators/oidc/providers/base-google.authenticator';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
-import { CookieAuthStrategy } from './strategies/cookie/cookie-auth.auth-strategy';
-import { JwtAuthData } from './strategies/jwt/jwt-auth-data.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
+import { AuthServiceInterface } from './auth-service.interface.ts';
+import { LinkedIdentity } from './authenticators/linked-identity.model.ts';
+import { Auth } from './decorators/auth.decorator.ts';
+import { HasRoleMetadata } from './models/has-role-metadata.model.ts';
+import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model.ts';
+import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model.ts';
+import { PasswordResetToken, PasswordResetTokenCreateData } from './models/password-reset-token.model.ts';
+import { Require2faMetadata } from './models/require-2fa-metadata.model.ts';
+import { AuthStrategies } from './strategies/auth-strategies.model.ts';
+import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../__testing__/mocks/entities/roles.enum.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { DefaultTestServerMembershipRepository } from '../__testing__/test-server/membership-repository.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { Email } from '../email/models/email.model.ts';
+import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
+import { FederatedIdentity } from './authenticators/federated/federated-identity.model.ts';
+import { FederatedRegistration } from './authenticators/federated/federated-registration.model.ts';
+import { OAuthClientAuthentication } from './authenticators/oauth/oauth-client-authentication.model.ts';
+import { BaseGoogleAuthenticator } from './authenticators/oidc/providers/base-google.authenticator.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model.ts';
+import { PasswordAuthenticator } from './authenticators/password/password.authenticator.ts';
+import { CookieAuthStrategy } from './strategies/cookie/cookie-auth.auth-strategy.ts';
+import { JwtAuthData } from './strategies/jwt/jwt-auth-data.model.ts';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy.ts';
 
 // a provider, for the types of linking an identity only: nothing here signs in through it
 class TypedAuthenticator extends BaseGoogleAuthenticator<Roles, JwtUser> {
@@ -552,8 +552,8 @@ describe('AuthService contract', () => {
         // and whoever serves a request reads the answer back out of the route registry
         it('warns that @Auth.skip is useless when no other auth rule is configured for the route', () => {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(logger, 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(logger, 'warn');
 
             authService.resolveRouteAuth(DummyController, 'skipAuth');
 
@@ -563,8 +563,8 @@ describe('AuthService contract', () => {
 
         it('warns that a controller-level @Auth.skip is useless when the controller has no auth rules', () => {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(logger, 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(logger, 'warn');
 
             authService.resolveRouteAuth(ControllerSkipController, 'x');
 
@@ -576,8 +576,8 @@ describe('AuthService contract', () => {
 
         it('stays quiet about a redundant @Auth.skip that says it is redundant', () => {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(logger, 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(logger, 'warn');
 
             authService.resolveRouteAuth(DummyController, 'skipAuthAllowedRedundant');
 

@@ -1,13 +1,13 @@
-import { LocaleCode } from './models/locale-code.model';
-import { TranslationRegistry } from './translation.registry';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { GlobalRegistry } from '../global/global-registry';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { TranslatedString } from './models/translated-string.model';
-import { InternalError } from '../error-handling/internal-error.model';
+import { LocaleCode } from './models/locale-code.model.ts';
+import { TranslationRegistry } from './translation.registry.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { TranslatedString } from './models/translated-string.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * Definition of a value marked with $translate``.
@@ -100,7 +100,7 @@ export function $ts(
     return $t(strings, ...values).getValue(locale);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function isSingleKeyObject(value: unknown): value is Record<string, unknown> {
     return value !== null
         && typeof value === 'object'

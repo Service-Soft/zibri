@@ -1,8 +1,8 @@
-import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
-import type { IdentityLinkingAuthenticators } from './identity-linking-authenticators.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { BaseUser } from '../models/base-user.model';
+import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface.ts';
+import type { IdentityLinkingAuthenticators } from './identity-linking-authenticators.model.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an authenticator that signs users in with an identity they have somewhere else, such

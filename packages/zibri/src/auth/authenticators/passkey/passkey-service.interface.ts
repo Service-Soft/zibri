@@ -1,10 +1,10 @@
-import { PasskeyAuthenticationResponse } from './passkey-authentication-response.model';
-import { PasskeyCreationOptions } from './passkey-creation-options.model';
-import { PasskeyRegistrationResponse } from './passkey-registration-response.model';
-import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model';
-import { PasskeyRequestOptions } from './passkey-request-options.model';
-import { Passkey } from './passkey.model';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
+import { PasskeyAuthenticationResponse } from './passkey-authentication-response.model.ts';
+import { PasskeyCreationOptions } from './passkey-creation-options.model.ts';
+import { PasskeyRegistrationResponse } from './passkey-registration-response.model.ts';
+import { PasskeyRegistrationTicket } from './passkey-registration-ticket.model.ts';
+import { PasskeyRequestOptions } from './passkey-request-options.model.ts';
+import { Passkey } from './passkey.model.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
 
 /**
  * Interface for a passkey service: what issues the challenges a device signs, and verifies its answers.

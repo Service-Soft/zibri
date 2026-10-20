@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { errorToLoggedError } from './error-to-logged-error.function';
-import { LoggedError } from './logged-error.model';
+import { errorToLoggedError } from './error-to-logged-error.function.ts';
+import { LoggedError } from './logged-error.model.ts';
 
 describe('errorToLoggedError', () => {
     it('converts a plain error into paragraphs and a stack trace', () => {

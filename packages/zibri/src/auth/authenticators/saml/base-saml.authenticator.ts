@@ -2,46 +2,46 @@ import { randomBytes } from 'node:crypto';
 
 import type { CacheItem, CacheProvider, Profile, SAML } from '@node-saml/node-saml';
 
-import { SamlMetadataEndpoint } from './metadata/saml-metadata-endpoint.model';
-import { SamlMetadataEntityDescriptor } from './metadata/saml-metadata-entity-descriptor.model';
-import { NodeSamlXml } from './node-saml-xml.type';
-import { NodeSaml } from './node-saml.type';
-import { SamlIdentityProviderSettings } from './saml-identity-provider-settings.model';
-import { SamlIdentityProvider } from './saml-identity-provider.model';
-import { SamlKeyPair } from './saml-key-pair.model';
-import { SamlLogoutSubject } from './saml-logout-subject.model';
-import { SamlNameIdFormat } from './saml-name-id-format.enum';
-import { SamlSoapUtilities } from './saml-soap.utilities';
-import { ZibriApplication } from '../../../application/application';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { XmlUtilities } from '../../../document/xml.utilities';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { HttpMethod } from '../../../http/http-method.enum';
-import { type HttpClientInterface } from '../../../http-client/http-client.interface';
-import { $ts } from '../../../localization/translate.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { Ms } from '../../../utilities/ms';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { UrlUtilities } from '../../../utilities/url.utilities';
-import { BaseUser } from '../../models/base-user.model';
-import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
-import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
-import { FederatedLogoutAnswer } from '../federated/federated-logout-answer.model';
-import { FederatedMetadata } from '../federated/federated-metadata.model';
-import { FederatedProfile } from '../federated/federated-profile.model';
-import { FederatedProviderLogoutMessage } from '../federated/federated-provider-logout-message.model';
-import { FederatedProviderLogout } from '../federated/federated-provider-logout.model';
-import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
-import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
-import { FederatedSession } from '../federated/federated-session.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInStart } from '../federated/federated-sign-in-start.model';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
-import { FederatedSignIn } from '../federated/federated-sign-in.model';
-import { FederatedSoapLogout } from '../federated/federated-soap-logout.model';
+import { SamlMetadataEndpoint } from './metadata/saml-metadata-endpoint.model.ts';
+import { SamlMetadataEntityDescriptor } from './metadata/saml-metadata-entity-descriptor.model.ts';
+import { NodeSamlXml } from './node-saml-xml.type.ts';
+import { NodeSaml } from './node-saml.type.ts';
+import { SamlIdentityProviderSettings } from './saml-identity-provider-settings.model.ts';
+import { SamlIdentityProvider } from './saml-identity-provider.model.ts';
+import { SamlKeyPair } from './saml-key-pair.model.ts';
+import { SamlLogoutSubject } from './saml-logout-subject.model.ts';
+import { SamlNameIdFormat } from './saml-name-id-format.enum.ts';
+import { SamlSoapUtilities } from './saml-soap.utilities.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { XmlUtilities } from '../../../document/xml.utilities.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { HttpMethod } from '../../../http/http-method.enum.ts';
+import { type HttpClientInterface } from '../../../http-client/http-client.interface.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { UrlUtilities } from '../../../utilities/url.utilities.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator.ts';
+import { FederatedAnswerContext } from '../federated/federated-answer-context.model.ts';
+import { FederatedLogoutAnswer } from '../federated/federated-logout-answer.model.ts';
+import { FederatedMetadata } from '../federated/federated-metadata.model.ts';
+import { FederatedProfile } from '../federated/federated-profile.model.ts';
+import { FederatedProviderLogoutMessage } from '../federated/federated-provider-logout-message.model.ts';
+import { FederatedProviderLogout } from '../federated/federated-provider-logout.model.ts';
+import { FederatedReauthentication } from '../federated/federated-reauthentication.model.ts';
+import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model.ts';
+import { FederatedSession } from '../federated/federated-session.model.ts';
+import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum.ts';
+import { FederatedSignInStart } from '../federated/federated-sign-in-start.model.ts';
+import { FederatedSignInError } from '../federated/federated-sign-in.error.ts';
+import { FederatedSignIn } from '../federated/federated-sign-in.model.ts';
+import { FederatedSoapLogout } from '../federated/federated-soap-logout.model.ts';
 
 /**
  * The binding the browser is sent to the identity provider with: the request in the query of a redirect.
@@ -261,7 +261,7 @@ export abstract class BaseSamlAuthenticator<
     }
 
     // a logout of the identity provider's pages is posted from the pages its logout urls are on
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveFormPostOrigins(): Promise<string[]> {
         const settings: SamlIdentityProviderSettings = await this.resolveSettings();
         const urls: string[] = [settings.signInUrl, settings.logoutUrl, settings.logoutPostUrl].filter(url => url != undefined);
@@ -344,14 +344,14 @@ export abstract class BaseSamlAuthenticator<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async createSignInUrl(start: FederatedSignInStart): Promise<string> {
         const settings: SamlIdentityProviderSettings = await this.resolveSettings();
         const saml: SAML = this.createSaml(settings, this.toRequestId(start.binding), start.reauthenticate);
         return await saml.getAuthorizeUrlAsync(start.state, undefined, {});
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async verifyAnswer(
         answer: URLSearchParams,
         context: FederatedAnswerContext
@@ -387,7 +387,7 @@ export abstract class BaseSamlAuthenticator<
         return answer.get('RelayState');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected answersWithFormPost(): boolean {
         return true;
     }
@@ -584,8 +584,10 @@ export abstract class BaseSamlAuthenticator<
         }
         const createService: (binding: string, location: string) => Element = (binding, location) => {
             const service: Element = document.createElementNS(METADATA_NAMESPACE, 'SingleLogoutService');
-            service.setAttribute('binding', binding);
-            service.setAttribute('location', location);
+            // the metadata schema's names, which xml compares case sensitively. The lint rule below is
+            // written for html attributes, and its fix lowercasing these is what broke the logout services
+            service.setAttribute('Binding', binding);
+            service.setAttribute('Location', location);
             return service;
         };
         posted.parentNode.insertBefore(createService(HTTP_REDIRECT_BINDING, this.resolveRouteUrl('logout')), posted);

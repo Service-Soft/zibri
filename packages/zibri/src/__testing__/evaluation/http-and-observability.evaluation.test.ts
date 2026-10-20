@@ -1,42 +1,42 @@
 import { Server } from 'node:http';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RequestHandler } from 'express';
 
-import { ZibriApplication } from '../../application/application';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { ZIBRI_DI_PROVIDERS } from '../../di/default/zibri-di-providers.default';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type DiProviderWithoutToken } from '../../di/models/di-provider.model';
-import { Property } from '../../entity/decorators/property.decorator';
-import { ValidationError } from '../../error-handling/errors/validation.error';
-import { HttpMethod } from '../../http/http-method.enum';
-import { HttpRequest } from '../../http/http-request.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MiddlewarePhase } from '../../http/middleware-phase.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { File } from '../../parsing/form-data/file.model';
-import { FormDataBodyParserCleanupCronJob } from '../../parsing/form-data/form-data-body-parser-cleanup.cron-job';
-import { CLEANUP_AT_FILE_NAME } from '../../parsing/form-data/form-data.model';
-import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function';
-import { type RouterInterface } from '../../routing/router.interface';
-import { type TraceBufferInterface } from '../../tracing/trace-buffer.interface';
-import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
-import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
-import { type TraceSpanRecord } from '../../tracing/trace-span-record.model';
-import { TracingUtilities } from '../../tracing/tracing.utilities';
-import { Newable } from '../../types/newable.type';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { Ms } from '../../utilities/ms';
-import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { ValidationServiceInterface } from '../../validation/validation-service.interface';
-import { createTestDataSource } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { ZibriApplication } from '../../application/application.ts';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { ZIBRI_DI_PROVIDERS } from '../../di/default/zibri-di-providers.default.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type DiProviderWithoutToken } from '../../di/models/di-provider.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { ValidationError } from '../../error-handling/errors/validation.error.ts';
+import { HttpMethod } from '../../http/http-method.enum.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MiddlewarePhase } from '../../http/middleware-phase.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { File } from '../../parsing/form-data/file.model.ts';
+import { FormDataBodyParserCleanupCronJob } from '../../parsing/form-data/form-data-body-parser-cleanup.cron-job.ts';
+import { CLEANUP_AT_FILE_NAME } from '../../parsing/form-data/form-data.model.ts';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function.ts';
+import { type RouterInterface } from '../../routing/router.interface.ts';
+import { type TraceBufferInterface } from '../../tracing/trace-buffer.interface.ts';
+import { TraceContextUtilities } from '../../tracing/trace-context.utilities.ts';
+import { TraceSpanKind } from '../../tracing/trace-span-kind.enum.ts';
+import { type TraceSpanRecord } from '../../tracing/trace-span-record.model.ts';
+import { TracingUtilities } from '../../tracing/tracing.utilities.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { resolveAppRoot } from '../../utilities/resolve-app-root.function.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { ValidationServiceInterface } from '../../validation/validation-service.interface.ts';
+import { createTestDataSource } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/02-http-runtime-core.md.
@@ -49,7 +49,7 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * finding is closed. See ./README.md for why.
  */
 
-const srcDir: FsPath = FsUtilities.getPath(__dirname, '..', '..');
+const srcDir: FsPath = FsUtilities.getPath(import.meta.dirname, '..', '..');
 
 /**
  * The real cleanup job, with the logger its init would otherwise have handed it.
@@ -246,7 +246,7 @@ let exceptionListenersBeforeStart: number = 0;
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource();
 
 beforeAll(async () => {
-    // captured before the application exists, so jest's own handlers are not counted as Zibri's
+    // captured before the application exists, so the test runner's own handlers are not counted as Zibri's
     rejectionListenersBeforeStart = process.listenerCount('unhandledRejection');
     exceptionListenersBeforeStart = process.listenerCount('uncaughtException');
 
@@ -461,7 +461,7 @@ describe('evaluation/02-http-runtime-core', () => {
             const tempFolder: FsPath = provider.useFactory();
 
             // this used to be getPath(__dirname, 'temp'), which in a real install resolves to
-            // node_modules/zibri/dist/cjs/di/default/temp - that breaks on a read-only image, and
+            // node_modules/zibri/dist/di/default/temp - that breaks on a read-only image, and
             // otherwise puts user uploads in the dependency tree where npm ci wipes them
             expect(tempFolder.startsWith(srcDir)).toBe(false);
             expect(tempFolder.startsWith(resolveAppRoot())).toBe(true);

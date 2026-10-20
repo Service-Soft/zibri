@@ -1,22 +1,22 @@
 import { createServer, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { Response as RouteResponse } from '../../open-api/decorators/response.decorator';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { Response as RouteResponse } from '../../open-api/decorators/response.decorator.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 class SignUpForm {
     @Property.string()

@@ -1,12 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
 
 /**
  * The cases every data source answers the same way about how a uuid is stored and found, whichever
@@ -52,7 +53,7 @@ export class UuidItem extends BaseEntity {
      * The owner, when there is one.
      */
     @Property.manyToOne({ target: () => UuidOwner, joinColumn: 'ownerId', inverseSide: 'items', required: false })
-    owner?: UuidOwner;
+    owner?: Relation<UuidOwner>;
 
     /**
      * The foreign key of the owner.

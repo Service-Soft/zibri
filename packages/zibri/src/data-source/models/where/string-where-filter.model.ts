@@ -1,5 +1,5 @@
-import { AllOf, BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
-import { FuzzyLikeFilter } from './fuzzy-like.model';
+import { AllOf, BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model.ts';
+import { FuzzyLikeFilter } from './fuzzy-like.model.ts';
 
 /**
  * The string where filter object.

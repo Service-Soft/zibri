@@ -1,7 +1,7 @@
-import { AstExpression, AstPartialStatement } from './ast.model';
-import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
+import { AstExpression, AstPartialStatement } from './ast.model.ts';
+import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function resolveKeysForPartialStatement(
     stmt: AstPartialStatement,
     parentKey: string | undefined
@@ -21,7 +21,7 @@ export function resolveKeysForPartialStatement(
     return res;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function resolveKeysForExpression(
     param: AstExpression,
     parentKey: string | undefined

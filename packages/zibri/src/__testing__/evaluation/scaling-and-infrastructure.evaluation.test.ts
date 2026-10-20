@@ -1,15 +1,15 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { CronJobState } from '../../cron/cron-job-entity.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Lease } from '../../leases/lease.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { CronJobState } from '../../cron/cron-job-entity.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { Lease } from '../../leases/lease.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md, plus the deployment findings
  * from evaluation/01-data-layer.md (C2, C3).
  *
- * Almost everything here only goes wrong with more than one instance, and a single jest process
+ * Almost everything here only goes wrong with more than one instance, and a single test process
  * cannot observe that. Those findings are proven in ./cluster, one forked process per instance
  * against shared containers, and the findings observable in one process are tested for real in the
  * files noted against them. What is left here is a map from each finding to where it is held, plus

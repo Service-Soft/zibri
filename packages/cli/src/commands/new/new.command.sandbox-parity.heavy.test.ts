@@ -1,17 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { NewCommand } from './new.command';
-import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences';
-import { diffFileContents } from '../../__testing__/diff-file-contents.function';
-import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
-import { GENERATED_FILE_PATHS, SANDBOX_DIR } from '../../__testing__/generated-file-paths';
-import { normalizePackageJson } from '../../__testing__/normalize-package-json.function';
-import { quietly } from '../../__testing__/quietly.function';
-import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { NewCommand } from './new.command.ts';
+import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences.ts';
+import { diffFileContents } from '../../__testing__/diff-file-contents.function.ts';
+import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function.ts';
+import { GENERATED_FILE_PATHS, SANDBOX_DIR } from '../../__testing__/generated-file-paths.ts';
+import { normalizePackageJson } from '../../__testing__/normalize-package-json.function.ts';
+import { quietly } from '../../__testing__/quietly.function.ts';
+import { CPUtilities, FsUtilities } from '../../encapsulation/index.ts';
+import { Path } from '../../utilities/index.ts';
 
 /**
  * The same comparison `new.command.sandbox-parity.test.ts` makes in under two seconds, with the real

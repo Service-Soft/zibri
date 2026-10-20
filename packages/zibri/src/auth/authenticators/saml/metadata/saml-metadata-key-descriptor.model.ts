@@ -1,7 +1,7 @@
-import { SamlMetadataKeyInfo } from './saml-metadata-key-info.model';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator';
-import { XmlElement } from '../../../../parsing/xml/xml-element.decorator';
+import { SamlMetadataKeyInfo } from './saml-metadata-key-info.model.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator.ts';
+import { XmlElement } from '../../../../parsing/xml/xml-element.decorator.ts';
 
 /**
  * A key of an identity provider, as its SAML metadata names it.

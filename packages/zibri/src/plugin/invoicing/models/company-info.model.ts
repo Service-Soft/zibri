@@ -1,4 +1,4 @@
-import { type ElectronicAddress } from './electronic-address.model';
+import { type ElectronicAddress } from './electronic-address.model.ts';
 
 /**
  * Contains base information about the company that issues an invoice.

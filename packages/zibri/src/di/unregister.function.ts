@@ -1,7 +1,7 @@
-import { DiContainer } from './di-container';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { DiToken } from './models/di-token.model';
+import { DiContainer } from './di-container.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { DiToken } from './models/di-token.model.ts';
 
 /**
  * Removes the provided token from the dependency injection system.

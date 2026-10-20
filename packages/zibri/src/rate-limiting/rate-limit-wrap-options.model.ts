@@ -1,4 +1,4 @@
-import { SuccessRateLimitReservationResult } from './reservation/rate-limit-reservation-result.model';
+import { SuccessRateLimitReservationResult } from './reservation/rate-limit-reservation-result.model.ts';
 
 /**
  * Provider for a rate limit key.
@@ -35,7 +35,7 @@ export type RateLimitWrapOptions<TArgs extends unknown[]> = {
 /**
  * Result of the function returned by the rate limiter wrap method.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type RateLimitWrapResult<V, TOptions> = TOptions extends { reserveIfUnavailable: true }
     ? Promise<V | SuccessRateLimitReservationResult>
     : Promise<V>;

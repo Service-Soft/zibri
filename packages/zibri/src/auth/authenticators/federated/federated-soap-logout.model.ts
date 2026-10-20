@@ -1,4 +1,4 @@
-import { FederatedSessionMatch } from './federated-session-match.model';
+import { FederatedSessionMatch } from './federated-session-match.model.ts';
 
 /**
  * What a provider sent server to server to the `logout/soap` route: that the user logged out there.

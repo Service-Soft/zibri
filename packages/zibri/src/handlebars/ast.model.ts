@@ -1,5 +1,5 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { OmitStrict } from '../types/omit-strict.type';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 export type AstProgram = OmitStrict<hbs.AST.Program, 'body'> & { body: AstStatement[] };
 

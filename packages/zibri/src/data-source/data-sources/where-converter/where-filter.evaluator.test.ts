@@ -1,12 +1,13 @@
 /* eslint-disable unicorn/no-null */
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { WhereFilterEvaluator } from './where-filter.evaluator';
-import { initDiContainer } from '../../../di/init-di-container.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { Where } from '../../models/where/where-filter.model';
+import { WhereFilterEvaluator } from './where-filter.evaluator.ts';
+import { initDiContainer } from '../../../di/init-di-container.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../../entity/models/relation.type.ts';
+import { Where } from '../../models/where/where-filter.model.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class EvaluatorCategory extends BaseEntity {
@@ -55,7 +56,7 @@ class EvaluatorProduct extends BaseEntity {
     metadata: EvaluatorMetadata | undefined | null;
 
     @Property.manyToOne({ target: () => EvaluatorCategory, inverseSide: 'products', joinColumn: 'categoryId' })
-    category!: EvaluatorCategory;
+    category!: Relation<EvaluatorCategory>;
 
     @Property.string({ format: 'uuid' })
     categoryId!: string;
@@ -118,9 +119,9 @@ describe('WhereFilterEvaluator', () => {
         });
 
         it('like supports the single character wildcard', () => {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Alpha' }, { name: { like: 'Alph_' } })).toBe(true);
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Alphaa' }, { name: { like: 'Alph_' } })).toBe(false);
         });
 
@@ -135,14 +136,14 @@ describe('WhereFilterEvaluator', () => {
         });
 
         it('fuzzyLike matches typos', () => {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Alpha' }, { name: { fuzzyLike: { value: 'Alpah' } } })).toBe(true);
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Zebra' }, { name: { fuzzyLike: { value: 'Alpah' } } })).toBe(false);
         });
 
         it('fuzzyLike respects minSimilarity', () => {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Alpha' }, { name: { fuzzyLike: { value: 'Alpah', minSimilarity: 99 } } })).toBe(false);
             expect(matches({ name: 'Alpha' }, { name: { fuzzyLike: { value: 'Alpha', minSimilarity: 99 } } })).toBe(true);
         });
@@ -162,9 +163,9 @@ describe('WhereFilterEvaluator', () => {
         it('requires every pattern of an iLike and of a fuzzyLike that name several', () => {
             expect(matches({ name: 'Rent 2026' }, { name: { iLike: ['rent%', '%2026'] } })).toBe(true);
             expect(matches({ name: 'Rent 2025' }, { name: { iLike: ['rent%', '%2026'] } })).toBe(false);
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Alpha' }, { name: { fuzzyLike: [{ value: 'Alpah' }, { value: 'Alpha' }] } })).toBe(true);
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             expect(matches({ name: 'Alpha' }, { name: { fuzzyLike: [{ value: 'Alpah' }, { value: 'Zebra' }] } })).toBe(false);
         });
 
@@ -369,7 +370,7 @@ describe('WhereFilterEvaluator', () => {
                 id: 'c1',
                 name: 'Food',
                 products: [product({ name: 'Kibble' }), product({ name: 'Ball' })]
-            } as EvaluatorCategory;
+            };
             expect(evaluator.matches(category, { products: { where: { name: 'Ball' } } }, EvaluatorCategory)).toBe(true);
             expect(evaluator.matches(category, { products: { where: { name: 'Bone' } } }, EvaluatorCategory)).toBe(false);
             expect(evaluator.matches(category, { products: { length: 2 } }, EvaluatorCategory)).toBe(true);
@@ -403,7 +404,7 @@ describe('WhereFilterEvaluator', () => {
         });
 
         it('throws for an empty filter object on a property', () => {
-            expect(() => matches({ name: 'Alpha' }, { name: {} } as unknown as Where<EvaluatorProduct>))
+            expect(() => matches({ name: 'Alpha' }, { name: {} }))
                 .toThrow(/Empty where filter/);
         });
     });

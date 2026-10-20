@@ -1,6 +1,6 @@
-import { Newable } from '../../types/newable.type';
-import { AuthControllerAuthenticatorInterface } from '../authenticators/auth-controller-authenticator.interface';
-import { BaseUser } from '../models/base-user.model';
+import { Newable } from '../../types/newable.type.ts';
+import { AuthControllerAuthenticatorInterface } from '../authenticators/auth-controller-authenticator.interface.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * A class of an authenticator the routes of `AuthController` log in with.

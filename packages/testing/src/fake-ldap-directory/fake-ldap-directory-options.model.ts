@@ -1,4 +1,4 @@
-import { FakeLdapEntry } from './fake-ldap-entry.model';
+import { FakeLdapEntry } from './fake-ldap-entry.model.ts';
 
 /**
  * What a fake directory is started with.

@@ -1,21 +1,21 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { LoggerTransport } from './logger-transport.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../../__testing__/wait-until.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { Ms } from '../../utilities/ms';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { AuditAction, AuditEvent, AuditOutcome, AuditReason } from '../audit-event.model';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
-import { Logger } from '../logger';
+import { LoggerTransport } from './logger-transport.model.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../../__testing__/wait-until.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { AuditAction, AuditEvent, AuditOutcome, AuditReason } from '../audit-event.model.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
+import { Logger } from '../logger.ts';
 
 let server: StartedTestServer;
 let tenants: TenantServiceInterface;
@@ -79,7 +79,7 @@ describe('the db logger transport\'s budget', () => {
     }, 30000);
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     afterAll(async () => {
@@ -166,7 +166,7 @@ describe('the db logger transport\'s budget', () => {
     it('writes the counted rows when the minute ends, without waiting for another entry', async () => {
         const tenantId: string = UUIDUtilities.generate();
         const start: number = Date.now();
-        const now: jest.Spied<typeof Date.now> = jest.spyOn(Date, 'now').mockReturnValue(start);
+        const now: MockInstance<typeof Date.now> = vi.spyOn(Date, 'now').mockReturnValue(start);
         const logger: Logger = loggerWith(1, 0);
 
         await logIn(tenantId, () => logger.info('first'));
@@ -187,7 +187,7 @@ describe('the db logger transport\'s budget', () => {
     it('starts a new budget when the minute is over', async () => {
         const tenantId: string = UUIDUtilities.generate();
         const start: number = Date.now();
-        const now: jest.Spied<typeof Date.now> = jest.spyOn(Date, 'now').mockReturnValue(start);
+        const now: MockInstance<typeof Date.now> = vi.spyOn(Date, 'now').mockReturnValue(start);
         const logger: Logger = loggerWith(1);
 
         await logIn(tenantId, () => logger.info('this minute'));

@@ -1,4 +1,4 @@
-import { BaseRateLimitState, RateLimiterStoreInterface } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimitState, RateLimiterStoreInterface } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * What a limiter does when it cannot reach its store at all.

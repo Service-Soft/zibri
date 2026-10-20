@@ -1,5 +1,5 @@
-import { MasterKeyReference } from './master-key-reference.model';
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
+import { MasterKeyReference } from './master-key-reference.model.ts';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
 
 /**
  * The keys whatever is encrypted right now depends on, and where the data keys are stored.

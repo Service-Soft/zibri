@@ -1,9 +1,9 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { parseObject } from './parse-object.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { parseObject } from './parse-object.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 class Dummy {}
 

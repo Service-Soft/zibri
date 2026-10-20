@@ -1,8 +1,8 @@
 import type { ConvertOutputOptions } from 'swagger2openapi';
 
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { OpenApiDefinition } from '../../../open-api/open-api.model';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { OpenApiDefinition } from '../../../open-api/open-api.model.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * Utilities for handling open api spec conversions.

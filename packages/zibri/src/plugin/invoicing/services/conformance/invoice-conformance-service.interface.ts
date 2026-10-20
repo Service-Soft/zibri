@@ -1,6 +1,6 @@
-import { PdfDocument, PdfDocumentDefinition } from '../../../../document/pdf.utilities';
-import { Timezone } from '../../../../localization/models/timezone.model';
-import { Invoice as BaseInvoice } from '../../models/invoice.model';
+import { PdfDocument, PdfDocumentDefinition } from '../../../../document/pdf.utilities.ts';
+import { Timezone } from '../../../../localization/models/timezone.model.ts';
+import { Invoice as BaseInvoice } from '../../models/invoice.model.ts';
 
 /**
  * Defines the different conformance types.

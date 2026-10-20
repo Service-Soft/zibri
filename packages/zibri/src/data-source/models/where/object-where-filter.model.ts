@@ -1,9 +1,9 @@
-import { Where } from './where-filter.model';
+import { Where } from './where-filter.model.ts';
 
 /**
  * A filter for a object where property.
  */
-export type ObjectWhereFilter<T extends Object> = {
+export type ObjectWhereFilter<T extends object> = {
     /**
      * The property needs to equal the value.
      */

@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { parseDate } from './parse-date.function';
+import { parseDate } from './parse-date.function.ts';
 
 describe('parseDate', () => {
     it('returns new Date if input is a valid Date object', () => {

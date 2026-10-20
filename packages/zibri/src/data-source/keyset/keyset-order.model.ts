@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { EntityOrderUtilities } from '../../entity/models/entity-order.utilities';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { FindAllOptions } from '../models/options/find-all-options.model';
-import { Where } from '../models/where/where-filter.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { EntityOrderUtilities } from '../../entity/models/entity-order.utilities.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { FindAllOptions } from '../models/options/find-all-options.model.ts';
+import { Where } from '../models/where/where-filter.model.ts';
 
 /**
  * The property types a keyset read can continue through.

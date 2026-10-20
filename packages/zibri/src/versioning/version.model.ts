@@ -1,6 +1,6 @@
-import { type SemVerVersion } from './sem-ver.utilities';
-import { StoredRoute } from './stored-route.model';
-import { Property } from '../entity/decorators/property.decorator';
+import { type SemVerVersion } from './sem-ver.utilities.ts';
+import { StoredRoute } from './stored-route.model.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
 
 /**
  * A version, consisting of the actual version value and a starts end end date.

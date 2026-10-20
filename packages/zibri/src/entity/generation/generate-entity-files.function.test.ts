@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { generateEntityFiles } from './generate-entity-files.function';
-import { testFileFolder } from '../../__testing__/constants';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+import { generateEntityFiles } from './generate-entity-files.function.ts';
+import { testFileFolder } from '../../__testing__/constants.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
 
-// A schema rich enough to exercise multiple property-type branches through the full cwd -> ts-node ->
-// require() -> disk pipeline, not just the pure generateEntityFilesForProvider() logic (that deeper,
+// A schema rich enough to exercise multiple property-type branches through the full cwd -> import()
+// -> disk pipeline, not just the pure generateEntityFilesForProvider() logic (that deeper,
 // per-property-type branch coverage — including the known "enum properties get no @Property enum
 // validation" gap, see the "handle enums in entity generation" comment in
 // generate-entity-file.function.ts — lives in generate-entity-files-for-provider.test.ts).
@@ -38,8 +38,8 @@ describe('generateEntityFiles', () => {
         // generateEntityFiles reads from/writes to paths relative to `process.cwd()` with no path
         // parameter of its own, so — same approach as generate-source-xlf.function.test.ts — the cwd is
         // redirected into a fresh scratch directory per test. A unique dir per test also sidesteps
-        // Node's require() module cache, which is keyed by absolute path and would otherwise return a
-        // stale, previously-required providers.ts across tests.
+        // the module cache, which is keyed by path and would otherwise return a stale,
+        // previously-imported providers.ts across tests.
         workDir = FsUtilities.getPath(testFileFolder, `generate-entity-files-${Date.now()}-${Math.random().toString(36)
             .slice(2)}`);
         generatedDir = FsUtilities.getPath(workDir, 'src/models/generated');
@@ -54,8 +54,8 @@ describe('generateEntityFiles', () => {
     });
 
     it(
-        'resolves providers.ts via ts-node, writes entity files + a per-provider index.ts + the top-level '
-        // eslint-disable-next-line cspell/spellchecker
+        'imports providers.ts, writes entity files + a per-provider index.ts + the top-level '
+        // cspell:disable-next-line
         + 'index.ts to disk, and correctly transpiles string/enum/date/array property types along the way',
         async () => {
             await FsUtilities.createFile(

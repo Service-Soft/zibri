@@ -1,5 +1,5 @@
-import { InternalError } from '../../error-handling/internal-error.model';
-import { DiToken } from '../models/di-token.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { DiToken } from '../models/di-token.model.ts';
 
 /**
  * An error to throw when two plugins provide the same token and nothing says which one to use.

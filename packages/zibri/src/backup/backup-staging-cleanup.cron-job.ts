@@ -1,13 +1,13 @@
 import { Dirent } from 'node:fs';
 
-import { RestoreJournal } from './restore-journal.model';
-import { RestoreJournalUtilities } from './restore-journal.utilities';
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { FsUtilities, type FsPath } from '../utilities/fs.utilities';
-import { Ms } from '../utilities/ms';
+import { RestoreJournal } from './restore-journal.model.ts';
+import { RestoreJournalUtilities } from './restore-journal.utilities.ts';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { FsUtilities, type FsPath } from '../utilities/fs.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * How long a staged archive has to have gone untouched before it counts as abandoned.
@@ -26,7 +26,7 @@ const ABANDONED_AFTER_IN_MS: number = Ms.HOUR * 12;
  * restore that was interrupted and the snapshots it names are kept, for the next start to put back.
  */
 export class BackupStagingCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Backup Staging Cleanup',
         cron: CronExpression.daily().build(),
@@ -43,7 +43,7 @@ export class BackupStagingCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         if (!await FsUtilities.exists(this.stagingPath)) {
             return;

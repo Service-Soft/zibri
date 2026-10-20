@@ -1,10 +1,10 @@
 import { randomBytes, scrypt, ScryptOptions, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
-import { HashStrategyInterface } from './hash-strategy.interface';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { HashContent, HashString, HashUtilities } from '../hash.utilities';
+import { HashStrategyInterface } from './hash-strategy.interface.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { HashContent, HashString, HashUtilities } from '../hash.utilities.ts';
 
 /**
  * The cost of one scrypt derivation.
@@ -72,16 +72,16 @@ export const defaultScryptCost: ScryptCost = { n: 131072, r: 8, p: 1 };
  * Default scrypt hash strategy implementation of zibri.
  */
 export class ScryptHashStrategy implements HashStrategyInterface<ScryptHashOptions> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'scrypt';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly version: string = 'v1';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly deterministic: boolean = false;
 
     private readonly keyLength: number = 32;
     // the options overload, which promisify does not pick on its own
-    // eslint-disable-next-line typescript/typedef
+    // eslint-disable-next-line typescript-js/typedef
     private readonly scrypt = promisify<string, Buffer, number, ScryptOptions, Buffer>(scrypt);
 
     constructor(
@@ -89,7 +89,7 @@ export class ScryptHashStrategy implements HashStrategyInterface<ScryptHashOptio
         private readonly defaultCost: ScryptCost
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async hash(
         value: string,
         options: ScryptHashOptions | undefined
@@ -108,7 +108,7 @@ export class ScryptHashStrategy implements HashStrategyInterface<ScryptHashOptio
         return HashUtilities.contentToHash({ strategyName: this.name, version: this.version, hashedValue });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async equal(value: string, hash: HashString): Promise<boolean> {
         const content: HashContent = HashUtilities.hashToContent(hash);
         const parsed: ParsedScryptHash | undefined = this.parse(content.hashedValue);

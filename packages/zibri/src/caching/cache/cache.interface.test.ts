@@ -1,16 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { isCache } from './cache.interface';
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { Cache } from '../decorators/cache.decorator';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { isCache } from './cache.interface.ts';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { Cache } from '../decorators/cache.decorator.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
 
 @Cache()
 class IsCacheTestCache extends WriteThroughReadThroughCache<string, string, 'Is Cache Test Cache'> {

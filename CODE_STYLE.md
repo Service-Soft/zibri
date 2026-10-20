@@ -22,12 +22,14 @@ and the linter disagree, the linter wins and this file is wrong; open an issue.
 
 # The linter decides most of it
 
-Casing, import order, line length, member ordering and required JSDoc are all rules, not prose.
-Run `npm run lint -w <package>` and `npm run typecheck -w <package>` before you open a pull request.
-The typecheck is the only thing that checks the tests' types: the builds leave tests out, and jest
+Casing, member ordering and required JSDoc are lint rules (oxlint), layout and import order are the
+formatter's (oxfmt), and spelling is cspell's - all three are tools, not prose. Run
+`npm run lint -w <package>` and `npm run typecheck -w <package>` before you open a pull request;
+`npm run lint:fix -w <package>` formats and applies the fixes the linter can make.
+The typecheck is the only thing that checks the tests' types: the builds leave tests out, and vitest
 only transpiles them.
 
-**Warnings are errors.** Every package runs `eslint --max-warnings=0`, so there is no such thing as a
+**Warnings are errors.** Every package runs `oxlint --max-warnings=0`, so there is no such thing as a
 warning you can leave behind.
 
 If a rule fires, try to fix the code — enumerate the

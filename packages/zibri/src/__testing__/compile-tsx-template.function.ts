@@ -1,22 +1,22 @@
 import { CompiledPage } from 'zibri-tsx';
 import { compile, CompileResult } from 'zibri-tsx/compiler';
 
-import { InternalError } from '../error-handling/internal-error.model';
-import { $f } from '../localization/format.function';
-import { $t, $ts } from '../localization/translate.function';
-import { onClient } from '../tsx/on-client.hook';
-import { onServer } from '../tsx/on-server.hook';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { $f } from '../localization/format.function.ts';
+import { $t, $ts } from '../localization/translate.function.ts';
+import { onClient } from '../tsx/on-client.hook.ts';
+import { onServer } from '../tsx/on-server.hook.ts';
 
 /**
  * The framework hooks a template would normally import from zibri. The real implementations are
  * used, so `onClient` bodies stay out of the server render exactly like they do in production.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const templateHooks = { onClient, onServer, $t, $ts, $f } as const;
 
 /**
  * Compiles template source with the real zibri-tsx compiler and evaluates the emitted module, so
- * tests get exactly the compiled component that the webpack loader produces at build time.
+ * tests get exactly the compiled component that the zibri-tsx Vite plugin produces at build time.
  *
  * Templates may use the framework hooks without importing them; any other import is not supported,
  * which is all a rendering test needs.
@@ -32,7 +32,7 @@ export function compileTsxTemplate<T = CompiledPage>(source: string): T {
     const result: CompileResult = compile(source);
     if (!result.code || !result.componentName) {
         throw new InternalError(
-            // eslint-disable-next-line sonar/no-nested-template-literals
+            // eslint-disable-next-line sonarjs/no-nested-template-literals
             `Template did not compile:\n${result.diagnostics.map(d => `${d.code}: ${d.message}`).join('\n')}`
         );
     }

@@ -1,5 +1,5 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * An identity linked to a user, together with the authenticator it signs in through.

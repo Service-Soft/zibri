@@ -6,49 +6,49 @@ import { Worker } from 'node:worker_threads';
 
 import { filter, firstValueFrom } from 'rxjs';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { ThreadJob } from './thread-job';
-import { ThreadJobWorker } from './thread-job-worker';
-import { ZibriApplication } from '../../application/application';
-import { AlsUtilities } from '../../context/als.utilities';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
-import { OnAppStart } from '../../global/on-app-start.interface';
-import { KnownHeader } from '../../http/known-header.enum';
-import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
-import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
-import { LoggedError } from '../../logging/logged-error.model';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { TraceContextUtilities } from '../../tracing/trace-context.utilities';
-import { TraceSpanContext } from '../../tracing/trace-span-context.model';
-import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
-import { TraceSpanStatus } from '../../tracing/trace-span-status.enum';
-import { TraceSpanInterface } from '../../tracing/trace-span.interface';
-import { TracingUtilities } from '../../tracing/tracing.utilities';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities';
-import { isTsNodeInstalled, needsTsNode } from '../../utilities/register-ts-node.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { type MultithreadingOptions } from '../models/multithreading-options.model';
-import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
-import { ThreadJobFunction } from '../models/thread-job-function.model';
-import { ThreadJobMessage } from '../models/thread-job-message.model';
-import { ThreadJobStartMessage } from '../models/thread-job-start-message.model';
-import { ThreadJobStatus } from '../models/thread-job-status.enum';
-import { RunQueuedThreadJobsCronJob } from '../run-queued-thread-jobs.cron-job';
+import { MultithreadingServiceInterface } from './multithreading-service.interface.ts';
+import { ThreadJob } from './thread-job.ts';
+import { ThreadJobWorker } from './thread-job-worker.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { OnAppShutdown } from '../../global/on-app-shutdown.interface.ts';
+import { OnAppStart } from '../../global/on-app-start.interface.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { type LeaseServiceInterface } from '../../leases/lease-service.interface.ts';
+import { errorToLoggedError } from '../../logging/error-to-logged-error.function.ts';
+import { LoggedError } from '../../logging/logged-error.model.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { TraceContextUtilities } from '../../tracing/trace-context.utilities.ts';
+import { TraceSpanContext } from '../../tracing/trace-span-context.model.ts';
+import { TraceSpanKind } from '../../tracing/trace-span-kind.enum.ts';
+import { TraceSpanStatus } from '../../tracing/trace-span-status.enum.ts';
+import { TraceSpanInterface } from '../../tracing/trace-span.interface.ts';
+import { TracingUtilities } from '../../tracing/tracing.utilities.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { FsUtilities, type FsPath } from '../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { PromiseUtilities, TimeoutError } from '../../utilities/promise.utilities.ts';
+import { TypeScriptLoaderUtilities } from '../../utilities/typescript-loader/typescript-loader.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { type MultithreadingOptions } from '../models/multithreading-options.model.ts';
+import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
+import { ThreadJobFunction } from '../models/thread-job-function.model.ts';
+import { ThreadJobMessage } from '../models/thread-job-message.model.ts';
+import { ThreadJobStartMessage } from '../models/thread-job-start-message.model.ts';
+import { ThreadJobStatus } from '../models/thread-job-status.enum.ts';
+import { RunQueuedThreadJobsCronJob } from '../run-queued-thread-jobs.cron-job.ts';
 
 /**
  * An error to throw during multithreading service initialization.
@@ -142,7 +142,7 @@ type JobCandidate
         job: ThreadJob<BaseFunctionThreadJobWorkerData<unknown>, unknown>
     }
     | {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         queuedAtMs: number,
         /**
          * A queued job, as it is stored. Still has to be claimed.
@@ -252,7 +252,6 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         this.threadJobWorkerFilePath = FsUtilities.getPath(
             packageRoot,
             'dist',
-            'cjs',
             'multithreading',
             'services',
             'worker',
@@ -291,7 +290,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         return inject(repositoryTokenFor(ThreadJobEntity));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         // the queue lives in the table, and the pool below starts reading it as soon as the app starts
         validateEntitiesRegistered(MultithreadingService.name, app, ThreadJobEntity);
@@ -316,7 +315,6 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
 
         const workerPromises: Promise<boolean>[] = this.workers.map(w => firstValueFrom(w.isInitializingSubject.pipe(filter(i => !i))));
-        // eslint-disable-next-line stylistic/max-len
         const idleWorkerPromises: Promise<boolean>[] = this.idleWorkers.map(w => firstValueFrom(w.isInitializingSubject.pipe(filter(i => !i))));
         await Promise.all([
             ...workerPromises,
@@ -390,9 +388,9 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         // the option existing: a worker file is named per job, so nothing else in this process ever
         // learns that a compiler will be wanted until a job wants one - and that can be days after
         // the deployment that left it out.
-        if (this.options.enableTsWorkerFiles && !isTsNodeInstalled()) {
+        if (this.options.enableTsWorkerFiles && !TypeScriptLoaderUtilities.isInstalled()) {
             throw new InitMultithreadingServiceError([
-                'enableTsWorkerFiles is true, but the optional peer dependency "ts-node" is not installed,',
+                'enableTsWorkerFiles is true, but the optional peer dependency "oxc-transform" is not installed,',
                 'so a worker file written in TypeScript could not be compiled.',
                 'Install it, or set multithreading.enableTsWorkerFiles to false if this deployment ships',
                 'compiled worker files.'
@@ -400,7 +398,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async queueThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType>(
         threadJobData: ThreadJobData<WorkerData>
     ): Promise<string> {
@@ -446,17 +444,17 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
      * @throws If the file is TypeScript and `enableTsWorkerFiles` is false.
      */
     private validateWorkerFileCanBeLoaded(workerData: BaseThreadJobWorkerData): void {
-        if (this.options.enableTsWorkerFiles || !needsTsNode(workerData.filePath)) {
+        if (this.options.enableTsWorkerFiles || !TypeScriptLoaderUtilities.isNeededFor(workerData.filePath)) {
             return;
         }
         throw new InternalError([
             `The worker file ${workerData.filePath} is TypeScript, and multithreading.enableTsWorkerFiles is false.`,
             'Point the job at the compiled file, or set that option to true and install the optional peer',
-            'dependency "ts-node".'
+            'dependency "oxc-transform".'
         ]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async runThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType>(
         threadJobData: ThreadJobData<WorkerData>
     ): Promise<ThreadJobEntity<WorkerData, ResultType>> {
@@ -464,7 +462,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         return await this.waitForThreadJob<ResultType, WorkerData>(jobId);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async run<InputType, ResultType>(
         func: ThreadJobFunction<InputType, ResultType>,
         input: InputType,
@@ -486,7 +484,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         };
 
         const threadJob: ThreadJob<BaseFunctionThreadJobWorkerData<InputType>, ResultType> = new ThreadJob(entityData, 'function');
-        this.localQueue.push(threadJob as ThreadJob<BaseFunctionThreadJobWorkerData<unknown>, unknown>);
+        this.localQueue.push(threadJob);
         await this.startQueuedJobs();
         const finishedJob: ThreadJobEntity<BaseFunctionThreadJobWorkerData<InputType>, ResultType>
             = await this.waitForThreadJob(threadJob.id);
@@ -500,7 +498,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         throw new InternalError(`Running the function "${func.name}" on a worker was not successful`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requeueThreadJob(jobId: string, data?: ThreadJobDataFunctions): Promise<void> {
         // putting the row back in the queue *is* requeueing it now, so there is nothing else to do
         await this.threadJobEntityRepository.updateById(jobId, {
@@ -532,7 +530,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async rerunThreadJob<WorkerData extends BaseThreadJobWorkerData, ResultType>(
         jobId: string,
         data?: ThreadJobDataFunctions
@@ -541,7 +539,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         return this.waitForThreadJob(jobId);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async waitForThreadJob<
         ResultType,
         WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown> = BaseThreadJobWorkerData
@@ -649,7 +647,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         this.pendingFunctions.set(jobId, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppShutdown(): Promise<void> {
         // before the terminates, because every one of them fires an exit - and an exit is otherwise
         // a worker to replace, which would start threads as the process is trying to end
@@ -723,7 +721,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         return priority ? this.options.defaultTimeoutPriorityMs : this.options.defaultTimeoutMs;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startQueuedJobs(): Promise<void> {
         if (this.poolState === 'stopped') {
             return;

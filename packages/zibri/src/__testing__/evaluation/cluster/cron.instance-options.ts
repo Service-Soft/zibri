@@ -1,13 +1,13 @@
 import { ClusterMark, clusterInstanceId, StartTestServerOptions } from 'zibri-testing';
 
-import { CronExpression } from '../../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
+import { CronExpression } from '../../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
 
 /**
  * What every instance of the cron cluster boots with.
@@ -43,7 +43,7 @@ function currentTick(): string {
  */
 class ClusterCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
-        // eslint-disable-next-line sonar/no-duplicate-string
+        // eslint-disable-next-line sonarjs/no-duplicate-string
         name: 'cluster-cron',
         cron: CronExpression.fromString('*/3 * * * * *'),
         // off, so that only genuinely scheduled runs are recorded. Every instance firing every job

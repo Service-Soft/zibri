@@ -1,23 +1,23 @@
-import { HashOptions, HashServiceInterface } from './hash-service.interface';
-import { HashContent, HashString, HashUtilities } from './hash.utilities';
-import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
-import { HashStrategyInterface } from './strategies/hash-strategy.interface';
-import { ZibriApplication } from '../../application/application';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { register } from '../../di/register.function';
-import type { BaseEntity } from '../../entity/base-entity.model';
-import { type PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { ModelRegistry } from '../../global/model-registry/model.registry';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import type { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+import { HashOptions, HashServiceInterface } from './hash-service.interface.ts';
+import { HashContent, HashString, HashUtilities } from './hash.utilities.ts';
+import { HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus } from './strategies/hash-strategy-entity.model.ts';
+import { HashStrategyInterface } from './strategies/hash-strategy.interface.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { register } from '../../di/register.function.ts';
+import type { BaseEntity } from '../../entity/base-entity.model.ts';
+import { type PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { ModelRegistry } from '../../global/model-registry/model.registry.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import type { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
 
 /**
  * A property a unique declaration names, hashed by a strategy known before any row is written.
@@ -79,7 +79,7 @@ export class HashService implements HashServiceInterface, OnAppInit {
         private readonly hashStrategies: Newable<HashStrategyInterface<Record<string, unknown>>>[]
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         // at every boot that uses this implementation, since its lifecycle hook makes every boot build it
         validateEntitiesRegistered(HashService.name, app, HashStrategyEntity);
@@ -92,7 +92,7 @@ export class HashService implements HashServiceInterface, OnAppInit {
         await this.validateUniqueHashesCompare(app);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async hash<THashOptions extends Record<string, unknown>>(
         value: string,
         options?: HashOptions<THashOptions>
@@ -128,13 +128,13 @@ export class HashService implements HashServiceInterface, OnAppInit {
         return await strategy.hash(value, options.strategyOptions);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async equal(value: string, hash: HashString): Promise<boolean> {
         const strategy: HashStrategyInterface<Record<string, unknown>> = this.findStrategyForHash(hash);
         return await strategy.equal(value, hash);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async needsRehash(hash: HashString): Promise<boolean> {
         const strategy: HashStrategyInterface<Record<string, unknown>> = this.findStrategyForHash(hash);
         const deprecated: boolean = (await this.hashStrategyRepository.findOne(
@@ -146,7 +146,7 @@ export class HashService implements HashServiceInterface, OnAppInit {
         return deprecated || (strategy.needsRehash?.(hash) ?? false);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     isHash(value: string): boolean {
         // not hashToContent, which throws: this is asked about arbitrary input, where "not a hash" is
         // the ordinary answer rather than a fault

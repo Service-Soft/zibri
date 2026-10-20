@@ -1,5 +1,5 @@
-import { testVersionsFolder } from './__testing__/constants';
-import { FsUtilities } from './utilities/fs.utilities';
+import { testVersionsFolder } from './__testing__/constants.ts';
+import { FsUtilities } from './utilities/fs.utilities.ts';
 
 /**
  * Starts the run with an empty recorded route history.

@@ -1,9 +1,9 @@
-import { projectValue } from './access-shape';
-import { toScriptJson } from './script-json';
+import { projectValue } from './access-shape.ts';
+import { toScriptJson } from './script-json.ts';
 import { ClientInstanceEntry, CompiledComponent, createServerRuntime, isClientPropMarker, renderChild,
-    RenderServerRuntime } from './server-runtime';
-import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks';
-import { vendorFileName } from '../vendor-file-name';
+    RenderServerRuntime } from './server-runtime.ts';
+import { CLIENT_HOOK_SOURCES, HookData, substituteHookPlaceholders } from '../codegen/client/hooks.ts';
+import { vendorFileName } from '../vendor-file-name.ts';
 
 /**
  * A compiled page ready to render. Alias of {@link CompiledComponent} — a page is just the root

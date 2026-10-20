@@ -1,4 +1,4 @@
-import { HandlerTimeout } from './handler-timeout.type';
+import { HandlerTimeout } from './handler-timeout.type.ts';
 
 /**
  * How long the http server waits for a client that has stopped making progress, and how much it

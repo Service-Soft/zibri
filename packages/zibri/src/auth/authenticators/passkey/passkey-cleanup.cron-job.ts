@@ -1,15 +1,15 @@
-import { type PasskeyServiceInterface } from './passkey-service.interface';
-import { CronExpression } from '../../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { type PasskeyServiceInterface } from './passkey-service.interface.ts';
+import { CronExpression } from '../../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
 
 /**
  * Deletes the passkey challenges that expired before they were answered, and the registration
  * tickets that expired before they were spent.
  */
 export class PasskeyCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Cleanup passkey challenges',
         cron: CronExpression.every(1, 'hours').build(),
@@ -23,7 +23,7 @@ export class PasskeyCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         await this.passkeyService.deleteExpired();
     }

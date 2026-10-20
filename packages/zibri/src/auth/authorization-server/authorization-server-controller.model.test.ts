@@ -2,59 +2,59 @@ import { generateKeyPairSync, KeyObject, randomBytes, X509Certificate } from 'no
 import { createServer, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createRemoteJWKSet, exportJWK, jwtVerify, JWTVerifyResult, SignJWT } from 'jose';
 import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
-import { AuthorizationServerController } from './authorization-server-controller.model';
-import { IntrospectionResponse } from './introspection-response.model';
-import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { Ms } from '../../utilities/ms';
-import { type AuthServiceInterface } from '../auth-service.interface';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
-import { PasswordAuthenticator } from '../authenticators/password/password.authenticator';
-import { Auth } from '../decorators/auth.decorator';
-import { CurrentUser } from '../decorators/current-user.decorator';
-import { BaseUser } from '../models/base-user.model';
-import { ApiKeyAuthenticationMethod } from '../strategies/api-key/api-key-authentication-method.enum';
-import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
-import { ApiKey } from '../strategies/api-key/api-key.model';
-import { CreatedApiKey } from '../strategies/api-key/created-api-key.model';
-import { AuthStrategies } from '../strategies/auth-strategies.model';
-import { AuthorizationHeaderUtilities } from '../strategies/authorization-header.utilities';
-import { AuthorizationToken } from '../strategies/authorization-token.model';
-import { ClientAccessTokenAuthStrategy } from '../strategies/client-access-token/client-access-token.auth-strategy';
-import { ClientAccessTokenGrant } from '../strategies/client-access-token-grant.model';
-import { ClientAccessTokenIssuingAuthStrategyInterface } from '../strategies/client-access-token-issuing-auth-strategy.interface';
-import { BaseClientCertificateAuthStrategy } from '../strategies/client-certificate/base-client-certificate.auth-strategy';
-import { ClientCertificateHeaderFormat } from '../strategies/client-certificate/client-certificate-header-format.type';
-import { IssuedClientAccessToken } from '../strategies/issued-client-access-token.model';
-import { AccessTokenRevocation } from '../strategies/jwt/access-token-revocation.type';
-import { JwksController } from '../strategies/jwt/jwks.controller';
-import { JwtAuthData } from '../strategies/jwt/jwt-auth-data.model';
-import { JwtAuthOptionsInput } from '../strategies/jwt/jwt-auth-options.model';
-import { JwtRevokedAccessToken } from '../strategies/jwt/jwt-revoked-access-token.model';
-import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
-import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
+import { AuthorizationServerController } from './authorization-server-controller.model.ts';
+import { IntrospectionResponse } from './introspection-response.model.ts';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { type AuthServiceInterface } from '../auth-service.interface.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model.ts';
+import { PasswordAuthenticator } from '../authenticators/password/password.authenticator.ts';
+import { Auth } from '../decorators/auth.decorator.ts';
+import { CurrentUser } from '../decorators/current-user.decorator.ts';
+import { BaseUser } from '../models/base-user.model.ts';
+import { ApiKeyAuthenticationMethod } from '../strategies/api-key/api-key-authentication-method.enum.ts';
+import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy.ts';
+import { ApiKey } from '../strategies/api-key/api-key.model.ts';
+import { CreatedApiKey } from '../strategies/api-key/created-api-key.model.ts';
+import { AuthStrategies } from '../strategies/auth-strategies.model.ts';
+import { AuthorizationHeaderUtilities } from '../strategies/authorization-header.utilities.ts';
+import { AuthorizationToken } from '../strategies/authorization-token.model.ts';
+import { ClientAccessTokenAuthStrategy } from '../strategies/client-access-token/client-access-token.auth-strategy.ts';
+import { ClientAccessTokenGrant } from '../strategies/client-access-token-grant.model.ts';
+import { ClientAccessTokenIssuingAuthStrategyInterface } from '../strategies/client-access-token-issuing-auth-strategy.interface.ts';
+import { BaseClientCertificateAuthStrategy } from '../strategies/client-certificate/base-client-certificate.auth-strategy.ts';
+import { ClientCertificateHeaderFormat } from '../strategies/client-certificate/client-certificate-header-format.type.ts';
+import { IssuedClientAccessToken } from '../strategies/issued-client-access-token.model.ts';
+import { AccessTokenRevocation } from '../strategies/jwt/access-token-revocation.type.ts';
+import { JwksController } from '../strategies/jwt/jwks.controller.ts';
+import { JwtAuthData } from '../strategies/jwt/jwt-auth-data.model.ts';
+import { JwtAuthOptionsInput } from '../strategies/jwt/jwt-auth-options.model.ts';
+import { JwtRevokedAccessToken } from '../strategies/jwt/jwt-revoked-access-token.model.ts';
+import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy.ts';
+import { JwtUtilities } from '../strategies/jwt/jwt.utilities.ts';
 
 /**
  * What the route answering with the current user answers.
@@ -285,7 +285,7 @@ async function createUser(name: string, roles: Roles[] = [Roles.USER]): Promise<
  * @param expiresAt - When the key stops working.
  * @returns The created key.
  */
-async function createKey(user: JwtUser, roles: Roles[] = [Roles.USER], expiresAt: Date | undefined = undefined): Promise<CreatedApiKey> {
+async function createKey(user: JwtUser, roles: Roles[] = [Roles.USER], expiresAt?: Date): Promise<CreatedApiKey> {
     return await authService().createApiKey(user.id, { name: 'service', roles, expiresAt, tenantId: undefined, clientAuthentication: undefined, requireDpop: false }, undefined);
 }
 
@@ -380,7 +380,7 @@ async function signAssertion(
     clientId: string,
     audience: string,
     expiresInSeconds: number = 60,
-    kid: string | undefined = undefined
+    kid?: string
 ): Promise<string> {
     return await new SignJWT({ jti: `${Date.now()}-${Math.random()}` })
         .setProtectedHeader({ alg: 'ES256', kid })

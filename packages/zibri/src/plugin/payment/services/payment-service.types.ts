@@ -1,8 +1,8 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { PaymentMethod } from '../models/payment-method.model';
-import { PaymentPluginOptions } from '../models/payment-plugin-options.model';
-import { Payment } from '../models/payment.model';
-import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { PaymentMethod } from '../models/payment-method.model.ts';
+import { PaymentPluginOptions } from '../models/payment-plugin-options.model.ts';
+import { Payment } from '../models/payment.model.ts';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface.ts';
 
 /**
  * Helper: pick the provider *instance* (from the P tuple) for the given method M.
@@ -81,7 +81,6 @@ export type AllowedCancellationMethods<
     Methods extends readonly PaymentMethod[],
     P extends readonly AnyPaymentProviderInterface[]
 > = {
-    // eslint-disable-next-line stylistic/max-len
     [K in Methods[number]]: ProviderInstanceForMethod<Methods, K, P> extends { __cancellationSupportMap: infer CS, __reservationSupportMap: infer RS }
         // eslint-disable-next-line typescript/no-explicit-any
         ? (CS & Record<string, any>)[K] extends true ? K : (RS & Record<string, any>)[K] extends true ? K : never

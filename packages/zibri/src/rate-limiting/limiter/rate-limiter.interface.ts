@@ -1,10 +1,10 @@
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model';
-import { RateLimiterConfig } from './rate-limiter-config.model';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitWrapOptions, RateLimitWrapResult } from '../rate-limit-wrap-options.model.ts';
+import { RateLimiterConfig } from './rate-limiter-config.model.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * Definition for a rate limiter.
@@ -68,7 +68,7 @@ export interface RateLimiterInterface<TState extends BaseRateLimitState> {
     cleanup: () => void | Promise<void>
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function isRateLimiter(value: unknown): value is RateLimiterInterface<BaseRateLimitState> {
     if (value instanceof BaseRateLimiter) {
         return true;

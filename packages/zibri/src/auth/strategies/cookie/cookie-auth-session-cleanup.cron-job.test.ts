@@ -1,16 +1,16 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, Mock } from 'vitest';
 
-import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model';
-import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job';
-import { CookieAuthSession } from './cookie-auth-session.model';
-import { Repository } from '../../../data-source/repository/repository';
-import { BaseEntity } from '../../../entity/base-entity.model';
+import { CookieAuthRefreshSession } from './cookie-auth-refresh-session.model.ts';
+import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job.ts';
+import { CookieAuthSession } from './cookie-auth-session.model.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
 
-type FakeRepository<T extends BaseEntity> = Repository<T> & { deleteAll: jest.Mock<Repository<T>['deleteAll']> };
+type FakeRepository<T extends BaseEntity> = Repository<T> & { deleteAll: Mock<Repository<T>['deleteAll']> };
 
 function fakeRepository<T extends BaseEntity>(): FakeRepository<T> {
     return {
-        deleteAll: jest.fn<Repository<T>['deleteAll']>().mockResolvedValue([])
+        deleteAll: vi.fn<Repository<T>['deleteAll']>().mockResolvedValue([])
     } as unknown as FakeRepository<T>;
 }
 

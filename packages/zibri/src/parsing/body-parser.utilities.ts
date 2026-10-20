@@ -1,7 +1,7 @@
-import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error';
-import { HttpRequest } from '../http/http-request.model';
-import { KnownHeader } from '../http/known-header.enum';
-import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
+import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { BigNumber, NumberUtilities } from '../utilities/number.utilities.ts';
 
 /**
  * Utilities shared by the body parsers.
@@ -25,11 +25,11 @@ export abstract class BodyParserUtilities {
         let received: BigNumber = NumberUtilities.new(0);
 
         await new Promise<void>((resolve, reject) => {
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const onData = (chunk: Buffer): void => {
                 received = NumberUtilities.add(received, chunk.length);
                 if (received.isGreaterThan(maxSize)) {
-                    // eslint-disable-next-line typescript/no-use-before-define
+                    // eslint-disable-next-line no-use-before-define
                     cleanup();
                     // paused rather than destroyed. Destroying the request takes the socket with it,
                     // so the caller got an ECONNRESET instead of the 413 - it could not tell "too
@@ -42,21 +42,21 @@ export abstract class BodyParserUtilities {
                 chunks.push(chunk);
             };
 
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const onEnd = (): void => {
-                // eslint-disable-next-line typescript/no-use-before-define
+                // eslint-disable-next-line no-use-before-define
                 cleanup();
                 resolve();
             };
 
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const onError = (err: Error): void => {
-                // eslint-disable-next-line typescript/no-use-before-define
+                // eslint-disable-next-line no-use-before-define
                 cleanup();
                 reject(err);
             };
 
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const cleanup = (): void => {
                 req.off('data', onData);
                 req.off('end', onEnd);

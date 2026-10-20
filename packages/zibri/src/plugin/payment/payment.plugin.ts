@@ -1,18 +1,18 @@
-import { PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { PaymentPluginOptions } from './models/payment-plugin-options.model';
-import { Payment } from './models/payment.model';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { ZibriApplication } from '../../application/application';
-import { NoProviderError } from '../../di/errors/no-provider.error';
-import { inject } from '../../di/inject.function';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { ZibriPlugin } from '../plugin.model';
-import { PaymentService } from './services/payment.service';
-import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
+import { PaymentMethod } from './models/payment-method.model.ts';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model.ts';
+import { PaymentPluginOptions } from './models/payment-plugin-options.model.ts';
+import { Payment } from './models/payment.model.ts';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { NoProviderError } from '../../di/errors/no-provider.error.ts';
+import { inject } from '../../di/inject.function.ts';
+import { DiProvider } from '../../di/models/di-provider.model.ts';
+import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { ZibriPlugin } from '../plugin.model.ts';
+import { PaymentService } from './services/payment.service.ts';
+import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function.ts';
 
 /**
  * Plugin that includes everything for handling payments.
@@ -43,7 +43,7 @@ export class ZibriPaymentPlugin extends ZibriPlugin {
 
     override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS, this.defaultDiProviders);
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     validate(app: ZibriApplication): void {
         validateEntitiesRegistered(this.constructor.name, app, Payment);
         validateTokensRegistered(this.constructor.name, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS);

@@ -1,4 +1,4 @@
-import { MimeType } from './mime-type.enum';
+import { MimeType } from './mime-type.enum.ts';
 
 /**
  * The known media types of json: `application/json`, and the formats written in it that carry the

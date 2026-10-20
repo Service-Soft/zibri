@@ -1,11 +1,11 @@
-import { implementsAfterAppInit } from './after-app-init.interface';
-import { implementsAfterAppShutdown } from './after-app-shutdown.interface';
-import { implementsAfterAppStart } from './after-app-start.interface';
-import { implementsBeforeAppInit } from './before-app-init.interface';
-import { implementsBeforeAppShutdown } from './before-app-shutdown.interface';
-import { implementsOnAppInit } from './on-app-init.interface';
-import { implementsOnAppShutdown } from './on-app-shutdown.interface';
-import { implementsOnAppStart } from './on-app-start.interface';
+import { implementsAfterAppInit } from './after-app-init.interface.ts';
+import { implementsAfterAppShutdown } from './after-app-shutdown.interface.ts';
+import { implementsAfterAppStart } from './after-app-start.interface.ts';
+import { implementsBeforeAppInit } from './before-app-init.interface.ts';
+import { implementsBeforeAppShutdown } from './before-app-shutdown.interface.ts';
+import { implementsOnAppInit } from './on-app-init.interface.ts';
+import { implementsOnAppShutdown } from './on-app-shutdown.interface.ts';
+import { implementsOnAppStart } from './on-app-start.interface.ts';
 
 /**
  * Whether the class behind the given prototype takes part in the application's lifecycle.

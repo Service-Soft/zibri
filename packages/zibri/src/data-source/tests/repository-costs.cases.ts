@@ -1,13 +1,14 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { beforeAll, describe, expect, it } from '@jest/globals';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { beforeAll, describe, expect, it } from 'vitest';
 import { RoundTripCounter } from 'zibri-testing';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { FsUtilities } from '../../utilities/fs.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { FsUtilities } from '../../utilities/fs.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * What each repository call costs in round trips, measured on every data source and compared with
@@ -44,7 +45,7 @@ export class CostItem extends BaseEntity {
     batch!: string;
 
     @Property.manyToOne({ target: () => CostGroup, joinColumn: 'groupId', inverseSide: 'items' })
-    group!: CostGroup;
+    group!: Relation<CostGroup>;
 
     @Property.string({ format: 'uuid', required: false })
     groupId?: string;
@@ -137,7 +138,7 @@ function freshRow(m: Measured): Pick<CostItem, 'name' | 'count' | 'batch' | 'gro
  * @returns Each call's row as it would be written with only that column, in the page's order.
  */
 async function resolvePageRows(column: string): Promise<string[]> {
-    const page: string = await FsUtilities.readFile(FsUtilities.getPath(__dirname, '..', '..', '..', 'docs', 'costs.md'));
+    const page: string = await FsUtilities.readFile(FsUtilities.getPath(import.meta.dirname, '..', '..', '..', 'docs', 'costs.md'));
     const lines: string[] = page.split('\n');
     const headingAt: number = lines.findIndex(l => l.startsWith('| Call |'));
     const headings: string[] = cellsOf(lines[headingAt] ?? '');

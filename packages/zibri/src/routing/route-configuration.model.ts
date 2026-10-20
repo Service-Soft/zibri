@@ -2,50 +2,50 @@ import { Readable } from 'node:stream';
 
 import { NextFunction } from 'express';
 
-import { Route } from './controller-route-configuration.model';
-import { RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
-import { ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
-import { DeclaredBodyShape, DeclaredShape, ShapeType } from '../entity/models/shape-type.model';
-import { HandlerTimeout } from '../http/handler-timeout.type';
-import { HttpMethod } from '../http/http-method.enum';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { OpenApiResponse } from '../open-api/open-api.model';
-import { OmitStrict } from '../types/omit-strict.type';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
-import { ArrayParamMetadataInput, ArrayParamMetadata } from './models/array-param-metadata.model';
-import { BooleanParamMetadataInput, BooleanParamMetadata } from './models/boolean-param-metadata.model';
-import { DateParamMetadataInput, DateParamMetadata } from './models/date-param-metadata.model';
-import { NumberParamMetadataInput, NumberParamMetadata } from './models/number-param-metadata.model';
-import { ObjectParamMetadataInput, ObjectParamMetadata } from './models/object-param-metadata.model';
-import { OneOfParamMetadata } from './models/one-of-param-metadata.model';
-import { StringParamMetadataInput, StringParamMetadata } from './models/string-param-metadata.model';
-import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
-import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
-import { MimeType } from '../http/mime-type.enum';
+import { Route } from './controller-route-configuration.model.ts';
+import { RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model.ts';
+import { ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model.ts';
+import { DeclaredBodyShape, DeclaredShape, ShapeType } from '../entity/models/shape-type.model.ts';
+import { HandlerTimeout } from '../http/handler-timeout.type.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { OpenApiResponse } from '../open-api/open-api.model.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator.ts';
+import { ArrayParamMetadataInput, ArrayParamMetadata } from './models/array-param-metadata.model.ts';
+import { BooleanParamMetadataInput, BooleanParamMetadata } from './models/boolean-param-metadata.model.ts';
+import { DateParamMetadataInput, DateParamMetadata } from './models/date-param-metadata.model.ts';
+import { NumberParamMetadataInput, NumberParamMetadata } from './models/number-param-metadata.model.ts';
+import { ObjectParamMetadataInput, ObjectParamMetadata } from './models/object-param-metadata.model.ts';
+import { OneOfParamMetadata } from './models/one-of-param-metadata.model.ts';
+import { StringParamMetadataInput, StringParamMetadata } from './models/string-param-metadata.model.ts';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model.ts';
+import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type PathMetaObjectToParamsObject<PathMetaObject extends Record<string, PathParamMetadata>> = {
     [K in keyof PathMetaObject]: ParamMetadataToType<PathMetaObject[K]>
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type QueryMetaObjectToParamsObject<QueryMetaObject extends Record<string, QueryParamMetadata>> = {
     [K in keyof QueryMetaObject]: ParamMetadataToType<QueryMetaObject[K]>
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type HeaderMetaObjectToParamsObject<HeaderMetaObject extends Record<string, HeaderParamMetadata>> = {
     [K in keyof HeaderMetaObject]: ParamMetadataToType<HeaderMetaObject[K]>
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type BodyMetaInputObjectToMetaObject<I extends DeclaredBodyInput> = I extends { type: MimeType.OCTET_STREAM }
     ? MergeRequired<I, BodyMetadata>
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     : MergeRequired<I, BodyMetadata & { shape: DeclaredBodyShape<I> }>;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type PathMetaInputObjectToMetaObject<PathMetaInputObject extends Record<string, PathParamMetadataInput>> = {
     [K in keyof PathMetaInputObject]: MergeRequired<
         PathMetaInputObject[K],
@@ -53,7 +53,7 @@ type PathMetaInputObjectToMetaObject<PathMetaInputObject extends Record<string, 
     >;
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type QueryMetaInputObjectToMetaObject<QueryMetaInputObject extends Record<string, QueryParamMetadataInput>> = {
     [K in keyof QueryMetaInputObject]: MergeRequired<
         QueryMetaInputObject[K],
@@ -61,7 +61,7 @@ type QueryMetaInputObjectToMetaObject<QueryMetaInputObject extends Record<string
     >;
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>> = {
     [K in keyof HeaderMetaInputObject]: MergeRequired<
         HeaderMetaInputObject[K],
@@ -69,7 +69,7 @@ export type HeaderMetaInputObjectToMetaObject<HeaderMetaInputObject extends Reco
     >;
 };
 
-// eslint-disable-next-line stylistic/max-len, jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMetadataInput | HeaderParamMetadataInput | ArrayPropertyItemMetadataInput)>
     = M extends StringParamMetadataInput
         ? StringParamMetadata
@@ -83,16 +83,16 @@ type ParamMetadataInputToMeta<M extends (PathParamMetadataInput | QueryParamMeta
                         ? ObjectParamMetadata
                         : M extends ArrayParamMetadataInput
                             ? ArrayParamMetadata
-                            // eslint-disable-next-line jsdoc/require-jsdoc
+                            // eslint-disable-next-line jsdoc-js/require-jsdoc
                             : M extends { type: 'oneOf', shapes: (infer S)[] }
-                                // eslint-disable-next-line jsdoc/require-jsdoc
+                                // eslint-disable-next-line jsdoc-js/require-jsdoc
                                 ? OneOfParamMetadata & { shapes: DeclaredShape<S>[] }
                                 : never;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type MergeRequired<I, M> = I extends { required: false } ? M & { required: false } : M & { required: true };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type RawParamMetadataToType<M extends (
     PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
     | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
@@ -109,25 +109,25 @@ type RawParamMetadataToType<M extends (
                         ? InstanceType<ReturnType<M['cls']>>
                         : M extends ArrayParamMetadata
                             ? ParamMetadataToType<M['items']>[]
-                            // eslint-disable-next-line jsdoc/require-jsdoc
+                            // eslint-disable-next-line jsdoc-js/require-jsdoc
                             : M extends OneOfParamMetadata & { shapes: (infer S)[] }
                                 ? ShapeType<S>
                                 : never;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ParamMetadataToType<M extends (
     PathParamMetadata | QueryParamMetadata | HeaderParamMetadata | ArrayPropertyItemMetadata
     | OmitStrict<PathParamMetadata, 'name'> | OmitStrict<QueryParamMetadata, 'name'> | OmitStrict<HeaderParamMetadata, 'name'>
 )>
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     = M extends { required: false }
         ? RawParamMetadataToType<M> | undefined
         : RawParamMetadataToType<M>;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type InferModel<T extends BodyMetadata> = T extends { shape: infer S }
     ? ShapeType<S>
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     : T extends { type: MimeType.OCTET_STREAM }
         ? Readable
         : never;
@@ -165,7 +165,7 @@ export type RouteHandler<
     HeaderParamsObject extends Record<string, unknown>
 > = (
     req: HttpRequest<
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         BodyMetaObject extends { required: false } ? InferModel<BodyMetaObject> | undefined : InferModel<BodyMetaObject>,
         PathParamsObject,
         QueryParamsObject,

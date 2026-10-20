@@ -1,5 +1,5 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { OmitClass } from '../../../entity/omit-class.model';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { OmitClass } from '../../../entity/omit-class.model.ts';
 
 /**
  * Data for refreshing a login with the cookie auth strategy.

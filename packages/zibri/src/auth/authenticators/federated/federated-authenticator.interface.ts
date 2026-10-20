@@ -1,19 +1,19 @@
-import { FederatedConnectionRequest } from './federated-connection-request.model';
-import { FederatedConnectionStart } from './federated-connection-start.model';
-import { FederatedCredentials, FederatedTicketCredentials } from './federated-credentials.model';
-import { FederatedIdentity } from './federated-identity.model';
-import { FederatedMetadata } from './federated-metadata.model';
-import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
-import { FederatedProviderLogout } from './federated-provider-logout.model';
-import { FederatedRegistration } from './federated-registration.model';
-import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
-import { FederatedRoute } from './federated-route.type';
-import { FederatedSession } from './federated-session.model';
-import { FederatedSignInRequest } from './federated-sign-in-request.model';
-import { FederatedSignInResult } from './federated-sign-in-result.model';
-import { FederatedSoapLogout } from './federated-soap-logout.model';
-import { BaseUser } from '../../models/base-user.model';
-import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface';
+import { FederatedConnectionRequest } from './federated-connection-request.model.ts';
+import { FederatedConnectionStart } from './federated-connection-start.model.ts';
+import { FederatedCredentials, FederatedTicketCredentials } from './federated-credentials.model.ts';
+import { FederatedIdentity } from './federated-identity.model.ts';
+import { FederatedMetadata } from './federated-metadata.model.ts';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model.ts';
+import { FederatedProviderLogout } from './federated-provider-logout.model.ts';
+import { FederatedRegistration } from './federated-registration.model.ts';
+import { FederatedRouteEndpoint } from './federated-route-endpoint.model.ts';
+import { FederatedRoute } from './federated-route.type.ts';
+import { FederatedSession } from './federated-session.model.ts';
+import { FederatedSignInRequest } from './federated-sign-in-request.model.ts';
+import { FederatedSignInResult } from './federated-sign-in-result.model.ts';
+import { FederatedSoapLogout } from './federated-soap-logout.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface.ts';
 
 /**
  * Interface for an authenticator that signs users in at a provider: the browser is sent there, and

@@ -1,36 +1,37 @@
-import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { type NamedShapeValue } from '../../data-source/models/where/one-of-where-filter.model';
-import { OneOfWhereFilterUtilities } from '../../data-source/models/where/one-of-where-filter.utilities';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BigNumber } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { ReflectUtilities } from '../../utilities/reflect.utilities';
-import { RegexUtilities } from '../../utilities/regex.utilities';
-import { AnyObject } from '../any-object.model';
-import type { BaseEntity } from '../base-entity.model';
-import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
-import { BasePropertyMetadata } from '../models/base-property-metadata.model';
-import { BelongsToOnePropertyMetadata, BelongsToOnePropertyMetadataInput } from '../models/belongs-to-one-property-metadata.model';
-import { BooleanPropertyMetadata, BooleanPropertyMetadataInput } from '../models/boolean-property-metadata.model';
-import { DatePropertyMetadata, DatePropertyMetadataInput } from '../models/date-property-metadata.model';
-import type { FilePropertyMetadata, FilePropertyMetadataInput, FileSize } from '../models/file-property-metadata.model';
-import { HasOnePropertyMetadata, HasOnePropertyMetadataInput } from '../models/has-one-property-metadata.model';
-import { ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput } from '../models/many-to-many-property-metadata.model';
-import { ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput } from '../models/many-to-one-property-metadata.model';
-import { NumberFormat, NumberPropertyMetadata, NumberPropertyMetadataInput } from '../models/number-property-metadata.model';
-import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../models/object-property-metadata.model';
-import { AnyOfShapesMetadata, OneOfPropertyMetadata, OneOfPropertyMetadataInput, OneOfShapeMetadata, OneOfShapeMetadataInput, OneOfShapesMetadataInput } from '../models/one-of-property-metadata.model';
-import { OneOf } from '../models/one-of.model';
-import { OneToManyPropertyMetadata, OneToManyPropertyMetadataInput } from '../models/one-to-many-property-metadata.model';
-import { Relation } from '../models/relation.enum';
-import { ShapeType } from '../models/shape-type.model';
-import { StrategyCheckedItemInput, StrategyCheckedShapesInput } from '../models/strategy-checked-input.model';
-import { AnyStrategyStringPropertyMetadata, AnyStrategyStringPropertyMetadataInput, StoredStringPropertyMetadata, StringPropertyMetadata, StringPropertyMetadataInput, IncomingStringPropertyMetadataInput } from '../models/string-property-metadata.model';
-import { declaresUnique } from '../models/unique-declaration.model';
-import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models/unknown-property-metadata.model';
+import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { type NamedShapeValue } from '../../data-source/models/where/one-of-where-filter.model.ts';
+import { OneOfWhereFilterUtilities } from '../../data-source/models/where/one-of-where-filter.utilities.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { ReflectUtilities } from '../../utilities/reflect.utilities.ts';
+import { RegexUtilities } from '../../utilities/regex.utilities.ts';
+import { AnyObject } from '../any-object.model.ts';
+import type { BaseEntity } from '../base-entity.model.ts';
+import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model.ts';
+import { BasePropertyMetadata } from '../models/base-property-metadata.model.ts';
+import { BelongsToOnePropertyMetadata, BelongsToOnePropertyMetadataInput } from '../models/belongs-to-one-property-metadata.model.ts';
+import { BooleanPropertyMetadata, BooleanPropertyMetadataInput } from '../models/boolean-property-metadata.model.ts';
+import { DatePropertyMetadata, DatePropertyMetadataInput } from '../models/date-property-metadata.model.ts';
+import type { FilePropertyMetadata, FilePropertyMetadataInput, FileSize } from '../models/file-property-metadata.model.ts';
+import { HasOnePropertyMetadata, HasOnePropertyMetadataInput } from '../models/has-one-property-metadata.model.ts';
+import { ManyToManyPropertyMetadata, ManyToManyPropertyMetadataInput } from '../models/many-to-many-property-metadata.model.ts';
+import { ManyToOnePropertyMetadata, ManyToOnePropertyMetadataInput } from '../models/many-to-one-property-metadata.model.ts';
+import { NumberFormat, NumberPropertyMetadata, NumberPropertyMetadataInput } from '../models/number-property-metadata.model.ts';
+import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../models/object-property-metadata.model.ts';
+import { AnyOfShapesMetadata, OneOfPropertyMetadata, OneOfPropertyMetadataInput, OneOfShapeMetadata, OneOfShapeMetadataInput, OneOfShapesMetadataInput } from '../models/one-of-property-metadata.model.ts';
+import { OneOf } from '../models/one-of.model.ts';
+import { OneToManyPropertyMetadata, OneToManyPropertyMetadataInput } from '../models/one-to-many-property-metadata.model.ts';
+import { RelationType } from '../models/relation-type.enum.ts';
+import { type Relation } from '../models/relation.type.ts';
+import { ShapeType } from '../models/shape-type.model.ts';
+import { StrategyCheckedItemInput, StrategyCheckedShapesInput } from '../models/strategy-checked-input.model.ts';
+import { AnyStrategyStringPropertyMetadata, AnyStrategyStringPropertyMetadataInput, StoredStringPropertyMetadata, StringPropertyMetadata, StringPropertyMetadataInput, IncomingStringPropertyMetadataInput } from '../models/string-property-metadata.model.ts';
+import { declaresUnique } from '../models/unique-declaration.model.ts';
+import { UnknownPropertyMetadata, UnknownPropertyMetadataInput } from '../models/unknown-property-metadata.model.ts';
 
 /**
  * The metadata of a property.
@@ -240,9 +241,9 @@ export namespace Property {
         // any other, because against a union the options inside the items go unchecked for names again
         data: Partial<BasePropertyMetadata>
             & {
-                // eslint-disable-next-line jsdoc/require-jsdoc
+                // eslint-disable-next-line jsdoc-js/require-jsdoc
                 items: Items,
-                // eslint-disable-next-line jsdoc/require-jsdoc
+                // eslint-disable-next-line jsdoc-js/require-jsdoc
                 totalMaxSize?: Items extends { type: 'file' } ? FileSize : never
             }
             & { [key: `items${string}`]: StrategyCheckedItemInput<Items> }
@@ -274,7 +275,7 @@ export namespace Property {
         return applyData(fullMetadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Defines a property that holds one of several named shapes, declared as `OneOf` of the same names.
      *
@@ -300,9 +301,9 @@ export namespace Property {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
-     * Defines a many to one property.
+     * Defines a many to one property, declared as a {@link Relation}.
      * @param metadata - Additional data to specify the property.
      */
     export function manyToOne<T extends BaseEntity, TJoinKey extends string>(
@@ -310,7 +311,7 @@ export namespace Property {
     ) {
         const fullMetadata: ManyToOnePropertyMetadata<T> = {
             required: true,
-            type: Relation.MANY_TO_ONE,
+            type: RelationType.MANY_TO_ONE,
             cascade: [],
             description: undefined,
             joinColumn: undefined,
@@ -320,9 +321,9 @@ export namespace Property {
         };
 
         // eslint-disable-next-line typescript/no-explicit-any
-        return <TCurrentEntity extends Partial<Record<TJoinKey, any>>>(
+        return <TCurrentEntity extends Partial<Record<TJoinKey, any>>, Key extends keyof TCurrentEntity & string>(
             target: TCurrentEntity,
-            propertyKey: string | symbol
+            propertyKey: Key & RelationKey<TCurrentEntity, Key>
         ): void => {
             applyData(fullMetadata as PropertyMetadata)(target, propertyKey);
         };
@@ -335,7 +336,7 @@ export namespace Property {
     export function oneToMany<T extends BaseEntity>(metadata: OneToManyPropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: OneToManyPropertyMetadata<T> = {
             required: true,
-            type: Relation.ONE_TO_MANY,
+            type: RelationType.ONE_TO_MANY,
             cascade: ['remove', 'insert', 'update'],
             description: undefined,
             exclude: false,
@@ -345,26 +346,32 @@ export namespace Property {
         return applyData(fullMetadata as PropertyMetadata);
     }
 
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
-     * Defines a has one property.
+     * Defines a has one property, declared as a {@link Relation}.
      * @param metadata - Additional data to specify the property.
      */
-    export function hasOne<T extends BaseEntity>(metadata: HasOnePropertyMetadataInput<T>): PropertyDecorator {
+    export function hasOne<T extends BaseEntity>(metadata: HasOnePropertyMetadataInput<T>) {
         const fullMetadata: HasOnePropertyMetadata<T> = {
             required: true,
-            type: Relation.HAS_ONE,
+            type: RelationType.HAS_ONE,
             cascade: ['remove', 'insert', 'update'],
             description: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
         };
-        return applyData(fullMetadata as PropertyMetadata);
+        return <Target extends object, Key extends keyof Target & string>(
+            target: Target,
+            propertyKey: Key & RelationKey<Target, Key>
+        ): void => {
+            applyData(fullMetadata as PropertyMetadata)(target, propertyKey);
+        };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
-     * Defines a belongs to one property.
+     * Defines a belongs to one property, declared as a {@link Relation}.
      * @param metadata - Additional data to specify the property.
      */
     export function belongsToOne<T extends BaseEntity, TJoinKey extends string>(
@@ -372,7 +379,7 @@ export namespace Property {
     ) {
         const fullMetadata: BelongsToOnePropertyMetadata<T> = {
             required: true,
-            type: Relation.BELONGS_TO_ONE,
+            type: RelationType.BELONGS_TO_ONE,
             cascade: [],
             joinColumn: undefined,
             description: undefined,
@@ -382,9 +389,9 @@ export namespace Property {
         };
 
         // eslint-disable-next-line typescript/no-explicit-any
-        return <TCurrentEntity extends Partial<Record<TJoinKey, any>>>(
+        return <TCurrentEntity extends Partial<Record<TJoinKey, any>>, Key extends keyof TCurrentEntity & string>(
             target: TCurrentEntity,
-            propertyKey: string | symbol
+            propertyKey: Key & RelationKey<TCurrentEntity, Key>
         ): void => {
             applyData(fullMetadata as PropertyMetadata)(target, propertyKey);
         };
@@ -397,7 +404,7 @@ export namespace Property {
     export function manyToMany<T extends BaseEntity>(metadata: ManyToManyPropertyMetadataInput<T>): PropertyDecorator {
         const fullMetadata: ManyToManyPropertyMetadata<T> = {
             required: true,
-            type: Relation.MANY_TO_MANY,
+            type: RelationType.MANY_TO_MANY,
             cascade: metadata.joinTable === true ? ['remove'] : [],
             description: undefined,
             joinTable: undefined,
@@ -528,11 +535,13 @@ function validateNumberTypeMatchesFormat(fullKey: string, data: PropertyMetadata
     if (data.type !== 'number') {
         return;
     }
-    const declared: Function | undefined = ReflectUtilities.getMetadata(MetadataInjectionKeys.TYPE, ctor, key);
+    const declared: unknown = ReflectUtilities.getMetadata(MetadataInjectionKeys.TYPE, ctor, key);
     const expected: Function = TYPE_FOR_NUMBER_FORMAT[data.format];
     // Object is what a union compiles to, and undefined is what a build without decorator metadata
-    // emits. Neither says the declaration is wrong, so neither is treated as if it did
-    if (declared == undefined || declared === Object || declared === expected) {
+    // emits. Something other than a function is what a compiler that sees one file at a time - swc,
+    // oxc - records for an enum declared in another module: the enum object itself, where tsc
+    // records Object. None of them says the declaration is wrong, so none is treated as if it did
+    if (typeof declared !== 'function' || declared === Object || declared === expected) {
         return;
     }
     throw new InternalError([
@@ -541,7 +550,7 @@ function validateNumberTypeMatchesFormat(fullKey: string, data: PropertyMetadata
     ]);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function applyData(data: PropertyMetadata): PropertyDecorator {
     return (target, key) => {
         if ('primary' in data && data.primary && data.exclude !== false) {
@@ -647,9 +656,9 @@ export function createArrayPropertyMetadata(
     // one object rather than the union of a file array and any other: which of them it is was the
     // declaration's to check, and nothing here treats the two differently
     data: Partial<BasePropertyMetadata> & {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         items: ArrayPropertyItemMetadataInput<AnyStrategyStringPropertyMetadataInput>,
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         totalMaxSize?: FileSize
     },
     fullPropertyKey: string
@@ -674,7 +683,7 @@ export function createArrayPropertyMetadata(
  * @param fullPropertyKey - The full key of the property.
  * @returns The full metadata.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function createArrayItemPropertyMetadata(
     data: ArrayPropertyItemMetadataInput<AnyStrategyStringPropertyMetadataInput>,
     fullPropertyKey: string
@@ -808,6 +817,16 @@ export function createArrayItemPropertyMetadata(
 type MatchingKey<Target, Key extends keyof Target, Expected> = [NonNullable<Target[Key]>] extends [Expected]
     ? [Expected] extends [WidenedShapeValues<NonNullable<Target[Key]>>] ? Key : never
     : never;
+
+/**
+ * The key, when the property is declared as a {@link Relation}.
+ */
+// the brand is the one key a Relation has that the entity's own type has not. Anything else is answered with
+// a type that says what is missing, which is what the compiler then names in its message
+type RelationKey<Target, Key extends keyof Target> = keyof Relation<object> extends keyof NonNullable<Target[Key]>
+    ? Key
+    // oxlint-disable-next-line jsdoc-js/require-jsdoc
+    : { 'declare a to-one relation property as Relation<Entity>': never };
 
 /**
  * A declared value of several named shapes, with narrower text in each value widened to text.

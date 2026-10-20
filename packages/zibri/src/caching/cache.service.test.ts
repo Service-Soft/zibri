@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CacheInvalidation } from './cache-invalidation.model';
-import { type CacheServiceInterface } from './cache-service.interface';
-import { CacheService } from './cache.service';
-import { Cache } from './decorators/cache.decorator';
-import { CachedValue } from './store/cached-value.model';
-import { InMemoryCacheStore } from './store/in-memory.cache-store';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
-import { WriteThroughReadThroughCache } from './cache/read-through/write-through-read-through.cache';
+import { CacheInvalidation } from './cache-invalidation.model.ts';
+import { type CacheServiceInterface } from './cache-service.interface.ts';
+import { CacheService } from './cache.service.ts';
+import { Cache } from './decorators/cache.decorator.ts';
+import { CachedValue } from './store/cached-value.model.ts';
+import { InMemoryCacheStore } from './store/in-memory.cache-store.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../metrics/metrics-service.interface.ts';
+import { WriteThroughReadThroughCache } from './cache/read-through/write-through-read-through.cache.ts';
 
 @Cache()
 class UserTagCache extends WriteThroughReadThroughCache<string, string, 'User Tag Cache'> {
@@ -195,10 +195,10 @@ describe('CacheService', () => {
         await allCache.store.set('a', createCachedValue('all-value', ['keep-me']));
         await postCache.store.set('p', createCachedValue('post-value', ['post']));
 
-        // eslint-disable-next-line typescript/typedef
-        const allInvalidateSpy = jest.spyOn(allCache.store, 'invalidateTags');
-        // eslint-disable-next-line typescript/typedef
-        const postInvalidateSpy = jest.spyOn(postCache.store, 'invalidateTags');
+        // eslint-disable-next-line typescript-js/typedef
+        const allInvalidateSpy = vi.spyOn(allCache.store, 'invalidateTags');
+        // eslint-disable-next-line typescript-js/typedef
+        const postInvalidateSpy = vi.spyOn(postCache.store, 'invalidateTags');
 
         await cacheService.invalidateTags(['user']);
 

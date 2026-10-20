@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { LocaleCode, resolveLocaleCode } from './locale-code.model';
+import { LocaleCode, resolveLocaleCode } from './locale-code.model.ts';
 
 describe('resolveLocaleCode', () => {
     it('returns the requested locale directly when it is available', () => {

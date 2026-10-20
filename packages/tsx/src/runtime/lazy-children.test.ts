@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { RenderResult, renderWithComponents } from '../__testing__/server-render.helper';
+import { RenderResult, renderWithComponents } from '../__testing__/server-render.helper.ts';
 
 const BUTTON: string = '<Card><button onClick={greet}>Hi</button></Card>';
 

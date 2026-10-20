@@ -1,22 +1,22 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { HttpStatus } from '../../http/http-status.enum';
-import { Ms } from '../../utilities/ms';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
-import { WebsocketEvent } from '../models/websocket-event.enum';
-import { WebsocketMessage } from '../models/websocket-message.model';
-import { WebsocketOptionsInput } from '../models/websocket-options.model';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
+import { WebsocketEvent } from '../models/websocket-event.enum.ts';
+import { WebsocketMessage } from '../models/websocket-message.model.ts';
+import { WebsocketOptionsInput } from '../models/websocket-options.model.ts';
 
 /**
  * What a handler reports about the message it ran in, once it is over.

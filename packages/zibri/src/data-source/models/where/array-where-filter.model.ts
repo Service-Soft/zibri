@@ -1,4 +1,4 @@
-import { Where, WhereFilterProperty } from './where-filter.model';
+import { Where, WhereFilterProperty } from './where-filter.model.ts';
 
 /**
  * A filter for an array where property.

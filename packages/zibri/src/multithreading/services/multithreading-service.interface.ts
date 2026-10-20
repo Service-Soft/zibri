@@ -1,7 +1,7 @@
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
-import { ThreadJobFunction } from '../models/thread-job-function.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
+import { ThreadJobFunction } from '../models/thread-job-function.model.ts';
 
 /**
  * Definition for a service that handles multithreading.

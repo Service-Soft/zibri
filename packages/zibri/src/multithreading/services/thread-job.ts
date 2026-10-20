@@ -1,11 +1,11 @@
 import { BehaviorSubject } from 'rxjs';
 
-import { LoggedError } from '../../logging/logged-error.model';
-import { Percentage } from '../../types/percentage.type';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
-import { ThreadJobStatus } from '../models/thread-job-status.enum';
+import { LoggedError } from '../../logging/logged-error.model.ts';
+import { Percentage } from '../../types/percentage.type.ts';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { ThreadJobData, ThreadJobDataFunctions } from '../models/thread-job-data.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
+import { ThreadJobStatus } from '../models/thread-job-status.enum.ts';
 
 /**
  * A thread job.
@@ -73,19 +73,19 @@ export class ThreadJob<
      * A subject that contains whether or not the job was completed.
      */
     readonly completedSubject: BehaviorSubject<boolean> = new BehaviorSubject(false);
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     timeout: number;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     priority: boolean;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly workerData: WorkerData;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onMessage?: (message: unknown) => void;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onComplete?: () => void;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onError?: (error: Error) => void;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onCancel?: () => void;
 
     constructor(

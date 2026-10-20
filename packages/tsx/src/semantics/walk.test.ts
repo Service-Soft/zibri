@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
+import { describe, expect, it } from 'vitest';
 
-import { parseTemplate } from './symbols';
-import { UnhandledSyntaxError, walk } from './walk';
+import { parseTemplate } from './symbols.ts';
+import { UnhandledSyntaxError, walk } from './walk.ts';
 
 /**
  * Walks every statement of a source, recording the kind of every visited node.

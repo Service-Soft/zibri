@@ -1,24 +1,24 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { LeaseServiceInterface } from './lease-service.interface';
-import { Lease } from './lease.model';
-import { LeaseService } from './lease.service';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Newable } from '../types/newable.type';
+import { LeaseServiceInterface } from './lease-service.interface.ts';
+import { Lease } from './lease.model.ts';
+import { LeaseService } from './lease.service.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Newable } from '../types/newable.type.ts';
 
 describe('LeaseService — starting', () => {
     it('refuses to start without Lease, and names it', async () => {

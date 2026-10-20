@@ -1,24 +1,24 @@
 import assert from 'node:assert';
 import { Dirent } from 'node:fs';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { SemVerVersion } from './sem-ver.utilities';
-import { StoredRoute } from './stored-route.model';
-import { Version, VersionFile } from './version.model';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Newable } from '../types/newable.type';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { SemVerVersion } from './sem-ver.utilities.ts';
+import { StoredRoute } from './stored-route.model.ts';
+import { Version, VersionFile } from './version.model.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions');
 

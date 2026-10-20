@@ -1,5 +1,5 @@
-import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
-import { FileSize } from '../entity/models/file-property-metadata.model';
+import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model.ts';
+import { FileSize } from '../entity/models/file-property-metadata.model.ts';
 
 /**
  * What a request is sent over.

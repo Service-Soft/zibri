@@ -1,14 +1,14 @@
-import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model';
-import { FileSize } from '../../entity/models/file-property-metadata.model';
-import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model';
-import { AnyOfShapesMetadata, OneOfShapeMetadata, OneOfShapeMetadataInput } from '../../entity/models/one-of-property-metadata.model';
-import { IncomingStringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
-import { JsonMimeType } from '../../http/json-mime-type.type';
-import { MimeType } from '../../http/mime-type.enum';
-import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { BigNumber } from '../../utilities/number.utilities';
+import { BasePropertyMetadata } from '../../entity/models/base-property-metadata.model.ts';
+import { FileSize } from '../../entity/models/file-property-metadata.model.ts';
+import { ObjectPropertyMetadata, ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model.ts';
+import { AnyOfShapesMetadata, OneOfShapeMetadata, OneOfShapeMetadataInput } from '../../entity/models/one-of-property-metadata.model.ts';
+import { IncomingStringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model.ts';
+import { JsonMimeType } from '../../http/json-mime-type.type.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
 
 // each mime type has: BodyMetadata[x], BodyMetadataInput[x], OneOfBodyMetadataInput
 

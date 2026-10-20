@@ -3,72 +3,72 @@ import { AddressInfo } from 'node:net';
 
 import express, { ErrorRequestHandler, RequestHandler } from 'express';
 
-import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
-import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
-import { isTwoFactorMethod } from '../auth/2fa/methods/two-factor-method.interface';
-import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
-import { isAuthStrategy } from '../auth/strategies/auth-strategy.interface';
-import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
-import { CronJob } from '../cron/cron-job.model';
-import { isDataSource } from '../data-source/data-sources/data-source.interface';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { DiContainer } from '../di/di-container';
-import { InvalidClassMarkedWithInjectableError } from '../di/errors/invalid-class-marked-with-injectable.error';
-import { ProviderCollisionError } from '../di/errors/provider-collision.error';
-import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiToken } from '../di/models/di-token.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { register } from '../di/register.function';
-import { UnmatchedRouteError } from '../error-handling/errors/unmatched-route.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { implementsAfterAppInit } from '../global/after-app-init.interface';
-import { AfterAppShutdown, AfterAppShutdownError, implementsAfterAppShutdown } from '../global/after-app-shutdown.interface';
-import { implementsAfterAppStart } from '../global/after-app-start.interface';
-import { AppState } from '../global/app-state.enum';
-import { implementsBeforeAppInit } from '../global/before-app-init.interface';
-import { BeforeAppShutdown, BeforeAppShutdownError, implementsBeforeAppShutdown } from '../global/before-app-shutdown.interface';
-import { declaresLifecycleHook } from '../global/declares-lifecycle-hook.function';
-import { GlobalRegistry } from '../global/global-registry';
-import { LifecyclePhase } from '../global/lifecycle-phase.enum';
-import { implementsOnAppInit } from '../global/on-app-init.interface';
-import { implementsOnAppShutdown, OnAppShutdown, OnAppShutdownError } from '../global/on-app-shutdown.interface';
-import { implementsOnAppStart } from '../global/on-app-start.interface';
-import { HandlebarUtilities } from '../handlebars/handlebar.utilities';
-import { compressionMiddleware } from '../http/compression.middleware';
-import { cookieMiddleware } from '../http/cookie.middleware';
-import { corsMiddleware, defaultCorsOptions } from '../http/cors.middleware';
-import { crossOriginCookieMiddleware } from '../http/cross-origin-cookie.middleware';
-import { HttpServerLimits } from '../http/http-server-limits.model';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MiddlewarePhase } from '../http/middleware-phase.enum';
-import { traceContextMiddleware } from '../http/trace-context.middleware';
-import { LoggerInterface } from '../logging/logger.interface';
-import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser';
-import { FormUrlEncodedBodyParser } from '../parsing/form-url-encoded/form-url-encoded.body-parser';
-import { JsonBodyParser } from '../parsing/json/json.body-parser';
-import { StreamBodyParser } from '../parsing/stream/stream.body-parser';
-import { XmlBodyParser } from '../parsing/xml/xml.body-parser';
-import { ZibriPlugin } from '../plugin/plugin.model';
-import { Route } from '../routing/controller-route-configuration.model';
-import { DeepPartial } from '../types/deep-partial.type';
-import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { Ms } from '../utilities/ms';
-import { NumberUtilities } from '../utilities/number.utilities';
-import { PromiseUtilities } from '../utilities/promise.utilities';
+import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model.ts';
+import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method.ts';
+import { isTwoFactorMethod } from '../auth/2fa/methods/two-factor-method.interface.ts';
+import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator.ts';
+import { isAuthStrategy } from '../auth/strategies/auth-strategy.interface.ts';
+import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { CronJob } from '../cron/cron-job.model.ts';
+import { isDataSource } from '../data-source/data-sources/data-source.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { DiContainer } from '../di/di-container.ts';
+import { InvalidClassMarkedWithInjectableError } from '../di/errors/invalid-class-marked-with-injectable.error.ts';
+import { ProviderCollisionError } from '../di/errors/provider-collision.error.ts';
+import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiToken } from '../di/models/di-token.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
+import { register } from '../di/register.function.ts';
+import { UnmatchedRouteError } from '../error-handling/errors/unmatched-route.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { implementsAfterAppInit } from '../global/after-app-init.interface.ts';
+import { AfterAppShutdown, AfterAppShutdownError, implementsAfterAppShutdown } from '../global/after-app-shutdown.interface.ts';
+import { implementsAfterAppStart } from '../global/after-app-start.interface.ts';
+import { AppState } from '../global/app-state.enum.ts';
+import { implementsBeforeAppInit } from '../global/before-app-init.interface.ts';
+import { BeforeAppShutdown, BeforeAppShutdownError, implementsBeforeAppShutdown } from '../global/before-app-shutdown.interface.ts';
+import { declaresLifecycleHook } from '../global/declares-lifecycle-hook.function.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { LifecyclePhase } from '../global/lifecycle-phase.enum.ts';
+import { implementsOnAppInit } from '../global/on-app-init.interface.ts';
+import { implementsOnAppShutdown, OnAppShutdown, OnAppShutdownError } from '../global/on-app-shutdown.interface.ts';
+import { implementsOnAppStart } from '../global/on-app-start.interface.ts';
+import { HandlebarUtilities } from '../handlebars/handlebar.utilities.ts';
+import { compressionMiddleware } from '../http/compression.middleware.ts';
+import { cookieMiddleware } from '../http/cookie.middleware.ts';
+import { corsMiddleware, defaultCorsOptions } from '../http/cors.middleware.ts';
+import { crossOriginCookieMiddleware } from '../http/cross-origin-cookie.middleware.ts';
+import { HttpServerLimits } from '../http/http-server-limits.model.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MiddlewarePhase } from '../http/middleware-phase.enum.ts';
+import { traceContextMiddleware } from '../http/trace-context.middleware.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { FormDataBodyParser } from '../parsing/form-data/form-data.body-parser.ts';
+import { FormUrlEncodedBodyParser } from '../parsing/form-url-encoded/form-url-encoded.body-parser.ts';
+import { JsonBodyParser } from '../parsing/json/json.body-parser.ts';
+import { StreamBodyParser } from '../parsing/stream/stream.body-parser.ts';
+import { XmlBodyParser } from '../parsing/xml/xml.body-parser.ts';
+import { ZibriPlugin } from '../plugin/plugin.model.ts';
+import { Route } from '../routing/controller-route-configuration.model.ts';
+import { DeepPartial } from '../types/deep-partial.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
+import { NumberUtilities } from '../utilities/number.utilities.ts';
+import { PromiseUtilities } from '../utilities/promise.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins' | 'security'>> & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     security: ZibriApplicationSecurityOptions
 };
 
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 
 const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
@@ -142,7 +142,7 @@ export class ZibriApplication {
     // constructor, and the limits are a di token, which there is nothing to read from before then
     private httpServer: Server | undefined = undefined;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The underlying http server, there once the application is initialized.
      * @throws When the application has not been initialized yet.
@@ -477,7 +477,7 @@ export class ZibriApplication {
                 // one object, because each handler has to take the other one back off the server: a
                 // one-shot error listener left behind would answer a later failure by settling a promise
                 // that is already settled, which is how a real error ends up going nowhere
-                // eslint-disable-next-line jsdoc/require-jsdoc
+                // eslint-disable-next-line jsdoc-js/require-jsdoc
                 const handlers: { listening: () => void, error: (error: Error) => void } = {
                     listening: () => {
                         this.server.off('error', handlers.error);
@@ -985,7 +985,6 @@ export class ZibriApplication {
     }
 
     private createFullOptions(): FullZibriApplicationOptions {
-        // eslint-disable-next-line stylistic/max-len
         const hsts: DeepPartial<HstsOptions> | boolean | undefined = this.providedOptions.security?.headers?.[KnownHeader.STRICT_TRANSPORT_SECURITY];
 
         const res: FullZibriApplicationOptions = {

@@ -32,7 +32,7 @@ export function findWorkflowCommands(workflow: string): string[] {
     return commands;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function leadingSpaces(line: string): number {
     return line.trim() === '' ? 0 : line.length - line.trimStart().length;
 }

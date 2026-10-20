@@ -1,55 +1,55 @@
 import assert from 'node:assert';
 import { CipherGCM, createCipheriv, createDecipheriv, DecipherGCM, randomBytes } from 'node:crypto';
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
-import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
-import { type TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
-import { PasswordCredentials } from '../../auth/authenticators/password/password-credentials.model';
-import { Auth } from '../../auth/decorators/auth.decorator';
-import { EncryptionKey, EncryptionKeyStatus } from '../../auth/encryption/encryption-key.model';
-import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model';
-import { EncryptionRotationCronJob } from '../../auth/encryption/encryption-rotation.cron-job';
-import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
-import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../../auth/encryption/encryption.utilities';
-import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
-import { BaseUser } from '../../auth/models/base-user.model';
-import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
-import { CookieAuthRefreshSession } from '../../auth/strategies/cookie/cookie-auth-refresh-session.model';
-import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-session.model';
-import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
-import { type HttpRequestContext } from '../../context/request/http-request.context';
-import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { Log } from '../../logging/log.model';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
-import { InMemoryRateLimiterStore } from '../../rate-limiting/stores/in-memory.rate-limiter-store';
-import { type BaseRateLimitState, type RateLimiterStoreInterface } from '../../rate-limiting/stores/rate-limiter-store.interface';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Ms } from '../../utilities/ms';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource } from '../test-server/create-test-data-source.function';
-import { defaultTestServerProviders, testMasterKey } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model.ts';
+import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method.ts';
+import { type TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface.ts';
+import { PasswordCredentials } from '../../auth/authenticators/password/password-credentials.model.ts';
+import { Auth } from '../../auth/decorators/auth.decorator.ts';
+import { EncryptionKey, EncryptionKeyStatus } from '../../auth/encryption/encryption-key.model.ts';
+import { EncryptionMasterOptions } from '../../auth/encryption/encryption-master-options.model.ts';
+import { EncryptionRotationCronJob } from '../../auth/encryption/encryption-rotation.cron-job.ts';
+import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface.ts';
+import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../../auth/encryption/encryption.utilities.ts';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { type HashServiceInterface } from '../../auth/hash/hash-service.interface.ts';
+import { BaseUser } from '../../auth/models/base-user.model.ts';
+import { PasswordResetToken } from '../../auth/models/password-reset-token.model.ts';
+import { CookieAuthRefreshSession } from '../../auth/strategies/cookie/cookie-auth-refresh-session.model.ts';
+import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-session.model.ts';
+import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model.ts';
+import { type HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { type WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model.ts';
+import { Log } from '../../logging/log.model.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface.ts';
+import { InMemoryRateLimiterStore } from '../../rate-limiting/stores/in-memory.rate-limiter-store.ts';
+import { type BaseRateLimitState, type RateLimiterStoreInterface } from '../../rate-limiting/stores/rate-limiter-store.interface.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
+import { createTestDataSource } from '../test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders, testMasterKey } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md.
@@ -477,8 +477,8 @@ describe('evaluation/03-auth-and-security', () => {
 
         it('compares a password even when the address is unknown', async () => {
             const hashService: HashServiceInterface = inject(ZIBRI_DI_TOKENS.HASH_SERVICE);
-            // eslint-disable-next-line typescript/typedef
-            const equalSpy = jest.spyOn(hashService, 'equal');
+            // eslint-disable-next-line typescript-js/typedef
+            const equalSpy = vi.spyOn(hashService, 'equal');
 
             await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
@@ -548,8 +548,8 @@ describe('evaluation/03-auth-and-security', () => {
             assert(limiter);
 
             const store: RateLimiterStoreInterface<BaseRateLimitState> = limiter.config.store;
-            const atomicUpdate: jest.SpiedFunction<RateLimiterStoreInterface<BaseRateLimitState>['atomicUpdate']>
-                = jest.spyOn(store, 'atomicUpdate');
+            const atomicUpdate: MockInstance<RateLimiterStoreInterface<BaseRateLimitState>['atomicUpdate']>
+                = vi.spyOn(store, 'atomicUpdate');
 
             for (let i: number = 0; i < 200; i++) {
                 await store.atomicUpdate(`evaluation-e3:${i}`, () => ({ expiresAtMs: Date.now() - 1, reservations: [] }));

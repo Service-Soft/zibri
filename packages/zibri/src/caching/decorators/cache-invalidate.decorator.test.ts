@@ -1,18 +1,18 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CacheInvalidate } from './cache-invalidate.decorator';
-import { Cache } from './cache.decorator';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { CacheService } from '../cache.service';
-import { CachedValue } from '../store/cached-value.model';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { CacheInvalidate } from './cache-invalidate.decorator.ts';
+import { Cache } from './cache.decorator.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { CacheService } from '../cache.service.ts';
+import { CachedValue } from '../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
 
 @Cache()
 class InvalidateAffectedCache extends WriteThroughReadThroughCache<string, string, 'Cache Invalidate Decorator Affected Cache'> {
@@ -59,7 +59,7 @@ describe('CacheInvalidate decorator', () => {
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('invalidates matching tags after the decorated method runs', async () => {
@@ -75,8 +75,8 @@ describe('CacheInvalidate decorator', () => {
 
     it('only builds the wrapped function once per instance', async () => {
         const cache: InvalidateAffectedCache = inject(InvalidateAffectedCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapInvalidateSpy = jest.spyOn(cache, 'wrapInvalidate');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapInvalidateSpy = vi.spyOn(cache, 'wrapInvalidate');
 
         const service: InvalidateService = new InvalidateService();
         await service.bulkUpdate();

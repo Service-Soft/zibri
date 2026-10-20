@@ -1,6 +1,6 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type InvalidClassReason = 'cronJob' | 'plugin' | 'twoFactorMethod' | 'authStrategy';
 
 const messageForReason: Record<InvalidClassReason, string> = {

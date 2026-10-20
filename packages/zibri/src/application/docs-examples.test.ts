@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import ts from 'typescript';
+import ts from '@typescript/typescript6';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * Whether every example in `docs/` is code a reader can actually use.
@@ -21,7 +21,7 @@ import ts from 'typescript';
  * itself, which is what rots.
  */
 
-const DOCS_DIR: string = path.join(__dirname, '..', '..', 'docs');
+const DOCS_DIR: string = path.join(import.meta.dirname, '..', '..', 'docs');
 
 const COMPILED_LANGUAGES: string[] = ['ts', 'tsx', 'typescript'];
 
@@ -142,6 +142,11 @@ function assemblePage(content: string): { lines: string[], lineOrigins: number[]
  * @returns Whether to leave it out of the report.
  */
 function isAboutTheReadersOwnFiles(diagnostic: ts.Diagnostic): boolean {
+    // 2834 is the same unresolved import of the reader's own file, asked of an es module: the pages are
+    // compiled as one, and a relative import there has to name the file
+    if (diagnostic.code === 2834) {
+        return true;
+    }
     if (diagnostic.code !== 2307) {
         return false;
     }
@@ -158,7 +163,7 @@ let workDir: string;
 describe('the examples in docs/', () => {
 
     beforeAll(() => {
-        const root: string = path.join(__dirname, '__testing__', 'file-output');
+        const root: string = path.join(import.meta.dirname, '__testing__', 'file-output');
         mkdirSync(root, { recursive: true });
         workDir = mkdtempSync(path.join(root, 'docs-examples-'));
 
@@ -201,14 +206,14 @@ describe('the examples in docs/', () => {
             resolveJsonModule: true,
             skipLibCheck: true,
             noEmit: true,
-            baseUrl: __dirname,
+            baseUrl: import.meta.dirname,
             paths: {
-                zibri: [path.join(__dirname, '..', 'index.ts')],
+                zibri: [path.join(import.meta.dirname, '..', 'index.ts')],
                 // source rather than the built package, so that a page describing today's harness
                 // is not judged against whenever `zibri-testing` was last built
-                'zibri-testing': [path.join(__dirname, '..', '..', '..', 'testing', 'src', 'index.ts')],
-                'zibri-tsx': [path.join(__dirname, '..', '..', '..', 'tsx', 'src', 'index.ts')],
-                'zibri-tsx/jsx-runtime': [path.join(__dirname, '..', '..', '..', 'tsx', 'src', 'jsx-runtime.ts')]
+                'zibri-testing': [path.join(import.meta.dirname, '..', '..', '..', 'testing', 'src', 'index.ts')],
+                'zibri-tsx': [path.join(import.meta.dirname, '..', '..', '..', 'tsx', 'src', 'index.ts')],
+                'zibri-tsx/jsx-runtime': [path.join(import.meta.dirname, '..', '..', '..', 'tsx', 'src', 'jsx-runtime.ts')]
             }
         });
 

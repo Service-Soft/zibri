@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { RegexUtilities } from './regex.utilities';
-import { Property } from '../entity/decorators/property.decorator';
-import { Param } from '../routing/decorators/param.decorator';
+import { RegexUtilities } from './regex.utilities.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { Param } from '../routing/decorators/param.decorator.ts';
 
 describe('RegexUtilities', () => {
     it('compiles a declared pattern once', () => {

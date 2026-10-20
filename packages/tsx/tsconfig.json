@@ -21,6 +21,7 @@
             "zibri-tsx/jsx-runtime": ["./src/jsx-runtime.ts"]
         },
         "resolveJsonModule": true,
+        "rewriteRelativeImportExtensions": true,
         "rootDir": "src",
         "skipLibCheck": true,
         "sourceMap": true,
@@ -31,5 +32,5 @@
         "useUnknownInCatchVariables": true
     },
     "exclude": [],
-    "include": ["src", "jest.config.mjs"]
+    "include": ["src"]
 }

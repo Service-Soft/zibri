@@ -1,6 +1,6 @@
-import { Property } from '../entity/decorators/property.decorator';
-import { XmlRoot } from '../parsing/xml/xml-root.decorator';
-import { Newable } from '../types/newable.type';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { XmlRoot } from '../parsing/xml/xml-root.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Type of a pagination result, consisting of the items from the current page and the total amount of items.
@@ -29,20 +29,20 @@ export type KeysetPage<T> = PaginationResult<T> & {
     nextCursor: string | undefined
 };
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * A pagination result class, consisting of the items from the current page and the total amount of items.
  * @param itemClass - The pagination item class.
  */
 export function PaginationResultClass<T>(itemClass: Newable<T>): Newable<PaginationResult<T>> {
     // named here, as an xml document would otherwise be named after this class, whatever the items are
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @XmlRoot({ name: 'PaginationResult' })
     class PaginationResultClass implements PaginationResult<T> {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.array({ items: { type: 'object', cls: () => itemClass }, description: 'the paginated items' })
         items!: T[];
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.number({ format: 'integer', description: 'the total amount of items' })
         totalAmount!: number;
     }
@@ -50,22 +50,22 @@ export function PaginationResultClass<T>(itemClass: Newable<T>): Newable<Paginat
     return PaginationResultClass;
 }
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * A keyset page class: the items, the total, and the cursor the next page is read with.
  * @param itemClass - The class of the paginated items.
  */
 export function KeysetPageClass<T>(itemClass: Newable<T>): Newable<KeysetPage<T>> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @XmlRoot({ name: 'KeysetPage' })
     class KeysetPageClass implements KeysetPage<T> {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.array({ items: { type: 'object', cls: () => itemClass }, description: 'the items of this page' })
         items!: T[];
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.number({ format: 'integer', description: 'the total amount of items the filter matches' })
         totalAmount!: number;
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.string({
             required: false,
             description: 'pass this back to read the next page, absent when this was the last one'

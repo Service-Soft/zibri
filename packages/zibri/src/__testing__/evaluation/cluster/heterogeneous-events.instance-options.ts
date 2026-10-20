@@ -1,15 +1,15 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider } from '../../../di/models/di-provider.model';
-import { type EventServiceInterface } from '../../../event/event-service.interface';
-import { Event } from '../../../event/event.model';
-import { type OnAppStart } from '../../../global/on-app-start.interface';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
+import { type EventServiceInterface } from '../../../event/event-service.interface.ts';
+import { Event } from '../../../event/event.model.ts';
+import { type OnAppStart } from '../../../global/on-app-start.interface.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
 
 /**
  * What every instance of the heterogeneous event cluster boots with.
@@ -27,7 +27,7 @@ import { Post } from '../../../routing/decorators/post.decorator';
 /**
  * The event both roles care about, for different reasons.
  */
-const eventType: 'order.placed' = 'order.placed';
+const eventType: 'order.placed' = 'order.placed' as const;
 
 /**
  * The instance that plays the web role. Every other instance is a worker.
@@ -45,7 +45,7 @@ const auditSubscriberId: string = 'order-auditor';
  */
 const mailSubscriberId: string = 'order-mailer';
 
-declare module '../../../event/event-service.interface' {
+declare module '../../../event/event-service.interface.ts' {
     /**
      * The event both roles deal in, declared the way an application declares its own.
      */

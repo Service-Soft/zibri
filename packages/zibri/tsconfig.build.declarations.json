@@ -4,5 +4,5 @@
     "compilerOptions": {
         "emitDeclarationOnly": true
     },
-    "extends": "./tsconfig.cjs.json"
+    "extends": "./tsconfig.build.json"
 }

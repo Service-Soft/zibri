@@ -1,27 +1,27 @@
 import { ClusterMark, clusterInstanceId, StartTestServerOptions } from 'zibri-testing';
 
-import { MultiTierCache } from '../../../caching/cache/multi-tier.cache';
-import { WriteThroughReadThroughCache } from '../../../caching/cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../../../caching/cache-service.interface';
-import { Cache } from '../../../caching/decorators/cache.decorator';
-import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store';
-import { ValKeyCacheStore } from '../../../caching/store/val-key.cache-store';
-import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
-import { DataSource } from '../../../data-source/decorators/data-source.decorator';
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Get } from '../../../routing/decorators/get.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
-import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { MultiTierCache } from '../../../caching/cache/multi-tier.cache.ts';
+import { WriteThroughReadThroughCache } from '../../../caching/cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../../../caching/cache-service.interface.ts';
+import { Cache } from '../../../caching/decorators/cache.decorator.ts';
+import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store.ts';
+import { ValKeyCacheStore } from '../../../caching/store/val-key.cache-store.ts';
+import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../../routing/decorators/get.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function.ts';
+import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function.ts';
 
 /**
  * What every instance of the caching cluster boots with.
@@ -37,7 +37,7 @@ import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key
 /**
  * The tag values are stored under, and the one invalidation is asked for.
  */
-const cacheTag: 'cluster-counter' = 'cluster-counter';
+const cacheTag: 'cluster-counter' = 'cluster-counter' as const;
 
 /**
  * The kind of mark the origin counts. Each one written moves the value the origin returns.

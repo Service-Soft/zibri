@@ -1,4 +1,4 @@
-import { PdfImageDefinition } from '../../../document/pdf.utilities';
+import { PdfImageDefinition } from '../../../document/pdf.utilities.ts';
 
 /**
  * Options used throughout the plugin.

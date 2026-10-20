@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { type OnAppShutdown } from '../global/on-app-shutdown.interface';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { type OnAppShutdown } from '../global/on-app-shutdown.interface.ts';
 
 /**
  * How an application ends, and what that tells whatever started the process.
@@ -39,7 +39,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
 /**
  * The stubbed `process.exit`.
  */
-type ProcessExitSpy = jest.Spied<typeof process.exit>;
+type ProcessExitSpy = MockInstance<typeof process.exit>;
 
 /**
  * Waits until the application has asked to end the process.
@@ -68,7 +68,7 @@ describe('shutting an application down', () => {
         failShutdown = false;
         // a mock with no implementation returns nothing, which is what lets the shutdown carry on
         // past the exit the way a test needs it to
-        exitSpy = jest.spyOn(process, 'exit').mockImplementation(jest.fn<typeof process.exit>());
+        exitSpy = vi.spyOn(process, 'exit').mockImplementation(vi.fn<typeof process.exit>());
         server = await startTestServer({
             dataSources: [dataSourceClass],
             providers: defaultTestServerProviders,

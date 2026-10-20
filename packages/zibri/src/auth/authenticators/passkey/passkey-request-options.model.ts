@@ -3,7 +3,7 @@ import type { AuthenticationExtensionsClientInputs,
     PublicKeyCredentialHint,
     UserVerificationRequirement } from '@simplewebauthn/server';
 
-import { Property } from '../../../entity/decorators/property.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * What the browser uses a passkey with, as `PublicKeyCredential.parseRequestOptionsFromJSON` or

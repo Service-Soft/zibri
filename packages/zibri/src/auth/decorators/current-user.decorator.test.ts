@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { Auth } from './auth.decorator';
-import { CurrentUser } from './current-user.decorator';
-import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
-import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy';
+import { Auth } from './auth.decorator.ts';
+import { CurrentUser } from './current-user.decorator.ts';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model.ts';
+import { JwtAuthStrategy } from '../strategies/jwt/jwt.auth-strategy.ts';
 
 @Controller('/current-user-test')
 class CurrentUserTestController {

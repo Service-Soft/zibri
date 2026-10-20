@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 
-import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
-import { HttpMethod } from '../http/http-method.enum';
-import { Newable } from '../types/newable.type';
-import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
-import { PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput, PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator';
+import { RouteConfiguration, RouteConfigurationInput } from './route-configuration.model.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { Newable } from '../types/newable.type.ts';
+import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model.ts';
+import { PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput, PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from './decorators/param.decorator.ts';
 
 /**
  * Interface for a router.

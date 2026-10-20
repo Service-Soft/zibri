@@ -1,20 +1,21 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { scopeFor } from '../../entity/models/entity-scope.model';
-import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { Repository } from '../repository/repository';
-import { NoActiveTenantError } from '../tenancy/no-active-tenant.error';
-import { Transaction } from '../transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { scopeFor } from '../../entity/models/entity-scope.model.ts';
+import { ForbiddenError } from '../../error-handling/errors/forbidden.error.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { Repository } from '../repository/repository.ts';
+import { NoActiveTenantError } from '../tenancy/no-active-tenant.error.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
 
 /**
  * A row every tenant has its own of, with a code unique within a tenant and a scope hiding what is
@@ -121,7 +122,7 @@ export class TenantTask extends BaseEntity {
      * The project the task belongs to.
      */
     @Property.manyToOne({ target: () => TenantProject, joinColumn: 'projectId', inverseSide: 'tasks' })
-    project?: TenantProject;
+    project?: Relation<TenantProject>;
 
     /**
      * The id of that project.

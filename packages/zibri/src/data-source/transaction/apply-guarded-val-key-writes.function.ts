@@ -1,9 +1,9 @@
 import type { GlideClient, GlideReturnType, Script } from '@valkey/valkey-glide';
 
-import { type ValKeyBufferedWrite } from './val-key-transaction.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
+import { type ValKeyBufferedWrite } from './val-key-transaction.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function.ts';
 
 /**
  * One write as the script reads it: what it does, the key, and the fields, field values or members.
@@ -32,7 +32,7 @@ function resolveGuardedWritesScript(): Script {
         + 'for _, guard in ipairs(payload[1]) do '
         + 'if (redis.call("get", guard[1]) or "") ~= guard[2] then return 0 end '
         + 'end '
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         + 'local commands = { hashSet = "hset", hashDelete = "hdel", setAdd = "sadd", setRemove = "srem" } '
         + 'for _, write in ipairs(payload[2]) do '
         + 'if write[1] == "delete" then redis.call("del", write[2]) '

@@ -1,7 +1,7 @@
-import { PasskeyAttachment } from './passkey-attachment.enum';
-import { PasskeyAttestation } from './passkey-attestation.model';
-import { PasskeyCredentialType } from './passkey-credential-type.enum';
-import { Property } from '../../../entity/decorators/property.decorator';
+import { PasskeyAttachment } from './passkey-attachment.enum.ts';
+import { PasskeyAttestation } from './passkey-attestation.model.ts';
+import { PasskeyCredentialType } from './passkey-credential-type.enum.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * What the browser answers once a device has created a passkey, as `PublicKeyCredential.toJSON()` or

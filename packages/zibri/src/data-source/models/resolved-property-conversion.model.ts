@@ -1,5 +1,5 @@
-import { ValueConversion } from './value-conversion.enum';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
+import { ValueConversion } from './value-conversion.enum.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * A value a property change lists, in the form it is stored as json.

@@ -1,16 +1,16 @@
-import { NoActiveTenantError } from './no-active-tenant.error';
-import { AlsUtilities } from '../../context/als.utilities';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { $ts } from '../../localization/translate.function';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Where } from '../models/where/where-filter.model';
+import { NoActiveTenantError } from './no-active-tenant.error.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { ForbiddenError } from '../../error-handling/errors/forbidden.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { Where } from '../models/where/where-filter.model.ts';
 
 /**
  * How the rows of one entity relate to tenants.

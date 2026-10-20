@@ -1,6 +1,6 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { InternalError } from '../internal-error.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { InternalError } from '../internal-error.model.ts';
 
 /**
  * An error to throw when there are entities that are not registered in a data source.
@@ -17,7 +17,7 @@ export class MissingEntitiesError extends InternalError {
         messages.push(
             'Did you forget to add them to your data source entities array?\n',
 
-            `If you don\'t want to use "${context}" you can also provide a variant of it that does not need these entities.`
+            `If you don't want to use "${context}" you can also provide a variant of it that does not need these entities.`
         );
         super(messages, options);
         this.name = 'MissingEntitiesError';

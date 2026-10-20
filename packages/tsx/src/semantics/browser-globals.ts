@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
 /**
  * The TypeScript lib files describing what a page's script can read: the language itself and the DOM.

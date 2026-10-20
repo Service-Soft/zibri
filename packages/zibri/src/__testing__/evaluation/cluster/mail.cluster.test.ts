@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { mailCronIntervalInMs, queuedMailCount } from './mail.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { mailCronIntervalInMs, queuedMailCount } from './mail.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 1.6.
@@ -23,7 +23,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'mail.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'mail.instance-options.ts'),
         instances: 3
     });
 }, 20000);

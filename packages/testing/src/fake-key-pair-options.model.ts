@@ -1,5 +1,5 @@
-import { FakeKeyPair } from './fake-key-pair.model';
-import { FakeKeyUsage } from './fake-key-usage.type';
+import { FakeKeyPair } from './fake-key-pair.model.ts';
+import { FakeKeyUsage } from './fake-key-usage.type.ts';
 
 /**
  * What kind of certificate a fake key pair gets.

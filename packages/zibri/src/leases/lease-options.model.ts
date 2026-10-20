@@ -1,4 +1,4 @@
-import { Transaction } from '../data-source/transaction/transaction.model';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
 
 /**
  * What to do when somebody else already holds the grant.

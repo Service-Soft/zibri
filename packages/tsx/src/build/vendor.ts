@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 
-import { vendorFileName } from '../vendor-file-name';
+import { vendorFileName } from '../vendor-file-name.ts';
 
 const PACKAGE_MANIFEST: string = 'package.json';
 

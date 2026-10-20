@@ -1,4 +1,4 @@
-import { Property } from '../../../entity/decorators/property.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * The one-time code a sign-in at a provider is handed over with.

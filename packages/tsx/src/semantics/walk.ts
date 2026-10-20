@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { SourceSpan } from '../diagnostics/diagnostic.model';
+import { SourceSpan } from '../diagnostics/diagnostic.model.ts';
 
 /**
  * The kinds of node that hold no value syntax below them: names, literals, keywords that are values by
@@ -108,7 +108,7 @@ export function childrenOf(node: ts.Node): ts.Node[] {
  * @param node - The node whose children to enumerate.
  * @returns The child nodes.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function rawChildrenOf(node: ts.Node): ts.Node[] {
     if (ts.isVariableStatement(node)) {
         return declarationChildren(node.declarationList);
@@ -200,7 +200,7 @@ function rawChildrenOf(node: ts.Node): ts.Node[] {
  * @returns The child nodes (empty for a leaf).
  * @throws {UnhandledSyntaxError} When the node is of a kind the walk has no case for.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function expressionChildren(node: ts.Node): ts.Node[] {
     if (ts.isTemplateExpression(node)) {
         return node.templateSpans.map(span => span.expression);

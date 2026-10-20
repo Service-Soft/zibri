@@ -1,14 +1,14 @@
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model';
-import { $f } from '../../localization/format.function';
-import { $ts } from '../../localization/translate.function';
-import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
-import { DateParamMetadata } from '../../routing/models/date-param-metadata.model';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model.ts';
+import { $f } from '../../localization/format.function.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator.ts';
+import { DateParamMetadata } from '../../routing/models/date-param-metadata.model.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 /**
  * Validates the given date property.

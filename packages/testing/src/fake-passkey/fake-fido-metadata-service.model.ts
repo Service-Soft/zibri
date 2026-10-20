@@ -5,7 +5,7 @@ import { AddressInfo } from 'node:net';
 import { BasicConstraintsExtension, Extension, KeyUsageFlags, KeyUsagesExtension, X509Certificate, X509CertificateGenerator } from '@peculiar/x509';
 import { JsonUtilities, KnownHeader, MimeType } from 'zibri';
 
-import { FakePasskeyAttestation } from './fake-passkey-attestation.model';
+import { FakePasskeyAttestation } from './fake-passkey-attestation.model.ts';
 
 /**
  * A model of device, made up for a test.

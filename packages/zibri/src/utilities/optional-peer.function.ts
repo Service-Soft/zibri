@@ -1,8 +1,8 @@
 import { createRequire } from 'node:module';
 
-import { FsUtilities } from './fs.utilities';
-import { resolveAppRoot } from './resolve-app-root.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { FsUtilities } from './fs.utilities.ts';
+import { resolveAppRoot } from './resolve-app-root.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * The peers already loaded, so asking again costs nothing.

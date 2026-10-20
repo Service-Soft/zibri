@@ -1,31 +1,31 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { type AuthServiceInterface } from './auth-service.interface';
-import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model';
-import { Auth } from './decorators/auth.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy';
-import { ApiKey } from './strategies/api-key/api-key.model';
-import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
-import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
-import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
-import { Log } from '../logging/log.model';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Newable } from '../types/newable.type';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { type AuthServiceInterface } from './auth-service.interface.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from './authenticators/password/password-credentials.model.ts';
+import { Auth } from './decorators/auth.decorator.ts';
+import { CurrentUser } from './decorators/current-user.decorator.ts';
+import { ApiKeyAuthStrategy } from './strategies/api-key/api-key.auth-strategy.ts';
+import { ApiKey } from './strategies/api-key/api-key.model.ts';
+import { CreatedApiKey } from './strategies/api-key/created-api-key.model.ts';
+import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy.ts';
+import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model.ts';
+import { Log } from '../logging/log.model.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * What the login route answers.

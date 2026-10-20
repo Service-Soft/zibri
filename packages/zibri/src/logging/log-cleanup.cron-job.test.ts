@@ -1,29 +1,29 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, Mock } from 'vitest';
 
-import { LogCleanupCronJob } from './log-cleanup.cron-job';
-import { Log } from './log.model';
-import { LoggerInterface } from './logger.interface';
-import { Repository } from '../data-source/repository/repository';
+import { LogCleanupCronJob } from './log-cleanup.cron-job.ts';
+import { Log } from './log.model.ts';
+import { LoggerInterface } from './logger.interface.ts';
+import { Repository } from '../data-source/repository/repository.ts';
 
-function fakeLogRepository(): Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> } {
+function fakeLogRepository(): Repository<Log> & { deleteAll: Mock<(options: unknown) => Promise<void>> } {
     return {
-        deleteAll: jest.fn<(options: unknown) => Promise<void>>().mockResolvedValue(undefined)
-    } as unknown as Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> };
+        deleteAll: vi.fn<(options: unknown) => Promise<void>>().mockResolvedValue(undefined)
+    } as unknown as Repository<Log> & { deleteAll: Mock<(options: unknown) => Promise<void>> };
 }
 
 function fakeLogger(): LoggerInterface {
     return {
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-        critical: jest.fn()
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        critical: vi.fn()
     } as unknown as LoggerInterface;
 }
 
 describe('LogCleanupCronJob', () => {
     it('deletes all logs whose cleanupAt has passed', async () => {
-        const repo: Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> } = fakeLogRepository();
+        const repo: Repository<Log> & { deleteAll: Mock<(options: unknown) => Promise<void>> } = fakeLogRepository();
         const cronJob: LogCleanupCronJob = new LogCleanupCronJob(repo);
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
 
@@ -38,7 +38,7 @@ describe('LogCleanupCronJob', () => {
     });
 
     it('logs an info message on each tick', async () => {
-        const repo: Repository<Log> & { deleteAll: jest.Mock<(options: unknown) => Promise<void>> } = fakeLogRepository();
+        const repo: Repository<Log> & { deleteAll: Mock<(options: unknown) => Promise<void>> } = fakeLogRepository();
         const cronJob: LogCleanupCronJob = new LogCleanupCronJob(repo);
         const logger: LoggerInterface = fakeLogger();
         (cronJob as unknown as { logger: LoggerInterface }).logger = logger;

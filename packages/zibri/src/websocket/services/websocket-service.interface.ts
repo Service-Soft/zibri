@@ -1,13 +1,13 @@
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
-import { WebsocketAnswer } from '../models/websocket-answer.model';
-import { LooseWebsocketEvent } from '../models/websocket-event.enum';
-import { CreateWebsocketMessageData } from '../models/websocket-message.model';
-import { WebsocketRequestWithConnection } from '../models/websocket-request.model';
-import { WebsocketResponseHandler } from '../models/websocket-response.model';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { ChangedMembership } from '../../tenancy/membership/changed-membership.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model.ts';
+import { WebsocketAnswer } from '../models/websocket-answer.model.ts';
+import { LooseWebsocketEvent } from '../models/websocket-event.enum.ts';
+import { CreateWebsocketMessageData } from '../models/websocket-message.model.ts';
+import { WebsocketRequestWithConnection } from '../models/websocket-request.model.ts';
+import { WebsocketResponseHandler } from '../models/websocket-response.model.ts';
 
 /**
  * The message data for sending a websocket success message.

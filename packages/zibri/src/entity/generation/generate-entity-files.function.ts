@@ -1,9 +1,11 @@
-import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { registerTsNode } from '../../utilities/register-ts-node.function';
+import { pathToFileURL } from 'node:url';
+
+import { FileToGenerate, generateEntityFilesForProvider, GenerateEntityFilesForProviderResult } from './generate-entity-files-for-provider.function.ts';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities.ts';
+import { TypeScriptLoaderUtilities } from '../../utilities/typescript-loader/typescript-loader.utilities.ts';
 
 /**
  * Resolves providers from the src/models/generated/providers.ts file and generates entities from them.
@@ -20,12 +22,13 @@ export async function generateEntityFiles(): Promise<void> {
     if (ext !== '.ts') {
         return;
     }
-    // Register ts-node so the dynamically required providers file can be loaded when it is authored
-    // in TypeScript. Below the guard above rather than at the top of the file, so an application
-    // that only ever imports `zibri` never resolves a compiler it has no use for.
-    registerTsNode(`The providers file ${providersPath}`);
-    // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment, typescript/no-require-imports, typescript/no-var-requires
-    const imported: any = require(providersPath);
+    // Register the loader so the providers file, which is TypeScript, can be imported. Below the
+    // guard above rather than at the top of the file, so an application that only ever imports
+    // `zibri` never resolves a compiler it has no use for.
+    TypeScriptLoaderUtilities.register(`The providers file ${providersPath}`);
+    // a file of the application, which a bundler of this package has nothing to resolve
+    // eslint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-assignment
+    const imported: any = await import(pathToFileURL(providersPath).href);
     // eslint-disable-next-line typescript/no-unsafe-member-access
     const providersRaw: unknown = (imported.providers ?? imported.default) as unknown;
 
@@ -52,7 +55,7 @@ export async function generateEntityFiles(): Promise<void> {
     }));
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function resolveProvidersPath(cwd: string): Promise<FsPath> {
     const candidates: FsPath[] = [
         FsUtilities.getPath(cwd, 'src/models/generated/providers.js'),

@@ -1,4 +1,4 @@
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Checks whether or not the given value is a Date or a valid date string.
  * @param value - The value to check.
@@ -11,5 +11,5 @@ export function isDate(value: unknown): value is Date | string {
         return false;
     }
     const date: Date = new Date(value);
-    return !Number.isNaN(date.getTime()) && /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d{3})?)?(Z|[+\-]\d{2}:\d{2})?)?$/.test(value);
+    return !Number.isNaN(date.getTime()) && /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d{3})?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(value);
 }

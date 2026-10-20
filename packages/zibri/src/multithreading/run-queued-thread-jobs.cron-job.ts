@@ -1,8 +1,8 @@
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { type MultithreadingServiceInterface } from './services/multithreading-service.interface';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { type MultithreadingServiceInterface } from './services/multithreading-service.interface.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
 
 /**
  * Looks for queued thread jobs this instance could be running.
@@ -21,7 +21,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  * reach.
  */
 export class RunQueuedThreadJobsCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'run queued thread jobs',
         cron: CronExpression.every(2, 'seconds').build(),
@@ -36,7 +36,7 @@ export class RunQueuedThreadJobsCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         await this.multithreadingService.startQueuedJobs();
     }

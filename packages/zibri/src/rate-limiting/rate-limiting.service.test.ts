@@ -1,15 +1,15 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from 'vitest';
 
-import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { CronJob } from '../cron/cron-job.model';
-import { CronServiceInterface } from '../cron/cron-service.interface';
-import { CronService } from '../cron/cron.service';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
+import { RateLimitingServiceInterface } from './rate-limiting-service.interface.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { CronJob } from '../cron/cron-job.model.ts';
+import { CronServiceInterface } from '../cron/cron-service.interface.ts';
+import { CronService } from '../cron/cron.service.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
 
 /**
  * Minimal stand-in that satisfies `isRateLimiter`'s structural check without

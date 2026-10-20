@@ -1,7 +1,7 @@
 /**
- * All possible relations.
+ * The kinds of relation an entity property can declare.
  */
-export enum Relation {
+export enum RelationType {
     HAS_ONE = 'has-one',
     BELONGS_TO_ONE = 'belongs-to-one',
     ONE_TO_MANY = 'one-to-many',

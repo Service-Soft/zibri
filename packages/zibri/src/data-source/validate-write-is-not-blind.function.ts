@@ -1,10 +1,10 @@
-import { BaseEntity } from '../entity/base-entity.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { ModelRegistry } from '../global/model-registry/model.registry';
-import { DeepPartial } from '../types/deep-partial.type';
-import { Newable } from '../types/newable.type';
-import { Where, WhereFilter } from './models/where/where-filter.model';
-import { ScopeWhereUtilities } from './scopes/scope-where.utilities';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { ModelRegistry } from '../global/model-registry/model.registry.ts';
+import { DeepPartial } from '../types/deep-partial.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { Where, WhereFilter } from './models/where/where-filter.model.ts';
+import { ScopeWhereUtilities } from './scopes/scope-where.utilities.ts';
 
 /**
  * Refuses a write that would silently overwrite a property declaring `optimisticLocking`.

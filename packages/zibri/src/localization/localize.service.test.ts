@@ -1,13 +1,13 @@
-import { beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { defineDateFormat } from './define-date-format.function';
-import { LocalizeService } from './localize.service';
-import { LocaleCode } from './models/locale-code.model';
-import { LocaleConfiguration, LocalizeOptions } from './models/localize-options.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { defineDateFormat } from './define-date-format.function.ts';
+import { LocalizeService } from './localize.service.ts';
+import { LocaleCode } from './models/locale-code.model.ts';
+import { LocaleConfiguration, LocalizeOptions } from './models/localize-options.model.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
 type ResolutionCase = {
     readonly header: string,

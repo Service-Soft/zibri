@@ -1,4 +1,4 @@
-import { Property } from './decorators/property.decorator';
+import { Property } from './decorators/property.decorator.ts';
 
 /**
  * The base entity that all db entities need to extend from.

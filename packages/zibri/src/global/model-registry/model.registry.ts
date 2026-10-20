@@ -1,10 +1,10 @@
-import { DefaultDescriptor } from './default-descriptor';
-import { EncryptionDescriptor } from './encryption-descriptor';
-import { ExcludeDescriptor } from './exclude-descriptor';
-import { HashDescriptor } from './hash-descriptor';
-import { KeyDescriptor } from './key-descriptor';
-import { OptimisticLockDescriptor } from './optimistic-lock-descriptor';
-import { Newable } from '../../types/newable.type';
+import { DefaultDescriptor } from './default-descriptor.ts';
+import { EncryptionDescriptor } from './encryption-descriptor.ts';
+import { ExcludeDescriptor } from './exclude-descriptor.ts';
+import { HashDescriptor } from './hash-descriptor.ts';
+import { KeyDescriptor } from './key-descriptor.ts';
+import { OptimisticLockDescriptor } from './optimistic-lock-descriptor.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Data stored per entity class in the registry.

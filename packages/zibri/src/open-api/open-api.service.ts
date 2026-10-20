@@ -1,66 +1,66 @@
 import { Readable } from 'node:stream';
 
-import { OpenApiServiceInterface } from './open-api-service.interface';
-import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter, OpenApiReferenceObject, isOpenApiReferenceObject, JsonOpenApiResponse, OpenApiXmlObject } from './open-api.model';
-import { resolveResponseClass } from './resolve-response-class.function';
-import { ZibriApplication } from '../application/application';
-import { type AssetServiceInterface } from '../assets/asset-service.interface';
-import { type AuthServiceInterface } from '../auth/auth-service.interface';
-import { ResolvedAuthMetadata } from '../auth/models/resolved-auth-metadata.model';
-import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { EntityMetadata } from '../entity/decorators/entity.decorator';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
-import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
-import { BooleanPropertyMetadata } from '../entity/models/boolean-property-metadata.model';
-import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
-import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
-import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
-import { NumberFormat, NumberPropertyMetadata } from '../entity/models/number-property-metadata.model';
-import { AnyOfShapesMetadata, OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
-import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
-import { StringPropertyMetadata } from '../entity/models/string-property-metadata.model';
-import { OmitClass } from '../entity/omit-class.model';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { AfterAppInit } from '../global/after-app-init.interface';
-import { GlobalRegistry } from '../global/global-registry';
-import { OnAppStart } from '../global/on-app-start.interface';
-import { RouteRegistry } from '../global/route-registry/route.registry';
-import { HttpMethod, httpMethodKey } from '../http/http-method.enum';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { $f } from '../localization/format.function';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { FileResponse } from '../parsing/form-data/file-response.model';
-import { HtmlResponse } from '../parsing/html/html-response.model';
-import { XmlModelUtilities } from '../parsing/xml/xml-model.utilities';
-import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
-import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
-import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { ControllerData } from '../routing/decorators/controller.decorator';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
-import { MissingBaseRouteError } from '../routing/missing-base-route.error';
-import { ArrayParamItemMetadata } from '../routing/models/array-param-metadata.model';
-import { type RouterInterface } from '../routing/router.interface';
-import { Newable } from '../types/newable.type';
-import { FsUtilities, FsPath } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { SemVerUtilities } from '../versioning/sem-ver.utilities';
-import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
-import { Version, VersionFile } from '../versioning/version.model';
-import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
+import { OpenApiServiceInterface } from './open-api-service.interface.ts';
+import { OpenApiDefinition, OpenApiTagObject, OpenApiSecuritySchemeObject, OpenApiPaths, OpenApiResponse, OpenApiOperation, OpenApiResponsesObject, OpenApiResponseObject, OpenApiContentObject, OpenApiSchemaObject, OpenApiSecurityRequirementObject, OpenApiRequestBodyObject, OpenApiParameterLocation, OpenApiParameter, OpenApiReferenceObject, isOpenApiReferenceObject, JsonOpenApiResponse, OpenApiXmlObject } from './open-api.model.ts';
+import { resolveResponseClass } from './resolve-response-class.function.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { type AssetServiceInterface } from '../assets/asset-service.interface.ts';
+import { type AuthServiceInterface } from '../auth/auth-service.interface.ts';
+import { ResolvedAuthMetadata } from '../auth/models/resolved-auth-metadata.model.ts';
+import { type RouteAuthConfiguration } from '../auth/models/route-auth-configuration.model.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { EntityMetadata } from '../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model.ts';
+import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model.ts';
+import { BooleanPropertyMetadata } from '../entity/models/boolean-property-metadata.model.ts';
+import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model.ts';
+import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model.ts';
+import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model.ts';
+import { NumberFormat, NumberPropertyMetadata } from '../entity/models/number-property-metadata.model.ts';
+import { AnyOfShapesMetadata, OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model.ts';
+import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { StringPropertyMetadata } from '../entity/models/string-property-metadata.model.ts';
+import { OmitClass } from '../entity/omit-class.model.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { AfterAppInit } from '../global/after-app-init.interface.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { OnAppStart } from '../global/on-app-start.interface.ts';
+import { RouteRegistry } from '../global/route-registry/route.registry.ts';
+import { HttpMethod, httpMethodKey } from '../http/http-method.enum.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { $f } from '../localization/format.function.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { FileResponse } from '../parsing/form-data/file-response.model.ts';
+import { HtmlResponse } from '../parsing/html/html-response.model.ts';
+import { XmlModelUtilities } from '../parsing/xml/xml-model.utilities.ts';
+import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model.ts';
+import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model.ts';
+import { Route, ControllerRouteConfiguration } from '../routing/controller-route-configuration.model.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { ControllerData } from '../routing/decorators/controller.decorator.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { MissingBaseRouteError } from '../routing/missing-base-route.error.ts';
+import { ArrayParamItemMetadata } from '../routing/models/array-param-metadata.model.ts';
+import { type RouterInterface } from '../routing/router.interface.ts';
+import { Newable } from '../types/newable.type.ts';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { SemVerUtilities } from '../versioning/sem-ver.utilities.ts';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model.ts';
+import { Version, VersionFile } from '../versioning/version.model.ts';
+import { type VersioningServiceInterface } from '../versioning/versioning-service.interface.ts';
 
 const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = {
     default: 'Response',
@@ -157,7 +157,7 @@ type BooleanSchemaSource = Pick<BooleanPropertyMetadata, 'description'>;
  */
 @Injectable({ register: 'onUse' })
 export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, OnAppStart {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly openApiRoute: Route = '/explorer';
 
     /**
@@ -185,7 +185,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         private readonly auth: RouteAuthConfiguration
     ) { }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppStart(app: ZibriApplication): Promise<void> {
         this.definitions = await Promise.all(
             this.versioningService.getVersions().map(
@@ -194,7 +194,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterAppInit(): void {
         this.router.registerRoute({
             httpMethod: HttpMethod.GET,
@@ -262,7 +262,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 const versions: VersionFile[] = this.versioningService
                     .getVersions()
                     .sort((a, b) => SemVerUtilities.compare(a.value, b.value) === 'bigger' ? -1 : 1);
-                // eslint-disable-next-line jsdoc/require-jsdoc
+                // eslint-disable-next-line jsdoc-js/require-jsdoc
                 const urls: { url: string, name: string }[] = versions.map(v => {
                     return {
                         url: `${this.openApiRoute}/spec/${v.value}`,
@@ -289,7 +289,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '        layout: "StandaloneLayout",',
                             '        requestInterceptor: (req) => {',
                             '            req.headers.Accept = \'application/json\'',
-                            `            req.headers['${KnownHeader.CONTENT_TYPE}'] = \'application/json\'`,
+                            `            req.headers['${KnownHeader.CONTENT_TYPE}'] = 'application/json'`,
                             '            return req;',
                             '        },',
                             '        defaultModelRendering: \'model\',',
@@ -368,13 +368,13 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '        try {',
                             '            const normalizeMethod = (m) => String(m).toLowerCase();',
                             '',
-                            // eslint-disable-next-line cspell/spellchecker
+                            // cspell:disable-next-line
                             '            const opBlocks = document.querySelectorAll(\'.opblock\');',
                             '            opBlocks.forEach((op) => {',
                             '                try {',
-                            // eslint-disable-next-line cspell/spellchecker
+                            // cspell:disable-next-line
                             '                    const methodEl = op.querySelector(\'.opblock-summary-method\');',
-                            // eslint-disable-next-line cspell/spellchecker
+                            // cspell:disable-next-line
                             '                    const pathEl = op.querySelector(\'.opblock-summary-path\');',
                             '                    if (!methodEl || !pathEl) return;',
                             '',
@@ -403,7 +403,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '                        container.appendChild(badge);',
                             '                    });',
                             '',
-                            // eslint-disable-next-line cspell/spellchecker
+                            // cspell:disable-next-line
                             '                    const summary = op.querySelector(\'.opblock-summary-path-description-wrapper\');',
                             '                    if (summary) summary.appendChild(container);',
                             '                } catch (e) {',
@@ -490,7 +490,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createOpenApiDefinition(app: ZibriApplication, version: Version): Promise<OpenApiDefinition> {
         const tags: OpenApiTagObject[] = app.options.controllers.map(cls => ({ name: cls.name }));
         const res: OpenApiDefinition = {
@@ -516,7 +516,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         return res;
     }
 
-    // eslint-disable-next-line sonar/cognitive-complexity
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     private async resolveOpenApiPaths(app: ZibriApplication, version: Version): Promise<OpenApiPaths> {
         const res: OpenApiPaths = {};
 
@@ -649,7 +649,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         return res;
     }
 
-    // eslint-disable-next-line sonar/cognitive-complexity
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     private buildResponseContent(response: OpenApiResponse): OpenApiContentObject | undefined {
         switch (response.type) {
             case 'file': {
@@ -858,11 +858,11 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
             case 'file':
             case 'oneOf':
             case 'unknown':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY: {
                 return { ...property, xml: { ...property.xml, ...qualified } };
             }
         }
@@ -1098,9 +1098,9 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     };
                     continue;
                 }
-                case Relation.HAS_ONE:
-                case Relation.BELONGS_TO_ONE:
-                case Relation.MANY_TO_ONE: {
+                case RelationType.HAS_ONE:
+                case RelationType.BELONGS_TO_ONE:
+                case RelationType.MANY_TO_ONE: {
                     // getTargetClassForRelation returns a fresh OmitClass-derived class on every call (used here
                     // only to strip the inverse back-reference key), so it can never match a previously visited
                     // entry in `visited` — cycle tracking must key off the real, stable target class instead.
@@ -1114,8 +1114,8 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     };
                     continue;
                 }
-                case Relation.MANY_TO_MANY:
-                case Relation.ONE_TO_MANY: {
+                case RelationType.MANY_TO_MANY:
+                case RelationType.ONE_TO_MANY: {
                     const targetClass: Newable<BaseEntity> = this.getTargetClassForRelation(meta, entity);
                     const objectPropMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetClass);
                     const itemSchema: OpenApiSchemaObject
@@ -1199,11 +1199,11 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(fullTargetClass);
         for (const [key, property] of ObjectUtilities.entries(properties)) {
             if (
-                property.type !== Relation.BELONGS_TO_ONE
-                && property.type !== Relation.HAS_ONE
-                && property.type !== Relation.ONE_TO_MANY
-                && property.type !== Relation.MANY_TO_ONE
-                && property.type !== Relation.MANY_TO_MANY
+                property.type !== RelationType.BELONGS_TO_ONE
+                && property.type !== RelationType.HAS_ONE
+                && property.type !== RelationType.ONE_TO_MANY
+                && property.type !== RelationType.MANY_TO_ONE
+                && property.type !== RelationType.MANY_TO_MANY
             ) {
                 continue;
             }

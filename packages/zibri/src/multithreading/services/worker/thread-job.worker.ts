@@ -1,17 +1,17 @@
-/* eslint-disable jsdoc/require-jsdoc */
+/* eslint-disable jsdoc-js/require-jsdoc */
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { reportCompletion, reportError } from './helpers';
-import { loadWorkerFile } from './load-worker-file.function';
-import { CacheStoreInterface } from '../../../caching/store/cache-store.interface';
-import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import type { TraceSpanContext } from '../../../tracing/trace-span-context.model';
-import type { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model';
-import type { ThreadJobFunction } from '../../models/thread-job-function.model';
-import type { ThreadJobMessage } from '../../models/thread-job-message.model';
-import type { ThreadJobStartMessage } from '../../models/thread-job-start-message.model';
-import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model';
+import { reportCompletion, reportError } from './helpers.ts';
+import { loadWorkerFile } from './load-worker-file.function.ts';
+import { CacheStoreInterface } from '../../../caching/store/cache-store.interface.ts';
+import { InMemoryCacheStore } from '../../../caching/store/in-memory.cache-store.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import type { TraceSpanContext } from '../../../tracing/trace-span-context.model.ts';
+import type { BaseThreadJobWorkerData, BaseFunctionThreadJobWorkerData } from '../../models/base-thread-job-worker-data.model.ts';
+import type { ThreadJobFunction } from '../../models/thread-job-function.model.ts';
+import type { ThreadJobMessage } from '../../models/thread-job-message.model.ts';
+import type { ThreadJobStartMessage } from '../../models/thread-job-start-message.model.ts';
+import { THREAD_JOB_TRACE_CONTEXT_KEY } from '../../models/thread-job-trace-context-key.model.ts';
 
 if (!parentPort) {
     throw new InternalError('Internal Error with the thread-job-worker: parentPort not available.');
@@ -42,6 +42,7 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (err) => {
+    // oxlint-disable-next-line typescript/restrict-template-expressions
     const error: Error = err instanceof Error ? err : new Error(`${err}`);
     reportAndExit(error);
 });
@@ -85,6 +86,7 @@ async function callFunction(wData: BaseFunctionThreadJobWorkerData<unknown>): Pr
         reportCompletion(result);
     }
     catch (error) {
+        // oxlint-disable-next-line typescript/restrict-template-expressions
         const err: Error = error instanceof Error ? error : new Error(`${error}`);
         reportError(err);
     }
@@ -123,6 +125,7 @@ async function importWorkerFile(workerData: BaseThreadJobWorkerData): Promise<vo
         await loadWorkerFile(workerData.filePath);
     }
     catch (error) {
+        // oxlint-disable-next-line typescript/restrict-template-expressions
         const err: Error = error instanceof Error ? error : new Error(`${error}`);
         reportError(err);
     }

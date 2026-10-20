@@ -1,16 +1,16 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { AuthServiceInterface } from './auth-service.interface';
-import { Auth } from './decorators/auth.decorator';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { LoggerInterface } from '../logging/logger.interface';
-import { OpenApiDefinition, OpenApiOperation, OpenApiSecurityRequirementObject } from '../open-api/open-api.model';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
+import { AuthServiceInterface } from './auth-service.interface.ts';
+import { Auth } from './decorators/auth.decorator.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { OpenApiDefinition, OpenApiOperation, OpenApiSecurityRequirementObject } from '../open-api/open-api.model.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
 
 /**
  * The `'requireLogin'` half of `defaultAuth`.
@@ -160,8 +160,8 @@ describe('defaultAuth: requireLogin', () => {
     // the answer back out of the route registry without resolving anything
     it('does not call @Auth.skip useless', () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const warnSpy = jest.spyOn(logger, 'warn');
+        // eslint-disable-next-line typescript-js/typedef
+        const warnSpy = vi.spyOn(logger, 'warn');
 
         authService().resolveRouteAuth(DefaultAuthController, 'declaredPublic');
 
@@ -174,8 +174,8 @@ describe('defaultAuth: requireLogin', () => {
 
     it('does not call @Auth.isLoggedIn.skip useless either', () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const warnSpy = jest.spyOn(logger, 'warn');
+        // eslint-disable-next-line typescript-js/typedef
+        const warnSpy = vi.spyOn(logger, 'warn');
 
         authService().resolveRouteAuth(DefaultAuthController, 'loginSkipped');
         authService().resolveRouteAuth(LoginSkippedController, 'anyone');
@@ -188,8 +188,8 @@ describe('defaultAuth: requireLogin', () => {
 
     it('still calls a per-check skip useless when it says nothing about a login', () => {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const warnSpy = jest.spyOn(logger, 'warn');
+        // eslint-disable-next-line typescript-js/typedef
+        const warnSpy = vi.spyOn(logger, 'warn');
 
         authService().resolveRouteAuth(DefaultAuthController, 'roleSkipped');
 

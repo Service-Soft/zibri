@@ -1,8 +1,8 @@
-import { HttpRequest } from '../http/http-request.model';
-import { HttpClientResponse } from '../http-client/http-client-response.model';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpClientResponse } from '../http-client/http-client-response.model.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 /**
  * Interface for a parser.

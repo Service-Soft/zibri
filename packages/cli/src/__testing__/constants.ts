@@ -1,4 +1,4 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { getPath, Path } from '../utilities';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { getPath, Path } from '../utilities/index.ts';
 
-export const testFileFolder: Path = getPath(__dirname, 'file-output');
+export const testFileFolder: Path = getPath(import.meta.dirname, 'file-output');

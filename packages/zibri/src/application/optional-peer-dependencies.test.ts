@@ -2,9 +2,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { JsonUtilities } from '../utilities/json.utilities';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * What a consumer has to install, checked by not installing it.
@@ -14,23 +14,23 @@ import { JsonUtilities } from '../utilities/json.utilities';
  * level `import` of an optional peer resolves and the promise stays unfalsifiable until somebody
  * deploys without it.
  *
- * `ts-node` is the one this file started with. A production image runs compiled JavaScript, and a
- * framework that pulls a TypeScript compiler into it is carrying a build tool's dependency tree
- * through container hardening review for a capability that image will never use. `socket.io-adapter`
+ * The TypeScript compiler is the one this file started with. A production image runs compiled
+ * JavaScript, and a framework that pulls a compiler into it is carrying a build tool's dependency
+ * tree through container hardening review for a capability that image will never use. `socket.io-adapter`
  * is here for the same reason and is checked the same way; the manifest side of the claim is in
  * `di-and-packaging.evaluation.test.ts`.
  *
  * Needs `npm run build` to have run, like `published-package.test.ts` beside it.
  */
 
-const packageDir: string = path.resolve(__dirname, '..', '..');
+const packageDir: string = path.resolve(import.meta.dirname, '..', '..');
 const builtWorker: string = path.join(
-    packageDir, 'dist', 'cjs', 'multithreading', 'services', 'worker', 'thread-job.worker.js'
+    packageDir, 'dist', 'multithreading', 'services', 'worker', 'thread-job.worker.js'
 );
 const fixtureDir: string = path.join(packageDir, 'src', 'multithreading', 'services');
-const builtRegister: string = path.join(packageDir, 'dist', 'cjs', 'utilities', 'register-ts-node.function.js');
+const builtLoader: string = path.join(packageDir, 'dist', 'utilities', 'typescript-loader', 'typescript-loader.utilities.js');
 const builtXlfTransform: string = path.join(
-    packageDir, 'dist', 'cjs', 'localization', 'xlf', 'transform-source-translation-tokens.function.js'
+    packageDir, 'dist', 'localization', 'xlf', 'transform-source-translation-tokens.function.js'
 );
 
 /**
@@ -49,25 +49,26 @@ function optionalPeers(): string[] {
 /**
  * Makes the given packages unresolvable, the way not installing them would.
  *
- * Patching the resolver rather than moving folders about: it is the same failure a consumer gets -
+ * Hooking resolution rather than moving folders about: it is the same failure a consumer gets -
  * `MODULE_NOT_FOUND` from the first thing that reaches for the package - and it leaves the
- * workspace every other suite depends on alone.
+ * workspace every other suite depends on alone. One hook covers `import` and `require` alike.
  * @param names - The packages to hide.
  * @returns The prelude to put in front of a script.
  */
 function hiding(names: string[]): string {
     return `
-        import Module from 'node:module';
+        import { registerHooks } from 'node:module';
         const hidden = ${JsonUtilities.stringify(names)};
-        const resolve = Module._resolveFilename;
-        Module._resolveFilename = function (request, ...rest) {
-            if (hidden.includes(request)) {
-                const error = new Error(\`Cannot find module '\${request}'\`);
-                error.code = 'MODULE_NOT_FOUND';
-                throw error;
+        registerHooks({
+            resolve(specifier, context, nextResolve) {
+                if (hidden.includes(specifier)) {
+                    const error = new Error(\`Cannot find module '\${specifier}'\`);
+                    error.code = 'MODULE_NOT_FOUND';
+                    throw error;
+                }
+                return nextResolve(specifier, context);
             }
-            return resolve.call(this, request, ...rest);
-        };
+        });
     `;
 }
 
@@ -83,34 +84,57 @@ function inConsumerProcess<T>(script: string): T {
         cwd: packageDir,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
-        // jest cannot interrupt a synchronous child, so a script that never settles would hang the
-        // whole run rather than fail this test
+        // the test runner cannot interrupt a synchronous child, so a script that never settles would
+        // hang the whole run rather than fail this test
         timeout: 60_000
     });
     return JsonUtilities.parse(output);
 }
 
 /**
- * A script that runs one worker file through the built worker and prints what the job reported.
- * @param filePath - The worker file the job names.
- * @param data - The rest of the job's worker data.
+ * One job for {@link runningJobs}.
+ */
+type Job = {
+    /**
+     * The worker file the job names.
+     */
+    filePath: string,
+    /**
+     * The rest of the job's worker data.
+     */
+    data?: Record<string, unknown>
+};
+
+/**
+ * A script that runs worker files one after another on a single thread of the built worker, and
+ * prints what each job reported.
+ * @param jobs - The jobs, in the order they run.
  * @returns The script body.
  */
-function runningJob(filePath: string, data: Record<string, unknown> = {}): string {
+function runningJobs(jobs: Job[]): string {
     return `
         import { Worker } from 'node:worker_threads';
-        const worker = new Worker(${JsonUtilities.stringify(builtWorker)}, { workerData: {} });
-        const result = await new Promise((resolve, reject) => {
+        const jobs = ${JsonUtilities.stringify(jobs)};
+        // without the flags this script itself was started with, which node refuses in a worker
+        const worker = new Worker(${JsonUtilities.stringify(builtWorker)}, { workerData: {}, execArgv: [] });
+        const results = [];
+        const start = job => worker.postMessage({
+            workerData: { ...job.data, filePath: job.filePath },
+            traceContext: { traceId: '${'1'.repeat(32)}', spanId: '${'2'.repeat(16)}', sampled: true }
+        });
+        await new Promise((resolve, reject) => {
             worker.on('message', message => {
                 if (message.type === 'initialization') {
-                    worker.postMessage({
-                        workerData: { ...${JsonUtilities.stringify(data)}, filePath: ${JsonUtilities.stringify(filePath)} },
-                        traceContext: { traceId: '${'1'.repeat(32)}', spanId: '${'2'.repeat(16)}', sampled: true }
-                    });
+                    start(jobs[0]);
                     return;
                 }
                 if (message.type === 'completion') {
-                    resolve(message.result);
+                    results.push(message.result);
+                    if (results.length === jobs.length) {
+                        resolve();
+                        return;
+                    }
+                    start(jobs[results.length]);
                 }
                 if (message.type === 'error') {
                     reject(new Error(JSON.stringify(message.error)));
@@ -119,27 +143,26 @@ function runningJob(filePath: string, data: Record<string, unknown> = {}): strin
             worker.on('error', reject);
         });
         await worker.terminate();
-        console.log(JSON.stringify({ result }));
+        console.log(JSON.stringify({ results }));
     `;
 }
 
-describe('ts-node', () => {
+describe('oxc-transform', () => {
+    const probe: string = path.join(fixtureDir, 'multithreading.service.compiler-probe.test.worker.cjs');
+    const typeScriptWorker: string = path.join(fixtureDir, 'multithreading.service.test.worker.ts');
 
     it('is an optional peer dependency', () => {
-        // it was listed as a peer and left out of the meta, which made it mandatory - so installing
-        // `zibri` installed a TypeScript compiler, in every environment, whether or not anything
-        // would ever hand it a TypeScript file.
-        expect(optionalPeers()).toContain('ts-node');
+        // a TypeScript compiler in every environment, whether or not anything would ever hand it a
+        // TypeScript file, is what a mandatory peer here would mean
+        expect(optionalPeers()).toContain('oxc-transform');
     });
 
     it('can be looked for without being loaded', () => {
         const res: { installed: boolean, hidden: boolean } = inConsumerProcess(`
-            const { createRequire } = await import('node:module');
-            const require = createRequire(process.cwd() + '/index.cjs');
-            const { isTsNodeInstalled } = require(${JsonUtilities.stringify(builtRegister)});
-            const installed = isTsNodeInstalled();
-            ${hiding(['ts-node'])}
-            console.log(JSON.stringify({ installed, hidden: isTsNodeInstalled() }));
+            const { TypeScriptLoaderUtilities } = await import(${JsonUtilities.stringify(builtLoader)});
+            const installed = TypeScriptLoaderUtilities.isInstalled();
+            ${hiding(['oxc-transform'])}
+            console.log(JSON.stringify({ installed, hidden: TypeScriptLoaderUtilities.isInstalled() }));
         `);
 
         // this is what lets the answer be given at startup instead of at the first job to want a
@@ -151,49 +174,47 @@ describe('ts-node', () => {
 
     it('is not needed to load the framework', () => {
         const res: { loaded: boolean } = inConsumerProcess(`
-            ${hiding(['ts-node'])}
+            ${hiding(['oxc-transform'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const zibri = require('zibri');
             console.log(JSON.stringify({ loaded: typeof zibri.ZibriApplication === 'function' }));
         `);
 
-        // `generateEntityFiles` imported it at the top of a file the barrel exports, so reaching
-        // any part of the framework resolved a compiler - a top level import of an optional peer
-        // means the whole package cannot be loaded without it, the opposite of what the word says.
+        // a top level import of an optional peer means the whole package cannot be loaded without
+        // it, the opposite of what the word says
         expect(res.loaded).toBe(true);
     });
 
     it('is not started by a worker thread running javascript', () => {
-        const probe: string = path.join(fixtureDir, 'multithreading.service.ts-node-probe.test.worker.js');
-        const res: { result: boolean } = inConsumerProcess(runningJob(probe));
+        const res: { results: boolean[] } = inConsumerProcess(runningJobs([{ filePath: probe }]));
 
-        // the worker registered it the moment it started, before it had been told what to run. A
-        // pool of them in a production image was a pool of TypeScript compilers, every one of which
-        // would only ever be handed compiled JavaScript.
-        expect(res.result).toBe(false);
+        // a pool of workers in a production image would otherwise be a pool of TypeScript
+        // compilers, every one of which would only ever be handed compiled JavaScript.
+        expect(res.results).toStrictEqual([false]);
     });
 
     it('is started by a worker thread running TypeScript', () => {
-        const fixture: string = path.join(fixtureDir, 'multithreading.service.test.worker.ts');
-        const res: { result: number } = inConsumerProcess(runningJob(fixture, { amount: 10 }));
+        const res: { results: [number, boolean] } = inConsumerProcess(runningJobs([
+            { filePath: typeScriptWorker, data: { amount: 10 } },
+            { filePath: probe }
+        ]));
 
-        // the capability is the point - what changed is when it is paid for.
-        expect(res.result).toBe(55);
+        // the capability is the point - what changed is when it is paid for. The probe after it is
+        // what makes the probe's "no" above worth anything: on the same thread, it sees the compiler
+        expect(res.results).toStrictEqual([55, true]);
     });
 
     it('says so by name when a TypeScript file needs it and it is missing', () => {
-        // on this thread rather than through a worker: a worker thread has a module registry of its
-        // own, so hiding a package from this process's resolver is invisible inside one. What is
-        // being asserted is the text of the error, and that is the same text either way.
+        // on this thread rather than through a worker: a worker thread has hooks of its own, so
+        // hiding a package from this thread's resolver is invisible inside one. What is being
+        // asserted is the text of the error, and that is the same text either way.
         const res: { message: string } = inConsumerProcess(`
-            ${hiding(['ts-node'])}
-            const { createRequire } = await import('node:module');
-            const require = createRequire(process.cwd() + '/index.cjs');
-            const { registerTsNode } = require(${JsonUtilities.stringify(builtRegister)});
+            ${hiding(['oxc-transform'])}
+            const { TypeScriptLoaderUtilities } = await import(${JsonUtilities.stringify(builtLoader)});
             let message = 'it did not fail';
             try {
-                registerTsNode('The worker file /somewhere/report.worker.ts');
+                TypeScriptLoaderUtilities.register('The worker file /somewhere/report.worker.ts');
             }
             catch (error) {
                 message = error.message;
@@ -204,7 +225,7 @@ describe('ts-node', () => {
         // making it optional moves the failure from install time to run time, so the run time
         // failure has to name the package and say what to do instead - a bare MODULE_NOT_FOUND
         // from inside a worker thread is the worst version of this.
-        expect(res.message).toContain('ts-node');
+        expect(res.message).toContain('oxc-transform');
         expect(res.message).toContain('compiled JavaScript');
     });
 });
@@ -254,19 +275,19 @@ describe('saxes', () => {
     });
 });
 
-describe('typescript', () => {
+describe('@typescript/typescript6', () => {
 
     it('is an optional peer dependency', () => {
         // the source translation extractor reads templates with TypeScript's parser, which is a build
-        // step - it runs from a webpack config and nowhere else. Listed only as a devDependency it was
+        // step - it runs from a build config and nowhere else. Listed only as a devDependency it was
         // a dependency nobody declared, and imported at the top of a file the barrel exports it was
         // one every consumer resolved anyway.
-        expect(optionalPeers()).toContain('typescript');
+        expect(optionalPeers()).toContain('@typescript/typescript6');
     });
 
     it('is not needed to load the framework', () => {
         const res: { loaded: boolean } = inConsumerProcess(`
-            ${hiding(['typescript'])}
+            ${hiding(['@typescript/typescript6'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const zibri = require('zibri');
@@ -282,7 +303,7 @@ describe('typescript', () => {
 
     it('says so by name when source translations are extracted without it', () => {
         const res: { message: string } = inConsumerProcess(`
-            ${hiding(['typescript'])}
+            ${hiding(['@typescript/typescript6'])}
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const { transformSourceTranslationOriginTokens } = require(${JsonUtilities.stringify(builtXlfTransform)});
@@ -298,8 +319,7 @@ describe('typescript', () => {
             console.log(JSON.stringify({ message }));
         `);
 
-        expect(res.message).toContain('typescript');
-        expect(res.message).toContain('npm i typescript');
+        expect(res.message).toContain('npm i @typescript/typescript6');
     });
 });
 

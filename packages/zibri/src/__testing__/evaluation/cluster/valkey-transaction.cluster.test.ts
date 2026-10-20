@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/10-leases-and-claims.md step 3 - a valkey transaction holding a
@@ -24,7 +24,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'valkey-transaction.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'valkey-transaction.instance-options.ts'),
         instances: 3
     });
 }, 30000);

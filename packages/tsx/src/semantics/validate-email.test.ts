@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { compile } from '../codegen/compile';
-import { Diagnostic, offsetToLineColumn } from '../diagnostics/diagnostic.model';
+import { compile } from '../codegen/compile.ts';
+import { Diagnostic, offsetToLineColumn } from '../diagnostics/diagnostic.model.ts';
 
 /**
  * The diagnostic codes compiling the given source produces.

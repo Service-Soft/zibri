@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { CachedValue } from './cached-value.model';
-import { InMemoryCacheStore } from './in-memory.cache-store';
-import { Bytes } from '../../utilities/bytes';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { CachedValue } from './cached-value.model.ts';
+import { InMemoryCacheStore } from './in-memory.cache-store.ts';
+import { Bytes } from '../../utilities/bytes.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
     return {

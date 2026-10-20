@@ -1,4 +1,4 @@
-import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
+import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model.ts';
 
 /**
  * The date where filter object.

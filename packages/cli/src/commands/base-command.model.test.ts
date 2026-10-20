@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { BaseCommand } from './base-command.model';
-import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function';
+import { BaseCommand } from './base-command.model.ts';
+import { mockExitGracefully, ProcessExitError } from '../__testing__/mock-exit-gracefully.function.ts';
 
 type TestInput = {
     value: string
@@ -21,7 +21,7 @@ class TestCommand extends BaseCommand<TestInput> {
 
 describe('BaseCommand', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('resolves input and runs the command when args are within maxLength', async () => {

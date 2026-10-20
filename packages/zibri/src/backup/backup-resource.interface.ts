@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { BackupEntity } from './backup-entity.model';
+import { BackupEntity } from './backup-entity.model.ts';
 
 /**
  * Interface that needs to be implemented by any resource that should be backed up.

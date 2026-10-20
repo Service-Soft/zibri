@@ -1,20 +1,20 @@
-import { inject } from '../../di/inject.function';
-import { DiToken } from '../../di/models/di-token.model';
-import { HttpStatus } from '../../http/http-status.enum';
-import { OpenApiResponse } from '../../open-api/open-api.model';
-import { isNewable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { RateLimiterInterface } from '../limiter/rate-limiter.interface';
-import { RateLimitWrapOptions } from '../rate-limit-wrap-options.model';
-import { SuccessRateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { inject } from '../../di/inject.function.ts';
+import { DiToken } from '../../di/models/di-token.model.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { OpenApiResponse } from '../../open-api/open-api.model.ts';
+import { isNewable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { RateLimiterInterface } from '../limiter/rate-limiter.interface.ts';
+import { RateLimitWrapOptions } from '../rate-limit-wrap-options.model.ts';
+import { SuccessRateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * Options for the \@RateLimited decorator.
  */
 export type RateLimitedOptions<TArgs extends unknown[]> = RateLimitWrapOptions<TArgs>;
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Marks the method for rate limiting using the provided limiter.
  * @param limiterProvider - The provider for the limiter. Can either be a di token or a function that returns a di token.

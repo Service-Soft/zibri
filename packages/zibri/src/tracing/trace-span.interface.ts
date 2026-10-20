@@ -1,6 +1,6 @@
-import { TraceSpanAttributeName, TraceSpanAttributeValue, TraceSpanAttributes } from './trace-span-attributes.model';
-import { TraceSpanContext } from './trace-span-context.model';
-import { TraceSpanStatus } from './trace-span-status.enum';
+import { TraceSpanAttributeName, TraceSpanAttributeValue, TraceSpanAttributes } from './trace-span-attributes.model.ts';
+import { TraceSpanContext } from './trace-span-context.model.ts';
+import { TraceSpanStatus } from './trace-span-status.enum.ts';
 
 /**
  * One timed piece of work inside a trace.

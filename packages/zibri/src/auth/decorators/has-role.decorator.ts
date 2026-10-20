@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { HasRoleMetadata } from '../models/has-role-metadata.model';
-import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { HasRoleMetadata } from '../models/has-role-metadata.model.ts';
+import { AuthStrategies } from '../strategies/auth-strategies.model.ts';
 
 /**
  * The type of the has role and has platform role decorators.
@@ -24,7 +24,7 @@ export const hasRoleDecorator: HasRoleFn = (
         const fullMetadata: HasRoleMetadata = { allowedStrategies, allowedRoles };
 
         const decorator: MethodDecorator & ClassDecorator = (
-            target: Object,
+            target: object,
             propertyKey?: string | symbol
         ) => {
             if (propertyKey !== undefined) {
@@ -38,7 +38,7 @@ export const hasRoleDecorator: HasRoleFn = (
     }
 ) as HasRoleFn;
 hasRoleDecorator.skip = () => ((
-    target: Object,
+    target: object,
     propertyKey?: string | symbol
 ) => {
     if (propertyKey !== undefined) {
@@ -47,4 +47,4 @@ hasRoleDecorator.skip = () => ((
     else {
         MetadataUtilities.setControllerSkipHasRole(target as Function, {});
     }
-}) as MethodDecorator & ClassDecorator;
+});

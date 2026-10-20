@@ -1,21 +1,21 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EmailServiceInterface } from './email-service.interface';
-import { CreateEmailData, QueueEmailData } from './models/create-email-data.model';
-import { EmailConfig } from './models/email-config.model';
-import { EmailPriority } from './models/email-priority.enum';
-import { EmailStatus } from './models/email-status.enum';
-import { Email } from './models/email.model';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
-import { FsUtilities } from '../utilities/fs.utilities';
-import { Ms } from '../utilities/ms';
+import { EmailServiceInterface } from './email-service.interface.ts';
+import { CreateEmailData, QueueEmailData } from './models/create-email-data.model.ts';
+import { EmailConfig } from './models/email-config.model.ts';
+import { EmailPriority } from './models/email-priority.enum.ts';
+import { EmailStatus } from './models/email-status.enum.ts';
+import { Email } from './models/email.model.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface.ts';
+import { FsUtilities } from '../utilities/fs.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
 
 // ---------- The transport under the real service ----------
 
@@ -23,8 +23,8 @@ import { Ms } from '../utilities/ms';
 // `protected send` could be replaced, which meant these tests exercised a send this file had written
 // rather than the one that ships - and the override had drifted: it never wrote `rejectedRecipients`
 // and deleted a failed mail the real one keeps.
-// eslint-disable-next-line typescript/typedef
-const mockSend = jest.fn<(email: Email) => Promise<EmailSendResult>>();
+// eslint-disable-next-line typescript-js/typedef
+const mockSend = vi.fn<(email: Email) => Promise<EmailSendResult>>();
 
 const testTransport: EmailTransportInterface = {
     name: 'TestEmailTransport',
@@ -53,7 +53,7 @@ function makeQueueData(overrides: Partial<QueueEmailData> = {}): QueueEmailData 
         subject: 'Test subject',
         recipients: ['recipient@example.com'],
         ...overrides
-    } as QueueEmailData;
+    };
 }
 
 // ---------- Tests ----------
@@ -148,7 +148,7 @@ describe('EmailService', () => {
     });
 
     describe('sendQueuedEmails', () => {
-        afterEach(() => void jest.restoreAllMocks());
+        afterEach(() => void vi.restoreAllMocks());
 
         it('returns false and sends nothing when no emails are queued', async () => {
             const result: boolean = await emailService.sendQueuedEmails();
@@ -299,7 +299,7 @@ describe('EmailService', () => {
             // __filename is always a real path
             await emailService.queue(makeQueueData({
                 persist: true,
-                attachments: [{ filename: 'test.ts', path: FsUtilities.getPath(__filename) }]
+                attachments: [{ filename: 'test.ts', path: FsUtilities.getPath(import.meta.filename) }]
             }));
 
             await expect(emailService.sendQueuedEmails()).resolves.not.toThrow();

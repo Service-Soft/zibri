@@ -1,6 +1,6 @@
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Get the message for a class first built after the phases it asked to take part in.

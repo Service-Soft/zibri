@@ -1,5 +1,5 @@
-import { Property } from '../../../entity/decorators/property.decorator';
-import { PASSWORD_MAX_LENGTH } from '../../hash/hash.utilities';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { PASSWORD_MAX_LENGTH } from '../../hash/hash.utilities.ts';
 
 /**
  * The credentials a user signs in at a directory with.

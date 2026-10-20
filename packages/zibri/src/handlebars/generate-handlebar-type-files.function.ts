@@ -1,11 +1,11 @@
-import { AstProgram } from './ast.model';
-import { HandlebarUtilities } from './handlebar.utilities';
-import { resolveAllArrayKeys } from './resolve-all-array-keys.function';
-import { resolveTree } from './resolve-tree.function';
-import { FsUtilities, FsPath } from '../utilities/fs.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { AstProgram } from './ast.model.ts';
+import { HandlebarUtilities } from './handlebar.utilities.ts';
+import { resolveAllArrayKeys } from './resolve-all-array-keys.function.ts';
+import { resolveTree } from './resolve-tree.function.ts';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type PathTree = {
     [key: string]: PathTree
 };
@@ -36,7 +36,7 @@ export async function generateHandlebarTypeFiles(glob: string | string[] = defau
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export async function generateHandlebarType(ast: AstProgram, file: FsPath): Promise<string[]> {
     const arrayKeys: string[] = [...new Set(resolveAllArrayKeys(ast, undefined))];
     const tree: PathTree = resolveTree(ast, arrayKeys);
@@ -44,7 +44,7 @@ export async function generateHandlebarType(ast: AstProgram, file: FsPath): Prom
     return await generateTypeFile(tree, arrayKeysWithoutThis, file);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: FsPath): Promise<string[]> {
     const typeLines: string[] = generateInterfaceLines(tree, arrayKeys);
     const type: string[] = typeLines.length
@@ -73,7 +73,7 @@ async function generateTypeFile(tree: PathTree, arrayKeys: string[], file: FsPat
     return content.split('\n');
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function generateInterfaceLines(
     tree: PathTree,
     arrayKeys: string[],
@@ -105,7 +105,7 @@ function generateInterfaceLines(
     return lines;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function canBeSkipped(hbsFile: FsPath): Promise<boolean> {
     const tsFile: FsPath = FsUtilities.getPath(`${hbsFile}.ts`);
 

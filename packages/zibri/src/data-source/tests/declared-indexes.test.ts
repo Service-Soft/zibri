@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { ModelRegistry } from '../../global/model-registry/model.registry';
-import { Newable } from '../../types/newable.type';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../index-name.function';
-import { Repository } from '../repository/repository';
-import { uniqueConstraintName } from '../unique-constraint-name.function';
-import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { ModelRegistry } from '../../global/model-registry/model.registry.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../index-name.function.ts';
+import { Repository } from '../repository/repository.ts';
+import { uniqueConstraintName } from '../unique-constraint-name.function.ts';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities.ts';
 
 /**
  * What an entity declares about the lookups it expects.

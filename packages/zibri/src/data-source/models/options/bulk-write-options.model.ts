@@ -1,6 +1,6 @@
-import { BaseRepositoryOptions } from './base-repository-options.model';
-import { WriteRelationsOptions } from './write-relations-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
+import { BaseRepositoryOptions } from './base-repository-options.model.ts';
+import { WriteRelationsOptions } from './write-relations-options.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
 
 /**
  * What every write that hands several rows back takes.

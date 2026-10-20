@@ -1,16 +1,16 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Cache } from './cache.decorator';
-import { Cached } from './cached.decorator';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { Cache } from './cache.decorator.ts';
+import { Cached } from './cached.decorator.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
 
 @Cache()
 class MultiplierCache extends WriteThroughReadThroughCache<string, number, 'Cached Decorator Test Cache'> {
@@ -52,7 +52,7 @@ describe('Cached decorator', () => {
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('caches the result of the decorated method', async () => {
@@ -64,8 +64,8 @@ describe('Cached decorator', () => {
 
     it('only builds the wrapped function once per instance, even across many calls', async () => {
         const cache: MultiplierCache = inject(MultiplierCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapSpy = jest.spyOn(cache, 'wrap');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapSpy = vi.spyOn(cache, 'wrap');
 
         const service: MultiplierService = new MultiplierService(2);
 
@@ -78,11 +78,11 @@ describe('Cached decorator', () => {
 
     it('keeps `this`-bound state independent across different instances', async () => {
         const doubler: MultiplierService = new MultiplierService(2);
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const tripler: MultiplierService = new MultiplierService(3);
 
         await expect(doubler.compute('abc')).resolves.toBe(6);
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         await expect(tripler.compute('abcd')).resolves.toBe(12);
 
         // different cache keys — no cross-instance contamination
@@ -92,8 +92,8 @@ describe('Cached decorator', () => {
 
     it('builds a separate wrapped function per instance', async () => {
         const cache: MultiplierCache = inject(MultiplierCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapSpy = jest.spyOn(cache, 'wrap');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapSpy = vi.spyOn(cache, 'wrap');
 
         const first: MultiplierService = new MultiplierService(2);
         const second: MultiplierService = new MultiplierService(3);

@@ -1,14 +1,14 @@
-import { type TwoFactorCodeOptions } from './two-factor-code-options.model';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { RateLimiter } from '../../../../rate-limiting/decorators/rate-limiter.decorator';
-import { GcraRateLimiter, GcraState } from '../../../../rate-limiting/limiter/gcra.rate-limiter';
-import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model';
-import { InProcessRateLimiterLock } from '../../../../rate-limiting/stores/rate-limiter-lock.interface';
-import { RepositoryRateLimiterStore } from '../../../../rate-limiting/stores/repository.rate-limiter-store';
-import { Ms } from '../../../../utilities/ms';
+import { type TwoFactorCodeOptions } from './two-factor-code-options.model.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { RateLimiter } from '../../../../rate-limiting/decorators/rate-limiter.decorator.ts';
+import { GcraRateLimiter, GcraState } from '../../../../rate-limiting/limiter/gcra.rate-limiter.ts';
+import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limit-state-entity.model.ts';
+import { InProcessRateLimiterLock } from '../../../../rate-limiting/stores/rate-limiter-lock.interface.ts';
+import { RepositoryRateLimiterStore } from '../../../../rate-limiting/stores/repository.rate-limiter-store.ts';
+import { Ms } from '../../../../utilities/ms.ts';
 
 /**
  * How often a user is sent a two factor code by email or text message: once per `resendAfterMs` of

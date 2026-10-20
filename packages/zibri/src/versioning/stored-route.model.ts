@@ -1,14 +1,14 @@
-import { type VersionMatcher } from './supported-versions-options.model';
-import { Property } from '../entity/decorators/property.decorator';
-import { type OneOf } from '../entity/models/one-of.model';
+import { type VersionMatcher } from './supported-versions-options.model.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type OneOf } from '../entity/models/one-of.model.ts';
 
 /**
  * The versions a route in a version file supports: every version, or those the matchers match.
  */
 export type StoredRouteVersions = OneOf<{
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     All: 'all',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     Matchers: VersionMatcher[]
 }>;
 

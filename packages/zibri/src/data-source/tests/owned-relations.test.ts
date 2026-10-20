@@ -1,12 +1,12 @@
-import { afterAll, beforeAll } from '@jest/globals';
+import { afterAll, beforeAll } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { Chore, describeOwnedRelations, Doorplate, Folder, Guest, Household, Lodger, ownedRelationEntities, OwnedRelationRepositories, Pet, Resident, Stop, Ticket, Trip } from './owned-relations.cases';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { inject } from '../../di/inject.function';
-import { Newable } from '../../types/newable.type';
+import { Chore, describeOwnedRelations, Doorplate, Folder, Guest, Household, Lodger, ownedRelationEntities, OwnedRelationRepositories, Pet, Resident, Stop, Ticket, Trip } from './owned-relations.cases.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ChangeSet } from '../../change-sets/models/change-set.model.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
     entities: [...defaultTestServerEntities, ...ownedRelationEntities]

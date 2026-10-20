@@ -1,6 +1,6 @@
 import { JsonWebKey } from 'node:crypto';
 
-import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
+import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum.ts';
 
 /**
  * How an api key without a secret proves itself at the token endpoint of the authorization server.

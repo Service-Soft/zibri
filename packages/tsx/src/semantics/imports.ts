@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { SourceSpan } from '../diagnostics/diagnostic.model';
+import { SourceSpan } from '../diagnostics/diagnostic.model.ts';
 
 /**
  * The result of splitting a module specifier into its path and client marker.

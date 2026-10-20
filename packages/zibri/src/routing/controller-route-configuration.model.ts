@@ -1,6 +1,6 @@
-import { HandlerTimeout } from '../http/handler-timeout.type';
-import { HttpMethod } from '../http/http-method.enum';
-import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
+import { HandlerTimeout } from '../http/handler-timeout.type.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model.ts';
 
 /**
  * Definition for a route used eg. By controllers.

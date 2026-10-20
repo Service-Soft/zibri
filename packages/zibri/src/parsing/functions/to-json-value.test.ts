@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { toJsonValue } from './to-json-value.function';
-import { BigNumber } from '../../utilities/number.utilities';
+import { toJsonValue } from './to-json-value.function.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
 
 describe('toJsonValue', () => {
     it('writes what json has no shape for as the text it reads as', () => {

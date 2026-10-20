@@ -1,6 +1,6 @@
 import { KeyObject } from 'node:crypto';
 
-import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type';
+import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type.ts';
 
 /**
  * A key a jwt is signed or verified with, and the one algorithm a token checked against it may name.

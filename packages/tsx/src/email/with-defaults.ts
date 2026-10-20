@@ -1,5 +1,5 @@
-import { HeadChannel } from './head-channels';
-import { RenderServerRuntime } from '../runtime/server-runtime';
+import { HeadChannel } from './head-channels.ts';
+import { RenderServerRuntime } from '../runtime/server-runtime.ts';
 
 /**
  * One document's declared defaults: a global set and per-component sets.

@@ -1,21 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { VersionFile } from './version.model';
-import { VersioningService } from './versioning.service';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZibriApplication } from '../application/application';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { AfterAppInit } from '../global/after-app-init.interface';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { VersionFile } from './version.model.ts';
+import { VersioningService } from './versioning.service.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { AfterAppInit } from '../global/after-app-init.interface.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 const sharedVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions-concurrent-boot');
 

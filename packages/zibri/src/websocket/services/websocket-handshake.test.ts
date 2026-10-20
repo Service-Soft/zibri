@@ -1,15 +1,15 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../localization/translate.function';
-import { Ms } from '../../utilities/ms';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
 
 /**
  * Only here to get the websocket server started.

@@ -1,20 +1,19 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
-import { DataSource } from '../../../data-source/decorators/data-source.decorator';
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider } from '../../../di/models/di-provider.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
-import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
+import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { type LeaseServiceInterface } from '../../../leases/lease-service.interface.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function.ts';
+import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function.ts';
 
 /**
  * What every instance of the shutdown cluster boots with.
@@ -171,7 +170,8 @@ class ClusterShutdownController {
         catch (error) {
             // the replica holding this is killed on purpose, so a failure on the way out is
             // expected. Logged rather than swallowed, because a failure anywhere else is not.
-            inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).warn(
+            inject(ZIBRI_DI_TOKENS.LOGGER).warn(
+                // oxlint-disable-next-line typescript/restrict-template-expressions
                 `could not finish the section: ${error instanceof Error ? error.message : error}`
             );
         }

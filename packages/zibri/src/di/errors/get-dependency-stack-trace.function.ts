@@ -1,4 +1,4 @@
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Gets the stack trace for dependency resolution.

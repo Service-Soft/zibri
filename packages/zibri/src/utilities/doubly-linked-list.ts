@@ -37,7 +37,7 @@ export class DoublyLinkedList<T> {
 
     private _size: number = 0;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The amount of elements inside the list.
      */

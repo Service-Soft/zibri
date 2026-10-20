@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { inject } from '../../di/inject.function';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { MigrationEntity } from './migration-entity.model.ts';
+import { Migration } from './migration.model.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 @Entity({ tenant: 'shared' })
 class MigrationRollbackItem {

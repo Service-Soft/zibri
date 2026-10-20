@@ -1,24 +1,24 @@
-import { type PropertyMetadata } from './property.decorator';
+import { type PropertyMetadata } from './property.decorator.ts';
 // a leaf module on purpose: it reads metadata and imports the class it recognizes as a type only, so
 // asking whether an entity can be soft deleted does not pull the change set entities in - they are
 // decorated with @Entity themselves, which would evaluate this module from inside its own loading
-import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
-import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { toSnakeCase } from '../../utilities/to-snake-case.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { type BaseEntity } from '../base-entity.model';
-import { type EntityOrder, type OrderDirection } from '../models/entity-order.model';
-import { type EntityRelations } from '../models/entity-relations.model';
-import { type EntityScope } from '../models/entity-scope.model';
-import { type EntityTenant } from '../models/entity-tenant.model';
-import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model';
+import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function.ts';
+import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { toSnakeCase } from '../../utilities/to-snake-case.function.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
+import { type EntityOrder, type OrderDirection } from '../models/entity-order.model.ts';
+import { type EntityRelations } from '../models/entity-relations.model.ts';
+import { type EntityScope } from '../models/entity-scope.model.ts';
+import { type EntityTenant } from '../models/entity-tenant.model.ts';
+import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, UniqueGroupInput } from '../models/unique-declaration.model.ts';
 
 /**
  * Metadata for an Entity.
@@ -127,7 +127,7 @@ type NestedRelationsInput = {
     [key: string]: true | NestedRelationsInput
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type EntityMetadataInput<
     TOrderKey extends string = never,
     TRelationKey extends string = never,
@@ -168,20 +168,20 @@ type EntityMetadataInput<
 // property here, so the compiler's message names it. Used as the constraint of the instance type
 // rather than intersected with the argument, because an intersection stops a generic class from
 // being inferred at all
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ConstrainKeys<T, TKey extends string> = [Exclude<TKey, keyof T>] extends [never]
     ? unknown
     : { [K in Exclude<TKey, keyof T>]: 'is not a property of the entity' };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type DefaultTenant = { property: 'tenantId' };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type TenantKeyOf<TTenant extends EntityTenant> = TTenant extends { property: infer TKey extends string } ? TKey : never;
 
 const defaultTenant: DefaultTenant = { property: 'tenantId' };
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Marks an entity.
  * @param options - Configuration options for the entity.
@@ -235,15 +235,15 @@ export function Entity<
             // against the class by its keys, because the class is not known until the line below;
             // what is stored is stated in terms of the entity, because everything reading it back has
             // one. They describe the same thing and neither is expressible as the other here
-            defaultOrder: defaultOrder as EntityMetadata['defaultOrder'],
-            defaultRelations: defaultRelations as EntityMetadata['defaultRelations'],
+            defaultOrder: defaultOrder,
+            defaultRelations: defaultRelations,
             uniques: uniqueGroups,
             indexes,
             checks,
             scope,
             tenant
         };
-        MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
+        MetadataUtilities.setEntityMetadata(target, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);
     };
 }

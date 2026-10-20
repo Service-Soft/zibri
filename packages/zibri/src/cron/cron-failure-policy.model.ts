@@ -1,5 +1,5 @@
-import { CronBackOffOptions } from './cron-back-off-options.model';
-import { CronRetryOptions } from './cron-retry-options.model';
+import { CronBackOffOptions } from './cron-back-off-options.model.ts';
+import { CronRetryOptions } from './cron-retry-options.model.ts';
 
 /**
  * What a cron job does when its ticks throw. Each part is off when left out, and a job leaving all of
@@ -29,8 +29,8 @@ export type CronFailurePolicy = {
      */
     restartAfterMs?: number
 } | {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     stopAfterFailures?: undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     restartAfterMs?: undefined
 });

@@ -1,33 +1,33 @@
 import { randomBytes } from 'node:crypto';
 
-import { ConfirmPasswordResetData } from './confirm-password-reset-data.model';
-import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentialsDto } from './password-credentials.model';
-import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
-import { RequestPasswordResetData } from './request-password-reset-data.model';
-import { ZibriApplication } from '../../../application/application';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../di/errors/no-provider.error';
-import { inject } from '../../../di/inject.function';
-import { type EmailServiceInterface } from '../../../email/email-service.interface';
-import { EmailPriority } from '../../../email/models/email-priority.enum';
-import { HttpError } from '../../../error-handling/errors/http.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../../localization/translate.function';
-import { TsxUtilities } from '../../../tsx/tsx.utilities';
-import { Newable } from '../../../types/newable.type';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import type { HashString } from '../../hash/hash.utilities';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
-import { Authentication } from '../../models/authentication.model';
-import { BaseUser } from '../../models/base-user.model';
-import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
+import { ConfirmPasswordResetData } from './confirm-password-reset-data.model.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentialsDto } from './password-credentials.model.ts';
+import { PasswordResetEmailTemplate } from './password-reset-email-template.model.ts';
+import { RequestPasswordResetData } from './request-password-reset-data.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../../di/errors/no-provider.error.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type EmailServiceInterface } from '../../../email/email-service.interface.ts';
+import { EmailPriority } from '../../../email/models/email-priority.enum.ts';
+import { HttpError } from '../../../error-handling/errors/http.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { TsxUtilities } from '../../../tsx/tsx.utilities.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { type HashServiceInterface } from '../../hash/hash-service.interface.ts';
+import type { HashString } from '../../hash/hash.utilities.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
+import { Authentication } from '../../models/authentication.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { PasswordResetToken, PasswordResetTokenCreateData } from '../../models/password-reset-token.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface.ts';
 
 /**
  * Authenticates a user by email and password, and resets a forgotten password by email.
@@ -36,10 +36,10 @@ export class PasswordAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > implements AuthControllerAuthenticatorInterface<RoleType, UserType, PasswordCredentialsDto> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'password';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly credentialsModel: Newable<PasswordCredentialsDto> = PasswordCredentialsDto;
 
     private readonly confirmPasswordResetUrl: string;
@@ -80,12 +80,12 @@ export class PasswordAuthenticator<
         this.PasswordResetEmail = PasswordResetEmail;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordCredentials, PasswordResetToken);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async authenticate(credentials: PasswordCredentialsDto, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
         try {
             const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });

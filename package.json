@@ -1,7 +1,9 @@
 {
     "name": "zibri-monorepo",
     "private": true,
-    "workspaces": ["packages/*"],
+    "workspaces": [
+        "packages/*"
+    ],
     "scripts": {
         "test": "npm run test --workspaces --if-present",
         "test:coverage": "npm run test:coverage --workspaces --if-present",
@@ -9,5 +11,22 @@
         "lint:fix": "npm run lint:fix --workspaces --if-present",
         "typecheck": "npm run typecheck --workspaces --if-present",
         "release:bump": "node .github/scripts/bump-version.mjs"
+    },
+    "devDependencies": {
+        "@cspell/dict-de-de": "^4.1.2",
+        "@typescript-eslint/eslint-plugin": "^8.56.0",
+        "@typescript/typescript6": "^6.0.2",
+        "@vitest/coverage-v8": "^5.0.5",
+        "cspell": "^10.4.0",
+        "eslint-plugin-import": "^2.32.0",
+        "eslint-plugin-jsdoc": "^62.7.0",
+        "eslint-plugin-sonarjs": "^4.0.2",
+        "eslint-plugin-unicorn": "^63.0.0",
+        "oxfmt": "^0.73.0",
+        "oxlint": "^1.88.0",
+        "oxlint-tsgolint": "^7.0.2004",
+        "typescript": "~6.0.2",
+        "vite": "^8.3.4",
+        "vitest": "^5.0.5"
     }
 }

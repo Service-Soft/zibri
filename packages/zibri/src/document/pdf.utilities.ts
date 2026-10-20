@@ -1,8 +1,8 @@
 import type PdfPrinter from 'pdfmake';
-import type { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions } from 'pdfmake/interfaces';
+import type { TDocumentDefinitions, Column, Content, Size, ImageDefinition, BufferOptions } from 'pdfmake/interfaces.js';
 
-import { InternalError } from '../error-handling/internal-error.model';
-import { optionalPeer } from '../utilities/optional-peer.function';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { optionalPeer } from '../utilities/optional-peer.function.ts';
 
 /**
  * Complete definition of a PDF document.
@@ -91,7 +91,7 @@ export abstract class PdfUtilities {
                 normal: this.resolveFont(fonts, 'Roboto-Regular.ttf'),
                 bold: this.resolveFont(fonts, 'Roboto-Medium.ttf'),
                 italics: this.resolveFont(fonts, 'Roboto-Italic.ttf'),
-                // eslint-disable-next-line cspell/spellchecker
+                // cspell:disable-next-line
                 bolditalics: this.resolveFont(fonts, 'Roboto-MediumItalic.ttf')
             }
         });

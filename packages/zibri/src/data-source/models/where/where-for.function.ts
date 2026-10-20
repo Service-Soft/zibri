@@ -1,6 +1,6 @@
-import { Where } from './where-filter.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { KeyWhere } from '../../../entity/models/unique-declaration.model';
+import { Where } from './where-filter.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { KeyWhere } from '../../../entity/models/unique-declaration.model.ts';
 
 /**
  * Types a filter against the entity it is declared on.

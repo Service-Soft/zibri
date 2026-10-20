@@ -1,4 +1,4 @@
-/* eslint-disable cspell/spellchecker */
+/* cspell:disable */
 import { ChildProcess, ChildProcessByStdio, spawn } from 'node:child_process';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
@@ -7,61 +7,61 @@ import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConne
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
-import { pgTypeParsers } from './pg-type-parsers.function';
-import { PostgresColumnSql } from './postgres-column-sql.model';
-import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
-import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
-import { AlsUtilities } from '../../../context/als.utilities';
-import { OperationLimit } from '../../../context/operation-limit.model';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata, ArrayPropertyMetadata } from '../../../entity/models/array-property-metadata.model';
-import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
-import { NumberFormat } from '../../../entity/models/number-property-metadata.model';
-import { Relation } from '../../../entity/models/relation.enum';
-import { coversEveryRow, KeyWhere } from '../../../entity/models/unique-declaration.model';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { KeyGroups, keyGroupsOf } from '../../../global/model-registry/key-descriptor';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { parseArray } from '../../../parsing/functions/parse-array.function';
-import { parseObject } from '../../../parsing/functions/parse-object.function';
-import { parseOneOf } from '../../../parsing/functions/parse-one-of.function';
-import { toJsonValue } from '../../../parsing/functions/to-json-value.function';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { BigNumber } from '../../../utilities/number.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { hasOptionalPeer } from '../../../utilities/optional-peer.function';
-import { PromiseUtilities } from '../../../utilities/promise.utilities';
-import { readNumber } from '../../../utilities/read-number.function';
-import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
-import { checkConstraintName } from '../../check-constraint-name.function';
-import { CheckConstraintViolationError } from '../../check-constraint-violation.error';
-import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function';
-import { literalToSql } from '../../literal-to-sql.function';
-import { DataSourceOptions, ResolvedDataSourceOptions } from '../../models/data-source-options.model';
-import { RefusedValue } from '../../models/refused-value.model';
-import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
-import { DEFAULT_MIN_SIMILARITY, MinSimilarity } from '../../models/where/fuzzy-like.model';
-import { FuzzySearchUtilities } from '../../models/where/fuzzy-search.utilities';
-import { AnyNumber } from '../../models/where/number-where-filter.model';
-import { MistypedStoredValue } from '../../stored-value-type-mismatch.error';
-import { Transaction } from '../../transaction/transaction.model';
-import { uniqueConstraintName } from '../../unique-constraint-name.function';
-import { keyWhereToSql } from '../../where/key-where-to-sql.function';
-import { WriteDataUtilities } from '../../write-data.utilities';
-import { DataSourceInitializationError } from '../data-source-initialization.error';
-import { StartTransactionOptions } from '../data-source.interface';
-import { QueryOptions, SqlDataSourceInterface } from '../sql-data-source.interface';
-import { OPERATION_LIMIT_DATA_KEY } from '../statement-limiting-data-source.model';
-import { MergedRows, UpsertInput, UpsertReachable, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model';
-import { PostgresTypeOrmWhereFilterConverter, TrigramSupport } from '../where-converter/postgres-typeorm-where-filter.converter';
+import { pgTypeParsers } from './pg-type-parsers.function.ts';
+import { PostgresColumnSql } from './postgres-column-sql.model.ts';
+import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities.ts';
+import { type AuthServiceInterface } from '../../../auth/auth-service.interface.ts';
+import { AlsUtilities } from '../../../context/als.utilities.ts';
+import { OperationLimit } from '../../../context/operation-limit.model.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata, ArrayPropertyMetadata } from '../../../entity/models/array-property-metadata.model.ts';
+import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function.ts';
+import { NumberFormat } from '../../../entity/models/number-property-metadata.model.ts';
+import { RelationType } from '../../../entity/models/relation-type.enum.ts';
+import { coversEveryRow, KeyWhere } from '../../../entity/models/unique-declaration.model.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { KeyGroups, keyGroupsOf } from '../../../global/model-registry/key-descriptor.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { parseArray } from '../../../parsing/functions/parse-array.function.ts';
+import { parseObject } from '../../../parsing/functions/parse-object.function.ts';
+import { parseOneOf } from '../../../parsing/functions/parse-one-of.function.ts';
+import { toJsonValue } from '../../../parsing/functions/to-json-value.function.ts';
+import { ExcludeStrict } from '../../../types/exclude-strict.type.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { BigNumber } from '../../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
+import { hasOptionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { PromiseUtilities } from '../../../utilities/promise.utilities.ts';
+import { readNumber } from '../../../utilities/read-number.function.ts';
+import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities.ts';
+import { checkConstraintName } from '../../check-constraint-name.function.ts';
+import { CheckConstraintViolationError } from '../../check-constraint-violation.error.ts';
+import { indexName, trigramIndexName, TRIGRAM_INDEX_PREFIX } from '../../index-name.function.ts';
+import { literalToSql } from '../../literal-to-sql.function.ts';
+import { DataSourceOptions, ResolvedDataSourceOptions } from '../../models/data-source-options.model.ts';
+import { RefusedValue } from '../../models/refused-value.model.ts';
+import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model.ts';
+import { DEFAULT_MIN_SIMILARITY, MinSimilarity } from '../../models/where/fuzzy-like.model.ts';
+import { FuzzySearchUtilities } from '../../models/where/fuzzy-search.utilities.ts';
+import { AnyNumber } from '../../models/where/number-where-filter.model.ts';
+import { MistypedStoredValue } from '../../stored-value-type-mismatch.error.ts';
+import { Transaction } from '../../transaction/transaction.model.ts';
+import { uniqueConstraintName } from '../../unique-constraint-name.function.ts';
+import { keyWhereToSql } from '../../where/key-where-to-sql.function.ts';
+import { WriteDataUtilities } from '../../write-data.utilities.ts';
+import { DataSourceInitializationError } from '../data-source-initialization.error.ts';
+import { StartTransactionOptions } from '../data-source.interface.ts';
+import { QueryOptions, SqlDataSourceInterface } from '../sql-data-source.interface.ts';
+import { OPERATION_LIMIT_DATA_KEY } from '../statement-limiting-data-source.model.ts';
+import { MergedRows, UpsertInput, UpsertReachable, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model.ts';
+import { PostgresTypeOrmWhereFilterConverter, TrigramSupport } from '../where-converter/postgres-typeorm-where-filter.converter.ts';
 
 /**
  * The postgres specific connection options of a data source.
@@ -599,12 +599,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      */
     private trigramSupport: TrigramSupport = { threshold: undefined, thresholdIsInclusive: false };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected whereFilterConverter: PostgresTypeOrmWhereFilterConverter | undefined;
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    protected readonly type: 'postgres' = 'postgres';
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
+    protected readonly type: 'postgres' = 'postgres' as const;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected readonly defaultColumnTypeMapping: Record<ToColumnMappableTypes, ColumnType> = {
         array: 'array',
         // what a javascript number is. A number property says which kind it holds and
@@ -619,7 +619,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         oneOf: 'jsonb'
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected readonly defaultOptions: ResolvedDataSourceOptions<Partial<OmitStrict<PostgresOptions, 'type' | 'entities'>>> = {
         // per process, and a deployment is many processes: what the database sees is this times the
         // number of replicas. Stock postgres accepts a hundred connections in total, so a default
@@ -643,7 +643,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         maxBoundValuesPerStatement: 65535
     };
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Combination of the default and user provided options, plus the parsers a result is read with.
      *
@@ -661,7 +661,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      */
     protected override get fullOptions(): ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> {
         const options: ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> = super.fullOptions;
-        const extra: Record<string, unknown> = { ...options.extra } as Record<string, unknown>;
+        const extra: Record<string, unknown> = { ...options.extra };
         const startupOptions: string = typeof extra['options'] === 'string' ? `${extra['options']} ` : '';
         return {
             ...options,
@@ -734,7 +734,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         await this.ds.query('SELECT pg_cancel_backend($1)', [backendId]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async limitStatementsOn(runner: QueryRunner, timeoutInMs: number, inTransaction: boolean): Promise<() => Promise<void>> {
         const value: string = String(timeoutInMs);
         if (!inTransaction) {
@@ -832,7 +832,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         if (!tables.length) {
             return;
         }
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const differing: { table_name: string, column_name: string, collation_name: string }[] = await dataSource.query(
             'SELECT table_name, column_name, collation_name FROM information_schema.columns'
             + ' WHERE table_schema = current_schema() AND table_name = ANY($1)'
@@ -1161,7 +1161,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         ]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async schemaLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
         // a connection of its own, outside the pool, and closed once the setup is done. Holding a
         // pooled one for the whole setup left a pool of one with nothing for the migrations and
@@ -1210,7 +1210,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildUpsertSql(input: UpsertInput): UpsertSql {
         // the select deciding which rows may be changed arrives with its placeholders numbered from
         // the first, so its parameters go first and everything this adds is numbered after them
@@ -1299,7 +1299,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         return statement.sql.replaceAll(/\$(\d+)/g, (_, index: string) => `$${Number(index) + offset}`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     buildObjectMergeSql(
         target: string,
         value: object,
@@ -1336,7 +1336,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         return nested.length ? `(${merged} || jsonb_build_object(${nested.join(', ')}))` : `(${merged})`;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected violatedCheckName(error: TOQueryFailedError): string | undefined {
         if (!('code' in error.driverError) || error.driverError.code !== CHECK_VIOLATION_SQL_STATE) {
             return undefined;
@@ -1346,7 +1346,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     violatedUniqueProperties(error: TOQueryFailedError): string[] | undefined {
         if (!('code' in error.driverError) || error.driverError.code !== UNIQUE_VIOLATION_SQL_STATE) {
             return undefined;
@@ -1372,7 +1372,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         ];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     mistypedJsonValue(error: TOQueryFailedError, entityName: string): MistypedStoredValue | undefined {
         if (!('code' in error.driverError) || typeof error.driverError.code !== 'string'
             || !UNREADABLE_VALUE_SQL_STATES.includes(error.driverError.code)) {
@@ -1403,7 +1403,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validateBackupConfiguration(): Promise<void> {
         if (Boolean(this.rootUsername) !== Boolean(this.rootPw)) {
             throw new InternalError(
@@ -1441,15 +1441,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         const archiveVersion: number | undefined = versions[ARCHIVE_COMMAND];
         if (dumpVersion != undefined && dumpVersion < serverVersion) {
             throw new InternalError(
-                // eslint-disable-next-line stylistic/max-len
                 `Invalid data source marked with @Backup: "${DUMP_COMMAND}" is version ${dumpVersion} and the server version ${serverVersion}.`
-                // eslint-disable-next-line stylistic/max-len
                 + ` A dump needs client tools of the server's version or later, so install those of version ${serverVersion} in the runtime image.`
             );
         }
         if (dumpVersion != undefined && archiveVersion != undefined && archiveVersion < dumpVersion) {
             throw new InternalError(
-                // eslint-disable-next-line stylistic/max-len
                 `Invalid data source marked with @Backup: "${ARCHIVE_COMMAND}" is version ${archiveVersion} and "${DUMP_COMMAND}" version ${dumpVersion}.`
                 + ' A restore reads what a dump wrote, so install the client tools of one version in the runtime image.'
             );
@@ -1464,7 +1461,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const [row]: { server_version_num: string }[] = await this.ds.query('SHOW server_version_num');
         // eg. 170006 for 17.6
         return Math.floor(Number(row?.server_version_num) / 10000);
@@ -1478,7 +1475,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const [row]: { schema: string | null }[] = await this.ds.query('SELECT current_schema() AS schema');
         if (row?.schema == undefined) {
             throw new InternalError(
@@ -1488,7 +1485,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         return row.schema;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     query<T extends BaseEntity>(entityClass: Newable<T>, options?: QueryOptions): QueryBuilder<T> {
         if (!this.ds) {
             throw new DataSourceInitializationError();
@@ -1789,7 +1786,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected propertyToRelationOptions<T extends BaseEntity>(
         cls: Newable<T>,
         key: string,
@@ -1815,7 +1812,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         const persistence: boolean = 'persistence' in metadata ? metadata.persistence : thisHasInsert || inverseHasInsert;
         const nullable: boolean = typeof metadata.required === 'boolean' ? !metadata.required : true;
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const shared = {
             inverseSide: metadata.inverseSide as string,
             onDelete,
@@ -1825,20 +1822,20 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         } as const satisfies Partial<EntitySchemaRelationOptions>;
 
         switch (metadata.type) {
-            case Relation.ONE_TO_MANY: {
+            case RelationType.ONE_TO_MANY: {
                 return {
                     ...metadata,
                     ...shared
                 };
             }
-            case Relation.HAS_ONE: {
+            case RelationType.HAS_ONE: {
                 return {
                     ...metadata,
                     ...shared,
                     type: 'one-to-one'
                 };
             }
-            case Relation.MANY_TO_MANY: {
+            case RelationType.MANY_TO_MANY: {
                 if (metadata.joinTable == undefined) {
                     throw new InternalError(
                         `The property ${cls.name}.${key} needs to have "joinTable" set inside of the @Property.manyToMany() decorator.`
@@ -1849,7 +1846,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                     ...shared
                 };
             }
-            case Relation.BELONGS_TO_ONE: {
+            case RelationType.BELONGS_TO_ONE: {
                 if (metadata.joinColumn == undefined) {
                     throw new InternalError(
                         `The property ${cls.name}.${key} needs to have "joinColumn" set inside of the @Property.belongsToOne() decorator.`
@@ -1862,7 +1859,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                     joinColumn: { name: metadata.joinColumn }
                 };
             }
-            case Relation.MANY_TO_ONE: {
+            case RelationType.MANY_TO_ONE: {
                 if (metadata.joinColumn == undefined) {
                     throw new InternalError(
                         `The property ${cls.name}.${key} needs to have "joinColumn" set inside of the @Property.manyToOne() decorator.`
@@ -2457,7 +2454,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected propertyToColumnOptions(
         metadata: ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>
     ): EntitySchemaColumnOptions {

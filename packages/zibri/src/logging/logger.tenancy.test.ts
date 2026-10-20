@@ -1,21 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { LogCleanupCronJob } from './log-cleanup.cron-job';
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
-import { Logger } from './logger';
-import { LoggerTransport } from './transport/logger-transport.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { Ms } from '../utilities/ms';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { LogCleanupCronJob } from './log-cleanup.cron-job.ts';
+import { LogLevel } from './log-level.enum.ts';
+import { Log } from './log.model.ts';
+import { Logger } from './logger.ts';
+import { LoggerTransport } from './transport/logger-transport.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { Ms } from '../utilities/ms.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 // in memory, so that what a log entry does across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({

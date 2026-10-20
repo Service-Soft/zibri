@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { diffFileContents } from './diff-file-contents.function';
-import { normalizePackageJson } from './normalize-package-json.function';
+import { diffFileContents } from './diff-file-contents.function.ts';
+import { normalizePackageJson } from './normalize-package-json.function.ts';
 
 type PackageJsonInput = {
     version?: string,

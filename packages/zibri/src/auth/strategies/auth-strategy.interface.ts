@@ -1,10 +1,10 @@
-import { AuthStrategies } from './auth-strategies.model';
-import { CredentialLimits } from './credential-limits.model';
-import { ZibriApplication } from '../../application/application';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
-import { BaseUser } from '../models/base-user.model';
+import { AuthStrategies } from './auth-strategies.model.ts';
+import { CredentialLimits } from './credential-limits.model.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an auth strategy: how a request says who it is from.

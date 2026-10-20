@@ -1,4 +1,4 @@
-import { InternalError } from '../error-handling/internal-error.model';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * The slot every copy of the framework counts itself into.

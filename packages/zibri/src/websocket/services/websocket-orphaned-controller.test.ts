@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
+import { startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
 
 @WebsocketController({ eventPrefix: 'orphan:' })
 class OrphanWebsocketController {

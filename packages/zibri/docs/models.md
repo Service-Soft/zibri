@@ -58,6 +58,10 @@ The relation decorators connect [entities](./data-source.md#defining-entities) t
 Each names its `target` and the `inverseSide`, the property of the target pointing back. The target
 declares that property with `@Property`, or the application refuses to start and names the relation.
 
+A `manyToOne`, `belongsToOne` or `hasOne` property is declared as `Relation<Entity>`, as in
+`team?: Relation<Team>`. It holds the related entity like `Team` does; declared as `Team`, it does not
+compile.
+
 A string's `format` is one of:
 
 | `format` | Holds |

@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Param } from './param.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { Param } from './param.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * What a string parameter can be declared with.

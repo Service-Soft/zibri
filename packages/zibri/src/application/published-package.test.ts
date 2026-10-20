@@ -4,14 +4,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { JsonUtilities } from '../utilities/json.utilities';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * What a consumer receives, checked against the built package rather than against `src`.
  *
- * Every other suite here imports TypeScript through ts-jest, which cannot see any of this: whether
+ * Every other suite here imports TypeScript through Vitest, which cannot see any of this: whether
  * the files `package.json` advertises are the files the tarball contains, whether they load, and
  * whether `require` and `import` reach the same module. The three defects this replaces were all of
  * that kind - an entry point that pointed at a file the build never produced, output that said `esm`
@@ -21,9 +21,9 @@ import { JsonUtilities } from '../utilities/json.utilities';
  * to run rather than a stack trace about a missing file.
  */
 
-const packageDir: string = path.resolve(__dirname, '..', '..');
+const packageDir: string = path.resolve(import.meta.dirname, '..', '..');
 const repoRoot: string = path.resolve(packageDir, '..', '..');
-const builtEntry: string = path.join(packageDir, 'dist', 'cjs', 'index.js');
+const builtEntry: string = path.join(packageDir, 'dist', 'index.js');
 const packCache: string = path.join(tmpdir(), 'zibri-npm-pack-cache');
 
 /**
@@ -62,7 +62,7 @@ function packed(): PackedTarball {
 /**
  * Loads the package the way a consumer does, in a process of its own.
  *
- * Out of process on purpose: resolving `zibri` inside jest would hand back the copy ts-jest already
+ * Out of process on purpose: resolving `zibri` inside Vitest would hand back the copy it already
  * compiled from `src`, and loading the built one beside it would put two of every decorator registry
  * in one process. A child sees only what an installed package offers.
  * @param script - The body of an ES module to run, which must print one line of json.
@@ -78,6 +78,13 @@ function inConsumerProcess<T>(script: string): T {
 }
 
 describe('the published package', () => {
+    let tarball: PackedTarball;
+
+    beforeAll(() => {
+        // once for the file rather than per test: nothing here changes the package, and each run is
+        // a child process that took longer than a test's timeout under a busy parallel run
+        tarball = packed();
+    }, 60_000);
 
     it('has been built', () => {
         // not a finding of its own - it is what makes the failures below readable
@@ -85,24 +92,24 @@ describe('the published package', () => {
     });
 
     it('ships every file it advertises', () => {
-        const files: string[] = packed().files;
+        const files: string[] = tarball.files;
 
         // `exports`, `main` and `types` are promises about the tarball, and nothing checked that the
         // build had kept any of them. The entry point the esm condition named was never emitted at
         // all, so `import ... from 'zibri'` was ERR_MODULE_NOT_FOUND for every consumer of it.
-        expect(files).toContain('dist/cjs/index.js');
-        expect(files).toContain('dist/cjs/index.d.ts');
+        expect(files).toContain('dist/index.js');
+        expect(files).toContain('dist/index.d.ts');
         expect(files).toContain('package.json');
     });
 
     it('ships the sources its maps point at', () => {
-        const files: string[] = packed().files;
+        const files: string[] = tarball.files;
 
         // `declarationMap` and `sourceMap` are on, so every `.d.ts` carries a map into `src`.
         // Publishing the maps without the sources would leave a reader who follows a framework
         // method looking at a stripped `.d.ts` instead of what it does.
         expect(files).toContain('src/index.ts');
-        expect(files).toContain('dist/cjs/index.d.ts.map');
+        expect(files).toContain('dist/index.d.ts.map');
     });
 
     it('builds into an empty directory', () => {
@@ -119,7 +126,7 @@ describe('the published package', () => {
     });
 
     it('ships no test material', () => {
-        const files: string[] = packed().files;
+        const files: string[] = tarball.files;
 
         // `files` is a whitelist and it beats every ignore rule underneath it, so naming `./src`
         // published the framework's own coverage report - written into `src/__testing__/coverage`,
@@ -136,7 +143,7 @@ describe('the published package', () => {
     });
 
     it('installs at a size a consumer would accept', () => {
-        const megabytes: number = packed().unpackedSize / 1024 / 1024;
+        const megabytes: number = tarball.unpackedSize / 1024 / 1024;
 
         // `dist` is 8.2MB and the sources behind it 4.9MB, 13.1 all told, and the ceiling sits just above
         // that: growing past it is a reason to look at what grew, which once found test cases, fonts
@@ -145,8 +152,8 @@ describe('the published package', () => {
     });
 
     it('ships its comments once in the sources and the declarations, not in the code that runs', () => {
-        const code: string = readFileSync(path.join(packageDir, 'dist', 'cjs', 'application', 'application.js'), 'utf8');
-        const declarations: string = readFileSync(path.join(packageDir, 'dist', 'cjs', 'application', 'application.d.ts'), 'utf8');
+        const code: string = readFileSync(path.join(packageDir, 'dist', 'application', 'application.js'), 'utf8');
+        const declarations: string = readFileSync(path.join(packageDir, 'dist', 'application', 'application.d.ts'), 'utf8');
 
         // a third of the JavaScript was comments, which nothing reads: an editor shows the JSDoc of
         // the declarations, and a source map leads to the sources
@@ -156,8 +163,8 @@ describe('the published package', () => {
 
     it('advertises no entry point that the build does not produce', () => {
         const advertised: string[] = [
-            'dist/cjs/index.js',
-            'dist/cjs/index.d.ts'
+            'dist/index.js',
+            'dist/index.d.ts'
         ];
 
         for (const entry of advertised) {
@@ -179,8 +186,7 @@ describe('the published package', () => {
         `);
 
         expect(res.typeofApplication).toBe('function');
-        // through the __exportStar chain, which is what makes a single CommonJS build serve an esm
-        // consumer without an esm build behind it
+        // a commonjs consumer requires the es module build itself, so there is no commonjs build behind it
         expect(res.namedExports).toBeGreaterThan(400);
         // the dual package hazard, and the reason there is one build rather than two. `GlobalRegistry`
         // and `DiContainer` are module level singletons, so a consumer whose graph reached the

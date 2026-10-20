@@ -1,8 +1,8 @@
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { RateLimiter } from '../rate-limiting/decorators/rate-limiter.decorator';
-import { TokenBucketRateLimiter, TokenBucketState } from '../rate-limiting/limiter/token-bucket.rate-limiter';
-import { InMemoryRateLimiterStore } from '../rate-limiting/stores/in-memory.rate-limiter-store';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { RateLimiter } from '../rate-limiting/decorators/rate-limiter.decorator.ts';
+import { TokenBucketRateLimiter, TokenBucketState } from '../rate-limiting/limiter/token-bucket.rate-limiter.ts';
+import { InMemoryRateLimiterStore } from '../rate-limiting/stores/in-memory.rate-limiter-store.ts';
 
 /**
  * How much of the framework's own auth endpoints one caller may use.

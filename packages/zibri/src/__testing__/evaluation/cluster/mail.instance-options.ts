@@ -1,17 +1,17 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider } from '../../../di/models/di-provider.model';
-import { type EmailServiceInterface } from '../../../email/email-service.interface';
-import { EmailConfig } from '../../../email/models/email-config.model';
-import { Email } from '../../../email/models/email.model';
-import { EmailSendResult, EmailTransportInterface } from '../../../email/transports/email-transport.interface';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { Ms } from '../../../utilities/ms';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
+import { type EmailServiceInterface } from '../../../email/email-service.interface.ts';
+import { EmailConfig } from '../../../email/models/email-config.model.ts';
+import { Email } from '../../../email/models/email.model.ts';
+import { EmailSendResult, EmailTransportInterface } from '../../../email/transports/email-transport.interface.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { Ms } from '../../../utilities/ms.ts';
 
 /**
  * What every instance of the mail cluster boots with.

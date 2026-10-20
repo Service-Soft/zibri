@@ -1,13 +1,13 @@
 import { LocaleData } from 'zibri-tsx';
 
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { LocalizeServiceInterface } from '../localization/localize-service.interface';
-import { CurrencyCode } from '../localization/models/currency-code.model';
-import { LocaleCode } from '../localization/models/locale-code.model';
-import { TranslationRegistry } from '../localization/translation.registry';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { LocalizeServiceInterface } from '../localization/localize-service.interface.ts';
+import { CurrencyCode } from '../localization/models/currency-code.model.ts';
+import { LocaleCode } from '../localization/models/locale-code.model.ts';
+import { TranslationRegistry } from '../localization/translation.registry.ts';
 
 /**
  * The format data the client side `$f` hook is built from.
@@ -50,7 +50,7 @@ type ClientTranslations = Partial<Record<LocaleCode, Partial<Record<string, stri
 export class TsxLocaleData implements LocaleData {
     private resolvedLocale: LocaleCode | undefined;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The locale the current request resolves to.
      */
@@ -58,7 +58,7 @@ export class TsxLocaleData implements LocaleData {
         return this.currentLocale();
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The translations the client gets access to.
      *
@@ -70,7 +70,7 @@ export class TsxLocaleData implements LocaleData {
         return TranslationRegistry.translations;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The date, time and currency formats for the active locale.
      */

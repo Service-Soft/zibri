@@ -1,17 +1,17 @@
-import { Jwk } from './jwk.model';
-import { Jwks } from './jwks.model';
-import { type JwtServiceInterface } from './jwt-service.interface';
-import { JwtUtilities } from './jwt.utilities';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { Response } from '../../../open-api/decorators/response.decorator';
-import { Route } from '../../../routing/controller-route-configuration.model';
-import { ControllerUtilities } from '../../../routing/controller.utilities';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Get } from '../../../routing/decorators/get.decorator';
-import { Newable } from '../../../types/newable.type';
-import { Auth } from '../../decorators/auth.decorator';
+import { Jwk } from './jwk.model.ts';
+import { Jwks } from './jwks.model.ts';
+import { type JwtServiceInterface } from './jwt-service.interface.ts';
+import { JwtUtilities } from './jwt.utilities.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { Response } from '../../../open-api/decorators/response.decorator.ts';
+import { Route } from '../../../routing/controller-route-configuration.model.ts';
+import { ControllerUtilities } from '../../../routing/controller.utilities.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { Auth } from '../../decorators/auth.decorator.ts';
 
 /**
  * Where the key set is published, below the path of the controller.

@@ -1,11 +1,11 @@
-import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { CurrencyCode } from './models/currency-code.model';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { CurrencyCode } from './models/currency-code.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class FormatCalledWhileAppOfflineError extends InternalError {
     constructor(methodName: keyof typeof $f, options?: ErrorOptions) {
         super(
@@ -22,7 +22,7 @@ class FormatCalledWhileAppOfflineError extends InternalError {
 /**
  * Shortcuts for formatting values in the currently resolved locale.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const $f = {
     /**
      * Formats the given date in the 'date' format.

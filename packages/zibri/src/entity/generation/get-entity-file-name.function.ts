@@ -1,4 +1,4 @@
-import { toKebabCase } from '../../utilities/to-kebab-case.function';
+import { toKebabCase } from '../../utilities/to-kebab-case.function.ts';
 
 /**
  * Gets the file name for the given entity name.

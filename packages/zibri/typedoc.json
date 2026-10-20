@@ -3,7 +3,8 @@
     "entryPoints": ["src"],
     "exclude": [
         "src/index.ts",
-        "src/jest.setup.ts",
+        "src/vitest.setup.ts",
+        "src/vitest.global-setup.ts",
         "src/**/*.test.ts",
         "src/__testing__/**"
     ],

@@ -1,9 +1,9 @@
-import { InvoiceAddress } from './invoice-address.model';
-import { InvoiceItem } from './invoice-item.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { type CurrencyCode } from '../../../localization/models/currency-code.model';
+import { InvoiceAddress } from './invoice-address.model.ts';
+import { InvoiceItem } from './invoice-item.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { type CurrencyCode } from '../../../localization/models/currency-code.model.ts';
 
 /**
  * Contains information about an invoice.

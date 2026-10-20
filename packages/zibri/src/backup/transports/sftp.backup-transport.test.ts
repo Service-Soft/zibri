@@ -3,31 +3,31 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { utils } from 'ssh2';
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
-import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
-import { BaseSftpBackupTransport } from './sftp.backup-transport';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { SchemaManagement } from '../../data-source/models/schema-management.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
-import { BackupService } from '../backup.service';
-import { Backup } from '../decorators/backup-resource.decorator';
-import { BackupTransport } from '../decorators/backup-transport.decorator';
+import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model.ts';
+import { BaseSftpBackupTransport } from './sftp.backup-transport.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../../data-source/models/schema-management.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { BackupEntity } from '../backup-entity.model.ts';
+import { BackupResourceEntity } from '../backup-resource-entity.model.ts';
+import { BackupService } from '../backup.service.ts';
+import { Backup } from '../decorators/backup-resource.decorator.ts';
+import { BackupTransport } from '../decorators/backup-transport.decorator.ts';
 
 /**
  * The SFTP server the transport is tested against: OpenSSH's own, configured by the image from its command.

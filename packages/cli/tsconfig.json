@@ -16,6 +16,7 @@
         "noPropertyAccessFromIndexSignature": true,
         "outDir": "dist",
         "resolveJsonModule": true,
+        "rewriteRelativeImportExtensions": true,
         "rootDir": "src",
         "skipLibCheck": true,
         "sourceMap": true,
@@ -26,5 +27,5 @@
         "useUnknownInCatchVariables": true
     },
     "exclude": ["src/__testing__/file-output"],
-    "include": ["src", "jest.config.mjs"]
+    "include": ["src"]
 }

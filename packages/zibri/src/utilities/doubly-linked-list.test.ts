@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { DoublyLinkedList, LinkedListNode } from './doubly-linked-list';
+import { DoublyLinkedList, LinkedListNode } from './doubly-linked-list.ts';
 
 function toArray<T>(list: DoublyLinkedList<T>): T[] {
     const values: T[] = [];

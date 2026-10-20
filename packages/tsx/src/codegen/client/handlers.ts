@@ -1,10 +1,10 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { accessShapeOf } from './access-shape-analysis';
-import { AccessShape } from '../../runtime/access-shape';
-import { collectPatternBindings, collectPatternNames, collectReferencedSymbols, declaredSymbols, symbolsOf } from '../../semantics/binding';
-import { ComponentFunction } from '../../semantics/component';
-import { childrenOf, unwrapTypeSyntax } from '../../semantics/walk';
+import { accessShapeOf } from './access-shape-analysis.ts';
+import { AccessShape } from '../../runtime/access-shape.ts';
+import { collectPatternBindings, collectPatternNames, collectReferencedSymbols, declaredSymbols, symbolsOf } from '../../semantics/binding.ts';
+import { ComponentFunction } from '../../semantics/component.ts';
+import { childrenOf, unwrapTypeSyntax } from '../../semantics/walk.ts';
 
 /**
  * A collected event-handler site on a host element within a component.

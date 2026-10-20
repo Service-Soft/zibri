@@ -1,18 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
-import { Repository } from './repository';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { Newable } from '../../types/newable.type';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Transaction } from '../transaction/transaction.model';
+import { Repository } from './repository.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * What repository writes cost, as the calls they make on the store. Compared as the list of calls
@@ -55,7 +56,7 @@ class CostFile extends BaseEntity {
     name!: string;
 
     @Property.manyToOne({ target: () => CostFolder, joinColumn: 'folderId', inverseSide: 'files' })
-    folder!: CostFolder;
+    folder!: Relation<CostFolder>;
 
     @Property.string({ format: 'uuid' })
     folderId!: string;
@@ -111,7 +112,7 @@ describe('what repository writes cost', () => {
     });
 
     it('points a row at a row the same transaction wrote without reading it', async () => {
-        const transaction: Transaction = await inject(dataSourceClass).startTransaction();
+        const transaction: Transaction = inject(dataSourceClass).startTransaction();
         try {
             const calls: string[] = await resolveCallsOf(async () => {
                 const folder: CostFolder = await folders.create({ name: 'written before' }, { transaction });

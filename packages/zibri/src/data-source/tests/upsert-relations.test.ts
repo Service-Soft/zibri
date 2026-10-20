@@ -1,13 +1,14 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Repository } from '../repository/repository';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { Repository } from '../repository/repository.ts';
 
 @Entity({ tenant: 'shared', uniques: [['name']] })
 class Warehouse extends BaseEntity {
@@ -34,7 +35,7 @@ class StockLevel extends BaseEntity {
     quantity!: number;
 
     @Property.manyToOne({ target: () => Warehouse, inverseSide: 'stockLevels', joinColumn: 'warehouseId' })
-    warehouse!: Warehouse;
+    warehouse!: Relation<Warehouse>;
 
     @Property.string({ format: 'uuid' })
     warehouseId!: string;

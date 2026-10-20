@@ -1,9 +1,9 @@
-import { QueueEmailData } from '../../../email/models/create-email-data.model';
-import { OmitClass } from '../../../entity/omit-class.model';
-import { Route } from '../../../routing/controller-route-configuration.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { MailingListTemplateData } from '../models/mailing-list-base-email-template.model';
-import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
+import { QueueEmailData } from '../../../email/models/create-email-data.model.ts';
+import { OmitClass } from '../../../entity/omit-class.model.ts';
+import { Route } from '../../../routing/controller-route-configuration.model.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { MailingListTemplateData } from '../models/mailing-list-base-email-template.model.ts';
+import { MailingListSubscriber } from '../models/mailing-list-subscriber.model.ts';
 
 /**
  * The data required to queue a new mailing list email.

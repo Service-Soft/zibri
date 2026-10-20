@@ -1,6 +1,6 @@
 import type { Batch, GlideClient, Script, TimeUnit } from '@valkey/valkey-glide';
 
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * The parts of the valkey client that are used as values rather than as types.

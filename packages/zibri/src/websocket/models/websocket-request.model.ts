@@ -1,18 +1,18 @@
-import { BaseWebsocketConnection } from './connection/base-websocket-connection.model';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Header } from '../../http/header.type';
-import { HttpRequest } from '../../http/http-request.model';
-import { KnownHeader } from '../../http/known-header.enum';
+import { BaseWebsocketConnection } from './connection/base-websocket-connection.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Header } from '../../http/header.type.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class QueryObject implements Record<string, unknown> {
     [key: string]: unknown
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class ParamsObject extends QueryObject {}
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 class HeadersObject implements Partial<Record<KnownHeader, unknown>> {
     [key: string]: unknown
 }
@@ -29,19 +29,19 @@ export class WebsocketRequest<
     HttpRequest<T, PathParamsObject, QueryParamsObject, HeaderParamsObject>,
     'headers' | 'body' | 'query' | 'params'>
 > {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.object({ cls: () => QueryObject, required: false, allowAdditionalProperties: true })
     query: QueryParamsObject | undefined;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.object({ cls: () => HeadersObject, required: false, allowAdditionalProperties: true })
     headers: HeaderParamsObject | undefined;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.object({ cls: () => ParamsObject, required: false, allowAdditionalProperties: true })
     params: PathParamsObject | undefined;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.unknown({ required: false })
     body: T | undefined;
 }

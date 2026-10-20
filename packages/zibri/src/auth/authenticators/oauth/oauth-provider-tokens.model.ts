@@ -1,7 +1,7 @@
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitClass } from '../../../entity/omit-class.model';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../../../entity/omit-class.model.ts';
 
 /**
  * The tokens a provider issued for an identity, kept for calling its apis for the user it is linked to.

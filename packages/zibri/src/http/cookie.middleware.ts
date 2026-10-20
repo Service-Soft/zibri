@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { RequestHandler } from 'express';
 
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
 /**
  * Percent decoding that gives up quietly.
@@ -54,7 +54,7 @@ function parseCookieHeader(header: string): Record<string, string> {
     return Object.fromEntries(cookies);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function unsignCookie(value: string, secret: string): string | false {
     // cookie-signature format: <value>.<base64-hmac-without-padding>
     const tentativeValue: string = value.slice(0, value.lastIndexOf('.'));
@@ -82,7 +82,7 @@ export const cookieMiddleware: (secret: string | undefined) => RequestHandler = 
 
     // Express's own res.cookie()/res.clearCookie() only sign/verify with { signed: true } when req.secret is set —
     // normally done by the cookie-parser package, which this middleware replaces, so it must set it too.
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     (req as typeof req & { secret?: string }).secret = secret;
 
     const cookies: Map<string, string> = new Map();

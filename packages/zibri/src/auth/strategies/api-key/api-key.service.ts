@@ -1,35 +1,35 @@
 import { randomBytes, X509Certificate } from 'node:crypto';
 
-import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
-import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job';
-import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
-import { ApiKeyCreateData } from './api-key-create-data.model';
-import { ApiKeyOptions } from './api-key-options.model';
-import { ApiKeyServiceInterface } from './api-key-service.interface';
-import { ApiKey, ApiKeyCreateDto } from './api-key.model';
-import { CreatedApiKey } from './created-api-key.model';
-import { ZibriApplication } from '../../../application/application';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { $ts } from '../../../localization/translate.function';
-import { BaseMembership } from '../../../tenancy/membership/base-membership.model';
-import { type MembershipServiceInterface } from '../../../tenancy/membership/membership-service.interface';
-import { validateRequestTenant } from '../../../tenancy/validate-request-tenant.function';
-import { Ms } from '../../../utilities/ms';
-import { UrlUtilities } from '../../../utilities/url.utilities';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { JwtUtilities } from '../jwt/jwt.utilities';
+import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum.ts';
+import { ApiKeyCleanupCronJob } from './api-key-cleanup.cron-job.ts';
+import { ApiKeyClientAuthentication } from './api-key-client-authentication.model.ts';
+import { ApiKeyCreateData } from './api-key-create-data.model.ts';
+import { ApiKeyOptions } from './api-key-options.model.ts';
+import { ApiKeyServiceInterface } from './api-key-service.interface.ts';
+import { ApiKey, ApiKeyCreateDto } from './api-key.model.ts';
+import { CreatedApiKey } from './created-api-key.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { BaseMembership } from '../../../tenancy/membership/base-membership.model.ts';
+import { type MembershipServiceInterface } from '../../../tenancy/membership/membership-service.interface.ts';
+import { validateRequestTenant } from '../../../tenancy/validate-request-tenant.function.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { UrlUtilities } from '../../../utilities/url.utilities.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { type HashServiceInterface } from '../../hash/hash-service.interface.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { JwtUtilities } from '../jwt/jwt.utilities.ts';
 
 /**
  * What every api key starts with.
@@ -85,7 +85,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     registerReader(app: ZibriApplication, reader: string): void {
         validateEntitiesRegistered(reader, app, ApiKey);
         this.read = true;
@@ -99,7 +99,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async create<Role extends string>(
         userId: string,
         data: ApiKeyCreateData<Role, undefined>,
@@ -125,7 +125,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         return { apiKey, key };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createClient<Role extends string>(
         userId: string,
         data: ApiKeyCreateData<Role, ApiKeyClientAuthentication>,
@@ -147,12 +147,12 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findForUser(userId: string, transaction: Transaction | undefined): Promise<ApiKey[]> {
         return await this.apiKeyRepository.findAll({ where: { userId }, order: { createdAt: 'ASC' }, take: 'all', transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findActiveByKey(key: string): Promise<ApiKey | undefined> {
         // hashed to be searched for, because that is how it is stored
         const apiKey: ApiKey | undefined = await this.apiKeyRepository.findOne({
@@ -162,7 +162,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         return this.isActive(apiKey) ? apiKey : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findActiveById(id: string): Promise<ApiKey | undefined> {
         // an id that is no uuid names no key, and is not handed to a store that would refuse it
         const apiKey: ApiKey | undefined = UUIDUtilities.isUuid(id)
@@ -171,13 +171,13 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         return this.isActive(apiKey) ? apiKey : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revoke(userId: string, apiKeyId: string, transaction: Transaction | undefined): Promise<void> {
         const apiKey: ApiKey = await this.apiKeyRepository.findOne({ where: { id: apiKeyId, userId }, transaction });
         await this.apiKeyRepository.deleteById(apiKey.id, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeForUser(userId: string, transaction: Transaction | undefined): Promise<void> {
         // a user of an application without api keys holds none
         if (!this.read) {
@@ -186,7 +186,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         await this.apiKeyRepository.deleteAll({ userId }, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async recordUse(apiKey: ApiKey): Promise<void> {
         const now: Date = new Date();
         // written down once in a while rather than on every request: the time only has to tell a key
@@ -201,7 +201,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
         await this.apiKeyRepository.updateAll({ id: apiKey.id }, { lastUsedAt: now });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteExpired(): Promise<void> {
         const expiredBefore: Date = new Date(Date.now() - this.resolveOptions().deleteExpiredAfterMs);
         await this.apiKeyRepository.deleteAll({ expiresAt: { before: expiredBefore } });

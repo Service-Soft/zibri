@@ -1,11 +1,11 @@
-import { AstProgram, AstStatement } from './ast.model';
-import { PathTree } from './generate-handlebar-type-files.function';
-import { resolveKeyForMustacheStatement } from './resolve-key-for-mustache-statement.function';
-import { resolveKeysForBlockStatement } from './resolve-keys-for-block-statement.function';
-import { resolveKeysForExpression, resolveKeysForPartialStatement } from './resolve-keys-for-partial-statement.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { AstProgram, AstStatement } from './ast.model.ts';
+import { PathTree } from './generate-handlebar-type-files.function.ts';
+import { resolveKeyForMustacheStatement } from './resolve-key-for-mustache-statement.function.ts';
+import { resolveKeysForBlockStatement } from './resolve-keys-for-block-statement.function.ts';
+import { resolveKeysForExpression, resolveKeysForPartialStatement } from './resolve-keys-for-partial-statement.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
     const allKeys: string[] = [...new Set(resolveAllKeys(ast, undefined))];
 
@@ -33,7 +33,7 @@ export function resolveTree(ast: AstProgram, arrayKeys: string[]): PathTree {
     return root;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function isParentArray(parts: string[], arrayKeys: string[]): boolean {
     if (parts.length <= 1) {
         return false;
@@ -42,7 +42,7 @@ function isParentArray(parts: string[], arrayKeys: string[]): boolean {
     return arrayKeys.includes(parent);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+// eslint-disable-next-line jsdoc-js/require-jsdoc, sonarjs/cognitive-complexity
 export function resolveAllKeys(ast: AstProgram, parentKey: string | undefined): string[] {
     const res: string[] = [];
     for (const element of ast.body) {

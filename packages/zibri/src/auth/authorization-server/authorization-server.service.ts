@@ -1,58 +1,58 @@
 import { createPublicKey, KeyObject, X509Certificate } from 'node:crypto';
 
-import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
-import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
-import { isAuthorizationServerControllerClass } from './authorization-server-controller.model';
-import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
-import { AuthorizationServerMetadata } from './authorization-server-metadata.model';
-import { AuthorizationServerServiceInterface } from './authorization-server-service.interface';
-import { IntrospectionResponse } from './introspection-response.model';
-import { OAuth2ClientCredentials } from './oauth2-client-credentials.model';
-import { OAuth2ErrorCode } from './oauth2-error-code.enum';
-import { OAuth2ErrorOptions } from './oauth2-error-options.model';
-import { OAuth2Error } from './oauth2.error';
-import { TokenPresentation } from './token-presentation.model';
-import { TokenRequest } from './token-request.model';
-import { TokenResponse } from './token-response.model';
-import { ZibriApplication } from '../../application/application';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { AfterAppInit } from '../../global/after-app-init.interface';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { HttpMethod } from '../../http/http-method.enum';
-import { HttpClientInterface } from '../../http-client/http-client.interface';
-import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
-import { $ts } from '../../localization/translate.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
-import { Ms } from '../../utilities/ms';
-import { type AuthServiceInterface } from '../auth-service.interface';
-import { type DpopServiceInterface } from '../dpop/dpop-service.interface';
-import { type HashServiceInterface } from '../hash/hash-service.interface';
-import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
-import { BaseUser } from '../models/base-user.model';
-import { ApiKeyAuthenticationMethod } from '../strategies/api-key/api-key-authentication-method.enum';
-import { type ApiKeyServiceInterface } from '../strategies/api-key/api-key-service.interface';
-import { ApiKey } from '../strategies/api-key/api-key.model';
+import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type.ts';
+import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model.ts';
+import { isAuthorizationServerControllerClass } from './authorization-server-controller.model.ts';
+import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model.ts';
+import { AuthorizationServerMetadata } from './authorization-server-metadata.model.ts';
+import { AuthorizationServerServiceInterface } from './authorization-server-service.interface.ts';
+import { IntrospectionResponse } from './introspection-response.model.ts';
+import { OAuth2ClientCredentials } from './oauth2-client-credentials.model.ts';
+import { OAuth2ErrorCode } from './oauth2-error-code.enum.ts';
+import { OAuth2ErrorOptions } from './oauth2-error-options.model.ts';
+import { OAuth2Error } from './oauth2.error.ts';
+import { TokenPresentation } from './token-presentation.model.ts';
+import { TokenRequest } from './token-request.model.ts';
+import { TokenResponse } from './token-response.model.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { AfterAppInit } from '../../global/after-app-init.interface.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { HttpMethod } from '../../http/http-method.enum.ts';
+import { HttpClientInterface } from '../../http-client/http-client.interface.ts';
+import { type LeaseServiceInterface } from '../../leases/lease-service.interface.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model.ts';
+import { auditReasonFor } from '../../logging/audit-reason-for.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { BaseMembership } from '../../tenancy/membership/base-membership.model.ts';
+import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { type AuthServiceInterface } from '../auth-service.interface.ts';
+import { type DpopServiceInterface } from '../dpop/dpop-service.interface.ts';
+import { type HashServiceInterface } from '../hash/hash-service.interface.ts';
+import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy.ts';
+import { BaseUser } from '../models/base-user.model.ts';
+import { ApiKeyAuthenticationMethod } from '../strategies/api-key/api-key-authentication-method.enum.ts';
+import { type ApiKeyServiceInterface } from '../strategies/api-key/api-key-service.interface.ts';
+import { ApiKey } from '../strategies/api-key/api-key.model.ts';
 import { ClientAccessTokenIssuingAuthStrategyInterface,
-    isClientAccessTokenIssuingAuthStrategy } from '../strategies/client-access-token-issuing-auth-strategy.interface';
-import { ClientCertificateUtilities } from '../strategies/client-certificate/client-certificate.utilities';
-import { ClientCertificateAuthStrategyInterface, isClientCertificateAuthStrategy } from '../strategies/client-certificate-auth-strategy.interface';
-import { IssuedClientAccessToken } from '../strategies/issued-client-access-token.model';
-import { isJwksControllerClass, JwksController } from '../strategies/jwt/jwks.controller';
-import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorithm.type';
-import { JwtRemoteKeySet } from '../strategies/jwt/jwt-remote-key-set.type';
-import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
-import { isTokenIntrospectingAuthStrategy, TokenIntrospectingAuthStrategyInterface } from '../strategies/token-introspecting-auth-strategy.interface';
-import { type UserServiceInterface } from '../user/user-service.interface';
+    isClientAccessTokenIssuingAuthStrategy } from '../strategies/client-access-token-issuing-auth-strategy.interface.ts';
+import { ClientCertificateUtilities } from '../strategies/client-certificate/client-certificate.utilities.ts';
+import { ClientCertificateAuthStrategyInterface, isClientCertificateAuthStrategy } from '../strategies/client-certificate-auth-strategy.interface.ts';
+import { IssuedClientAccessToken } from '../strategies/issued-client-access-token.model.ts';
+import { isJwksControllerClass, JwksController } from '../strategies/jwt/jwks.controller.ts';
+import { JwtAsymmetricAlgorithm } from '../strategies/jwt/jwt-asymmetric-algorithm.type.ts';
+import { JwtRemoteKeySet } from '../strategies/jwt/jwt-remote-key-set.type.ts';
+import { JwtUtilities } from '../strategies/jwt/jwt.utilities.ts';
+import { isTokenIntrospectingAuthStrategy, TokenIntrospectingAuthStrategyInterface } from '../strategies/token-introspecting-auth-strategy.interface.ts';
+import { type UserServiceInterface } from '../user/user-service.interface.ts';
 
 /**
  * The only grant the token endpoint issues tokens for.
@@ -207,7 +207,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         private readonly leaseService: LeaseServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         const controllers: AuthorizationServerControllerClass[] = app.options.controllers.filter(
             c => isAuthorizationServerControllerClass(c)
@@ -235,7 +235,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterAppInit(): void {
         // after the strategies are registered, which is what tells which of them can do what
         if (this.declared) {
@@ -243,7 +243,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async issueToken(
         endpoint: AuthorizationServerEndpoint,
         request: TokenRequest,
@@ -300,7 +300,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async introspect(
         endpoint: AuthorizationServerEndpoint,
         presentation: TokenPresentation,
@@ -320,7 +320,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         return active?.introspection ?? { active: false };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revoke(endpoint: AuthorizationServerEndpoint, presentation: TokenPresentation, authorization: string | undefined): Promise<void> {
         // holding a token is enough to revoke it, since revoking only ever takes access away. A client
         // that authenticates may revoke only its own (RFC 7009, 2.1)

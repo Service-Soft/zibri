@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { toKebabCase } from './to-kebab-case.function';
+import { toKebabCase } from './to-kebab-case.function.ts';
 
 describe('toKebabCase', () => {
     it('converts camelCase to kebab-case', () => {

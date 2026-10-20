@@ -1,5 +1,5 @@
-import { HeldLease, KeptGrant } from './held-lease.model';
-import { LeaseOptions, LeaseSetOptions } from './lease-options.model';
+import { HeldLease, KeptGrant } from './held-lease.model.ts';
+import { LeaseOptions, LeaseSetOptions } from './lease-options.model.ts';
 
 /**
  * Interface for a lease service.

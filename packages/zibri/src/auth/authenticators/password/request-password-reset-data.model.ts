@@ -1,6 +1,6 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { QueueEmailData } from '../../../email/models/create-email-data.model';
-import { BaseUser } from '../../models/base-user.model';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { QueueEmailData } from '../../../email/models/create-email-data.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
 
 /**
  * The data for requesting a password reset.

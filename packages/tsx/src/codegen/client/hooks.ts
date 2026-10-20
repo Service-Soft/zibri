@@ -1,10 +1,10 @@
-import { toScriptJson } from '../../runtime/script-json';
+import { toScriptJson } from '../../runtime/script-json.ts';
 
 /**
  * Placeholders inside the client hook sources that {@link substituteHookPlaceholders} replaces with
  * render-time data supplied to `renderPage`.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const HOOK_PLACEHOLDERS = {
     /**
      * Replaced with a JSON object of locale -> (source -> translation).
@@ -58,7 +58,6 @@ export const CLIENT_HOOK_SOURCES: Readonly<Record<string, string>> = {
         '            resolvedLocale ??= available.find((l) => l.startsWith(language + \'-\'));',
         '        }',
         '        const res = resolvedLocale ? (translations[resolvedLocale]?.[source] ?? source) : source;',
-        // eslint-disable-next-line stylistic/max-len
         '        return res.replaceAll(/{{|}}|{([^}]+)}/g, (match, name) => match === \'{{\' ? \'{\' : match === \'}}\' ? \'}\' : (name != undefined && name in params ? String(params[name]) : match));',
         '    } };',
         '};'

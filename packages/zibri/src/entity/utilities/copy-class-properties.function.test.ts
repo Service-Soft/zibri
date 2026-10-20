@@ -1,16 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../di/inject.function';
-import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function';
-import { ValidationProblem } from '../../validation/validation-problem.model';
-import { ValidationService } from '../../validation/validation.service';
-import { Property } from '../decorators/property.decorator';
-import { IntersectionClass } from '../intersection-class.model';
-import { OmitClass } from '../omit-class.model';
-import { PartialClass } from '../partial-class.model';
-import { PickClass } from '../pick-class.model';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveBodyMetadata } from '../../routing/resolve-body-metadata.function.ts';
+import { ValidationProblem } from '../../validation/validation-problem.model.ts';
+import { ValidationService } from '../../validation/validation.service.ts';
+import { Property } from '../decorators/property.decorator.ts';
+import { IntersectionClass } from '../intersection-class.model.ts';
+import { OmitClass } from '../omit-class.model.ts';
+import { PartialClass } from '../partial-class.model.ts';
+import { PickClass } from '../pick-class.model.ts';
 
 // These helpers (Omit/Pick/Partial/IntersectionClass) all funnel through copyClassProperties, which
 // copies runtime property descriptors AND @Property validation metadata via raw prototype/reflect

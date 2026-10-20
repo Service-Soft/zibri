@@ -1,5 +1,5 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
-import { HeadChannel } from './head-channels';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
+import { HeadChannel } from './head-channels.ts';
 
 /**
  * Props for {@link Mjml}.

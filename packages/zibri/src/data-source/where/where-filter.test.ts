@@ -1,16 +1,17 @@
 /* eslint-disable unicorn/no-null */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { WhereFilter } from '../models/where/where-filter.model';
-import { Repository } from '../repository/repository';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { WhereFilter } from '../models/where/where-filter.model.ts';
+import { Repository } from '../repository/repository.ts';
 
 // ---------- Test entities ----------
 
@@ -61,7 +62,7 @@ class Product extends BaseEntity {
     metadata: Metadata | undefined | null;
 
     @Property.manyToOne({ target: () => Category, inverseSide: 'products', joinColumn: 'categoryId' })
-    category!: Category;
+    category!: Relation<Category>;
 
     @Property.string({ format: 'uuid' })
     categoryId!: string;
@@ -158,10 +159,10 @@ describe('Where filters', () => {
         });
 
         it('fuzzyLike', async () => {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             // "Alpha" and "Beta" are seeded. A fuzzy search for "Alpah" (typo) should still match.
             const res: Product[] = await productRepo.findAll({
-                // eslint-disable-next-line cspell/spellchecker
+                // cspell:disable-next-line
                 where: { name: { fuzzyLike: { value: 'Alpah', minSimilarity: 30 } } }
             });
             expect(res.map(p => p.id)).toEqual([prodA.id]);
@@ -614,7 +615,7 @@ describe('Where filters', () => {
         });
 
         it('rejects an empty where filter object', async () => {
-            const where: WhereFilter<Product> = { name: {} } as unknown as WhereFilter<Product>;
+            const where: WhereFilter<Product> = { name: {} };
             await expect(productRepo.findAll({ where })).rejects.toThrow('Empty where filter');
         });
 
@@ -678,7 +679,7 @@ describe('Where filters', () => {
         });
 
         it('rejects a JSONB filter value of an unsupported runtime type (eg. a function)', async () => {
-            const where: WhereFilter<Product> = { metadata: { where: { color: (() => undefined) as unknown as string } } } as unknown as WhereFilter<Product>;
+            const where: WhereFilter<Product> = { metadata: { where: { color: (() => undefined) as unknown as string } } };
             await expect(productRepo.findAll({ where })).rejects.toThrow(/Unexpected JSONB filter value/);
         });
     });

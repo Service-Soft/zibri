@@ -1,6 +1,6 @@
-import { BasePropertyMetadata } from './base-property-metadata.model';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { BasePropertyMetadata } from './base-property-metadata.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Metadata for object properties.

@@ -1,21 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Delete } from './decorators/delete.decorator';
-import { Get } from './decorators/get.decorator';
-import { Post } from './decorators/post.decorator';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { XmlUtilities } from '../document/xml.utilities';
-import { Property } from '../entity/decorators/property.decorator';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { Response } from '../open-api/decorators/response.decorator';
-import type { PaginationResult } from '../open-api/pagination-result.model';
-import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
-import { XmlElement } from '../parsing/xml/xml-element.decorator';
-import { XmlRoot } from '../parsing/xml/xml-root.decorator';
+import { Body } from './decorators/body.decorator.ts';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Delete } from './decorators/delete.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { Post } from './decorators/post.decorator.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { XmlUtilities } from '../document/xml.utilities.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { Response } from '../open-api/decorators/response.decorator.ts';
+import type { PaginationResult } from '../open-api/pagination-result.model.ts';
+import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator.ts';
+import { XmlElement } from '../parsing/xml/xml-element.decorator.ts';
+import { XmlRoot } from '../parsing/xml/xml-root.decorator.ts';
 
 class OrderLine {
     @Property.string()

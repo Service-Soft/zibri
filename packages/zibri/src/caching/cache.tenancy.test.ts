@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { WriteThroughReadThroughCache } from './cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from './cache-service.interface';
-import { Cache } from './decorators/cache.decorator';
-import { InMemoryCacheStore } from './store/in-memory.cache-store';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
-import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { WriteThroughReadThroughCache } from './cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from './cache-service.interface.ts';
+import { Cache } from './decorators/cache.decorator.ts';
+import { InMemoryCacheStore } from './store/in-memory.cache-store.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../metrics/metrics-service.interface.ts';
+import { TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 @Cache()
 class TenancyTestCache extends WriteThroughReadThroughCache<string, string, 'TenancyTestCache'> {

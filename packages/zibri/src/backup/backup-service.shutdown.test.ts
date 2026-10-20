@@ -5,30 +5,30 @@ import { copyFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 import { first, firstValueFrom } from 'rxjs';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { BackupServiceInterface } from './backup-service.interface';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Newable } from '../types/newable.type';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { Ms } from '../utilities/ms';
+import { BackupEntity } from './backup-entity.model.ts';
+import { BackupResourceEntity } from './backup-resource-entity.model.ts';
+import { BackupResourceInterface } from './backup-resource.interface.ts';
+import { BackupServiceInterface } from './backup-service.interface.ts';
+import { Backup } from './decorators/backup-resource.decorator.ts';
+import { BackupTransport } from './decorators/backup-transport.decorator.ts';
+import { BaseFsBackupTransport } from './transports/fs.backup-transport.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Newable } from '../types/newable.type.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-shutdown');
 
@@ -259,7 +259,7 @@ describe('BackupService — a restore when the application stops', () => {
             await sleep(500);
         };
 
-        // eslint-disable-next-line stylistic/newline-per-chained-call, promise/prefer-await-to-callbacks, promise/prefer-await-to-then
+        // eslint-disable-next-line promise/prefer-await-to-callbacks, promise/prefer-await-to-then
         const restored: Promise<unknown> = getBackupService().restore(backup).catch((error: unknown) => error);
         await applied;
         await server.shutdown();
@@ -305,7 +305,7 @@ describe('BackupService — a restore the process was killed in', () => {
             throw new Error('killed');
         };
 
-        // eslint-disable-next-line stylistic/newline-per-chained-call, promise/prefer-await-to-callbacks, promise/prefer-await-to-then
+        // eslint-disable-next-line promise/prefer-await-to-callbacks, promise/prefer-await-to-then
         const restored: Promise<unknown> = getBackupService().restore(backup).catch((error: unknown) => error);
         await applying;
         await FsUtilities.rm(copy);

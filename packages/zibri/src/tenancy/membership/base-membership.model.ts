@@ -1,7 +1,7 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
-import { AnyEnum } from '../../types/any-enum.type';
-import { Newable } from '../../types/newable.type';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { AnyEnum } from '../../types/any-enum.type.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Common properties shared by all memberships: a user belonging to a tenant.
@@ -27,7 +27,7 @@ export type BaseMembership<Role extends string> = BaseEntity & {
     deactivatedAt?: Date | null
 };
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Defines a base membership entity class with the specified roles.
  * @param roleValue - The enum that is used for defining the roles a user holds in a tenant.
@@ -35,18 +35,18 @@ export type BaseMembership<Role extends string> = BaseEntity & {
 export function BaseMembershipEntity<Role extends string>(
     roleValue: AnyEnum<Role>
 ): Newable<BaseMembership<Role>> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     class Temp extends BaseEntity implements BaseMembership<Role> {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.string({ format: 'uuid' })
         tenantId!: string;
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.string({ format: 'uuid' })
         userId!: string;
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.array({ items: { type: 'string', enum: roleValue } })
         roles!: Role[];
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.date({ required: false })
         deactivatedAt?: Date | null;
     }

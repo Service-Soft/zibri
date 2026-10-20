@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ExtractedTranslationString,
     SourceTranslationOrigin,
     TransformResult,
-    transformSourceTranslationOriginTokens } from './transform-source-translation-tokens.function';
-import { testFileFolder } from '../../__testing__/constants';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
+    transformSourceTranslationOriginTokens } from './transform-source-translation-tokens.function.ts';
+import { testFileFolder } from '../../__testing__/constants.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
 
 const fixtureDir: FsPath = FsUtilities.getPath(testFileFolder, 'xlf-transform-fixtures');
 

@@ -1,5 +1,5 @@
-import { JsonOpenApiResponse } from './open-api.model';
-import { isNewable, Newable } from '../types/newable.type';
+import { JsonOpenApiResponse } from './open-api.model.ts';
+import { isNewable, Newable } from '../types/newable.type.ts';
 
 /**
  * The class a json response is written as.

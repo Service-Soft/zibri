@@ -1,9 +1,9 @@
-import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
-import { AuthControllerOptions } from './auth-controller-options.model';
-import { AuthControllerConnectionCompletingRoutes, AuthControllerConnectionRoutes, AuthControllerCsrfTokenRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLoginRoutes, AuthControllerPasswordResetRoutes, AuthControllerSignInOptionsRoutes, AuthControllerSignUpRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
-import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
-import { Newable } from '../../types/newable.type';
-import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
+import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type.ts';
+import { AuthControllerOptions } from './auth-controller-options.model.ts';
+import { AuthControllerConnectionCompletingRoutes, AuthControllerConnectionRoutes, AuthControllerCsrfTokenRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLoginRoutes, AuthControllerPasswordResetRoutes, AuthControllerSignInOptionsRoutes, AuthControllerSignUpRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model.ts';
+import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { TwoFactorMethods } from '../2fa/two-factor-methods.model.ts';
 
 /**
  * Whether any of the given instance types has the given member.

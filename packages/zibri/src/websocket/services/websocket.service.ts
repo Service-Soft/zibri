@@ -2,85 +2,85 @@ import assert from 'node:assert';
 
 import type { Namespace, Server, ServerOptions, Socket } from 'socket.io';
 
-import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
-import { ZibriApplication } from '../../application/application';
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { BaseUser } from '../../auth/models/base-user.model';
-import { AlsUtilities } from '../../context/als.utilities';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { isPubSubDataSource } from '../../data-source/data-sources/pub-sub-data-source.interface';
-import { WhereFilter } from '../../data-source/models/where/where-filter.model';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { getDiTokenName } from '../../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function';
-import { inject } from '../../di/inject.function';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { ErrorUtilities } from '../../error-handling/error.utilities';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
-import { GlobalError } from '../../error-handling/errors/global.error';
-import { HttpError } from '../../error-handling/errors/http.error';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface';
-import { GlobalRegistry } from '../../global/global-registry';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { RouteRegistry, RouteRegistryData } from '../../global/route-registry/route.registry';
-import { HandlerTimeout } from '../../http/handler-timeout.type';
-import { HttpStatus } from '../../http/http-status.enum';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { isJsonMimeType } from '../../http/mime-type.helpers';
-import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities';
-import { $ts } from '../../localization/translate.function';
-import { errorToLoggedError } from '../../logging/error-to-logged-error.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { resolveRouteParams } from '../../routing/resolve-route-params.function';
-import { RouteParamMetadata } from '../../routing/route-param-metadata.model';
-import { BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { validateRequestTenant } from '../../tenancy/validate-request-tenant.function';
-import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
-import { TraceSpanStatus } from '../../tracing/trace-span-status.enum';
-import { TracingUtilities } from '../../tracing/tracing.utilities';
-import { isNewable, Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { type ValidationServiceInterface } from '../../validation/validation-service.interface';
-import { RouteWithVersionData } from '../../versioning/route-with-version-data.model';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
-import { Version } from '../../versioning/version.model';
-import { type VersioningServiceInterface } from '../../versioning/versioning-service.interface';
-import { type DataSourceWebsocketAdapter, type DataSourceWebsocketAdapterConstructor, dataSourceWebsocketAdapterClass } from '../data-source.websocket-adapter';
-import { WebsocketControllerData } from '../decorators/websocket-controller.decorator';
-import { JsonSocketIoEncoder } from '../json.socket-io-encoder';
-import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
-import { WebsocketAnswer } from '../models/websocket-answer.model';
-import { WebsocketChannel } from '../models/websocket-channel.model';
-import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model';
-import { LooseWebsocketEvent, WebsocketEvent } from '../models/websocket-event.enum';
-import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '../models/websocket-message-sequence.model';
-import { WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType } from '../models/websocket-message.model';
-import { type WebsocketOptions } from '../models/websocket-options.model';
-import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model';
-import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model';
-import { WebsocketResponseHandler } from '../models/websocket-response.model';
-import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job';
+import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface.ts';
+import { BaseUser } from '../../auth/models/base-user.model.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
+import { isPubSubDataSource } from '../../data-source/data-sources/pub-sub-data-source.interface.ts';
+import { WhereFilter } from '../../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { getDiTokenName } from '../../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { DiProvider } from '../../di/models/di-provider.model.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { ErrorUtilities } from '../../error-handling/error.utilities.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { ForbiddenError } from '../../error-handling/errors/forbidden.error.ts';
+import { GlobalError } from '../../error-handling/errors/global.error.ts';
+import { HttpError } from '../../error-handling/errors/http.error.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { RouteRegistry, RouteRegistryData } from '../../global/route-registry/route.registry.ts';
+import { HandlerTimeout } from '../../http/handler-timeout.type.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { isJsonMimeType } from '../../http/mime-type.helpers.ts';
+import { RequestDeadlineUtilities } from '../../http/request-deadline.utilities.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { errorToLoggedError } from '../../logging/error-to-logged-error.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { resolveRouteParams } from '../../routing/resolve-route-params.function.ts';
+import { RouteParamMetadata } from '../../routing/route-param-metadata.model.ts';
+import { BaseMembership } from '../../tenancy/membership/base-membership.model.ts';
+import { ChangedMembership } from '../../tenancy/membership/changed-membership.model.ts';
+import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { validateRequestTenant } from '../../tenancy/validate-request-tenant.function.ts';
+import { TraceSpanKind } from '../../tracing/trace-span-kind.enum.ts';
+import { TraceSpanStatus } from '../../tracing/trace-span-status.enum.ts';
+import { TracingUtilities } from '../../tracing/tracing.utilities.ts';
+import { isNewable, Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { type ValidationServiceInterface } from '../../validation/validation-service.interface.ts';
+import { RouteWithVersionData } from '../../versioning/route-with-version-data.model.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model.ts';
+import { Version } from '../../versioning/version.model.ts';
+import { type VersioningServiceInterface } from '../../versioning/versioning-service.interface.ts';
+import { type DataSourceWebsocketAdapter, type DataSourceWebsocketAdapterConstructor, dataSourceWebsocketAdapterClass } from '../data-source.websocket-adapter.ts';
+import { WebsocketControllerData } from '../decorators/websocket-controller.decorator.ts';
+import { JsonSocketIoEncoder } from '../json.socket-io-encoder.ts';
+import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model.ts';
+import { WebsocketAnswer } from '../models/websocket-answer.model.ts';
+import { WebsocketChannel } from '../models/websocket-channel.model.ts';
+import { WebsocketControllerRouteConfiguration } from '../models/websocket-controller-route-configuration.model.ts';
+import { LooseWebsocketEvent, WebsocketEvent } from '../models/websocket-event.enum.ts';
+import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '../models/websocket-message-sequence.model.ts';
+import { WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType } from '../models/websocket-message.model.ts';
+import { type WebsocketOptions } from '../models/websocket-options.model.ts';
+import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model.ts';
+import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model.ts';
+import { WebsocketResponseHandler } from '../models/websocket-response.model.ts';
+import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job.ts';
 
 /**
  * Names the room a channel's messages are delivered through.
@@ -263,7 +263,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     private readonly expiryChecks: Map<string, NodeJS.Timeout> = new Map();
 
     private readonly pendingRouteGroups: Map<string, {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         entries: { versions: SupportedVersionsOptions, innerHandler: SocketIOWebsocketHandler }[]
     }> = new Map();
 
@@ -351,7 +351,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         // before the check below, and deliberately: an empty list is exactly the case a controller
         // can be orphaned in - decorated, and then never passed to the application. Skipping this
@@ -503,7 +503,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         this.socketServer.on(ANSWERS_EVENT, (reply: unknown) => this.receiveAnswers(reply));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async beforeAppShutdown(): Promise<void> {
         if (this.socketServer == undefined) {
             return;
@@ -834,13 +834,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     registerController(controllerClass: Newable<unknown>): void {
         const controllerData: WebsocketControllerData | undefined = MetadataUtilities.getWebsocketControllerData(controllerClass);
         const currentLatest: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
         assert(currentLatest);
         if (controllerData == undefined) {
-            // eslint-disable-next-line stylistic/max-len
             throw new Error(`Could not find websocket controller data on class ${controllerClass.name}. Did you forget to decorate it with @WebsocketController?`);
         }
         const routes: WebsocketControllerRouteConfiguration[] = MetadataUtilities.getWebsocketControllerRoutes(controllerClass);
@@ -882,7 +881,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 // declaring `'none'` has said something
                 route.timeoutInMs ?? controllerData.timeoutInMs
             );
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const existing = this.pendingRouteGroups.get(fullEvent);
             if (existing) {
                 existing.entries.push({ versions, innerHandler });
@@ -894,7 +893,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async send<B extends boolean = true>(
         data: WebsocketSendData<SocketIOWebsocketConnection, B>
     ): Promise<B extends false ? void : WebsocketRequestWithConnection<SocketIOWebsocketConnection>> {
@@ -956,7 +955,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async sendToChannel<B extends boolean>(
         data: WebsocketSendToChannelData<B>
     ): Promise<B extends false ? void : WebsocketAnswer[]> {
@@ -1000,7 +999,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         return answers as B extends false ? void : WebsocketAnswer[];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async sendToAll<B extends boolean>(
         data: WebsocketSendToAllData<B>
     ): Promise<B extends false ? void : WebsocketAnswer[]> {
@@ -1194,12 +1193,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     disconnect(connection: SocketIOWebsocketConnection, close: boolean = true): void {
         connection.disconnect(close);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async joinChannel(connection: SocketIOWebsocketConnection, channelId: string): Promise<void> {
         const channel: WebsocketChannel = await this.channelRepository.findById(channelId);
         if (connection.isIn(channelRoomOf(channel))) {
@@ -1216,7 +1215,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         await connection.join(channelRoomOf(channel));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async leaveChannel(connection: SocketIOWebsocketConnection, channelId: string): Promise<void> {
         const channel: WebsocketChannel = await this.channelRepository.findById(channelId);
         if (connection.userId && channel.userIds.includes(connection.userId)) {
@@ -1227,7 +1226,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         await connection.leave(channelRoomOf(channel));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateTenantRooms(memberships: ChangedMembership[]): Promise<void> {
         const server: Server | undefined = this.socketServer;
         if (server == undefined) {
@@ -1255,7 +1254,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async disconnectEndedLogins(userIds: string[], transaction: Transaction | undefined): Promise<void> {
         const server: Server | undefined = this.socketServer;
         if (server == undefined || !userIds.length) {
@@ -1332,12 +1331,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         this.expiryChecks.set(connection.id, check);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getConnections(): SocketIOWebsocketConnection[] {
         return [...this.connections.values()];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findConnectionById(id: string): SocketIOWebsocketConnection {
         const foundConnection: SocketIOWebsocketConnection | undefined = this.connections.get(id);
         if (!foundConnection) {
@@ -1346,7 +1345,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         return foundConnection;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findConnectionsByUserId(userId: string): SocketIOWebsocketConnection[] {
         return this.findLocalConnectionsIn(userRoomOf(userId));
     }
@@ -1363,12 +1362,12 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     private createDispatchHandler(
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         entries: { versions: SupportedVersionsOptions, innerHandler: SocketIOWebsocketHandler }[]
     ): SocketIOWebsocketHandler {
         return async (connection, req, responseHandler) => {
             try {
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
                 const match = entries.find(e => this.versioningService.matchesVersion(e.versions, connection.resolvedVersion));
                 if (!match) {
                     const error: NotFoundError = new NotFoundError(

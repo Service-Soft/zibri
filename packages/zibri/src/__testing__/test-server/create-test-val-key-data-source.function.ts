@@ -1,13 +1,13 @@
 import type { GlideClient } from '@valkey/valkey-glide';
 import { RoundTripCounter } from 'zibri-testing';
 
-import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
-import { Migration } from '../../data-source/migration/migration.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { MigrationEntity } from '../../data-source/migration/migration-entity.model.ts';
+import { Migration } from '../../data-source/migration/migration.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 export type CreateTestValKeyDataSourceOptions = {
     /**

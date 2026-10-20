@@ -1,12 +1,13 @@
 import { faker } from '@faker-js/faker';
 
-import { Address, mockAddress } from './address.model';
-import { Company } from './company.entity';
-import { Profile } from './profile.entity';
-import { Role } from './role.entity';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitStrict } from '../../../types/omit-strict.type';
+import { Address, mockAddress } from './address.model.ts';
+import { Company } from './company.entity.ts';
+import { Profile } from './profile.entity.ts';
+import { Role } from './role.entity.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../../entity/models/relation.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class User {
@@ -17,7 +18,7 @@ export class User {
     name!: string;
 
     @Property.hasOne({ target: () => Profile, inverseSide: 'user' })
-    profile?: Profile;
+    profile?: Relation<Profile>;
 
     @Property.manyToMany({
         target: () => Role,
@@ -42,7 +43,7 @@ export class User {
     address!: Address;
 
     @Property.hasOne({ target: () => Company, inverseSide: 'owner' })
-    company!: Company;
+    company!: Relation<Company>;
 }
 
 export type UserCreateData = OmitStrict<User, 'company' | 'id' | 'profile' | 'roles'>;

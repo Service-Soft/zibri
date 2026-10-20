@@ -1,18 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
-import { EncryptionService } from './encryption.service';
-import { EncryptionString } from './encryption.utilities';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { Newable } from '../../types/newable.type';
+import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model.ts';
+import { EncryptionService } from './encryption.service.ts';
+import { EncryptionString } from './encryption.utilities.ts';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy.ts';
+import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * What encrypting writes beside the value: the row saying which strategy is in use, and the key it

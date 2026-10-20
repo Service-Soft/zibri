@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { HttpStatus } from '../../http/http-status.enum';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * What the handler recorded about the one statement it issued.
@@ -78,7 +78,7 @@ beforeAll(async () => {
     baseUrl = await server.start();
 
     const users: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
-    const user: JwtUser = await users.create({ email: 'locked@example.com', roles: [] } as unknown as JwtUser);
+    const user: JwtUser = await users.create({ email: 'locked@example.com', roles: [] });
     lockedUserId = user.id;
 }, 120000);
 

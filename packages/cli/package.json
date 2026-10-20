@@ -2,6 +2,7 @@
     "name": "zibri-cli",
     "version": "3.0.0",
     "license": "MIT",
+    "type": "module",
     "main": "./dist/index.js",
     "repository": {
         "url": "https://github.com/Service-Soft/zibri",
@@ -31,15 +32,15 @@
         "build": "npm run build:clean && tsc -p tsconfig.build.json",
         "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "clear": "rm -rf sandbox && mkdir sandbox && npm run start n api",
-        "lint": "eslint . --max-warnings=0",
-        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "lint": "oxlint -c ../../.oxlintrc.json --max-warnings=0 && oxfmt -c ../../.oxfmtrc.json --check && cspell lint --no-progress \"**/*.{ts,tsx,mts,cts,js,mjs,cjs,json,html,hbs,handlebars}\"",
+        "lint:fix": "oxlint -c ../../.oxlintrc.json --fix && oxfmt -c ../../.oxfmtrc.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "prepublishOnly": "npm run build",
         "test": "npm run test:normal && npm run test:heavy",
-        "test:normal": "jest --testPathPatterns='^(?!.*\\.heavy\\.test\\.ts$).*'",
-        "test:heavy": "jest --runInBand --testPathPatterns='\\.heavy\\.test\\.ts$'",
+        "test:normal": "vitest run --project normal",
+        "test:heavy": "vitest run --project heavy",
         "test:ci": "npm run test:coverage",
-        "test:coverage": "jest --runInBand --coverage --coverageReporters=lcov --coverageReporters=text-summary"
+        "test:coverage": "vitest run --no-file-parallelism --coverage.enabled --coverage.reporter=lcov --coverage.reporter=text-summary"
     },
     "dependencies": {
         "chalk": "^5.4.1",
@@ -47,14 +48,12 @@
         "inquirer": "^13.3.2"
     },
     "devDependencies": {
-        "@jest/globals": "^30.4.1",
         "@types/figlet": "^1.7.0",
         "@types/node": "^24.0.0",
-        "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
-        "jest": "^30.4.2",
+        "@typescript/typescript6": "^6.0.2",
         "jest-diff": "^30.4.1",
-        "ts-jest": "^29.4.11",
-        "typescript": "^5.9.2"
+        "typescript": "^7.0.2",
+        "vite": "^8.3.4",
+        "vitest": "^5.0.5"
     }
 }

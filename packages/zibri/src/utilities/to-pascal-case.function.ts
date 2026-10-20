@@ -5,7 +5,7 @@
  */
 export function toPascalCase(input: string): string {
     return input
-        .replaceAll(/[_\-]+/g, ' ')
+        .replaceAll(/[_-]+/g, ' ')
         .replaceAll('/', ' ')
         .replaceAll(/^\w|[A-Z]|\b\w/g, (w) => w.toUpperCase())
         .replaceAll(/\s+/g, '');

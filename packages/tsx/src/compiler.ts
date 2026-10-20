@@ -4,18 +4,18 @@
 // dependency an application has no reason to carry. The main entry is what a running application
 // imports - the server runtime, the render path and the email components - so anything that reads
 // source lives behind this subpath instead, and a deployed bundle never pulls a compiler in after it.
-export * from './codegen/compile';
-export * from './semantics/client-packages';
-export * from './semantics/symbols';
-export * from './semantics/component';
-export * from './semantics/binding';
-export * from './semantics/validate';
-export * from './semantics/walk';
-export * from './codegen/server/print';
-export * from './codegen/server/render-codegen';
-export * from './codegen/client/handlers';
-export * from './codegen/client/client-codegen';
+export * from './codegen/compile.ts';
+export * from './semantics/client-packages.ts';
+export * from './semantics/symbols.ts';
+export * from './semantics/component.ts';
+export * from './semantics/binding.ts';
+export * from './semantics/validate.ts';
+export * from './semantics/walk.ts';
+export * from './codegen/server/print.ts';
+export * from './codegen/server/render-codegen.ts';
+export * from './codegen/client/handlers.ts';
+export * from './codegen/client/client-codegen.ts';
 // the build steps belong here for the same reason: both read template source to decide what to
 // emit, so both reach the parser.
-export * from './build/templates';
-export * from './build/vendor';
+export * from './build/templates.ts';
+export * from './build/vendor.ts';

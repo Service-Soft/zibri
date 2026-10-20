@@ -2,10 +2,10 @@
 import { randomBytes } from 'node:crypto';
 import { userInfo } from 'node:os';
 
-import { version } from '../../../package.json';
-import { CPUtilities, FsUtilities, InquirerUtilities, QuestionsFor } from '../../encapsulation';
-import { exitWithError, getPath, Path } from '../../utilities';
-import { BaseCommand } from '../base-command.model';
+import packageJson from '../../../package.json' with { type: 'json' };
+import { CPUtilities, FsUtilities, InquirerUtilities, QuestionsFor } from '../../encapsulation/index.ts';
+import { exitWithError, getPath, Path } from '../../utilities/index.ts';
+import { BaseCommand } from '../base-command.model.ts';
 
 /**
  * Where a new app's pull requests are built and tested, or `none` for nowhere yet.
@@ -287,8 +287,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         // that takes the defaults, so the generator installs what its own generated configuration
         // reaches for. Turning one of those defaults off is what makes the matching package droppable.
         const zibriDependency: string = process.env['ZIBRI_CLI_LOCAL_DEV']
-            ? `file:${getPath(__dirname, '..', '..', '..', '..', 'zibri')}`
-            : `zibri@${version}`;
+            ? `file:${getPath(import.meta.dirname, '..', '..', '..', '..', 'zibri')}`
+            : `zibri@${packageJson.version}`;
         await CPUtilities.exec(
             `cd ${appPath} && npm i ${zibriDependency} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
             + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
@@ -299,8 +299,8 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         // devDependency: it starts the application a test drives, and nothing a deployment runs
         // imports it.
         const zibriTestingDependency: string = process.env['ZIBRI_CLI_LOCAL_DEV']
-            ? `file:${getPath(__dirname, '..', '..', '..', '..', 'testing')}`
-            : `zibri-testing@${version}`;
+            ? `file:${getPath(import.meta.dirname, '..', '..', '..', '..', 'testing')}`
+            : `zibri-testing@${packageJson.version}`;
         await CPUtilities.exec(`cd ${appPath} && npm i -D ${zibriTestingDependency}`);
 
         // where each of the two things a build needs goes: the routes each released version served,
@@ -335,11 +335,11 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         await this.createModels(appPath);
 
         await FsUtilities.copyDirectoryContent(
-            getPath(__dirname, '..', '..', '..', 'assets'),
+            getPath(import.meta.dirname, '..', '..', '..', 'assets'),
             getPath(appPath, 'assets')
         );
         await FsUtilities.copyDirectoryContent(
-            getPath(__dirname, '..', '..', '..', 'templates'),
+            getPath(import.meta.dirname, '..', '..', '..', 'templates'),
             getPath(appPath, 'src', 'templates')
         );
 
@@ -373,7 +373,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         await FsUtilities.createFile(
             getPath(appPath, 'src', 'controllers', 'page.controller.ts'),
             [
-                // eslint-disable-next-line stylistic/max-len
                 'import { AssetServiceInterface, Auth, Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LocaleCode, LoggerInterface, MetricsServiceInterface, Response, TreeNode, TsxUtilities, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from \'zibri\';',
                 '',
                 'import { AssetsPage } from \'../templates/pages/assets\';',
@@ -381,9 +380,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '',
                 '@Cache()',
                 'export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlResponse, \'StaticPagesCache\'> {',
-                // eslint-disable-next-line sonar/no-duplicate-string
+                // eslint-disable-next-line sonarjs/no-duplicate-string
                 '    constructor(',
-                // eslint-disable-next-line sonar/no-duplicate-string
+                // eslint-disable-next-line sonarjs/no-duplicate-string
                 '        @Inject(ZIBRI_DI_TOKENS.LOGGER)',
                 '        protected readonly logger: LoggerInterface,',
                 '        @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)',
@@ -395,7 +394,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 '    }',
                 '',
                 '    static getPageKey(page: string): string {',
-                // eslint-disable-next-line stylistic/max-len
                 '        const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);',
                 '        const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx);',
                 '        return locale + page;',
@@ -459,7 +457,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
         await FsUtilities.createFile(
             getPath(appPath, 'src', 'providers.ts'),
             [
-                // eslint-disable-next-line stylistic/max-len
                 'import { AesGcmEncryptionStrategy, defineProvider, DiProvider, EmailConfigInput, JwtAuthOptionsInput, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from \'zibri\';',
                 '',
                 'import { optionalEnv, requireEnv } from \'./env\';',
@@ -472,7 +469,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
                 'import { SubscribeSuccessPage } from \'./templates/pages/subscribe-success\';',
                 '',
                 'export const providers: DiProvider<unknown>[] = [',
-                // eslint-disable-next-line sonar/no-duplicate-string
+                // eslint-disable-next-line sonarjs/no-duplicate-string
                 '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE,',
                 '        useFactory: () => ErrorPage',
@@ -554,7 +551,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
 
     private async createCreateDefaultDataFunction(appPath: Path): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'create-default-data.function.ts'), [
-            // eslint-disable-next-line stylistic/max-len
             'import { DataSourceInterface, inject, Newable, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, Transaction } from \'zibri\';',
             '',
             'import { logger } from \'.\';',
@@ -633,7 +629,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
 
     private async createApplicationOptions(appPath: Path, configuration: NewConfiguration): Promise<void> {
         await FsUtilities.createFile(getPath(appPath, 'src', 'application-options.base.ts'), [
-            // eslint-disable-next-line stylistic/max-len
             'import { MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from \'zibri\';',
             '',
             'import { AppAuthController, HealthController, PageController } from \'./controllers\';',
@@ -1054,7 +1049,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             'export * from \'./membership.repository\';'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'membership.repository.ts'), [
-            // eslint-disable-next-line stylistic/max-len
             'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, MembershipRepo, MembershipRepositoryInterface, Repository, Transaction, ZIBRI_DI_TOKENS } from \'zibri\';',
             '',
             'import { Membership, Roles } from \'../models\';',
@@ -1085,7 +1079,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '            ?? await this.create({ userId, roles: [] }, { transaction });',
             '    }',
             '',
-            // eslint-disable-next-line stylistic/max-len
             '    async updateDeactivatedAt(userId: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {',
             '        await this.updateAll({ userId }, { deactivatedAt }, { transaction });',
             '    }',
@@ -1100,7 +1093,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '}'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', 'repositories', 'user.repository.ts'), [
-            // eslint-disable-next-line stylistic/max-len
             'import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, Repository, Transaction, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from \'zibri\';',
             '',
             'import { Roles, User, UserCreateData } from \'../models\';',
@@ -1156,7 +1148,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '}'
         ]);
         await FsUtilities.createFile(getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'entities.ts'), [
-            // eslint-disable-next-line stylistic/max-len
             'import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from \'zibri\';',
             '',
             'import { Membership, User } from \'../../models\';',
@@ -1232,9 +1223,9 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '];',
             '',
             'class OnBuildSuccessPlugin {',
-            // eslint-disable-next-line sonar/no-duplicate-string
+            // eslint-disable-next-line sonarjs/no-duplicate-string
             '    /** @type {import(\'webpack\').WebpackPluginFunction } */',
-            // eslint-disable-next-line sonar/no-duplicate-string
+            // eslint-disable-next-line sonarjs/no-duplicate-string
             '    apply(compiler) {',
             '        compiler.hooks.done.tap(\'OnBuildSuccessPlugin\', stats => {',
             '            if (stats.hasErrors() || compiler.watchMode === false) {',
@@ -1296,7 +1287,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '}',
             '',
             '/** @type {import(\'webpack\').Configuration} */',
-            // eslint-disable-next-line sonar/no-duplicate-string
+            // eslint-disable-next-line sonarjs/no-duplicate-string
             'module.exports = {',
             '    target: \'node\',',
             // Both warnings come from zibri's own dependencies (typeorm's dynamic requires and
@@ -1386,7 +1377,7 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '                use: \'source-map-loader\',',
             '                exclude: [',
             '                    /node_modules[\\/\\\\]node-cron/,',
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             '                    /node_modules\\/@jridgewell/',
             '                ]',
             '            },',
@@ -1509,7 +1500,6 @@ export class NewCommand extends BaseCommand<NewConfiguration> {
             '            \'disabled-dark\': \'grey\'',
             '        },',
             '        boxShadow: {',
-            // eslint-disable-next-line stylistic/max-len
             '            elevation: \'0px 5px 5px -3px rgba(0,0,0,0.2), 0px 8px 10px 1px rgba(0,0,0,0.14), 0px 3px 14px 2px rgba(0,0,0,0.12)\'',
             '        }',
             '    },',

@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { nowInNs } from './now-in-ns.function';
+import { nowInNs } from './now-in-ns.function.ts';
 
 describe('nowInNs', () => {
     it('returns a bigint', () => {

@@ -1,6 +1,6 @@
-import { AstPathExpression } from './ast.model';
+import { AstPathExpression } from './ast.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function resolveKeyForPathExpression(expression: AstPathExpression, parentKey: string | undefined): string {
     if (expression.original.startsWith('this.')) {
         return `${parentKey}.${expression.original}`;

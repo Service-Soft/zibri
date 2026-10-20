@@ -1,33 +1,33 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, Mock } from 'vitest';
 
-import { CollectMetricsCronJob } from './collect-metrics.cron-job';
-import { MetricsServiceInterface } from './metrics-service.interface';
-import { LoggerInterface } from '../logging/logger.interface';
+import { CollectMetricsCronJob } from './collect-metrics.cron-job.ts';
+import { MetricsServiceInterface } from './metrics-service.interface.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
 
-function fakeMetricsService(): MetricsServiceInterface & { collect: jest.Mock<() => Promise<void>> } {
+function fakeMetricsService(): MetricsServiceInterface & { collect: Mock<() => Promise<void>> } {
     return {
-        measureFinishedRequest: jest.fn(),
-        getCounter: jest.fn(),
-        getGauge: jest.fn(),
-        getHistogram: jest.fn(),
-        collect: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
-        getMetricSnapshots: jest.fn(() => [])
-    } as unknown as MetricsServiceInterface & { collect: jest.Mock<() => Promise<void>> };
+        measureFinishedRequest: vi.fn(),
+        getCounter: vi.fn(),
+        getGauge: vi.fn(),
+        getHistogram: vi.fn(),
+        collect: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+        getMetricSnapshots: vi.fn(() => [])
+    };
 }
 
 function fakeLogger(): LoggerInterface {
     return {
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-        critical: jest.fn()
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        critical: vi.fn()
     } as unknown as LoggerInterface;
 }
 
 describe('CollectMetricsCronJob', () => {
     it('delegates onTick to the metrics service\'s collect', async () => {
-        const service: MetricsServiceInterface & { collect: jest.Mock<() => Promise<void>> } = fakeMetricsService();
+        const service: MetricsServiceInterface & { collect: Mock<() => Promise<void>> } = fakeMetricsService();
         const cronJob: CollectMetricsCronJob = new CollectMetricsCronJob(service);
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();
 
@@ -37,7 +37,7 @@ describe('CollectMetricsCronJob', () => {
     });
 
     it('propagates errors from the metrics service\'s collect', async () => {
-        const service: MetricsServiceInterface & { collect: jest.Mock<() => Promise<void>> } = fakeMetricsService();
+        const service: MetricsServiceInterface & { collect: Mock<() => Promise<void>> } = fakeMetricsService();
         service.collect.mockRejectedValue(new Error('collect failed'));
         const cronJob: CollectMetricsCronJob = new CollectMetricsCronJob(service);
         (cronJob as unknown as { logger: LoggerInterface }).logger = fakeLogger();

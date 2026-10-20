@@ -1,7 +1,7 @@
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { OmitStrict } from '../types/omit-strict.type';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 /**
  * One instance telling every other instance that it invalidated some tags.

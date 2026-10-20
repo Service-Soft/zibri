@@ -1,4 +1,4 @@
-import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model';
+import { HttpClientCircuitBreakerOptions } from './http-client-circuit-breaker-options.model.ts';
 
 /**
  * Where one origin stands.

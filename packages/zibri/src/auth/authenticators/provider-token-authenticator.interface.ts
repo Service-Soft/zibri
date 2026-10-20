@@ -1,6 +1,6 @@
-import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface';
-import { ProviderToken } from './provider-token.model';
-import { BaseUser } from '../models/base-user.model';
+import { AuthenticatorInterface, isAuthenticator } from './authenticator.interface.ts';
+import { ProviderToken } from './provider-token.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an authenticator whose provider's tokens a request may send as its credential, such as

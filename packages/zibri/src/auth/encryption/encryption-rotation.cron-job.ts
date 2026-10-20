@@ -1,25 +1,25 @@
 /* eslint-disable unicorn/no-null */
-import { EncryptionRotationFailure, EncryptionRotationFailureCreateData } from './encryption-rotation-failure.model';
-import { EncryptionRotationProgress, EncryptionRotationProgressCreateData } from './encryption-rotation-progress.model';
-import { type EncryptionServiceInterface } from './encryption-service.interface';
-import { EncryptionUtilities } from './encryption.utilities';
-import { EncryptedEntity, resolveEncryptedEntities } from './resolve-encrypted-entities.function';
-import { ZibriApplication } from '../../application/application';
-import { CronExpression } from '../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function';
-import { needsReEncryption } from '../../global/model-registry/needs-re-encryption.function';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { KeysetPage } from '../../open-api/pagination-result.model';
-import { Newable } from '../../types/newable.type';
-import { Ms } from '../../utilities/ms';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
+import { EncryptionRotationFailure, EncryptionRotationFailureCreateData } from './encryption-rotation-failure.model.ts';
+import { EncryptionRotationProgress, EncryptionRotationProgressCreateData } from './encryption-rotation-progress.model.ts';
+import { type EncryptionServiceInterface } from './encryption-service.interface.ts';
+import { EncryptionUtilities } from './encryption.utilities.ts';
+import { EncryptedEntity, resolveEncryptedEntities } from './resolve-encrypted-entities.function.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { CronExpression } from '../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../cron/cron-job.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function.ts';
+import { needsReEncryption } from '../../global/model-registry/needs-re-encryption.function.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { KeysetPage } from '../../open-api/pagination-result.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
 
 /**
  * How many rows one run may write.
@@ -60,7 +60,7 @@ const maxRetryDelayInMs: number = Ms.DAY;
  * nothing left to do.
  */
 export class EncryptionRotationCronJob extends CronJob implements OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'EncryptionRotationCronJob',
         cron: CronExpression.every(1, 'hours').build(),
@@ -94,14 +94,14 @@ export class EncryptionRotationCronJob extends CronJob implements OnAppInit {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         // resolved once: which entities can hold an encrypted value is a property of the model, and
         // an hourly job has no reason to work it out again every time
         this.encryptedEntities.push(...resolveEncryptedEntities(app.options.dataSources));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         const failures: EncryptionRotationFailure[] = await this.failureRepository.findAll({ take: 'all' });
         let remaining: number = maxRowsPerRun - await this.retryFailures(failures);
@@ -279,7 +279,6 @@ export class EncryptionRotationCronJob extends CronJob implements OnAppInit {
             retryAt
         });
         this.logger.error(new Error(
-            // eslint-disable-next-line stylistic/max-len
             `Could not re-encrypt ${entityClass.name} "${stored.id}". Tried again from ${retryAt.toISOString()}, and reported by resolveRetiredKeyUsage until then.`,
             { cause: error }
         ));

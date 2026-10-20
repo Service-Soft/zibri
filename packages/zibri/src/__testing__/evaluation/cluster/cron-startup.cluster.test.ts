@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { executionLeaseInMs } from './cron-startup.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
+import { executionLeaseInMs } from './cron-startup.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 1.3, across instances.
@@ -17,7 +17,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'cron-startup.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'cron-startup.instance-options.ts'),
         instances: 1
     });
 }, 20000);

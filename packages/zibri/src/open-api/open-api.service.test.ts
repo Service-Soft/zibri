@@ -1,42 +1,43 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { type Relation } from '../entity/models/relation.type.ts';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Response } from './decorators/response.decorator';
-import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
-import { type PaginationResult } from './pagination-result.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Auth } from '../auth/decorators/auth.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { XmlUtilities } from '../document/xml.utilities';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Property } from '../entity/decorators/property.decorator';
-import { type OneOf } from '../entity/models/one-of.model';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpMethod } from '../http/http-method.enum';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { RedirectResponse } from '../http/redirect-response.model';
-import { FileResponse } from '../parsing/form-data/file-response.model';
-import { HtmlResponse } from '../parsing/html/html-response.model';
-import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
-import { XmlElement } from '../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../parsing/xml/xml-namespace.decorator';
-import { XmlRoot } from '../parsing/xml/xml-root.decorator';
-import { Body } from '../routing/decorators/body.decorator';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Param } from '../routing/decorators/param.decorator';
-import { Post } from '../routing/decorators/post.decorator';
-import { type RouterInterface } from '../routing/router.interface';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { Response } from './decorators/response.decorator.ts';
+import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model.ts';
+import { type PaginationResult } from './pagination-result.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Auth } from '../auth/decorators/auth.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { XmlUtilities } from '../document/xml.utilities.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type OneOf } from '../entity/models/one-of.model.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { RedirectResponse } from '../http/redirect-response.model.ts';
+import { FileResponse } from '../parsing/form-data/file-response.model.ts';
+import { HtmlResponse } from '../parsing/html/html-response.model.ts';
+import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator.ts';
+import { XmlElement } from '../parsing/xml/xml-element.decorator.ts';
+import { XmlNamespace } from '../parsing/xml/xml-namespace.decorator.ts';
+import { XmlRoot } from '../parsing/xml/xml-root.decorator.ts';
+import { Body } from '../routing/decorators/body.decorator.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Param } from '../routing/decorators/param.decorator.ts';
+import { Post } from '../routing/decorators/post.decorator.ts';
+import { type RouterInterface } from '../routing/router.interface.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
 
 class Tag {
     @Property.string()
@@ -392,10 +393,10 @@ describe('OpenApiService', () => {
      * @returns The operation object.
      */
     function op(path: string, method: 'get' | 'post'): OpenApiOperation {
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const pathItem = spec.paths?.[path];
         assert(pathItem);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const operation = pathItem[method];
         assert(operation);
         return operation;
@@ -597,7 +598,7 @@ describe('OpenApiService', () => {
 
     it('describes a response that can be json or xml under both, the xml one naming its root', () => {
         const operation: OpenApiOperation = op('/items/orders', 'post');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
+        // eslint-disable-next-line typescript-js/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
         const content = operation.responses?.['200']?.content;
         // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
@@ -612,7 +613,7 @@ describe('OpenApiService', () => {
 
     it('names the namespace of every element a prefixed root puts in one, as the document is written', async () => {
         const operation: OpenApiOperation = op('/items/envelope', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
+        // eslint-disable-next-line typescript-js/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
         const content = operation.responses?.['200']?.content;
         // eslint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access
         const json: OpenApiSchemaObject = schemaOf(content?.[MimeType.JSON]?.schema);
@@ -666,7 +667,7 @@ describe('OpenApiService', () => {
 
     it('builds a binary schema for a file response', () => {
         const operation: OpenApiOperation = op('/items/download', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
+        // eslint-disable-next-line typescript-js/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
         const content = operation.responses?.['200']?.content;
         // eslint-disable-next-line typescript/no-unsafe-member-access
         expect(content?.[MimeType.OCTET_STREAM]?.schema).toEqual({ type: 'string', format: 'binary' });
@@ -674,7 +675,7 @@ describe('OpenApiService', () => {
 
     it('builds an html schema for an html response', () => {
         const operation: OpenApiOperation = op('/items/page', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
+        // eslint-disable-next-line typescript-js/typedef, typescript/no-unsafe-assignment, typescript/no-unsafe-member-access
         const content = operation.responses?.['200']?.content;
         // eslint-disable-next-line typescript/no-unsafe-member-access
         expect(content?.[MimeType.HTML]?.schema).toEqual({ type: 'string', format: 'html' });
@@ -691,7 +692,7 @@ describe('OpenApiService', () => {
 
     it('merges multiple responses declared for the same status into a oneOf schema', () => {
         const operation: OpenApiOperation = op('/items/multi-status', 'get');
-        // eslint-disable-next-line typescript/typedef, typescript/no-unsafe-assignment
+        // eslint-disable-next-line typescript-js/typedef, typescript/no-unsafe-assignment
         const badRequest = operation.responses?.['400'];
         // eslint-disable-next-line typescript/strict-boolean-expressions
         assert(badRequest && !('$ref' in badRequest));

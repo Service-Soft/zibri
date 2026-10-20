@@ -1,20 +1,20 @@
-import { createAnyOfShapesMetadata, createArrayItemPropertyMetadata } from '../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model';
-import { FileSize, fileSizeToBytes } from '../entity/models/file-property-metadata.model';
-import { ObjectPropertyMetadata } from '../entity/models/object-property-metadata.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { MimeType } from '../http/mime-type.enum';
-import { ExcludeStrict } from '../types/exclude-strict.type';
-import { isNewable, Newable } from '../types/newable.type';
-import { Ms } from '../utilities/ms';
-import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, RawXmlBodyMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model';
+import { createAnyOfShapesMetadata, createArrayItemPropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata } from '../entity/models/array-property-metadata.model.ts';
+import { FileSize, fileSizeToBytes } from '../entity/models/file-property-metadata.model.ts';
+import { ObjectPropertyMetadata } from '../entity/models/object-property-metadata.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { ExcludeStrict } from '../types/exclude-strict.type.ts';
+import { isNewable, Newable } from '../types/newable.type.ts';
+import { Ms } from '../utilities/ms.ts';
+import { BodyMetadata, BodyShapeMetadata, FormDataBodyMetadataInput, FormUrlEncodedBodyMetadataInput, JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, RawXmlBodyMetadataInput, StreamBodyMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from './decorators/body-metadata.model.ts';
 
 /**
  * What a body may weigh, besides its files, when the declaration does not say.
  */
 const DEFAULT_BASE_MAX_SIZE: FileSize = '100kb';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type BaseBodyDeclaration = { modelClass: Newable<unknown> | (() => Newable<unknown>) } | { shapes: JsonBodyShapeMetadataInput[] };
 
 /**

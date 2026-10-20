@@ -5,34 +5,34 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { buffer, text } from 'node:stream/consumers';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { BackupEntity } from '../../backup/backup-entity.model';
-import { BACKUP_FORMAT_VERSION } from '../../backup/backup-format';
-import { BackupResourceEntity } from '../../backup/backup-resource-entity.model';
-import { BackupService } from '../../backup/backup.service';
-import { Backup } from '../../backup/decorators/backup-resource.decorator';
-import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { SchemaManagement } from '../../data-source/models/schema-management.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { zibriVersion } from '../../versioning/zibri-version.function';
-import { testFileFolder } from '../constants';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { BackupEntity } from '../../backup/backup-entity.model.ts';
+import { BACKUP_FORMAT_VERSION } from '../../backup/backup-format.ts';
+import { BackupResourceEntity } from '../../backup/backup-resource-entity.model.ts';
+import { BackupService } from '../../backup/backup.service.ts';
+import { Backup } from '../../backup/decorators/backup-resource.decorator.ts';
+import { BackupTransport } from '../../backup/decorators/backup-transport.decorator.ts';
+import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport.ts';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../../data-source/models/schema-management.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { zibriVersion } from '../../versioning/zibri-version.function.ts';
+import { testFileFolder } from '../constants.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/01-data-layer.md C6.
@@ -378,9 +378,9 @@ describe('evaluation/01-data-layer M55 - a backup is the schema the data source 
         await backupService.restore(await findBackup('every-kind'));
 
         expect(await runSql(
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             'SELECT to_regtype(\'eval_mood\')::text AS type, to_regclass(\'eval_backup_values\')::text AS view,'
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             + ' to_regprocedure(\'eval_double(integer)\')::text AS routine, to_regclass(\'eval_created_later\')::text AS later'
         // eslint-disable-next-line unicorn/no-null
         )).toEqual([{ type: 'eval_mood', view: 'eval_backup_values', routine: 'eval_double(integer)', later: null }]);
@@ -433,7 +433,7 @@ describe('evaluation/01-data-layer M55 - a backup is the schema the data source 
         await FsUtilities.mkdir(stubFolder);
         await writeFile(
             FsUtilities.getPath(stubFolder, command),
-            // eslint-disable-next-line sonar/no-nested-template-literals
+            // eslint-disable-next-line sonarjs/no-nested-template-literals
             `#!/usr/bin/env node\nprocess.stdout.write(${JsonUtilities.stringify(`${command} (PostgreSQL) ${version}\n`)});\n`,
             { mode: 0o755 }
         );

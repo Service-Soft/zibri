@@ -1,6 +1,6 @@
-import { JwtAccessTokenPayload } from './jwt-access-token-payload.model';
-import { JwtHeader } from './jwt-header.model';
-import { BaseUser } from '../../models/base-user.model';
+import { JwtAccessTokenPayload } from './jwt-access-token-payload.model.ts';
+import { JwtHeader } from './jwt-header.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
 
 /**
  * An encoded jwt, with whatever was signed into it.

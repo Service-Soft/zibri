@@ -1,11 +1,11 @@
 import { Request, RequestHandler } from 'express';
 
-import { Header } from './header.type';
-import { HttpMethod } from './http-method.enum';
-import { KnownHeader } from './known-header.enum';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { Header } from './header.type.ts';
+import { HttpMethod } from './http-method.enum.ts';
+import { KnownHeader } from './known-header.enum.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * An origin a browser page can be served from.

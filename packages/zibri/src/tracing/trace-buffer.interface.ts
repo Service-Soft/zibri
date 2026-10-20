@@ -1,4 +1,4 @@
-import { TraceSpanRecord } from './trace-span-record.model';
+import { TraceSpanRecord } from './trace-span-record.model.ts';
 
 /**
  * Keeps the spans the application recorded most recently, so that they can be read back.

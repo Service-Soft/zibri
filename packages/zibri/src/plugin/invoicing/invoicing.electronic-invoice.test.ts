@@ -1,26 +1,26 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ZibriInvoicingPlugin } from './invoicing.plugin';
-import { ElectronicAddress } from './models/electronic-address.model';
-import { InvoiceItem } from './models/invoice-item.model';
-import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
-import { Invoice } from './models/invoice.model';
-import { NumberInvoices } from './models/number-invoices.model';
-import { CiiCrossIndustryInvoice } from './services/conformance/en16931/cii/cii-cross-industry-invoice.model';
-import { CiiHeaderTradeSettlement } from './services/conformance/en16931/cii/cii-header-trade-settlement.model';
-import { CiiSchemedId } from './services/conformance/en16931/cii/cii-schemed-id.model';
-import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
-import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
-import { InvoicePdfService } from './services/invoice-pdf.service';
-import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../di/inject.function';
-import { XmlUtilities } from '../../document/xml.utilities';
-import { type CurrencyCode } from '../../localization/models/currency-code.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ZibriInvoicingPlugin } from './invoicing.plugin.ts';
+import { ElectronicAddress } from './models/electronic-address.model.ts';
+import { InvoiceItem } from './models/invoice-item.model.ts';
+import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from './models/invoice.model.ts';
+import { NumberInvoices } from './models/number-invoices.model.ts';
+import { CiiCrossIndustryInvoice } from './services/conformance/en16931/cii/cii-cross-industry-invoice.model.ts';
+import { CiiHeaderTradeSettlement } from './services/conformance/en16931/cii/cii-header-trade-settlement.model.ts';
+import { CiiSchemedId } from './services/conformance/en16931/cii/cii-schemed-id.model.ts';
+import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service.ts';
+import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service.ts';
+import { InvoicePdfService } from './services/invoice-pdf.service.ts';
+import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { XmlUtilities } from '../../document/xml.utilities.ts';
+import { type CurrencyCode } from '../../localization/models/currency-code.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 // the amounts an invoice states, in its pdf and in its electronic invoice, as EN 16931 calculates
 // them: each line rounded to the currency, the VAT of each group taxed once on the group's rounded
@@ -38,7 +38,7 @@ function invoiceOf(items: InvoiceItem[], currency: CurrencyCode = 'EUR'): Invoic
     return {
         id: UUIDUtilities.generate(),
         tenantId: UUIDUtilities.generate(),
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         number: '2026-GREATC-0001',
         items,
         date: new Date(),

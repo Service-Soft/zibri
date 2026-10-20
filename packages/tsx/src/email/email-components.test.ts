@@ -1,20 +1,20 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { MjAttributes, MjAttributesProps } from './mj-attributes';
-import { MjBody } from './mj-body';
-import { MjButton } from './mj-button';
-import { MjColumn } from './mj-column';
-import { MjDivider } from './mj-divider';
-import { MjGroup } from './mj-group';
-import { MjHead } from './mj-head';
-import { MjImage } from './mj-image';
-import { MjRaw } from './mj-raw';
-import { MjSection } from './mj-section';
-import { MjSpacer } from './mj-spacer';
-import { MjText } from './mj-text';
-import { MjWrapper } from './mj-wrapper';
-import { Mjml } from './mjml';
-import { renderEmail, Mount } from '../__testing__/email-render.helper';
+import { MjAttributes, MjAttributesProps } from './mj-attributes.ts';
+import { MjBody } from './mj-body.ts';
+import { MjButton } from './mj-button.ts';
+import { MjColumn } from './mj-column.ts';
+import { MjDivider } from './mj-divider.ts';
+import { MjGroup } from './mj-group.ts';
+import { MjHead } from './mj-head.ts';
+import { MjImage } from './mj-image.ts';
+import { MjRaw } from './mj-raw.ts';
+import { MjSection } from './mj-section.ts';
+import { MjSpacer } from './mj-spacer.ts';
+import { MjText } from './mj-text.ts';
+import { MjWrapper } from './mj-wrapper.ts';
+import { Mjml } from './mjml.ts';
+import { renderEmail, Mount } from '../__testing__/email-render.helper.ts';
 
 /**
  * Renders content inside a body/section/column so components that read the layout resolve normally.

@@ -1,19 +1,19 @@
 import type { SaxesParser, SaxesTagNS } from 'saxes';
 
-import { XmlContent, XmlElementNode } from './xml-element-node.model';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { Relation } from '../entity/models/relation.enum';
-import { XmlMixedProperty, XmlMixedShapes, XmlModelUtilities } from '../parsing/xml/xml-model.utilities';
-import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
-import { BodyShapeMetadata } from '../routing/decorators/body-metadata.model';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { optionalPeer } from '../utilities/optional-peer.function';
+import { XmlContent, XmlElementNode } from './xml-element-node.model.ts';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { XmlMixedProperty, XmlMixedShapes, XmlModelUtilities } from '../parsing/xml/xml-model.utilities.ts';
+import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model.ts';
+import { BodyShapeMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { optionalPeer } from '../utilities/optional-peer.function.ts';
 
 // namespaces tracked, so an element and an attribute are read by their local name whatever prefix
 // the document gave them
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ParserOptions = { xmlns: true };
 
 /**
@@ -115,11 +115,11 @@ export abstract class XmlReaderUtilities {
             case 'oneOf':
             case 'unknown':
             case 'file':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY: {
                 return XmlReaderUtilities.readUntyped(element);
             }
         }

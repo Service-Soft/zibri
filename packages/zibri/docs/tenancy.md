@@ -24,7 +24,7 @@ Every entity holds the tenant of each row in its uuid property `tenantId`:
 
 ```ts
 // src/models/project.model.ts
-import { BaseEntity, Entity, Property } from 'zibri';
+import { BaseEntity, Entity, Property, Relation } from 'zibri';
 
 @Entity()
 export class Project extends BaseEntity {
@@ -47,7 +47,7 @@ export class Task extends BaseEntity {
     title!: string;
 
     @Property.manyToOne({ target: () => Project, joinColumn: 'projectId', inverseSide: 'tasks' })
-    project!: Project;
+    project!: Relation<Project>;
 
     @Property.string({ format: 'uuid' })
     projectId!: string;

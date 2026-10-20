@@ -1,5 +1,5 @@
-import { ConflictError } from '../error-handling/errors/conflict.error';
-import { $ts } from '../localization/translate.function';
+import { ConflictError } from '../error-handling/errors/conflict.error.ts';
+import { $ts } from '../localization/translate.function.ts';
 
 /**
  * An error for a write that a unique declaration refuses.

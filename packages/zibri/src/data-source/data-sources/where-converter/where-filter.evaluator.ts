@@ -1,21 +1,21 @@
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
-import { OneOfPropertyMetadata, OneOfShapeMetadata } from '../../../entity/models/one-of-property-metadata.model';
-import { Relation } from '../../../entity/models/relation.enum';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { isNamedValue } from '../../../parsing/functions/parse-one-of.function';
-import { Newable } from '../../../types/newable.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { BigNumber } from '../../../utilities/number.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { TrigramUtilities } from '../../../utilities/trigram.utilities';
-import { parseFuzzyLikeFilter } from '../../models/where/fuzzy-like.model';
-import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities';
-import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model';
-import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model';
-import { WhereValueUtilities } from '../../models/where/where-value.utilities';
-import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.error';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { OneOfPropertyMetadata, OneOfShapeMetadata } from '../../../entity/models/one-of-property-metadata.model.ts';
+import { RelationType } from '../../../entity/models/relation-type.enum.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { isNamedValue } from '../../../parsing/functions/parse-one-of.function.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { BigNumber } from '../../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
+import { TrigramUtilities } from '../../../utilities/trigram.utilities.ts';
+import { parseFuzzyLikeFilter } from '../../models/where/fuzzy-like.model.ts';
+import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities.ts';
+import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model.ts';
+import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model.ts';
+import { WhereValueUtilities } from '../../models/where/where-value.utilities.ts';
+import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.error.ts';
 
 /**
  * Handler for a single where filter key.
@@ -247,7 +247,7 @@ export class WhereFilterEvaluator {
         if (OneOfWhereFilterUtilities.matchesEveryValue(shapeFilter)) {
             return true;
         }
-        return this.matchesProperty(value.value, shapeFilter, { ...shape } as PropertyMetadata, path);
+        return this.matchesProperty(value.value, shapeFilter, { ...shape }, path);
     }
 
     private matchesNestedWhere(value: unknown, filterValue: unknown, metadata: PropertyMetadata | undefined, path: string): boolean {
@@ -256,11 +256,11 @@ export class WhereFilterEvaluator {
         }
         if (metadata.type === 'object') {
             return value != undefined
-                && this.matchesAt(value as object, filterValue as Where<object>, metadata.cls() as Newable<object>, path);
+                && this.matchesAt(value, filterValue as Where<object>, metadata.cls() as Newable<object>, path);
         }
         if (metadata.type === 'array') {
             if (metadata.items.type !== 'object') {
-                const itemMetadata: PropertyMetadata = { ...metadata.items } as PropertyMetadata;
+                const itemMetadata: PropertyMetadata = { ...metadata.items };
                 return this.toItems(value).some(i => this.matchesProperty(i, filterValue, itemMetadata, path));
             }
             const itemClass: Newable<object> = metadata.items.cls() as Newable<object>;
@@ -268,7 +268,7 @@ export class WhereFilterEvaluator {
         }
         if (this.isRelation(metadata)) {
             const targetClass: Newable<BaseEntity> = metadata.target();
-            if (metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY) {
+            if (metadata.type === RelationType.ONE_TO_MANY || metadata.type === RelationType.MANY_TO_MANY) {
                 return this.toItems(value)
                     .some(i => this.matchesAt(i as BaseEntity, filterValue as Where<BaseEntity>, targetClass, path));
             }
@@ -367,24 +367,24 @@ export class WhereFilterEvaluator {
             case 'object':
             case 'array':
             case 'oneOf':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'unknown': {
                 return true;
             }
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     private isRelation(metadata: PropertyMetadata): metadata is Extract<PropertyMetadata, { target: unknown }> {
-        return metadata.type === Relation.HAS_ONE
-            || metadata.type === Relation.BELONGS_TO_ONE
-            || metadata.type === Relation.MANY_TO_ONE
-            || metadata.type === Relation.ONE_TO_MANY
-            || metadata.type === Relation.MANY_TO_MANY;
+        return metadata.type === RelationType.HAS_ONE
+            || metadata.type === RelationType.BELONGS_TO_ONE
+            || metadata.type === RelationType.MANY_TO_ONE
+            || metadata.type === RelationType.ONE_TO_MANY
+            || metadata.type === RelationType.MANY_TO_MANY;
     }
 
     /**

@@ -1,5 +1,5 @@
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { LocaleCode, resolveLocaleCode } from './models/locale-code.model';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { LocaleCode, resolveLocaleCode } from './models/locale-code.model.ts';
 
 /**
  * Registry responsible for all translations.

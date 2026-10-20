@@ -1,8 +1,8 @@
-import { Authenticators } from './authenticators.model';
-import { ZibriApplication } from '../../application/application';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { Authentication } from '../models/authentication.model';
-import { BaseUser } from '../models/base-user.model';
+import { Authenticators } from './authenticators.model.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { Authentication } from '../models/authentication.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an authenticator: what proves who someone is.

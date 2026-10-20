@@ -1,4 +1,4 @@
-import { toSnakeCase } from '../utilities/to-snake-case.function';
+import { toSnakeCase } from '../utilities/to-snake-case.function.ts';
 
 /**
  * Builds the name of the index covering the given columns.

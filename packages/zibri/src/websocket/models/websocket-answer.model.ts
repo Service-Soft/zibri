@@ -1,4 +1,4 @@
-import { WebsocketRequest } from './websocket-request.model';
+import { WebsocketRequest } from './websocket-request.model.ts';
 
 /**
  * What one connection answered to a message sent to several, whichever instance holds it.

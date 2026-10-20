@@ -1,5 +1,5 @@
-import { type Unscoped } from '../../../entity/models/entity-scope.model';
-import { Transaction } from '../../transaction/transaction.model';
+import { type Unscoped } from '../../../entity/models/entity-scope.model.ts';
+import { Transaction } from '../../transaction/transaction.model.ts';
 
 /**
  * Base options that are shared by all repository methods.

@@ -1,8 +1,8 @@
-import { LogContext } from './log-context.model';
-import { LogLevel } from './log-level.enum';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
+import { LogContext } from './log-context.model.ts';
+import { LogLevel } from './log-level.enum.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
 
 /**
  * The data saved for a log entry.

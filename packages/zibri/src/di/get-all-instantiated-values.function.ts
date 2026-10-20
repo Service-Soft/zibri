@@ -1,4 +1,4 @@
-import { DiContainer } from './di-container';
+import { DiContainer } from './di-container.ts';
 
 /**
  * Gets every value that has already been instantiated in the DI container, without constructing

@@ -1,14 +1,14 @@
 import assert from 'node:assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { ClientScript, compileClientScript } from './client-codegen';
-import { collectHandlerSites } from './handlers';
-import { parseTemplateOk } from '../../__testing__/parse.helper';
-import { renderComponentResult, renderWithComponents } from '../../__testing__/server-render.helper';
-import { collectClientGlobalAliasesFromSource } from '../../semantics/client-packages';
-import { ComponentFunction, ComponentInfo, findComponents } from '../../semantics/component';
-import { eraseTypes } from '../erase-types';
+import { ClientScript, compileClientScript } from './client-codegen.ts';
+import { collectHandlerSites } from './handlers.ts';
+import { parseTemplateOk } from '../../__testing__/parse.helper.ts';
+import { renderComponentResult, renderWithComponents } from '../../__testing__/server-render.helper.ts';
+import { collectClientGlobalAliasesFromSource } from '../../semantics/client-packages.ts';
+import { ComponentFunction, ComponentInfo, findComponents } from '../../semantics/component.ts';
+import { eraseTypes } from '../erase-types.ts';
 
 function componentOf(source: string): ComponentFunction {
     return infoOf(source).fn;
@@ -59,7 +59,7 @@ function runClient(
     globals: Record<string, unknown>
 ): void {
     assert(script.code && script.setupName);
-    // eslint-disable-next-line typescript/typedef
+    // eslint-disable-next-line typescript-js/typedef
     const fakeDocument = { querySelectorAll: (): FakeElement[] => elements };
     const names: string[] = Object.keys(globals);
     // eslint-disable-next-line typescript/no-implied-eval

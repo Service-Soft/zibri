@@ -1,8 +1,8 @@
-import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { Newable } from '../../../types/newable.type';
-import { BaseUser } from '../../models/base-user.model';
+import { ZibriApplication } from '../../../application/application.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
 
 /**
  * Interface for a two factor method.

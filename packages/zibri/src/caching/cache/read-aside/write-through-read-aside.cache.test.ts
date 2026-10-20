@@ -1,16 +1,16 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteThroughReadAsideCache } from './write-through-read-aside.cache';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../../cache-service.interface';
-import { CacheService } from '../../cache.service';
-import { Cache } from '../../decorators/cache.decorator';
-import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteThroughReadAsideCache } from './write-through-read-aside.cache.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../../cache-service.interface.ts';
+import { CacheService } from '../../cache.service.ts';
+import { Cache } from '../../decorators/cache.decorator.ts';
+import { InMemoryCacheStore } from '../../store/in-memory.cache-store.ts';
 
 @Cache()
 class MainCache extends WriteThroughReadAsideCache<string, { id: string }, 'Write Through Read Aside Main Cache'> {
@@ -47,9 +47,9 @@ describe('WriteThroughReadAsideCache', () => {
     it('wrapWrite writes the result to the cache synchronously before resolving', async () => {
         const cache: MainCache = inject(MainCache);
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrapWrite(fn, (result) => result.id);
 
         await expect(wrapped('abc')).resolves.toEqual({ id: 'id:abc' });
@@ -60,15 +60,15 @@ describe('WriteThroughReadAsideCache', () => {
 
     it('wrapWrite still resolves with the source value if the store write fails', async () => {
         const cache: MainCache = inject(MainCache);
-        // eslint-disable-next-line typescript/typedef
-        const setSpy = jest.spyOn(cache.store, 'set').mockImplementation(() => {
+        // eslint-disable-next-line typescript-js/typedef
+        const setSpy = vi.spyOn(cache.store, 'set').mockImplementation(() => {
             throw new Error('store unavailable');
         });
 
         try {
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrapWrite(fn, (result) => result.id);
 
             await expect(wrapped('abc')).resolves.toEqual({ id: 'id:abc' });
@@ -88,8 +88,8 @@ describe('WriteThroughReadAsideCache', () => {
 
     it('setDirect swallows store failures', async () => {
         const cache: MainCache = inject(MainCache);
-        // eslint-disable-next-line typescript/typedef
-        const setSpy = jest.spyOn(cache.store, 'set').mockImplementation(() => {
+        // eslint-disable-next-line typescript-js/typedef
+        const setSpy = vi.spyOn(cache.store, 'set').mockImplementation(() => {
             throw new Error('store unavailable');
         });
 

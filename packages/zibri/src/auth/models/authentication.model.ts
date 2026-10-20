@@ -1,5 +1,5 @@
-import { BaseUser } from './base-user.model';
-import { FederatedSession } from '../authenticators/federated/federated-session.model';
+import { BaseUser } from './base-user.model.ts';
+import { FederatedSession } from '../authenticators/federated/federated-session.model.ts';
 
 /**
  * Who proved who they are, and when.

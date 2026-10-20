@@ -1,6 +1,6 @@
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
-import { Percentage } from '../../../types/percentage.type';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { ExcludeStrict } from '../../../types/exclude-strict.type.ts';
+import { Percentage } from '../../../types/percentage.type.ts';
 
 /**
  * The minimum similarity that a fuzzyLike filter requires, as a percentage between 1 and 99.

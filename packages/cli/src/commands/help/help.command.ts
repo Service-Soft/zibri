@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
-import { ChalkUtilities } from '../../encapsulation';
-import { BaseCommand } from '../base-command.model';
-import { Command } from '../command.enum';
+import { ChalkUtilities } from '../../encapsulation/index.ts';
+import { BaseCommand } from '../base-command.model.ts';
+import { Command } from '../command.enum.ts';
 
 /**
  * Displays info on how to use the cli.

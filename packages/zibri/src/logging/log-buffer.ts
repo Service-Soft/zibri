@@ -1,5 +1,5 @@
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
+import { LogLevel } from './log-level.enum.ts';
+import { Log } from './log.model.ts';
 
 /**
  * A bounded queue of log entries waiting to be written.

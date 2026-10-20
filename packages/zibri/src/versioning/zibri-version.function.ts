@@ -1,8 +1,8 @@
-import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities';
-import { InternalError } from '../error-handling/internal-error.model';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { resolveZibriRoot } from '../utilities/resolve-zibri-root.function';
+import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { resolveZibriRoot } from '../utilities/resolve-zibri-root.function.ts';
 
 /**
  * Read once, because it cannot change while the process runs.
@@ -26,7 +26,7 @@ export function zibriVersion(): SemVerVersion {
     }
 
     const p: FsPath = FsUtilities.getPath(resolveZibriRoot(), 'package.json');
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     const { version } = JsonUtilities.parse<{ version: string }>(FsUtilities.readFileSync(p));
     if (!SemVerUtilities.isSemVerVersion(version)) {
         throw new InternalError(`The zibri package at "${p}" declares no readable version.`);

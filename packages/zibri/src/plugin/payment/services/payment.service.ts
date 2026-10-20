@@ -1,24 +1,24 @@
-import { PaymentServiceInterface } from './payment-service.interface';
-import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { AnyObject } from '../../../entity/any-object.model';
-import { ConflictError } from '../../../error-handling/errors/conflict.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
-import { $ts } from '../../../localization/translate.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { Ms } from '../../../utilities/ms';
-import { PaymentMethod } from '../models/payment-method.model';
-import { type PaymentPluginOptions } from '../models/payment-plugin-options.model';
-import { PaymentStatus } from '../models/payment-status.enum';
-import { Payment } from '../models/payment.model';
-import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../payment.tokens';
-import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentServiceInterface } from './payment-service.interface.ts';
+import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { AnyObject } from '../../../entity/any-object.model.ts';
+import { ConflictError } from '../../../error-handling/errors/conflict.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { type LeaseServiceInterface } from '../../../leases/lease-service.interface.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { PaymentMethod } from '../models/payment-method.model.ts';
+import { type PaymentPluginOptions } from '../models/payment-plugin-options.model.ts';
+import { PaymentStatus } from '../models/payment-status.enum.ts';
+import { Payment } from '../models/payment.model.ts';
+import { ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from '../payment.tokens.ts';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface.ts';
 
 /**
  * Default payment service implementation of zibri.
@@ -93,7 +93,7 @@ export class PaymentService<
         return await this.paymentRepository.findById(payment.id) as T;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validatePaymentData<M extends Methods[number]>(
         method: M,
         data: PaymentDataForMethod<Methods, M, P>
@@ -104,7 +104,7 @@ export class PaymentService<
             data
         ) as ValidatedPaymentDataForMethod<Methods, M, P>;
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const { transactionId } = data as unknown as { transactionId: string };
         if ((await this.paymentRepository.findAll({ where: { transactionId } })).length) {
             throw new ConflictError($ts`A payment for the transactionId "${transactionId}" already exists.`);
@@ -112,7 +112,7 @@ export class PaymentService<
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startPayment<M extends Methods[number]>(
         method: M,
         data: ValidatedPaymentDataForMethod<Methods, M, P>
@@ -121,7 +121,7 @@ export class PaymentService<
         return await provider.startPayment(method, data) as PaymentForMethod<Methods, M, P>;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startPaymentReservation<M extends AllowedReservationMethods<Methods, P>>(
         method: M,
         data: ValidatedPaymentDataForMethod<Methods, M, P>
@@ -130,7 +130,7 @@ export class PaymentService<
         return await provider.startPaymentReservation(method, data) as PaymentReservationForMethod<Methods, M, P>;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmPaymentReservation<M extends AllowedReservationMethods<Methods, P>>(
         payment: PaymentReservationForMethod<Methods, M, P>
     ): Promise<void> {
@@ -149,7 +149,7 @@ export class PaymentService<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmPayment<M extends Methods[number]>(payment: PaymentForMethod<Methods, M, P>): Promise<void> {
         await this.transition(payment, async stored => {
             if (stored.status === PaymentStatus.PAID) {
@@ -164,7 +164,7 @@ export class PaymentService<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async collectPaymentFromReservation<M extends AllowedReservationMethods<Methods, P>>(
         payment: PaymentReservationForMethod<Methods, M, P>
     ): Promise<void> {
@@ -181,7 +181,7 @@ export class PaymentService<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async cancelPayment<M extends AllowedCancellationMethods<Methods, P>>(
         payment: PaymentForMethod<Methods, M, P> | PaymentReservationForMethod<Methods, M, P>
     ): Promise<void> {
@@ -198,7 +198,7 @@ export class PaymentService<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async refundPayment<M extends AllowedRefundMethods<Methods, P>>(payment: PaymentForMethod<Methods, M, P>): Promise<void> {
         await this.transition(payment, async stored => {
             if (stored.status === PaymentStatus.REFUNDED) {

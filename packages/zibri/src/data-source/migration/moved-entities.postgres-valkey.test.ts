@@ -1,16 +1,16 @@
-import { afterAll, beforeAll } from '@jest/globals';
+import { afterAll, beforeAll } from 'vitest';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
-import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
+import { MigrationEntity } from './migration-entity.model.ts';
+import { Migration } from './migration.model.ts';
+import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model.ts';
 
 // changed in place by the upgrade below, so that the second version starts on the same data source
 // classes - and so on the same containers, which belong to the classes

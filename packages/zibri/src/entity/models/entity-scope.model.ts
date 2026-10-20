@@ -2,13 +2,13 @@
 // `@Entity`, which every entity file evaluates before anything else is up - a value import of the
 // request context pulls in ZIBRI_DI_TOKENS and with it most of the framework, which is a cycle that
 // leaves whatever loads inside it holding undefined
-import { type BaseUser } from '../../auth/models/base-user.model';
-import { type HttpRequestContext } from '../../context/request/http-request.context';
-import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { type Where } from '../../data-source/models/where/where-filter.model';
-import { type BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { type Newable } from '../../types/newable.type';
-import { type BaseEntity } from '../base-entity.model';
+import { type BaseUser } from '../../auth/models/base-user.model.ts';
+import { type HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { type WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { type Where } from '../../data-source/models/where/where-filter.model.ts';
+import { type BaseMembership } from '../../tenancy/membership/base-membership.model.ts';
+import { type Newable } from '../../types/newable.type.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
 
 /**
  * What a scope returns to mean that this caller may see no rows at all.

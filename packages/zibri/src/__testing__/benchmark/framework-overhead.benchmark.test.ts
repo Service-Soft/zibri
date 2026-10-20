@@ -1,30 +1,30 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DataSource as ToDataSource } from 'typeorm';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { BenchmarkTiming } from './benchmark-timing.model';
-import { BenchmarkUtilities } from './benchmark.utilities';
-import { PostgresTypeOrmWhereFilterConverter } from '../../data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter';
-import { Where } from '../../data-source/models/where/where-filter.model';
-import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { KnownHeader } from '../../http/known-header.enum';
-import { Response } from '../../open-api/decorators/response.decorator';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Param } from '../../routing/decorators/param.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { testFileFolder } from '../constants';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { BenchmarkTiming } from './benchmark-timing.model.ts';
+import { BenchmarkUtilities } from './benchmark.utilities.ts';
+import { PostgresTypeOrmWhereFilterConverter } from '../../data-source/data-sources/where-converter/postgres-typeorm-where-filter.converter.ts';
+import { Where } from '../../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { Response } from '../../open-api/decorators/response.decorator.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Param } from '../../routing/decorators/param.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { testFileFolder } from '../constants.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * What the framework itself costs in time, around a request and around a repository call.
@@ -41,7 +41,7 @@ const RUNS: number = 500;
 
 const LISTED_ROWS: number = 100;
 
-const baselinePath: FsPath = FsUtilities.getPath(__dirname, 'baseline.json');
+const baselinePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'baseline.json');
 
 const reportPath: FsPath = FsUtilities.getPath(testFileFolder, 'benchmark-report.json');
 

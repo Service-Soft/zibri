@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { unwrapTypeSyntax } from './walk';
+import { unwrapTypeSyntax } from './walk.ts';
 
 /**
  * A function form that can act as a page/template component.

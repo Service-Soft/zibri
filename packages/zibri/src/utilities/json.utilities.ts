@@ -6,6 +6,7 @@
  * A string matching none of them is exactly its utf-8 length plus the two quotes, which the runtime
  * can measure without looking at it character by character.
  */
+// oxlint-disable-next-line no-control-regex
 const NEEDS_ESCAPING: RegExp = new RegExp('["\\\\\\u0000-\\u001F\\uD800-\\uDFFF]');
 
 /**

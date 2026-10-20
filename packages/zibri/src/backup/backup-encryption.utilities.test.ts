@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BackupEncryptionUtilities } from './backup-encryption.utilities';
+import { BackupEncryptionUtilities } from './backup-encryption.utilities.ts';
 
 /**
  * How many bytes of data are sealed together, as the utilities seal them.

@@ -1,18 +1,18 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { UserRepo } from '../../auth/decorators/user-repo.decorator';
-import { BaseUserEntity } from '../../auth/models/base-user.model';
-import { UserRepositoryInterface } from '../../auth/user/user-repository.interface';
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { type LoggerInterface } from '../../logging/logger.interface';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { UserRepo } from '../../auth/decorators/user-repo.decorator.ts';
+import { BaseUserEntity } from '../../auth/models/base-user.model.ts';
+import { UserRepositoryInterface } from '../../auth/user/user-repository.interface.ts';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
 
 // a file of its own and without the test server's furniture, because a class marked with
 // @MembershipRepo is registered for every application the file starts once it is imported

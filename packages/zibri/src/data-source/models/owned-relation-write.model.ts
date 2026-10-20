@@ -1,6 +1,6 @@
-import { OwnedRelation } from './owned-relation.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { DeepPartial } from '../../types/deep-partial.type';
+import { OwnedRelation } from './owned-relation.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
 
 /**
  * What saving some owners writes to the rows of one of their relations.

@@ -2,10 +2,10 @@ import { Readable } from 'node:stream';
 
 import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, ChangeSet, ChangeSetEntity, ChangeSetRepository, ConvertedValue, DataSourceInitializationError, DataSourceInterface, EntityMetadata, EntityMetadataMissingError, getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, JsonUtilities, type LoggerInterface, MergeEntityInput, MetadataUtilities, MigratedEntityUtilities, Migration, MigrationPropertyMetadata, Newable, ObjectUtilities, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RemovePropertyFromEntityInput, RenameEntityInput, Repository, RepositoryDriverInterface, RepositoryTypeForEntity, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, ValueConversionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
-import { InMemoryTransaction } from './in-memory-transaction.model';
-import { InMemoryRepositoryDriver } from './in-memory.repository-driver';
-import { RoundTripCounter } from '../round-trip-counter.model';
+import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store.ts';
+import { InMemoryTransaction } from './in-memory-transaction.model.ts';
+import { InMemoryRepositoryDriver } from './in-memory.repository-driver.ts';
+import { RoundTripCounter } from '../round-trip-counter.model.ts';
 
 /**
  * The fields to write and to remove for one row, or undefined when the row stays untouched.
@@ -72,7 +72,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
 
     abstract readonly entities: Newable<BaseEntity>[];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
 
     /**
@@ -95,7 +95,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         protected readonly authService: AuthServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async init(): Promise<void> {
         if (this.initialized) {
             throw new InternalError('The data source has already been initialized.');
@@ -130,7 +130,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     shutDown(): void {
         this.initialized = false;
         this.repositories.clear();
@@ -138,7 +138,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         // store is meant to find its rows, which is what a database does
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getRepository<T extends BaseEntity>(cls: Newable<T>): RepositoryTypeForEntity<T> {
         if (!this.initialized) {
             throw new DataSourceInitializationError();
@@ -150,7 +150,6 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
             ]);
         }
 
-        // eslint-disable-next-line stylistic/max-len
         const existingRepository: RepositoryTypeForEntity<T> | undefined = this.repositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
         if (existingRepository) {
             return existingRepository;
@@ -169,7 +168,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.repositories.set(cls, res);
             return res;
         }
         if (isChangeSetEntityNewable(cls)) {
@@ -183,7 +182,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.repositories.set(cls, res);
             return res;
         }
 
@@ -195,7 +194,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
             getDefaultBeforeSaveHook(),
             getDefaultBeforeReturnHook()
         ) as RepositoryTypeForEntity<T>;
-        this.repositories.set(cls, res as Repository<BaseEntity>);
+        this.repositories.set(cls, res);
         return res;
     }
 
@@ -227,7 +226,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     startTransaction(options?: StartTransactionOptions): Transaction {
         if (!this.initialized) {
             throw new DataSourceInitializationError();
@@ -242,17 +241,17 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         return new InMemoryTransaction(this.store);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async runMigrations(): Promise<void> {
         await runMigrations(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revertMigrationsAfter(targetVersion: SemVerVersion): Promise<void> {
         await revertMigrationsAfter(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger, targetVersion);
     }
 
-    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    // eslint-disable-next-line typescript/require-await, jsdoc-js/require-jsdoc
     async addPropertyToEntity<T extends BaseEntity>(input: AddPropertyToEntityInput<T>): Promise<void> {
         const name: string = String(input.property.name);
         const metadata: PropertyMetadata = MigratedEntityUtilities.resolvePropertyMetadata(input.property);
@@ -269,7 +268,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/require-await
     async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
         const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(input.entity)[String(input.propertyKey)];
         if (metadata && 'primary' in metadata && metadata.primary) {
@@ -282,7 +281,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         }));
     }
 
-    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    // eslint-disable-next-line typescript/require-await, jsdoc-js/require-jsdoc
     async changePropertyOfEntity<T extends BaseEntity, C extends MigrationPropertyMetadata, M extends MigrationPropertyMetadata>(
         input: ChangePropertyOfEntityInput<T, C, M>
     ): Promise<void> {
@@ -316,32 +315,32 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         ValueConversionUtilities.validateNothingRefused(conversion, refused);
     }
 
-    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    // eslint-disable-next-line typescript/require-await, jsdoc-js/require-jsdoc
     async renameEntity<T extends BaseEntity>(input: RenameEntityInput<T>): Promise<void> {
         new InMemoryRepositoryDriver(input.entity, this.store).moveStoredRowsFrom(input.currentTableName, input.transaction);
     }
 
-    // eslint-disable-next-line typescript/require-await, jsdoc/require-jsdoc
+    // eslint-disable-next-line typescript/require-await, jsdoc-js/require-jsdoc
     async mergeEntity<T extends BaseEntity>(input: MergeEntityInput<T>): Promise<void> {
         new InMemoryRepositoryDriver(input.entity, this.store).mergeStoredRowsFrom(input.currentTableName, input.transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createEntity(): Promise<void> {
         // Creates nothing: in memory has no schema.
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     validateBackupConfiguration(): void {
         // an in memory backup only needs the store the data source already has
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     createBackupData(): Readable {
         return Readable.from([JSON.stringify(this.store.snapshot())]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async restoreBackup(backupData: Readable): Promise<void> {
         // decoded once rather than per chunk: the data arrives as bytes, and a character spanning two
         // chunks decoded one chunk at a time comes out as two replacement characters

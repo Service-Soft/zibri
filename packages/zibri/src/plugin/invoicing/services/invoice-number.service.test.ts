@@ -1,29 +1,29 @@
-/* eslint-disable cspell/spellchecker */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+/* cspell:disable */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { InvoiceNumberService } from './invoice-number.service';
-import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
-import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider } from '../../../di/models/di-provider.model';
-import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { ZibriInvoicingPlugin } from '../invoicing.plugin';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
-import { CompanyInfo } from '../models/company-info.model';
-import { InvoiceAddress } from '../models/invoice-address.model';
-import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
-import { Invoice } from '../models/invoice.model';
-import { InvoicingOptions } from '../models/invoicing-options.model';
-import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoiceNumberService } from './invoice-number.service.ts';
+import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins.ts';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { ZibriInvoicingPlugin } from '../invoicing.plugin.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens.ts';
+import { CompanyInfo } from '../models/company-info.model.ts';
+import { InvoiceAddress } from '../models/invoice-address.model.ts';
+import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from '../models/invoice.model.ts';
+import { InvoicingOptions } from '../models/invoicing-options.model.ts';
+import { NumberInvoices } from '../models/number-invoices.model.ts';
 
 const currentYear: string = new Date()
     .getFullYear()

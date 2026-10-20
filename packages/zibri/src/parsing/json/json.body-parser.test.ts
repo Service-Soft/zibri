@@ -1,14 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { MimeType } from '../../http/mime-type.enum';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 class SmallBody {
     @Property.string()

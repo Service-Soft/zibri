@@ -357,14 +357,14 @@ finding is closed — see that directory's own README for why that is deliberate
 **Verifying a change** (always from `packages/zibri`, never the repo root):
 
 ```sh
-npx tsc --noEmit -p tsconfig.json   # baseline is 7 pre-existing errors, all in .test.ts
-npx eslint src --max-warnings=0
-npx jest <pattern>                  # needs a container runtime for anything booting a server
+npm run typecheck
+npm run lint
+npx vitest run <pattern>            # needs a container runtime for anything booting a server
 npm run build -w zibri              # from the repo root, and not the same check as the first line
 ```
 
 **The last line is not redundant.** `tsconfig.json` compiles `src` including its tests;
-`tsconfig.cjs.json` starts from `files: ["src/index.ts", …]`, so it sees only what the barrel
+`tsconfig.base.json` starts from `files: ["src/index.ts", …]`, so it sees only what the barrel
 reaches — which is the framework as an application gets it. Anything a *test file* can widen is
 therefore invisible to the first line and caught only by the fourth. `ZibriEventMap` is the live
 example: it is an empty interface an application fills in by declaration merging, three test files

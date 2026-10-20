@@ -1,8 +1,8 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { parseNumber } from './parse-number.function';
-import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
+import { parseNumber } from './parse-number.function.ts';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities.ts';
 
 describe('parseNumber', () => {
     it('parses valid integer string', () => {

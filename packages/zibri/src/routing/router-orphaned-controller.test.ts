@@ -1,12 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { Newable } from '../types/newable.type';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface.ts';
+import { Newable } from '../types/newable.type.ts';
 
 @Controller('/orphan')
 class OrphanController {

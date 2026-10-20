@@ -1,11 +1,11 @@
 import type { Namespace } from 'socket.io';
 import type { ClusterAdapterWithHeartbeat, ClusterMessage, ClusterResponse, Offset, ServerId } from 'socket.io-adapter';
 
-import { DataSourceSubscription, PubSubDataSourceInterface } from '../data-source/data-sources/pub-sub-data-source.interface';
-import { InternalError } from '../error-handling/internal-error.model';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { optionalPeer } from '../utilities/optional-peer.function';
+import { DataSourceSubscription, PubSubDataSourceInterface } from '../data-source/data-sources/pub-sub-data-source.interface.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { optionalPeer } from '../utilities/optional-peer.function.ts';
 
 /**
  * The channel instances talk to each other on.
@@ -116,7 +116,7 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
             this.subscription = undefined;
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         protected async doPublish(message: ClusterMessage): Promise<Offset> {
             await this.publishEnvelope({ kind: 'message', payload: message });
             // the offset is only used by connection state recovery, which needs the transport to
@@ -125,7 +125,7 @@ export function dataSourceWebsocketAdapterClass(): DataSourceWebsocketAdapterCon
             return '';
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         protected async doPublishResponse(requesterUid: ServerId, response: ClusterResponse): Promise<void> {
             await this.publishEnvelope({ kind: 'response', payload: response, requesterUid });
         }

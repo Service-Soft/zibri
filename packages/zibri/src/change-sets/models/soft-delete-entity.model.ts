@@ -1,5 +1,5 @@
-import { ChangeSetEntity } from './change-set-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { ChangeSetEntity } from './change-set-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * An entity that can be handled by the SoftDeleteRepository.

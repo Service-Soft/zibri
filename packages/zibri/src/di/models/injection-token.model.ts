@@ -1,4 +1,4 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 const allInjectionTokenKeys: string[] = [];
 
@@ -6,7 +6,7 @@ const allInjectionTokenKeys: string[] = [];
  * Defines an injection token for the given key.
  */
 export class InjectionToken<T> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected readonly __brand!: T;
 
     constructor(readonly key: string) {
@@ -19,7 +19,7 @@ export class InjectionToken<T> {
         allInjectionTokenKeys.push(key);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     toString(): string {
         return this.key;
     }

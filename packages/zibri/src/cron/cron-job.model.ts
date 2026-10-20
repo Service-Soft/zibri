@@ -2,26 +2,26 @@ import { setTimeout as wait } from 'node:timers/promises';
 
 import cron, { Logger as NodeCronLogger, ScheduledTask, TaskContext } from 'node-cron';
 
-import { CronBackOffOptions } from './cron-back-off-options.model';
-import { type CronExpressionString } from './cron-expression.utilities';
-import { CronFailurePolicy } from './cron-failure-policy.model';
-import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model';
-import { CronRetryOptions } from './cron-retry-options.model';
-import { CronUpdateData } from './cron.service';
-import { ShouldRunExecution } from './should-run-execution.type';
-import { Repository } from '../data-source/repository/repository';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { ErrorUtilities } from '../error-handling/error.utilities';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { TraceSpanStatus } from '../tracing/trace-span-status.enum';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { OmitStrict } from '../types/omit-strict.type';
-import { Ms } from '../utilities/ms';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { CronBackOffOptions } from './cron-back-off-options.model.ts';
+import { type CronExpressionString } from './cron-expression.utilities.ts';
+import { CronFailurePolicy } from './cron-failure-policy.model.ts';
+import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model.ts';
+import { CronRetryOptions } from './cron-retry-options.model.ts';
+import { CronUpdateData } from './cron.service.ts';
+import { ShouldRunExecution } from './should-run-execution.type.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { ErrorUtilities } from '../error-handling/error.utilities.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { TraceSpanStatus } from '../tracing/trace-span-status.enum.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { Ms } from '../utilities/ms.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 /**
  * The full initial configuration of a cron job.
@@ -134,7 +134,7 @@ export abstract class CronJob {
      */
     private readonly stopping: AbortController = new AbortController();
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The full initial config, consisting of the provided config and default values.
      */
@@ -152,7 +152,7 @@ export abstract class CronJob {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The name of the cron job.
      */
@@ -163,7 +163,7 @@ export abstract class CronJob {
         return this.entity.name;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Whether this job is work the deployment owes once rather than work each instance owes for
      * itself.
@@ -176,7 +176,7 @@ export abstract class CronJob {
         return this.fullInitialConfig.distributed;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Whether the job keeps its state in the data source, where every instance reads it.
      */
@@ -184,7 +184,7 @@ export abstract class CronJob {
         return this.fullInitialConfig.syncToDataSource;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Whether or not the cron job is currently active.
      */
@@ -192,7 +192,7 @@ export abstract class CronJob {
         return this.state === CronJobState.ACTIVE;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Whether the cron job is on the schedule, and when it is not, why not.
      */
@@ -203,7 +203,7 @@ export abstract class CronJob {
         return this.entity.state;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * When this job last ran, or undefined if it never has.
      */
@@ -214,7 +214,7 @@ export abstract class CronJob {
         return this.entity.lastRun ?? undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * How far back a start looks for a scheduled time this job owed and nothing ran, and how late a
      * running process may reach a scheduled time and still run it.
@@ -419,7 +419,7 @@ export abstract class CronJob {
         // wherever it is needed rather than stored and read back
 
         // and onFailure, which the class owns and every start would take back from it anyway
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         const { active, syncToDataSource, distributed, onFailure, ...persisted } = this.fullInitialConfig;
         const initial: CreateCronJobEntityData = {
             ...persisted,
@@ -555,7 +555,6 @@ export abstract class CronJob {
         const at: Date = scheduledAt ?? new Date();
         if (entity.backedOffUntil != undefined && at.getTime() < entity.backedOffUntil.getTime()) {
             this.logger.debug(
-                // eslint-disable-next-line stylistic/max-len
                 `skips cron job "${this.name}" until ${entity.backedOffUntil.toISOString()}, after ${entity.consecutiveFailures} failures in a row`
             );
             return;
@@ -949,7 +948,7 @@ export abstract class CronJob {
      * At that point, things like status update and automatic disable of the job has already happened.
      * @param error - The error that was thrown.
      */
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     protected onError(error: unknown): void | Promise<void> {
         // Do nothing
     }

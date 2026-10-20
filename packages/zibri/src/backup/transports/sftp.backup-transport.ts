@@ -5,17 +5,17 @@ import { pipeline } from 'node:stream/promises';
 
 import type { Client, ConnectConfig, FileEntryWithStats, SFTPWrapper, Stats, WriteStream } from 'ssh2';
 
-import { BackupTransportInterface } from './backup-transport.interface';
-import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { Ms } from '../../utilities/ms';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
+import { BackupTransportInterface } from './backup-transport.interface.ts';
+import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { BackupEntity } from '../backup-entity.model.ts';
+import { BackupResourceEntity } from '../backup-resource-entity.model.ts';
 
 const METADATA_FILENAME: string = 'metadata.json';
 // the record is written under this name and renamed once it is complete: the record is what makes a backup
@@ -68,7 +68,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
         return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveBackups(existingNames: string[]): Promise<string[]> {
         return await this.withSession(async sftp => {
             const entries: FileEntryWithStats[] = await this.findEntries(sftp, this.options.path);
@@ -99,7 +99,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         await this.withSession(async sftp => {
             await this.createDirectory(sftp, this.resolveBackupPath(backup.name));
@@ -107,7 +107,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async storeMetadata(backup: BackupEntity, document: string): Promise<void> {
         await this.withSession(async sftp => {
             const metadataPath: string = this.resolveMetadataPath(backup.name);
@@ -117,7 +117,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async retrieveData(backup: BackupEntity, resource: BackupResourceEntity): Promise<Readable> {
         if (resource.size == undefined) {
             throw new InternalError(`The backup "${backup.name}" recorded no size for "${resource.name}", so it cannot be retrieved.`);
@@ -152,7 +152,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteData(backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         await this.withSession(async sftp => {
             await this.unlink(sftp, this.resolveResourcePath(backup, resource));
@@ -162,7 +162,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteMetadata(backup: BackupEntity): Promise<void> {
         await this.withSession(async sftp => {
             await this.unlink(sftp, this.resolveMetadataPath(backup.name));

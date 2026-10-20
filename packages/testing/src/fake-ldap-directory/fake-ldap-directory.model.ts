@@ -18,12 +18,12 @@ import { AndFilter,
     SearchRequest,
     SubstringFilter } from 'ldapts';
 
-import { FakeLdapBind } from './fake-ldap-bind.model';
-import { FakeLdapDirectoryOptions } from './fake-ldap-directory-options.model';
-import { FakeLdapEntry } from './fake-ldap-entry.model';
-import { FakeLdapSearch } from './fake-ldap-search.model';
-import { createFakeKeyPair } from '../create-fake-key-pair.function';
-import { FakeKeyPair } from '../fake-key-pair.model';
+import { FakeLdapBind } from './fake-ldap-bind.model.ts';
+import { FakeLdapDirectoryOptions } from './fake-ldap-directory-options.model.ts';
+import { FakeLdapEntry } from './fake-ldap-entry.model.ts';
+import { FakeLdapSearch } from './fake-ldap-search.model.ts';
+import { createFakeKeyPair } from '../create-fake-key-pair.function.ts';
+import { FakeKeyPair } from '../fake-key-pair.model.ts';
 
 /**
  * The result codes of RFC 4511 the directory answers with.
@@ -92,7 +92,7 @@ const IN_CHAIN_RULE: string = '1.2.840.113556.1.4.1941';
  * The attributes only sent when a search names them: the id OpenLDAP gives an entry, the mark 389
  * Directory Server puts on an inactivated account, and the lock of OpenLDAP's password policy.
  */
-// eslint-disable-next-line cspell/spellchecker
+// cspell:disable-next-line
 const OPERATIONAL_ATTRIBUTES: Set<string> = new Set(['entryuuid', 'nsaccountlock', 'pwdaccountlockedtime']);
 
 /**

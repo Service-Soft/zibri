@@ -1,11 +1,11 @@
-import { KeysetOrderKey } from './keyset-order.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { $ts } from '../../localization/translate.function';
-import { BoundedFuzzyLikeFilter, SimilarityBound } from '../models/where/fuzzy-like.model';
-import { Where, WhereFilter } from '../models/where/where-filter.model';
-import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
+import { KeysetOrderKey } from './keyset-order.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { BoundedFuzzyLikeFilter, SimilarityBound } from '../models/where/fuzzy-like.model.ts';
+import { Where, WhereFilter } from '../models/where/where-filter.model.ts';
+import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities.ts';
 
 /**
  * A value a cursor can carry, which is every ordered property type flattened for transport.

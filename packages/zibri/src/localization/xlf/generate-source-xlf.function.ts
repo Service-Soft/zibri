@@ -1,7 +1,7 @@
-import { generateXlf } from './generate-xlf.function';
-import { ExtractedTranslationString, SourceTranslationOrigin, TransformResult, transformSourceTranslationOriginTokens } from './transform-source-translation-tokens.function';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { optionalPeer } from '../../utilities/optional-peer.function';
+import { generateXlf } from './generate-xlf.function.ts';
+import { ExtractedTranslationString, SourceTranslationOrigin, TransformResult, transformSourceTranslationOriginTokens } from './transform-source-translation-tokens.function.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
 
 /**
  * Generates the source xlf, consisting of all the translation tokens of the codebase.
@@ -15,7 +15,7 @@ export async function generateSourceXlf(
     optionalPeer('saxes', 'Extracting source translations');
     const res: Record<string, TransformResult> = await transformSourceTranslationOriginTokens(origins);
 
-    const allStrings: ExtractedTranslationString[] = [...Object.values(res).map(v => v.extracted)].flat();
+    const allStrings: ExtractedTranslationString[] = Object.values(res).map(v => v.extracted).flat();
     const outputPath: FsPath = FsUtilities.getPath(process.cwd(), 'translations/source.xlf');
 
     const newXlf: string = generateXlf(allStrings);

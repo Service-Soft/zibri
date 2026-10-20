@@ -2,38 +2,38 @@
 import assert from 'node:assert';
 import { Readable } from 'node:stream';
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { DataSourceInterface } from '../data-source.interface';
-import { ValKeyDataSource } from './val-key-data-source.model';
-import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { CachedValue } from '../../../caching/store/cached-value.model';
-import { ValKeyCacheStore } from '../../../caching/store/val-key.cache-store';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { inject } from '../../../di/inject.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { PaginationResult } from '../../../open-api/pagination-result.model';
-import { RateLimitReservation } from '../../../rate-limiting/reservation/rate-limit-reservation.model';
-import { RateLimitStateEntity } from '../../../rate-limiting/stores/rate-limit-state-entity.model';
-import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../../../rate-limiting/stores/rate-limiter-store.interface';
-import { RepositoryRateLimiterStore } from '../../../rate-limiting/stores/repository.rate-limiter-store';
-import { ValKeyRateLimiterLock } from '../../../rate-limiting/stores/val-key.rate-limiter-lock';
-import { Newable } from '../../../types/newable.type';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { MigrationEntity } from '../../migration/migration-entity.model';
-import { ValueConversion } from '../../models/value-conversion.enum';
-import { Repository } from '../../repository/repository';
-import { KeyDeclarationsChangedError } from '../../transaction/key-declarations-changed.error';
-import { Transaction } from '../../transaction/transaction.model';
-import { ValKeyTransaction } from '../../transaction/val-key-transaction.model';
-import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error';
-import { PostgresDataSource } from '../postgres/postgres-typeorm-data-source.model';
+import { DataSourceInterface } from '../data-source.interface.ts';
+import { ValKeyDataSource } from './val-key-data-source.model.ts';
+import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { CachedValue } from '../../../caching/store/cached-value.model.ts';
+import { ValKeyCacheStore } from '../../../caching/store/val-key.cache-store.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../../entity/models/relation.type.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { PaginationResult } from '../../../open-api/pagination-result.model.ts';
+import { RateLimitReservation } from '../../../rate-limiting/reservation/rate-limit-reservation.model.ts';
+import { RateLimitStateEntity } from '../../../rate-limiting/stores/rate-limit-state-entity.model.ts';
+import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../../../rate-limiting/stores/rate-limiter-store.interface.ts';
+import { RepositoryRateLimiterStore } from '../../../rate-limiting/stores/repository.rate-limiter-store.ts';
+import { ValKeyRateLimiterLock } from '../../../rate-limiting/stores/val-key.rate-limiter-lock.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { MigrationEntity } from '../../migration/migration-entity.model.ts';
+import { ValueConversion } from '../../models/value-conversion.enum.ts';
+import { Repository } from '../../repository/repository.ts';
+import { KeyDeclarationsChangedError } from '../../transaction/key-declarations-changed.error.ts';
+import { Transaction } from '../../transaction/transaction.model.ts';
+import { ValKeyTransaction } from '../../transaction/val-key-transaction.model.ts';
+import { UniqueConstraintViolationError } from '../../unique-constraint-violation.error.ts';
 
 // ---------- Test entities ----------
 
@@ -84,7 +84,7 @@ class ValKeyProduct extends BaseEntity {
     metadata: ValKeyProductMetadata | undefined | null;
 
     @Property.manyToOne({ target: () => ValKeyCategory, inverseSide: 'products', joinColumn: 'categoryId' })
-    category!: ValKeyCategory;
+    category!: Relation<ValKeyCategory>;
 
     @Property.string({ format: 'uuid', required: false })
     categoryId: string | undefined | null;
@@ -157,7 +157,7 @@ beforeAll(async () => {
     server = await startTestServer({
         // the postgres data source keeps the framework entities (users, logs, ...) working,
         // the valkey data source is the one under test here
-        dataSources: [postgresDataSourceClass as Newable<PostgresDataSource>, valKeyDataSourceClass]
+        dataSources: [postgresDataSourceClass, valKeyDataSourceClass]
     });
     dataSource = inject(valKeyDataSourceClass);
     productRepo = inject(repositoryTokenFor(ValKeyProduct));
@@ -175,7 +175,7 @@ afterAll(async () => {
  * @param step - The step, given the transaction.
  */
 async function inTransaction(step: (transaction: ValKeyTransaction) => Promise<void>): Promise<void> {
-    const transaction: Transaction = await dataSource.startTransaction();
+    const transaction: Transaction = dataSource.startTransaction();
     assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
     await step(transaction);
     await transaction.commit();
@@ -272,7 +272,7 @@ describe('ValKeyDataSource', () => {
             await stockRepo.create({ sku: 'widget', quantity: 0 });
 
             // holds the row without committing, so the upsert below reads 0 and then has to wait
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             await stockRepo.updateAll({ sku: 'widget' }, { quantity: 100 }, { transaction });
 
             // started without a transaction of its own on purpose - it takes one out internally,
@@ -315,7 +315,7 @@ describe('ValKeyDataSource', () => {
             const created: ValKeyStock = await stockRepo.create({ sku: 'gadget', quantity: 1 });
 
             // holds the row, uncommitted, and takes it out of the filter below
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             await stockRepo.updateAll({ quantity: 1 }, { quantity: 5 }, { transaction });
 
             // matches the row as it currently reads, so this picks it up as a candidate and then has
@@ -524,7 +524,7 @@ describe('ValKeyDataSource', () => {
         it('applies nothing, and says to run it again', async () => {
             const items: Repository<ValKeyShelvedItem> = inject(repositoryTokenFor(ValKeyShelvedItem));
             const tagTable: string = MetadataUtilities.getEntityMetadata(ValKeyTag)?.tableName ?? '';
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
 
             await items.create({ shelf: 'g', name: 'guarded' }, { transaction });
@@ -539,7 +539,7 @@ describe('ValKeyDataSource', () => {
         it('tells the work waiting for its end that it was not committed', async () => {
             const items: Repository<ValKeyShelvedItem> = inject(repositoryTokenFor(ValKeyShelvedItem));
             const tagTable: string = MetadataUtilities.getEntityMetadata(ValKeyTag)?.tableName ?? '';
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             assert(transaction instanceof ValKeyTransaction, 'a valkey data source hands out valkey transactions');
             const ended: boolean[] = [];
             transaction.afterFinish(async committed => await Promise.resolve(void ended.push(committed)));
@@ -682,7 +682,7 @@ describe('ValKeyDataSource', () => {
 
     describe('transactions', () => {
         it('applies every write of a committed transaction', async () => {
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             await productRepo.create({ name: 'a' }, { transaction });
             await productRepo.create({ name: 'b' }, { transaction });
 
@@ -695,7 +695,7 @@ describe('ValKeyDataSource', () => {
         });
 
         it('discards every write of a rolled back transaction', async () => {
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             await productRepo.create({ name: 'a' }, { transaction });
             await transaction.rollback();
 
@@ -703,7 +703,7 @@ describe('ValKeyDataSource', () => {
         });
 
         it('reads its own writes inside the transaction', async () => {
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             const created: ValKeyProduct = await productRepo.create({ name: 'a' }, { transaction });
 
             const res: ValKeyProduct = await productRepo.findById(created.id, { transaction });
@@ -714,7 +714,7 @@ describe('ValKeyDataSource', () => {
 
         it('reads a row it deleted and created again as it created it, without what it held before', async () => {
             const stored: ValKeyProduct = await productRepo.create({ name: 'a', price: 1 });
-            const transaction: Transaction = await dataSource.startTransaction();
+            const transaction: Transaction = dataSource.startTransaction();
             await productRepo.deleteById(stored.id, { transaction });
             await productRepo.create({ id: stored.id, name: 'b' }, { transaction, allowId: true });
 
@@ -741,12 +741,12 @@ describe('ValKeyDataSource', () => {
         it('tells the work waiting for its end whether it was committed, once', async () => {
             const ended: string[] = [];
 
-            const committed: Transaction = await dataSource.startTransaction();
+            const committed: Transaction = dataSource.startTransaction();
             await productRepo.create({ name: 'a' }, { transaction: committed });
             committed.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`committed: ${hasCommitted}`)));
             await committed.commit();
 
-            const rolledBack: Transaction = await dataSource.startTransaction();
+            const rolledBack: Transaction = dataSource.startTransaction();
             await productRepo.create({ name: 'b' }, { transaction: rolledBack });
             rolledBack.afterFinish(async hasCommitted => await Promise.resolve(void ended.push(`rolled back: ${hasCommitted}`)));
             await rolledBack.rollback();
@@ -935,7 +935,7 @@ describe('ValKeyDataSource', () => {
                     ...current,
                     expiresAtMs: future,
                     reservations: [],
-                    count: ((current as BaseRateLimitState & { count?: number } | undefined)?.count ?? 0) + 1
+                    count: ((current)?.count ?? 0) + 1
                 } as BaseRateLimitState)))
             );
 
@@ -960,7 +960,7 @@ describe('ValKeyDataSource', () => {
                     ...current,
                     expiresAtMs: future,
                     reservations: [],
-                    count: ((current as BaseRateLimitState & { count?: number } | undefined)?.count ?? 0) + 1
+                    count: ((current)?.count ?? 0) + 1
                 } as BaseRateLimitState)))
             );
 

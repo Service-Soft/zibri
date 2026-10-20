@@ -1,17 +1,17 @@
 
-import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
-import { RequestContextToken } from './request-context-token.model';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { KnownHeader } from '../../http/known-header.enum';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
+import { RequestContextToken } from './request-context-token.model.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
 
 const CURRENT_USER: RequestContextToken<{ isAdmin: boolean }> = new RequestContextToken(
     'current-user',
@@ -24,22 +24,22 @@ const CURRENT_USER: RequestContextToken<{ isAdmin: boolean }> = new RequestConte
 @Entity({ tenant: 'shared' })
 class Test extends BaseEntity {
     @Property.string({
-        exclude: async (_, ctx) => {
+        exclude: (_, ctx) => {
             if (!ctx) {
                 return false;
             }
-            const { isAdmin } = await ctx.get(CURRENT_USER);
+            const { isAdmin } = ctx.get(CURRENT_USER);
             return !isAdmin;
         }
     })
     secret!: string;
 
     @Property.string({
-        default: async (_, ctx) => {
+        default: (_, ctx) => {
             if (!ctx) {
                 throw new Error('Could not find request context when resolving default value for Test.label');
             }
-            const { isAdmin } = await ctx.get(CURRENT_USER);
+            const { isAdmin } = ctx.get(CURRENT_USER);
             return isAdmin ? 'admin-default' : 'user-default';
         }
     })

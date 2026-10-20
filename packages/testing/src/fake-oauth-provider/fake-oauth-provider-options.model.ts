@@ -1,4 +1,4 @@
-import { FakeOAuthIdentity } from './fake-oauth-identity.model';
+import { FakeOAuthIdentity } from './fake-oauth-identity.model.ts';
 
 /**
  * What a fake provider is started with.

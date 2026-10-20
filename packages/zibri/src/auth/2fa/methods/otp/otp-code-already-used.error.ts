@@ -1,5 +1,5 @@
-import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../../../localization/translate.function';
+import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
 
 /**
  * Thrown when a one time password is presented a second time.

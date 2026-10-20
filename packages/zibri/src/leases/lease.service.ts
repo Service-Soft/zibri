@@ -1,27 +1,27 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { HeldLease, KeptGrant } from './held-lease.model';
-import { LeaseAcquisitionTimeoutError } from './lease-acquisition-timeout.error';
-import { LeaseCleanupCronJob } from './lease-cleanup.cron-job';
-import { LeaseAcquisitionMode, LeaseOptions, LeaseSetOptions } from './lease-options.model';
-import { LeaseServiceInterface } from './lease-service.interface';
-import { CreateLeaseData, Lease } from './lease.model';
-import { ZibriApplication } from '../application/application';
-import { AlsUtilities } from '../context/als.utilities';
-import { Repository } from '../data-source/repository/repository';
-import { runInLeaseScope } from '../data-source/run-in-lease-scope.function';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { PromiseUtilities } from '../utilities/promise.utilities';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { HeldLease, KeptGrant } from './held-lease.model.ts';
+import { LeaseAcquisitionTimeoutError } from './lease-acquisition-timeout.error.ts';
+import { LeaseCleanupCronJob } from './lease-cleanup.cron-job.ts';
+import { LeaseAcquisitionMode, LeaseOptions, LeaseSetOptions } from './lease-options.model.ts';
+import { LeaseServiceInterface } from './lease-service.interface.ts';
+import { CreateLeaseData, Lease } from './lease.model.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { runInLeaseScope } from '../data-source/run-in-lease-scope.function.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { PromiseUtilities } from '../utilities/promise.utilities.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * How long to wait between attempts in 'wait' mode.
@@ -103,7 +103,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async withLease<T>(options: LeaseOptions, fn: () => Promise<T>): Promise<T | undefined> {
         const mode: LeaseAcquisitionMode = options.mode ?? 'skip';
         const taken: Lease | undefined = mode === 'wait'
@@ -157,6 +157,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
             catch (error) {
                 // the transaction has ended either way, and its caller is not the one to tell
                 this.logger.warn(
+                    // oxlint-disable-next-line typescript/restrict-template-expressions
                     `Could not release "${options.key}" once its transaction ended: ${error instanceof Error ? error.message : error}`
                 );
             }
@@ -177,7 +178,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async withLeases<T>(
         keys: string[],
         options: LeaseSetOptions,
@@ -411,7 +412,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     keepAlive(lease: HeldLease, leaseInMs: number): KeptGrant {
         let stop: () => void = () => {};
         const until: Promise<void> = new Promise<void>(resolve => {
@@ -533,6 +534,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         catch (error) {
             this.logger.warn(
                 `Could not renew "${lease.name}" while the work is still running: `
+                // oxlint-disable-next-line typescript/restrict-template-expressions
                 + `${error instanceof Error ? error.message : error}`
             );
         }
@@ -548,6 +550,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         }
         catch (error) {
             this.logger.warn(
+                // oxlint-disable-next-line typescript/restrict-template-expressions
                 `Could not release "${lease.name}" during shutdown: ${error instanceof Error ? error.message : error}`
             );
         }

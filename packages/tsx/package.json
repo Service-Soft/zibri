@@ -2,6 +2,7 @@
     "name": "zibri-tsx",
     "version": "3.0.0",
     "license": "MIT",
+    "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
@@ -13,13 +14,9 @@
             "types": "./dist/compiler.d.ts",
             "default": "./dist/compiler.js"
         },
-        "./webpack": {
-            "types": "./dist/webpack/index.d.ts",
-            "default": "./dist/webpack/index.js"
-        },
-        "./jest": {
-            "types": "./dist/jest/index.d.ts",
-            "default": "./dist/jest/index.js"
+        "./vite": {
+            "types": "./dist/vite/index.d.ts",
+            "default": "./dist/vite/index.js"
         },
         "./email": {
             "types": "./dist/email/index.d.ts",
@@ -54,23 +51,26 @@
         "build": "npm run build:clean && tsc -p tsconfig.build.json",
         "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "typecheck": "tsc -p tsconfig.json --noEmit",
-        "lint": "eslint . --max-warnings=0",
-        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "lint": "oxlint -c ../../.oxlintrc.json --max-warnings=0 && oxfmt -c ../../.oxfmtrc.json --check && cspell lint --no-progress \"**/*.{ts,tsx,mts,cts,js,mjs,cjs,json,html,hbs,handlebars}\"",
+        "lint:fix": "oxlint -c ../../.oxlintrc.json --fix && oxfmt -c ../../.oxfmtrc.json",
         "prepublishOnly": "npm run build",
-        "test": "jest",
-        "test:coverage": "jest --coverage"
+        "test": "vitest run",
+        "test:coverage": "vitest run --coverage"
     },
     "peerDependencies": {
-        "typescript": "^5.9.2"
+        "@typescript/typescript6": "^6.0.2"
+    },
+    "peerDependenciesMeta": {
+        "@typescript/typescript6": {
+            "optional": true
+        }
     },
     "devDependencies": {
-        "@jest/globals": "^30.4.1",
         "@types/node": "^24.0.0",
-        "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
-        "jest": "^30.4.2",
+        "@typescript/typescript6": "^6.0.2",
         "mjml": "^5.4.0",
-        "ts-jest": "^29.4.11",
-        "typescript": "^5.9.2"
+        "typescript": "^7.0.2",
+        "vite": "^8.3.4",
+        "vitest": "^5.0.5"
     }
 }

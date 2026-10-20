@@ -1,26 +1,26 @@
-import { DataSourceServiceInterface } from './data-source-service.interface';
-import { ZibriApplication } from '../application/application';
-import { DataSourceInterface } from './data-sources/data-source.interface';
-import { RegisteredDataSource, resolveEntityOwnership } from './entity-ownership.function';
-import { OwnedRelationUtilities } from './owned-relation.utilities';
-import { TenantUtilities } from './tenancy/tenant.utilities';
-import { ChangeSet } from '../change-sets/models/change-set.model';
-import { Change } from '../change-sets/models/change.model';
-import { isChangeSetEntityNewable } from '../change-sets/models/is-change-set-entity.function';
-import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-entity.function';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { EntityMetadata } from '../entity/decorators/entity.decorator';
-import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { DataSourceServiceInterface } from './data-source-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { DataSourceInterface } from './data-sources/data-source.interface.ts';
+import { RegisteredDataSource, resolveEntityOwnership } from './entity-ownership.function.ts';
+import { OwnedRelationUtilities } from './owned-relation.utilities.ts';
+import { TenantUtilities } from './tenancy/tenant.utilities.ts';
+import { ChangeSet } from '../change-sets/models/change-set.model.ts';
+import { Change } from '../change-sets/models/change.model.ts';
+import { isChangeSetEntityNewable } from '../change-sets/models/is-change-set-entity.function.ts';
+import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-entity.function.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { EntityMetadata } from '../entity/decorators/entity.decorator.ts';
+import { isRelationMetadata } from '../entity/models/is-relation-metadata.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * Default data source service implementation of Zibri.
@@ -34,7 +34,7 @@ export class DataSourceService implements DataSourceServiceInterface {
         private readonly logger: LoggerInterface
     ) { }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async beforeAppInit(app: ZibriApplication): Promise<void> {
         const { dataSources } = app.options;
         if (dataSources.length) {
@@ -74,9 +74,9 @@ export class DataSourceService implements DataSourceServiceInterface {
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async afterAppShutdown(): Promise<void> {
-        await Promise.all(this.dataSources.map(ds => ds.shutDown()));
+        await Promise.all(this.dataSources.map(async ds => await ds.shutDown()));
     }
 
     /**

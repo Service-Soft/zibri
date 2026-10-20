@@ -1,6 +1,6 @@
 import { KeyObject } from 'node:crypto';
 
-import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type';
+import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type.ts';
 
 /**
  * A key pair that access tokens are signed with, in place of a shared secret.

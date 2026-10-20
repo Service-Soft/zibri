@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { Param } from './decorators/param.decorator';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { Param } from './decorators/param.decorator.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
 
 @Controller('/forgot-decorator')
 class ForgotDecoratorController {
@@ -13,7 +13,7 @@ class ForgotDecoratorController {
         @Param.path('id', { type: 'string' })
         id: string,
         // this second parameter is intentionally left without a decorator
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         extra: string
     ): { id: string } {
         return { id };

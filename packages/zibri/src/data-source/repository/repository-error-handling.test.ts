@@ -1,18 +1,18 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Repository } from './repository';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { QueryFailedError } from '../query-failed.error';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { Repository } from './repository.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { QueryFailedError } from '../query-failed.error.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
 
 @Entity({ tenant: 'shared' })
 class Widget extends BaseEntity {
@@ -96,12 +96,12 @@ describe('Repository error handling', () => {
     describe('id stripping on create', () => {
         it('ignores a client-supplied id and logs a warning by default', async () => {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(logger, 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(logger, 'warn');
 
             try {
                 const suppliedId: string = '11111111-1111-4111-8111-111111111111';
-                const created: Widget = await widgetRepo.create({ id: suppliedId, name: 'stripped', stock: 1 } as Partial<Widget> as Widget);
+                const created: Widget = await widgetRepo.create({ id: suppliedId, name: 'stripped', stock: 1 });
 
                 expect(created.id).not.toBe(suppliedId);
                 expect(warnSpy).toHaveBeenCalledWith('Found an id on the create data, it will be ignored.');
@@ -114,7 +114,7 @@ describe('Repository error handling', () => {
         it('honors a client-supplied id when allowId is true', async () => {
             const suppliedId: string = '22222222-2222-4222-8222-222222222222';
             const created: Widget = await widgetRepo.create(
-                { id: suppliedId, name: 'allowed-id', stock: 1 } as Partial<Widget> as Widget,
+                { id: suppliedId, name: 'allowed-id', stock: 1 },
                 { allowId: true }
             );
 

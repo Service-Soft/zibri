@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about a filter key that names several values. A
@@ -182,7 +182,7 @@ export function describeAllOfFilters(dataSourceName: string, notesOf: () => Repo
             );
 
             const found: Note[] = await notesOf().findAll({
-                // eslint-disable-next-line cspell/spellchecker
+                // cspell:disable-next-line
                 where: { batch, title: { fuzzyLike: [{ value: 'invoce' }, { value: 'invoice' }] } }
             });
 

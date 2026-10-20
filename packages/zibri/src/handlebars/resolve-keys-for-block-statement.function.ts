@@ -1,11 +1,11 @@
-import { AstBlockStatement, AstExpression, AstProgram } from './ast.model';
-import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
-import { resolveKeysForExpression } from './resolve-keys-for-partial-statement.function';
-import { resolveAllKeys } from './resolve-tree.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { AstBlockStatement, AstExpression, AstProgram } from './ast.model.ts';
+import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function.ts';
+import { resolveKeysForExpression } from './resolve-keys-for-partial-statement.function.ts';
+import { resolveAllKeys } from './resolve-tree.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function resolveKeysForBlockStatement(element: AstBlockStatement, parentKey: string | undefined): string[] {
     const res: string[] = [];
     // eg. if, each etc.
@@ -50,12 +50,12 @@ export function resolveKeysForBlockStatement(element: AstBlockStatement, parentK
     return res;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function resolveInverseKeys(inverse: AstProgram | undefined, parentKey: string | undefined): string[] {
     return inverse == undefined ? [] : resolveAllKeys(inverse, parentKey);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function getKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
     const param: AstExpression | undefined = params[0];
     if (params.length !== 1 || param == undefined) {
@@ -86,7 +86,7 @@ function getKeyFromArrayParams(params: AstExpression[], parentKey: string | unde
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function getKeysFromConditionParams(params: AstExpression[], parentKey: string | undefined): string[] {
     const param: AstExpression | undefined = params[0];
     if (params.length !== 1 || param == undefined) {

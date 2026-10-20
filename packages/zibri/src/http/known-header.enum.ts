@@ -1,4 +1,4 @@
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
 /**
  * Known http headers.

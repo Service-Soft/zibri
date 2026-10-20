@@ -1,5 +1,5 @@
-import { optionalPeer } from './optional-peer.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { optionalPeer } from './optional-peer.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * A pattern compiled to run in time linear to the value it is tested against.

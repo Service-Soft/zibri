@@ -1,6 +1,6 @@
-import { FederatedSessionColumns } from './federated-session-columns.model';
-import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedSession } from './federated-session.model';
+import { FederatedSessionColumns } from './federated-session-columns.model.ts';
+import { FederatedSessionMatch } from './federated-session-match.model.ts';
+import { FederatedSession } from './federated-session.model.ts';
 
 /**
  * What a strategy needs to keep the session at a provider with a login, and to find the login by it.

@@ -1,7 +1,7 @@
 
-import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Marks the given class as a user repository.

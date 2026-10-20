@@ -1,14 +1,15 @@
 /* eslint-disable unicorn/no-null */
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { type OneOf } from '../../entity/models/one-of.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Where, WhereFilter } from '../models/where/where-filter.model';
+import { ScopedWhere, ScopeWhereUtilities } from './scope-where.utilities.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { type OneOf } from '../../entity/models/one-of.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { Where, WhereFilter } from '../models/where/where-filter.model.ts';
 
 class MailAddress {
     @Property.string()
@@ -78,7 +79,7 @@ class Invoice extends BaseEntity {
      * Who the invoice is billed to.
      */
     @Property.manyToOne({ target: () => Organization, joinColumn: 'organizationId', inverseSide: 'invoices' })
-    organization!: Organization;
+    organization!: Relation<Organization>;
 
     /**
      * The id of {@link Invoice.organization}.
@@ -102,7 +103,7 @@ class Payment extends BaseEntity {
     payerId!: string;
 
     @Property.manyToOne({ target: () => Invoice, joinColumn: 'invoiceId', inverseSide: 'payments' })
-    invoice!: Invoice;
+    invoice!: Relation<Invoice>;
 
     @Property.string({ format: 'uuid' })
     invoiceId!: string;

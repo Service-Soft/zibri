@@ -1,9 +1,9 @@
-import { ExtractCacheWriteResultAvailable } from './decorator-types';
-import { inject } from '../../di/inject.function';
-import { DiToken } from '../../di/models/di-token.model';
-import { CacheKeyProvider, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, ResultCacheKeyProvider } from '../cache/cache-options.model';
-import { CacheInterface } from '../cache/cache.interface';
-import { MultiTierCache, MultiWrapWriteOptions } from '../cache/multi-tier.cache';
+import { ExtractCacheWriteResultAvailable } from './decorator-types.ts';
+import { inject } from '../../di/inject.function.ts';
+import { DiToken } from '../../di/models/di-token.model.ts';
+import { CacheKeyProvider, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, ResultCacheKeyProvider } from '../cache/cache-options.model.ts';
+import { CacheInterface } from '../cache/cache.interface.ts';
+import { MultiTierCache, MultiWrapWriteOptions } from '../cache/multi-tier.cache.ts';
 
 /** Extract the wrapWrite options type for a given cache and TArgs. */
 type ExtractWrapWriteOptions<C, TArgs extends unknown[]>
@@ -17,14 +17,14 @@ type ExtractWrapWriteOptions<C, TArgs extends unknown[]>
                 : CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag>)
             : never;
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Marks the method to write the result to the cache using the provided cache.
  * @param cacheToken - The token of the cache to use.
  * @param keyFn - How to resolve the key under which results should be cached.
  * @param options - Additional options like ttl or tags.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+// eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/no-explicit-any
 export function CacheWrite<C extends { wrapWrite: (...args: any[]) => any }, K, V, TArgs extends unknown[]>(
     cacheToken: DiToken<C>,
     // TArgs and V are the decorated method's, inferred from the method alone through the decorator
@@ -48,7 +48,7 @@ export function CacheWrite<C extends { wrapWrite: (...args: any[]) => any }, K, 
 
         descriptor.value = async function(this: object, ...args: TArgs): Promise<V> {
             if (!wrappedFns.has(this)) {
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
                 const cache = inject(cacheToken);
                 wrappedFns.set(
                     this,

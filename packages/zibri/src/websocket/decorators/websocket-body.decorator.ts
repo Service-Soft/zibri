@@ -1,7 +1,7 @@
-import { JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from '../../routing/decorators/body-metadata.model';
-import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { JsonBodyMetadata, JsonBodyMetadataInput, JsonBodyShapeMetadataInput, XmlBodyMetadata, XmlBodyMetadataInput } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Metadata Input for websocket request bodies, which are json (the default) or xml.
@@ -23,6 +23,7 @@ export type OneOfWebsocketBodyMetadataInput = WebsocketBodyMetadataInput & {
  * @param modelClass - The model class that defines the websocket request body properties structure.
  * @param options - Additional options, eg. If it's required etc.
  */
+// oxlint-disable-next-line no-redeclare
 export function WebsocketBody(
     modelClass: Newable<unknown>,
     options: WebsocketBodyMetadataInput = {}
@@ -49,8 +50,8 @@ export namespace WebsocketBody {
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-function setRouteBody(target: Object, propertyKey: string | symbol | undefined, metadata: JsonBodyMetadata | XmlBodyMetadata): void {
+// eslint-disable-next-line jsdoc-js/require-jsdoc
+function setRouteBody(target: object, propertyKey: string | symbol | undefined, metadata: JsonBodyMetadata | XmlBodyMetadata): void {
     const ctor: Function = target.constructor;
     MetadataUtilities.setFilePath(ctor);
     const key: string = propertyKey?.toString() ?? '';

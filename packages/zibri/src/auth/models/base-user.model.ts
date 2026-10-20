@@ -1,7 +1,7 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
-import { AnyEnum } from '../../types/any-enum.type';
-import { Newable } from '../../types/newable.type';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { AnyEnum } from '../../types/any-enum.type.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Common properties shared by all users.
@@ -22,7 +22,7 @@ export type BaseUser<Role extends string> = BaseEntity & {
     deactivatedAt?: Date | null
 };
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Defines a base user entity class with the specified roles.
  * @param roleValue - The enum that is used for defining the roles of the user.
@@ -30,15 +30,15 @@ export type BaseUser<Role extends string> = BaseEntity & {
 export function BaseUserEntity<Role extends string>(
     roleValue: AnyEnum<Role>
 ): Newable<BaseUser<Role>> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     class Temp extends BaseEntity implements BaseUser<Role> {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.string({ format: 'email', unique: true })
         email!: string;
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.array({ items: { type: 'string', enum: roleValue } })
         roles!: Role[];
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Property.date({ required: false })
         deactivatedAt?: Date | null;
     }

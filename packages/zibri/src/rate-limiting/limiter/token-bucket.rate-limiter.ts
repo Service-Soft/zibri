@@ -1,10 +1,10 @@
 
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * The persisted state for a single token bucket.
@@ -53,7 +53,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
 
@@ -121,7 +121,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): TokenBucketState {
         return {
             tokens: this.config.capacity,
@@ -131,7 +131,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: TokenBucketState, count: number): TokenBucketState {
         const now: number = Date.now();
         const refilled: RefillResult = this.refill(state, now);
@@ -143,7 +143,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
 
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: TokenBucketState, count: number): TokenBucketState {
         const now: number = Date.now();
         const refilled: RefillResult = this.refill(state, now);
@@ -154,7 +154,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: TokenBucketState,
         _reservations: RateLimitReservation[],
@@ -176,7 +176,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
 
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: TokenBucketState, now: number): TokenBucketState {
         const refilled: RefillResult = this.refill(state, now);
 

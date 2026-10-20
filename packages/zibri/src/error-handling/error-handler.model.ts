@@ -1,9 +1,9 @@
 import { NextFunction } from 'express';
 
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { TsxComponent } from '../tsx/tsx-component.model';
-import { HttpError } from './errors/http.error';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { TsxComponent } from '../tsx/tsx-component.model.ts';
+import { HttpError } from './errors/http.error.ts';
 
 /**
  * Properties of an error page component.

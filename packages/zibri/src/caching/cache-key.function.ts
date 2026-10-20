@@ -1,5 +1,5 @@
-import { AlsUtilities } from '../context/als.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * Marks a key that was written as json rather than taken as it was.

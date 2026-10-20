@@ -1,12 +1,12 @@
 import path from 'path';
 
-import { CPUtilities } from '../encapsulation';
+import { CPUtilities } from '../encapsulation/index.ts';
 
 /**
  * The type for a file path.
  */
 export type Path = string & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     __brand: 'Path'
 };
 

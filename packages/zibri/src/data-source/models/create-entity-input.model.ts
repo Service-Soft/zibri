@@ -1,6 +1,6 @@
-import { EntityMigrationInput } from './entity-migration-input.model';
-import { MigrationPropertyMetadata } from './migration-property-metadata.model';
-import { BaseEntity } from '../../entity/base-entity.model';
+import { EntityMigrationInput } from './entity-migration-input.model.ts';
+import { MigrationPropertyMetadata } from './migration-property-metadata.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
 
 /**
  * What a migration says when it creates what an entity is stored in.

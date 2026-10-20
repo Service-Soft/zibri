@@ -1,8 +1,8 @@
 import { BaseEntity, DataSourceInterface, Newable } from 'zibri';
 
-import { ClusterMark } from './cluster-mark.model';
-import { createPostgresTestDataSource } from '../create-postgres-test-data-source.function';
-import { zibriFrameworkEntities } from '../framework-entities';
+import { ClusterMark } from './cluster-mark.model.ts';
+import { createPostgresTestDataSource } from '../create-postgres-test-data-source.function.ts';
+import { zibriFrameworkEntities } from '../framework-entities.ts';
 
 /**
  * The entities a cluster instance declares unless it names its own.

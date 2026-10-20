@@ -1,18 +1,18 @@
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where } from '../models/where/where-filter.model';
-import { TenantUtilities } from '../tenancy/tenant.utilities';
-import { Transaction } from '../transaction/transaction.model';
+import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { ChangedMembership } from '../../tenancy/membership/changed-membership.model.ts';
+import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { TenantUtilities } from '../tenancy/tenant.utilities.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * Reports every write to memberships to the membership service, once it is committed.
@@ -35,7 +35,7 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
         return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         if (!this.membershipService.isMembershipEntity(this.entityClass)) {
             return await this.inner.save(data, transaction, reload);
@@ -48,7 +48,7 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
         return saved;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         const inserted: T[] = await this.inner.insert(data, transaction);
         // new rows were nobody's before, so only who they belong to now is reported
@@ -58,7 +58,7 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
         return inserted;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
         if (!this.membershipService.isMembershipEntity(this.entityClass)) {
             return await this.inner.updateEach(rows, where, transaction);
@@ -70,32 +70,32 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
         return updated;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         return await this.inner.find(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return await this.inner.findOne(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async count(options: DriverFindOptions<T>): Promise<number> {
         return await this.inner.count(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         return await this.inner.findAndCount(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         return this.inner.stream(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         if (!this.membershipService.isMembershipEntity(this.entityClass)) {
             await this.inner.remove(ids, transaction);
@@ -108,12 +108,12 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
         await this.report(before, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         return await this.inner.findIds(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
         if (!this.membershipService.isMembershipEntity(this.entityClass)) {
             return await this.inner.updateAll(options);
@@ -129,7 +129,7 @@ export class MembershipReportingRepositoryDriver<T extends BaseEntity> implement
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async upsert(
         identity: string[],
         rows: UpsertRow<T>[],

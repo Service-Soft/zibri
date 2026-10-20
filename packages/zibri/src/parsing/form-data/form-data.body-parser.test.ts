@@ -1,13 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { File } from './file.model';
-import { FormData as ZibriFormData } from './form-data.model';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { MimeType } from '../../http/mime-type.enum';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
+import { File } from './file.model.ts';
+import { FormData as ZibriFormData } from './form-data.model.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
 
 class UploadDto {
     @Property.string()
@@ -161,7 +161,7 @@ describe('FormDataBodyParser', () => {
     it('parses unicode filenames correctly', async () => {
         const form: FormData = new FormData();
         form.append('label', 'unicode');
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         form.append('file', new Blob(['x']), 'ünïcödé-🎉.txt');
 
         const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
@@ -169,7 +169,7 @@ describe('FormDataBodyParser', () => {
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const body: { filename: string } = await res.json();
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         expect(body.filename).toBe('ünïcödé-🎉.txt');
     });
 });

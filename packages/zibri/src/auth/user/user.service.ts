@@ -1,25 +1,25 @@
-import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
-import { FindUserOptions, UserServiceInterface } from './user-service.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { getAllInstantiatedValues } from '../../di/get-all-instantiated-values.function';
-import { getDiTokenName } from '../../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function';
-import { inject } from '../../di/inject.function';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { ErrorUtilities } from '../../error-handling/error.utilities';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { $ts } from '../../localization/translate.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
+import { isUserRepository, UserRepositoryInterface } from './user-repository.interface.ts';
+import { FindUserOptions, UserServiceInterface } from './user-service.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { getAllInstantiatedValues } from '../../di/get-all-instantiated-values.function.ts';
+import { getDiTokenName } from '../../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { DiProvider } from '../../di/models/di-provider.model.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { ErrorUtilities } from '../../error-handling/error.utilities.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * An error to throw during user service initialization.
@@ -48,7 +48,7 @@ class NoUserRepositoriesProvidedError extends InternalError {
 @Injectable({ register: 'onUse' })
 export class UserService implements UserServiceInterface, OnAppInit {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly userRepositories: UserRepositoryInterface<string, BaseUser<string>>[] = [];
 
     /**
@@ -61,7 +61,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         private readonly logger: LoggerInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(): void {
         const repoProviders: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.USER_REPO);
         if (repoProviders.length) {
@@ -98,7 +98,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findById<Role extends string, T extends BaseUser<Role>, B extends boolean = true>(
         id: T['id'],
         options?: FindUserOptions<B>
@@ -115,7 +115,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         throw new NotFoundError($ts`Could not find user with id "${id}".`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findByEmail<Role extends string, T extends BaseUser<Role>, B extends boolean = true>(
         mail: string,
         options?: FindUserOptions<B>
@@ -132,7 +132,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         throw new NotFoundError($ts`Could not find user with email "${mail}".`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
         // every repository asked to write, inside the transaction, and the one holding the user does:
         // the others refuse an id that is not theirs. Finding the holder first would look outside the
@@ -148,7 +148,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     isUserEntity(entityClass: Newable<BaseEntity>): boolean {
         return this.userEntities.has(entityClass);
     }

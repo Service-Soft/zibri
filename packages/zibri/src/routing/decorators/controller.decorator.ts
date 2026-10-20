@@ -1,10 +1,10 @@
-import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { HandlerTimeout } from '../../http/handler-timeout.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
-import { Route } from '../controller-route-configuration.model';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { HandlerTimeout } from '../../http/handler-timeout.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model.ts';
+import { Route } from '../controller-route-configuration.model.ts';
 
 /**
  * Data of a controller.

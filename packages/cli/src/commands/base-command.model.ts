@@ -1,4 +1,4 @@
-import { exitWithError } from '../utilities';
+import { exitWithError } from '../utilities/index.ts';
 
 const TOO_MANY_ARGUMENTS_ERROR_MESSAGE: string = 'Error parsing the command: Too many arguments.';
 
@@ -36,7 +36,7 @@ export abstract class BaseCommand<Input extends object = {}> {
      * @param args - The user provided args.
      * @returns The resolved input.
      */
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     protected resolveInput(args: string[]): Input | Promise<Input> {
         return undefined as unknown as Input;
     }

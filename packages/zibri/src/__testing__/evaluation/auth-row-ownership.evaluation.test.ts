@@ -1,38 +1,38 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
-import { Auth } from '../../auth/decorators/auth.decorator';
-import { type BaseUser } from '../../auth/models/base-user.model';
-import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
-import { AlsUtilities } from '../../context/als.utilities';
-import { type HttpRequestContext } from '../../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
-import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Repository } from '../../data-source/repository/repository';
-import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { denyAll, scopeFor } from '../../entity/models/entity-scope.model';
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../localization/translate.function';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Delete } from '../../routing/decorators/delete.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Param } from '../../routing/decorators/param.decorator';
-import { Patch } from '../../routing/decorators/patch.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model.ts';
+import { Auth } from '../../auth/decorators/auth.decorator.ts';
+import { type BaseUser } from '../../auth/models/base-user.model.ts';
+import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { type HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model.ts';
+import { type WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { denyAll, scopeFor } from '../../entity/models/entity-scope.model.ts';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Delete } from '../../routing/decorators/delete.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Param } from '../../routing/decorators/param.decorator.ts';
+import { Patch } from '../../routing/decorators/patch.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md A2, the row level half.
@@ -359,14 +359,15 @@ async function register(email: string, roles: Roles[]): Promise<{ user: JwtUser,
  * @returns The raw response, since most assertions here are about the status.
  */
 async function call(path: string, token: string, init: RequestInit = {}): Promise<Response> {
-    return await fetch(`${baseUrl}/evaluation-invoices${path}`, {
-        ...init,
-        headers: {
-            authorization: `Bearer ${token}`,
-            ...init.body == undefined ? {} : { 'content-type': 'application/json' },
-            ...init.headers
-        }
+    const headers: Headers = new Headers({
+        authorization: `Bearer ${token}`,
+        ...init.body == undefined ? {} : { 'content-type': 'application/json' }
     });
+    // a Headers instance or a list of pairs loses its entries when spread into an object
+    for (const [name, value] of new Headers(init.headers)) {
+        headers.set(name, value);
+    }
+    return await fetch(`${baseUrl}/evaluation-invoices${path}`, { ...init, headers });
 }
 
 /**

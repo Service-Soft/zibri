@@ -1,21 +1,21 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CronExpression, CronExpressionString } from './cron-expression.utilities';
-import { CronJobEntity, CreateCronJobEntityData, CronJobState } from './cron-job-entity.model';
-import { CronJob, InitialCronConfig } from './cron-job.model';
-import { CronService } from './cron.service';
-import { noOp } from '../__testing__/constants';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
-import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZibriApplication } from '../application/application';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { Ms } from '../utilities/ms';
+import { CronExpression, CronExpressionString } from './cron-expression.utilities.ts';
+import { CronJobEntity, CreateCronJobEntityData, CronJobState } from './cron-job-entity.model.ts';
+import { CronJob, InitialCronConfig } from './cron-job.model.ts';
+import { CronService } from './cron.service.ts';
+import { noOp } from '../__testing__/constants.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { Ms } from '../utilities/ms.ts';
 
 // ---------- Helpers ----------
 
@@ -213,8 +213,8 @@ describe('CronService / CronJob — real server', () => {
         });
 
         it('runs a job once for a slot that passed while nothing was up to run it', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({
                 name: 'catches-up',
                 cron: CronExpression.every(1, 'seconds').build(),
@@ -235,8 +235,8 @@ describe('CronService / CronJob — real server', () => {
         });
 
         it('leaves a job alone when nothing was missed', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({
                 name: 'nothing-missed',
                 cron: CronExpression.daily().build(),
@@ -255,8 +255,8 @@ describe('CronService / CronJob — real server', () => {
         });
 
         it('does not catch up a job that never asked to be caught up', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({
                 name: 'no-catch-up',
                 cron: CronExpression.every(1, 'seconds').build(),
@@ -276,8 +276,8 @@ describe('CronService / CronJob — real server', () => {
         });
 
         it('does not catch up a job that has never run', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({
                 name: 'never-ran',
                 cron: CronExpression.every(1, 'seconds').build(),
@@ -301,8 +301,8 @@ describe('CronService / CronJob — real server', () => {
             // the same last run, both find the same missed slot, and the claim on that slot's own key
             // decides. Once a minute rather than once a second, so no scheduled tick lands inside
             // the test and gets counted as a make-up run.
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const first: CronJob = makeCronJob({
                 name: 'catches-up-once',
                 cron: CronExpression.every(1, 'minutes').build(),
@@ -389,8 +389,8 @@ describe('CronService / CronJob — real server', () => {
         });
 
         it('calls onTick immediately when runOnInit is true', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({ name: 'run-on-init', runOnInit: true, syncToDataSource: false, onTickImpl });
             await cronService.schedule(job);
 
@@ -398,8 +398,8 @@ describe('CronService / CronJob — real server', () => {
         });
 
         it('does not call onTick on init when runOnInit is false', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({ name: 'no-run-on-init', runOnInit: false, syncToDataSource: false, onTickImpl });
             await cronService.schedule(job);
 
@@ -408,8 +408,8 @@ describe('CronService / CronJob — real server', () => {
 
         it('does not call onTick on init when nothing asked it to', async () => {
             const job: CronJob = new BarelyConfiguredCronJob();
-            // eslint-disable-next-line typescript/typedef
-            const onTick = jest.spyOn(job, 'onTick');
+            // eslint-disable-next-line typescript-js/typedef
+            const onTick = vi.spyOn(job, 'onTick');
             await cronService.schedule(job);
 
             // the default used to be the other way, so every pod restart, scale-out and rolling
@@ -422,8 +422,8 @@ describe('CronService / CronJob — real server', () => {
             // election is concerned: both boot, both want the startup run, and the claim decides.
             // `task.execute()` used to run whatever it was given without asking anybody, so opting
             // in meant one execution per replica no matter what `distributed` said.
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const first: CronJob = makeCronJob({
                 name: 'startup-elected',
                 runOnInit: true,
@@ -448,8 +448,8 @@ describe('CronService / CronJob — real server', () => {
         it('runs the startup run on every instance for a job each instance owes for itself', async () => {
             // the opposite case, and the reason the election is not unconditional: collecting this
             // process's metrics or clearing this container's temp folder has to happen everywhere
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const first: CronJob = makeCronJob({
                 name: 'startup-per-instance',
                 runOnInit: true,
@@ -483,8 +483,8 @@ describe('CronService / CronJob — real server', () => {
 
     describe('CronJob tick behavior', () => {
         it('calls onTick and updates lastRun', async () => {
-            // eslint-disable-next-line typescript/typedef
-            const onTickImpl = jest.fn(noOp);
+            // eslint-disable-next-line typescript-js/typedef
+            const onTickImpl = vi.fn(noOp);
             const job: CronJob = makeCronJob({ name: 'tick-test', syncToDataSource: true, runOnInit: false, onTickImpl });
             await cronService.schedule(job);
 

@@ -1,6 +1,6 @@
-import { HttpClientResponse } from './http-client-response.model';
-import { HttpMethod } from '../http/http-method.enum';
-import { OmitStrict } from '../types/omit-strict.type';
+import { HttpClientResponse } from './http-client-response.model.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 /**
  * Data of the http request that was sent.

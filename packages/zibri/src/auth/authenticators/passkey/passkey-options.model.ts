@@ -1,4 +1,4 @@
-import { PasskeyAttestationOptions } from './passkey-attestation-options.model';
+import { PasskeyAttestationOptions } from './passkey-attestation-options.model.ts';
 
 /**
  * Where passkeys are used, and how they are created.

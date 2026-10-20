@@ -1,4 +1,4 @@
-import { ExcludeStrict } from '../types/exclude-strict.type';
+import { ExcludeStrict } from '../types/exclude-strict.type.ts';
 
 /**
  * All known mime types.
@@ -17,11 +17,11 @@ export enum MimeType {
     WASM = 'application/wasm',
     JSON_LD = 'application/ld+json',
     JSON_SCIM = 'application/scim+json',
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     NDJSON = 'application/x-ndjson',
     XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     // Text
     HTML = 'text/html',

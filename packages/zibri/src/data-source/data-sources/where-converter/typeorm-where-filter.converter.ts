@@ -1,24 +1,24 @@
 import { And, Equal, FindOperator, ILike, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
 
-import { ParameterizedSql } from './parameterized-sql.model';
-import { TypeOrmParameters } from './typeorm-parameters';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
-import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
-import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model';
-import { Relation } from '../../../entity/models/relation.enum';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
-import { Newable } from '../../../types/newable.type';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { BigNumber } from '../../../utilities/number.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { ArrayWhereFilter } from '../../models/where/array-where-filter.model';
-import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model';
-import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model';
-import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
+import { ParameterizedSql } from './parameterized-sql.model.ts';
+import { TypeOrmParameters } from './typeorm-parameters.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function.ts';
+import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model.ts';
+import { RelationType } from '../../../entity/models/relation-type.enum.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { ExcludeStrict } from '../../../types/exclude-strict.type.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { BigNumber } from '../../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
+import { ArrayWhereFilter } from '../../models/where/array-where-filter.model.ts';
+import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model.ts';
+import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model.ts';
+import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities.ts';
 
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const lengthWhereFilterKeys = [
     'length',
     'lengthGreaterThan',
@@ -105,8 +105,8 @@ export abstract class TypeOrmWhereFilterConverter {
             }
             // Unwrap a full entity for MANY_TO_ONE / BELONGS_TO_ONE
             if (
-                (metadata.type === Relation.MANY_TO_ONE
-                    || metadata.type === Relation.BELONGS_TO_ONE)
+                (metadata.type === RelationType.MANY_TO_ONE
+                    || metadata.type === RelationType.BELONGS_TO_ONE)
                 && typeof value === 'object'
                 && !Array.isArray(value)
                 && 'id' in value
@@ -219,7 +219,7 @@ export abstract class TypeOrmWhereFilterConverter {
     }
 
     private isToOneRelation(metadata: PropertyMetadata | undefined): metadata is RelationMetadata<BaseEntity> {
-        return isRelationMetadata(metadata) && metadata.type !== Relation.ONE_TO_MANY && metadata.type !== Relation.MANY_TO_MANY;
+        return isRelationMetadata(metadata) && metadata.type !== RelationType.ONE_TO_MANY && metadata.type !== RelationType.MANY_TO_MANY;
     }
 
     /**
@@ -245,9 +245,9 @@ export abstract class TypeOrmWhereFilterConverter {
             targetClass = metadata.cls();
         }
         else if (
-            metadata.type === Relation.HAS_ONE || metadata.type === Relation.BELONGS_TO_ONE
-            || metadata.type === Relation.MANY_TO_ONE || metadata.type === Relation.ONE_TO_MANY
-            || metadata.type === Relation.MANY_TO_MANY
+            metadata.type === RelationType.HAS_ONE || metadata.type === RelationType.BELONGS_TO_ONE
+            || metadata.type === RelationType.MANY_TO_ONE || metadata.type === RelationType.ONE_TO_MANY
+            || metadata.type === RelationType.MANY_TO_MANY
         ) {
             targetClass = metadata.target();
         }
@@ -268,7 +268,7 @@ export abstract class TypeOrmWhereFilterConverter {
      * @returns A typeorm FindOptionsWhere property.
      * @throws When the filter includes a property that has no metadata.
      */
-    protected singleWhereFilterToFindOptionsWhere<T extends Object>(
+    protected singleWhereFilterToFindOptionsWhere<T extends object>(
         filter: WhereFilter<T>,
         properties: Record<string, PropertyMetadata>,
         entityClass: Newable<T>
@@ -293,7 +293,7 @@ export abstract class TypeOrmWhereFilterConverter {
             }
             let nestedProperties: Record<string, PropertyMetadata> | undefined;
 
-            if (propertyMetadata.type === Relation.ONE_TO_MANY || propertyMetadata.type === Relation.MANY_TO_MANY) {
+            if (propertyMetadata.type === RelationType.ONE_TO_MANY || propertyMetadata.type === RelationType.MANY_TO_MANY) {
                 this.processRelationFilter(key, prop, propertyMetadata, entityClass, res, extraRawConditions);
                 continue;
             }
@@ -302,9 +302,9 @@ export abstract class TypeOrmWhereFilterConverter {
                 nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.cls());
             }
             else if (
-                propertyMetadata.type === Relation.HAS_ONE
-                || propertyMetadata.type === Relation.BELONGS_TO_ONE
-                || propertyMetadata.type === Relation.MANY_TO_ONE
+                propertyMetadata.type === RelationType.HAS_ONE
+                || propertyMetadata.type === RelationType.BELONGS_TO_ONE
+                || propertyMetadata.type === RelationType.MANY_TO_ONE
             ) {
                 nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.target());
             }
@@ -329,7 +329,7 @@ export abstract class TypeOrmWhereFilterConverter {
         return res;
     }
 
-    private processRelationFilter<T extends Object>(
+    private processRelationFilter<T extends object>(
         key: string,
         prop: WhereFilterProperty<T[Extract<keyof T, string>]> | WhereFilterProperty<T[Extract<keyof T, string>]>[],
         propertyMetadata: RelationMetadata<BaseEntity>,
@@ -460,13 +460,14 @@ export abstract class TypeOrmWhereFilterConverter {
         }
 
         const operators: FindOperator<T>[] = [];
-        const filterKeys: unknown[] = ObjectUtilities.keys(property);
+        const filterKeys: string[] = ObjectUtilities.keys(property);
         if (!filterKeys.length) {
             throw new InternalError('Empty where filter');
         }
 
         for (const key of filterKeys) {
             if (!isWhereFilterKey(key)) {
+                // oxlint-disable-next-line typescript/restrict-template-expressions
                 throw new InternalError(`Unknown key "${key}" on where filter ${property}`);
             }
             const handler: WhereFilterHandler = this.handleFilterKeyMap[key];

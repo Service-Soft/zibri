@@ -1,17 +1,17 @@
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { BaseUser } from '../../auth/models/base-user.model';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { type DenyAll, type EntityScopeContext, isUnscoped, type RestrictedToScope, type Unscoped } from '../../entity/models/entity-scope.model';
-import { BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { Newable } from '../../types/newable.type';
-import { Where } from '../models/where/where-filter.model';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface.ts';
+import { BaseUser } from '../../auth/models/base-user.model.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { type DenyAll, type EntityScopeContext, isUnscoped, type RestrictedToScope, type Unscoped } from '../../entity/models/entity-scope.model.ts';
+import { BaseMembership } from '../../tenancy/membership/base-membership.model.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Where } from '../models/where/where-filter.model.ts';
 
 /**
  * Asks an entity's scope what the caller running right now may see.

@@ -1,14 +1,14 @@
 import type { ParseOptions } from 'handlebars';
 
-import { AstProgram } from './ast.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { FsUtilities, FsPath } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MaskUtilities } from '../utilities/mask.utilities';
-import { hasOptionalPeer, optionalPeer } from '../utilities/optional-peer.function';
-import { toCamelCase } from '../utilities/to-camel-case.function';
+import { AstProgram } from './ast.model.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MaskUtilities } from '../utilities/mask.utilities.ts';
+import { hasOptionalPeer, optionalPeer } from '../utilities/optional-peer.function.ts';
+import { toCamelCase } from '../utilities/to-camel-case.function.ts';
 
 /**
  * Options for configuring things about handlebars.
@@ -64,7 +64,7 @@ export abstract class HandlebarUtilities {
             // args = [a, b, ..., options]. A function rather than an arrow, because `this` is the context
             // the block is used in - inside an each, the item - and the block renders against it
             function(this: unknown, ...args: unknown[]) {
-                // eslint-disable-next-line jsdoc/require-jsdoc
+                // eslint-disable-next-line jsdoc-js/require-jsdoc
                 const opts: { fn?: Function, inverse: Function } = args.pop() as { fn?: Function, inverse: Function };
                 if (opts.fn == undefined) {
                     return args.every(Boolean);
@@ -179,7 +179,7 @@ export abstract class HandlebarUtilities {
                 // specSource is JS source that evaluates to the templateSpec object.
                 // Convert it into an object by evaluating it in a safe local function scope.
                 // This uses `new Function` which is the same approach Handlebars' CLI/runtime uses.
-                // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-implied-eval, typescript/no-unsafe-call, typescript/no-base-to-string
+                // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/no-implied-eval, typescript/no-unsafe-call, typescript/no-base-to-string typescript/restrict-template-expressions
                 const specObj: TemplateSpecification = new Function(`return (${specSource})`)();
                 // Now produce a runtime function using the injected runtime
                 compiledFn = this.runtime.template(specObj);

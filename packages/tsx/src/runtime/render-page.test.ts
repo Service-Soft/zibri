@@ -1,9 +1,9 @@
 import assert from 'node:assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { CompiledPage, LocaleData, renderPage, wrapDocument } from './render-page';
-import { compilePage } from '../__testing__/server-render.helper';
+import { CompiledPage, LocaleData, renderPage, wrapDocument } from './render-page.ts';
+import { compilePage } from '../__testing__/server-render.helper.ts';
 
 // --- minimal DOM stub -------------------------------------------------------
 
@@ -39,7 +39,7 @@ function elementsFrom(html: string): FakeElement[] {
 }
 
 function runScript(body: string, elements: FakeElement[], globals: Record<string, unknown>): void {
-    // eslint-disable-next-line typescript/typedef
+    // eslint-disable-next-line typescript-js/typedef
     const fakeDocument = { querySelectorAll: (): FakeElement[] => elements };
     const fakeWindow: Record<string, unknown> = {};
     const names: string[] = Object.keys(globals);

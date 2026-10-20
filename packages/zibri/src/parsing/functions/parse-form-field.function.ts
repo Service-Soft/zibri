@@ -1,12 +1,12 @@
-import { parseArray } from './parse-array.function';
-import { parseBoolean } from './parse-boolean.function';
-import { parseDate } from './parse-date.function';
-import { parseNumber } from './parse-number.function';
-import { parseObject } from './parse-object.function';
-import { parseOneOf } from './parse-one-of.function';
-import { parseString } from './parse-string.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Relation } from '../../entity/models/relation.enum';
+import { parseArray } from './parse-array.function.ts';
+import { parseBoolean } from './parse-boolean.function.ts';
+import { parseDate } from './parse-date.function.ts';
+import { parseNumber } from './parse-number.function.ts';
+import { parseObject } from './parse-object.function.ts';
+import { parseOneOf } from './parse-one-of.function.ts';
+import { parseString } from './parse-string.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
 
 /**
  * Reads the text of a form field as the property it fills.
@@ -48,11 +48,11 @@ export function parseFormField(value: string | string[], property: PropertyMetad
         case 'oneOf': {
             return parseOneOf(value, property);
         }
-        case Relation.HAS_ONE:
-        case Relation.BELONGS_TO_ONE:
-        case Relation.ONE_TO_MANY:
-        case Relation.MANY_TO_ONE:
-        case Relation.MANY_TO_MANY:
+        case RelationType.HAS_ONE:
+        case RelationType.BELONGS_TO_ONE:
+        case RelationType.ONE_TO_MANY:
+        case RelationType.MANY_TO_ONE:
+        case RelationType.MANY_TO_MANY:
         case 'file':
         case 'unknown': {
             return value;

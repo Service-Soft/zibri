@@ -1,1 +1,1 @@
-export * from './version.command';
+export * from './version.command.ts';

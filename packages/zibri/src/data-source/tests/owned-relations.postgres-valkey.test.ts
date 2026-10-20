@@ -1,17 +1,17 @@
-import { afterAll, beforeAll } from '@jest/globals';
+import { afterAll, beforeAll } from 'vitest';
 
-import { Chore, describeOwnedRelations, Doorplate, Folder, Guest, Household, Lodger, ownedRelationEntities, OwnedRelationRepositories, Pet, Resident, Stop, Ticket, Trip } from './owned-relations.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { Change } from '../../change-sets/models/change.model';
-import { inject } from '../../di/inject.function';
-import { Newable } from '../../types/newable.type';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
-import { MigrationEntity } from '../migration/migration-entity.model';
+import { Chore, describeOwnedRelations, Doorplate, Folder, Guest, Household, Lodger, ownedRelationEntities, OwnedRelationRepositories, Pet, Resident, Stop, Ticket, Trip } from './owned-relations.cases.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { ChangeSet } from '../../change-sets/models/change-set.model.ts';
+import { Change } from '../../change-sets/models/change.model.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model.ts';
+import { MigrationEntity } from '../migration/migration-entity.model.ts';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [...defaultTestServerEntities, ...ownedRelationEntities]

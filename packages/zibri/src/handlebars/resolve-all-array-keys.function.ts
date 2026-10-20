@@ -1,9 +1,9 @@
-import { AstBlockStatement, AstExpression, AstProgram, AstStatement } from './ast.model';
-import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { AstBlockStatement, AstExpression, AstProgram, AstStatement } from './ast.model.ts';
+import { resolveKeyForPathExpression } from './resolve-key-for-path-expression.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefined): string[] {
     const res: string[] = [];
     for (const element of ast.body) {
@@ -35,7 +35,7 @@ export function resolveAllArrayKeys(ast: AstProgram, parentKey: string | undefin
     return res;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey: string | undefined): string[] {
     const res: string[] = [];
     // eg. if, each etc.
@@ -67,7 +67,7 @@ function resolveArrayKeysForBlockStatement(element: AstBlockStatement, parentKey
     return res;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function getArrayKeyFromArrayParams(params: AstExpression[], parentKey: string | undefined): string {
     const param: AstExpression | undefined = params[0];
     if (params.length !== 1 || param == undefined) {

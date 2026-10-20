@@ -1,4 +1,4 @@
-import { TraceSpanAttributeValue } from '../trace-span-attributes.model';
+import { TraceSpanAttributeValue } from '../trace-span-attributes.model.ts';
 
 /**
  * What `@opentelemetry/api` calls a span context.

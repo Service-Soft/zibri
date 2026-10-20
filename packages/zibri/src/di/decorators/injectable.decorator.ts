@@ -1,10 +1,10 @@
-import { InternalError } from '../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { DiProvider, DiScope } from '../models/di-provider.model';
-import { DiToken } from '../models/di-token.model';
-import { DiVariant } from '../models/di-variant.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { DiProvider, DiScope } from '../models/di-provider.model.ts';
+import { DiToken } from '../models/di-token.model.ts';
+import { DiVariant } from '../models/di-variant.model.ts';
 
 /**
  * Options for the \@injectable decorator.
@@ -75,10 +75,10 @@ export function Injectable<T>(options: InjectableOptions<T> = {}): ClassDecorato
     };
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type FoundProvider<T> = DiProvider<T> & Required<Pick<InjectableOptions<T>, 'register'>>;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function findExistingProvider<T>(target: Newable<T>): FoundProvider<T> | undefined {
     const found: DiProvider<unknown> | undefined = GlobalRegistry.injectables.find(p => p.useClass === target);
     if (found) {

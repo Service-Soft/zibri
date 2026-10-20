@@ -1,9 +1,9 @@
-import { HttpStatus } from '../http/http-status.enum';
-import { $ts } from '../localization/translate.function';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { HttpError } from './errors/http.error';
-import { InternalServerError } from './errors/internal-server.error';
-import { ExternalError } from './external-error.model';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { HttpError } from './errors/http.error.ts';
+import { InternalServerError } from './errors/internal-server.error.ts';
+import { ExternalError } from './external-error.model.ts';
 
 /**
  * Utilities for handling errors.

@@ -1,67 +1,67 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { FederatedAnswerContext } from './federated-answer-context.model';
-import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface';
-import { FederatedCleanupCronJob } from './federated-cleanup.cron-job';
-import { FederatedConnectionCode, FederatedConnectionCodeCreateData } from './federated-connection-code.model';
-import { FederatedConnectionRequest } from './federated-connection-request.model';
-import { FederatedConnectionStart } from './federated-connection-start.model';
-import { FederatedCredentials, FederatedHandoverCredentials, FederatedTicketCredentials } from './federated-credentials.model';
-import { FederatedHandoverCode, FederatedHandoverCodeCreateData } from './federated-handover-code.model';
-import { FederatedIdentity, FederatedIdentityCreateData } from './federated-identity.model';
-import { FederatedLoginAttempt, FederatedLoginAttemptCreateData } from './federated-login-attempt.model';
-import { FederatedMetadata } from './federated-metadata.model';
-import { FederatedProviderIdentity } from './federated-provider-identity.model';
-import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
-import { FederatedProviderLogout } from './federated-provider-logout.model';
-import { FederatedProviderSession } from './federated-provider-session.model';
-import { FederatedReauthentication } from './federated-reauthentication.model';
-import { FederatedRegistrationTicket, FederatedRegistrationTicketCreateData } from './federated-registration-ticket.model';
-import { FederatedRegistration } from './federated-registration.model';
-import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
-import { FederatedRoute } from './federated-route.type';
-import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedSession } from './federated-session.model';
-import { FederatedSignInAction } from './federated-sign-in-action.type';
-import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
-import { FederatedSignInRequest } from './federated-sign-in-request.model';
-import { FederatedSignInResult } from './federated-sign-in-result.model';
-import { FederatedSignInStart } from './federated-sign-in-start.model';
-import { FederatedSignInError } from './federated-sign-in.error';
-import { FederatedSignIn } from './federated-sign-in.model';
-import { FederatedSoapLogout } from './federated-soap-logout.model';
-import { FederationOptions } from './federation-options.model';
-import { ProviderTokenGrant } from './provider-token-grant.model';
-import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../di/errors/no-provider.error';
-import { inject } from '../../../di/inject.function';
-import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { HttpMethod } from '../../../http/http-method.enum';
-import { $ts } from '../../../localization/translate.function';
-import { AuditAction } from '../../../logging/audit-event.model';
-import { ControllerUtilities } from '../../../routing/controller.utilities';
-import { Newable } from '../../../types/newable.type';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { FEDERATED_ROUTE } from '../../auth-controller/auth-controller-routes.model';
-import { isAuthControllerClass } from '../../auth-controller/is-auth-controller-class.function';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import type { HashString } from '../../hash/hash.utilities';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
-import { Authentication } from '../../models/authentication.model';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
-import { ConnectingAuthenticatorInterface } from '../connecting-authenticator.interface';
+import { FederatedAnswerContext } from './federated-answer-context.model.ts';
+import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from './federated-authenticator.interface.ts';
+import { FederatedCleanupCronJob } from './federated-cleanup.cron-job.ts';
+import { FederatedConnectionCode, FederatedConnectionCodeCreateData } from './federated-connection-code.model.ts';
+import { FederatedConnectionRequest } from './federated-connection-request.model.ts';
+import { FederatedConnectionStart } from './federated-connection-start.model.ts';
+import { FederatedCredentials, FederatedHandoverCredentials, FederatedTicketCredentials } from './federated-credentials.model.ts';
+import { FederatedHandoverCode, FederatedHandoverCodeCreateData } from './federated-handover-code.model.ts';
+import { FederatedIdentity, FederatedIdentityCreateData } from './federated-identity.model.ts';
+import { FederatedLoginAttempt, FederatedLoginAttemptCreateData } from './federated-login-attempt.model.ts';
+import { FederatedMetadata } from './federated-metadata.model.ts';
+import { FederatedProviderIdentity } from './federated-provider-identity.model.ts';
+import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model.ts';
+import { FederatedProviderLogout } from './federated-provider-logout.model.ts';
+import { FederatedProviderSession } from './federated-provider-session.model.ts';
+import { FederatedReauthentication } from './federated-reauthentication.model.ts';
+import { FederatedRegistrationTicket, FederatedRegistrationTicketCreateData } from './federated-registration-ticket.model.ts';
+import { FederatedRegistration } from './federated-registration.model.ts';
+import { FederatedRouteEndpoint } from './federated-route-endpoint.model.ts';
+import { FederatedRoute } from './federated-route.type.ts';
+import { FederatedSessionMatch } from './federated-session-match.model.ts';
+import { FederatedSession } from './federated-session.model.ts';
+import { FederatedSignInAction } from './federated-sign-in-action.type.ts';
+import { FederatedSignInFailure } from './federated-sign-in-failure.enum.ts';
+import { FederatedSignInRequest } from './federated-sign-in-request.model.ts';
+import { FederatedSignInResult } from './federated-sign-in-result.model.ts';
+import { FederatedSignInStart } from './federated-sign-in-start.model.ts';
+import { FederatedSignInError } from './federated-sign-in.error.ts';
+import { FederatedSignIn } from './federated-sign-in.model.ts';
+import { FederatedSoapLogout } from './federated-soap-logout.model.ts';
+import { FederationOptions } from './federation-options.model.ts';
+import { ProviderTokenGrant } from './provider-token-grant.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../../di/errors/no-provider.error.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BadRequestError } from '../../../error-handling/errors/bad-request.error.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { HttpMethod } from '../../../http/http-method.enum.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { AuditAction } from '../../../logging/audit-event.model.ts';
+import { ControllerUtilities } from '../../../routing/controller.utilities.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { FEDERATED_ROUTE } from '../../auth-controller/auth-controller-routes.model.ts';
+import { isAuthControllerClass } from '../../auth-controller/is-auth-controller-class.function.ts';
+import { type HashServiceInterface } from '../../hash/hash-service.interface.ts';
+import type { HashString } from '../../hash/hash.utilities.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
+import { Authentication } from '../../models/authentication.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface.ts';
+import { ConnectingAuthenticatorInterface } from '../connecting-authenticator.interface.ts';
 
 /**
  * The options with every default filled in.
@@ -154,7 +154,7 @@ export abstract class BaseFederatedAuthenticator<
      */
     readonly apiScopes: string[] = [];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get routes(): FederatedRouteEndpoint[] {
         return [
             { route: 'callback', method: this.answersWithFormPost() ? HttpMethod.POST : HttpMethod.GET },
@@ -162,13 +162,13 @@ export abstract class BaseFederatedAuthenticator<
         ];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly credentialsModel: Newable<FederatedCredentials> = FederatedHandoverCredentials;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly connectionRequestModel: Newable<FederatedConnectionRequest> = FederatedConnectionRequest;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly connectionStartModel: Newable<FederatedConnectionStart> = FederatedConnectionStart;
 
     // the declared controller the provider sends the browser back to, found while the application starts
@@ -208,7 +208,7 @@ export abstract class BaseFederatedAuthenticator<
         return inject(repositoryTokenFor(FederatedIdentity));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(
             this.constructor.name,
@@ -484,7 +484,7 @@ export abstract class BaseFederatedAuthenticator<
         return { type: 'registration', ticket };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async authenticate(credentials: FederatedCredentials, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
         if ('code' in credentials) {
             const handover: FederatedHandoverCode = await this.findHandoverCode(credentials.code, credentials.codeVerifier, transaction);
@@ -624,7 +624,7 @@ export abstract class BaseFederatedAuthenticator<
      */
     // eslint-disable-next-line typescript/require-await
     async createLogoutUrl(
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         session: FederatedSession
     ): Promise<string | undefined> {
         return undefined;
@@ -640,7 +640,7 @@ export abstract class BaseFederatedAuthenticator<
      */
     // eslint-disable-next-line typescript/require-await
     async readProviderLogout(
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         message: FederatedProviderLogoutMessage
     ): Promise<FederatedProviderLogout> {
         throw new NotFoundError($ts`The provider "${this.name}" cannot be logged out at.`);
@@ -656,7 +656,7 @@ export abstract class BaseFederatedAuthenticator<
      */
     // eslint-disable-next-line typescript/require-await
     async resolveSoapLogout(
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         envelope: string
     ): Promise<FederatedSoapLogout> {
         throw new NotFoundError($ts`The provider "${this.name}" takes no logout requests sent server to server.`);
@@ -710,7 +710,7 @@ export abstract class BaseFederatedAuthenticator<
      * @returns The failure, or undefined when the answer is to be verified.
      */
     protected findProviderFailure(
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         answer: URLSearchParams
     ): FederatedSignInFailure | undefined {
         return undefined;
@@ -727,9 +727,9 @@ export abstract class BaseFederatedAuthenticator<
     // eslint-disable-next-line typescript/require-await
     protected async keepProviderTokens(
         identity: FederatedIdentity,
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         tokens: ProviderTokenGrant,
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         transaction: Transaction | undefined
     ): Promise<void> {
         throw new InternalError(`${this.constructor.name} keeps no tokens, but was handed some for the identity ${identity.id}.`);

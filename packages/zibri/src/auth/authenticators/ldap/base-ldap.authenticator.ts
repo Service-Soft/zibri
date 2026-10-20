@@ -3,35 +3,35 @@ import type { ConnectionOptions } from 'node:tls';
 
 import type { Client, ClientOptions, Entry, Filter } from 'ldapts';
 
-import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job';
-import { LdapCredentials } from './ldap-credentials.model';
-import { LdapEntry } from './ldap-entry.model';
-import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
-import { LdapServiceAccount } from './ldap-service-account.model';
-import { Ldapts } from './ldapts.type';
-import { ZibriApplication } from '../../../application/application';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { AccountDeactivatedError } from '../../../error-handling/errors/account-deactivated.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
-import { $ts } from '../../../localization/translate.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { KeysetPage } from '../../../open-api/pagination-result.model';
-import { Newable } from '../../../types/newable.type';
-import { Ms } from '../../../utilities/ms';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type AuthServiceInterface } from '../../auth-service.interface';
-import { Authentication } from '../../models/authentication.model';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
-import { RefreshResolvingAuthenticatorInterface } from '../refresh-resolving-authenticator.interface';
+import { DisabledLdapEntriesCronJob } from './disabled-ldap-entries.cron-job.ts';
+import { LdapCredentials } from './ldap-credentials.model.ts';
+import { LdapEntry } from './ldap-entry.model.ts';
+import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model.ts';
+import { LdapServiceAccount } from './ldap-service-account.model.ts';
+import { Ldapts } from './ldapts.type.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { AccountDeactivatedError } from '../../../error-handling/errors/account-deactivated.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { type LeaseServiceInterface } from '../../../leases/lease-service.interface.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { KeysetPage } from '../../../open-api/pagination-result.model.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { type AuthServiceInterface } from '../../auth-service.interface.ts';
+import { Authentication } from '../../models/authentication.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface.ts';
+import { RefreshResolvingAuthenticatorInterface } from '../refresh-resolving-authenticator.interface.ts';
 
 /**
  * How long a first sign-in may take to link an entry, before another sign-in as the same entry stops
@@ -81,7 +81,7 @@ export abstract class BaseLdapAuthenticator<
      */
     abstract readonly name: string;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly credentialsModel: Newable<LdapCredentials> = LdapCredentials;
 
     /**
@@ -197,7 +197,7 @@ export abstract class BaseLdapAuthenticator<
      */
     abstract resolveSignIn(entry: LdapEntry, user: UserType, transaction: Transaction | undefined): Promise<UserType>;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(this.constructor.name, app, LdapIdentity);
         const ldapts: Ldapts = this.resolveLdapts();
@@ -229,7 +229,7 @@ export abstract class BaseLdapAuthenticator<
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async authenticate(credentials: LdapCredentials, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
         // a bind with a name and no password is an unauthenticated bind, which a directory answers with
         // success without checking anything (RFC 4513, 5.1.2)
@@ -331,11 +331,11 @@ export abstract class BaseLdapAuthenticator<
      * @returns Whether it is active.
      */
     protected isEntryActive(entry: LdapEntry): boolean {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const inactivated: boolean = (entry.attributes['nsaccountlock'] ?? []).some(value => value.toLowerCase() === 'true');
         // only the lock an administrator sets. One after too many wrong passwords ends by itself, and
         // counting it would let whoever typed them end the logins of the person they were guessing for
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const locked: boolean = (entry.attributes['pwdaccountlockedtime'] ?? []).includes(LOCKED_BY_ADMINISTRATOR);
         return !inactivated && !locked;
     }

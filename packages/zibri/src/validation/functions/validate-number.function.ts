@@ -1,19 +1,19 @@
 import assert from 'node:assert';
 
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AnyNumber } from '../../data-source/models/where/number-where-filter.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
-import { $ts } from '../../localization/translate.function';
-import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function';
-import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
-import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
-import { BigNumber } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AnyNumber } from '../../data-source/models/where/number-where-filter.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { INTEGER_REGEX } from '../../parsing/functions/parse-number.function.ts';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator.ts';
+import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 /**
  * Validates the given number property.
@@ -111,17 +111,17 @@ function expectedTypeFor(format: NumberFormat): string {
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function runtimeTypeOf(value: unknown): string {
     return value instanceof BigNumber ? 'BigNumber' : typeof value;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function comparableValueOf(value: AnyNumber): number | bigint {
     return value instanceof BigNumber ? value.toNumber() : value;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function isFormatValid(format: NumberFormat, value: AnyNumber): boolean {
     switch (format) {
         case 'bigint': {

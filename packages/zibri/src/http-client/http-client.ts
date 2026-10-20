@@ -2,47 +2,47 @@ import { Readable } from 'node:stream';
 import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { setTimeout as wait } from 'node:timers/promises';
 
-import { CircuitBreaker } from './circuit-breaker.model';
-import { CircuitOpenError } from './circuit-open.error';
-import { FetchForLibraryOptions } from './fetch-for-library-options.model';
-import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model';
-import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model';
-import { HttpClientResponse, HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model';
-import { HttpClientError, HttpClientErrorOptions } from './http-client.error';
-import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType } from './http-client.interface';
-import { AlsUtilities } from '../context/als.utilities';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { fileSizeToBytes } from '../entity/models/file-property-metadata.model';
-import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { HttpMethod } from '../http/http-method.enum';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { warn } from '../logging/logger.helpers';
-import { type ParserInterface } from '../parsing/parser.interface';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { resolveMaxBodySize } from '../routing/decorators/body.decorator';
-import { HeaderParamMetadata, HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
-import { createHeaderParamMetadata } from '../routing/param-metdata.helpers';
-import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model';
-import { TraceContextUtilities } from '../tracing/trace-context.utilities';
-import { TraceSpanContext } from '../tracing/trace-span-context.model';
-import { TraceSpanKind } from '../tracing/trace-span-kind.enum';
-import { TraceSpanInterface } from '../tracing/trace-span.interface';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { isNewable } from '../types/newable.type';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { Ms } from '../utilities/ms';
-import { BigNumber, NumberUtilities } from '../utilities/number.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
-import { type ValidationServiceInterface } from '../validation/validation-service.interface';
+import { CircuitBreaker } from './circuit-breaker.model.ts';
+import { CircuitOpenError } from './circuit-open.error.ts';
+import { FetchForLibraryOptions } from './fetch-for-library-options.model.ts';
+import { HttpClientIdempotencyKey } from './http-client-idempotency-key.model.ts';
+import { type HttpClientDispatcher, type HttpClientOptions } from './http-client-options.model.ts';
+import { HttpClientResponse, HttpClientResponseBodyInput, HttpClientResponseForBody } from './http-client-response.model.ts';
+import { HttpClientError, HttpClientErrorOptions } from './http-client.error.ts';
+import { HttpClientHeaderValue, HttpClientInterface, HttpOptionsInput, HttpClientRequestBody, HttpClientRequestBodyMimeType } from './http-client.interface.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { fileSizeToBytes } from '../entity/models/file-property-metadata.model.ts';
+import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { warn } from '../logging/logger.helpers.ts';
+import { type ParserInterface } from '../parsing/parser.interface.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { resolveMaxBodySize } from '../routing/decorators/body.decorator.ts';
+import { HeaderParamMetadata, HeaderParamMetadataInput } from '../routing/decorators/param.decorator.ts';
+import { createHeaderParamMetadata } from '../routing/param-metdata.helpers.ts';
+import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function.ts';
+import { HeaderMetaObjectToParamsObject, HeaderMetaInputObjectToMetaObject } from '../routing/route-configuration.model.ts';
+import { TraceContextUtilities } from '../tracing/trace-context.utilities.ts';
+import { TraceSpanContext } from '../tracing/trace-span-context.model.ts';
+import { TraceSpanKind } from '../tracing/trace-span-kind.enum.ts';
+import { TraceSpanInterface } from '../tracing/trace-span.interface.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
+import { isNewable } from '../types/newable.type.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { Ms } from '../utilities/ms.ts';
+import { BigNumber, NumberUtilities } from '../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
+import { type ValidationServiceInterface } from '../validation/validation-service.interface.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ResponseType = 'json' | 'xml' | 'text' | 'stream';
 
 /**
@@ -165,7 +165,7 @@ function isRequestBodyMimeType(value: string): value is HttpClientRequestBodyMim
         || value === MimeType.OCTET_STREAM;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type RequestBodySerialization = 'json' | 'xml' | 'raw';
 
 const requestBodySerializationForMimeType: Record<HttpClientRequestBodyMimeType, RequestBodySerialization> = {
@@ -198,7 +198,7 @@ export class HttpClient implements HttpClientInterface {
         this.circuitBreaker = clientOptions.circuitBreaker === false ? undefined : new CircuitBreaker(clientOptions.circuitBreaker);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async post<
         T extends object,
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
@@ -230,7 +230,7 @@ export class HttpClient implements HttpClientInterface {
         return await this.request(HttpMethod.POST, url, body, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async get<
         T extends object,
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
@@ -259,7 +259,7 @@ export class HttpClient implements HttpClientInterface {
         return await this.request(HttpMethod.GET, url, undefined, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async put<
         T extends object,
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
@@ -291,7 +291,7 @@ export class HttpClient implements HttpClientInterface {
         return await this.request(HttpMethod.PUT, url, body, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async patch<
         T extends object,
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
@@ -323,7 +323,7 @@ export class HttpClient implements HttpClientInterface {
         return await this.request(HttpMethod.PATCH, url, body, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async delete<
         T extends object,
         QueryParamsObject extends Record<string, unknown> = Record<string, string | undefined>,
@@ -352,7 +352,7 @@ export class HttpClient implements HttpClientInterface {
         return await this.request(HttpMethod.DELETE, url, undefined, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async request<
         T extends object,
         QueryParamsObject extends Record<string, unknown>,
@@ -404,7 +404,7 @@ export class HttpClient implements HttpClientInterface {
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async fetchForLibrary(url: string, init: RequestInit, options?: FetchForLibraryOptions): Promise<Response> {
         const requested: string = (init.method ?? HttpMethod.GET).toUpperCase();
         const method: HttpMethod | undefined = Object.values(HttpMethod).find(m => m === requested);
@@ -466,7 +466,7 @@ export class HttpClient implements HttpClientInterface {
      * @param span - The span of this call.
      * @returns The response.
      */
-    // eslint-disable-next-line sonar/cognitive-complexity
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     private async sendTracedRequest<
         T extends object,
         QueryParamsObject extends Record<string, unknown>,
@@ -807,7 +807,7 @@ export class HttpClient implements HttpClientInterface {
         const serialization: RequestBodySerialization = requestBodySerializationForMimeType[requestBodyType];
 
         if ((serialization === 'json' || serialization === 'xml') && isPreEncoded) {
-            throw new InternalError(`Cannot send a ${(body as object).constructor.name} body with request body type "${requestBodyType}".`);
+            throw new InternalError(`Cannot send a ${(body).constructor.name} body with request body type "${requestBodyType}".`);
         }
         if (serialization === 'raw' && typeof body !== 'string' && !isPreEncoded) {
             throw new InternalError(`Cannot send a plain object body with request body type "${requestBodyType}".`);

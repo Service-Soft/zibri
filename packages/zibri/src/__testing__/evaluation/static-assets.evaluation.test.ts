@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { HttpStatus } from '../../http/http-status.enum';
-import { KnownHeader } from '../../http/known-header.enum';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { testFileFolder } from '../constants';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { testFileFolder } from '../constants.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 3.12.

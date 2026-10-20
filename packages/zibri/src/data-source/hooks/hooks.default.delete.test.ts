@@ -1,18 +1,18 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { SaveOperation } from './before-save';
-import { getDefaultBeforeReturnHook } from './hooks.default';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Repository } from '../repository/repository';
+import { SaveOperation } from './before-save.ts';
+import { getDefaultBeforeReturnHook } from './hooks.default.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * What deleting a row with an encrypted property spends on keys.
@@ -49,7 +49,7 @@ afterAll(async () => {
 }, 15000);
 
 afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
 });
 
 /**
@@ -65,8 +65,8 @@ async function createLockers(label: string, count: number): Promise<Locker[]> {
 describe('deleting a row with an encrypted property', () => {
     it('decrypts it once for deleteById, and hands it back readable', async () => {
         const [locker] = await createLockers('by-id', 1);
-        const encrypt: jest.SpiedFunction<EncryptionServiceInterface['encrypt']> = jest.spyOn(encryption, 'encrypt');
-        const decrypt: jest.SpiedFunction<EncryptionServiceInterface['decrypt']> = jest.spyOn(encryption, 'decrypt');
+        const encrypt: MockInstance<EncryptionServiceInterface['encrypt']> = vi.spyOn(encryption, 'encrypt');
+        const decrypt: MockInstance<EncryptionServiceInterface['decrypt']> = vi.spyOn(encryption, 'decrypt');
 
         const deleted: Locker = await lockers.deleteById(locker?.id ?? '');
 
@@ -78,8 +78,8 @@ describe('deleting a row with an encrypted property', () => {
 
     it('decrypts and encrypts nothing for a deleteAll that hands nothing back', async () => {
         await createLockers('counted', 3);
-        const encrypt: jest.SpiedFunction<EncryptionServiceInterface['encrypt']> = jest.spyOn(encryption, 'encrypt');
-        const decrypt: jest.SpiedFunction<EncryptionServiceInterface['decrypt']> = jest.spyOn(encryption, 'decrypt');
+        const encrypt: MockInstance<EncryptionServiceInterface['encrypt']> = vi.spyOn(encryption, 'encrypt');
+        const decrypt: MockInstance<EncryptionServiceInterface['decrypt']> = vi.spyOn(encryption, 'decrypt');
 
         expect(await lockers.deleteAll({ label: 'counted' })).toBe(3);
 
@@ -92,8 +92,8 @@ describe('deleting a row with an encrypted property', () => {
 
     it('hands back readable rows for deleteAll asked for them, decrypting each once', async () => {
         await createLockers('returned', 2);
-        const encrypt: jest.SpiedFunction<EncryptionServiceInterface['encrypt']> = jest.spyOn(encryption, 'encrypt');
-        const decrypt: jest.SpiedFunction<EncryptionServiceInterface['decrypt']> = jest.spyOn(encryption, 'decrypt');
+        const encrypt: MockInstance<EncryptionServiceInterface['encrypt']> = vi.spyOn(encryption, 'encrypt');
+        const decrypt: MockInstance<EncryptionServiceInterface['decrypt']> = vi.spyOn(encryption, 'decrypt');
 
         const deleted: Locker[] = await lockers.deleteAll({ label: 'returned' }, { returnDeleted: true });
 

@@ -1,19 +1,19 @@
-import { OpenTelemetryApi, OpenTelemetryApiTracer, OpenTelemetryContext, OpenTelemetryNodeSdk, OpenTelemetryResource, OpenTelemetryResources, OpenTelemetrySpanContext, OpenTelemetrySpanExporter, OpenTelemetrySpanProcessor, OpenTelemetryTracerProvider } from './open-telemetry-api.model';
-import { OpenTelemetrySpanAdapter } from './open-telemetry.span';
-import { OpenTelemetryUtilities } from './open-telemetry.utilities';
-import { TraceBufferSpanProcessor } from './trace-buffer.span-processor';
-import { ZibriApplication } from '../../application/application';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { OnAppShutdown } from '../../global/on-app-shutdown.interface';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { zibriVersion } from '../../versioning/zibri-version.function';
-import { TraceBufferInterface } from '../trace-buffer.interface';
-import { TraceSpanContext } from '../trace-span-context.model';
-import { TraceSpanInterface } from '../trace-span.interface';
-import { StartSpanOptions, TracerInterface } from '../tracer.interface';
+import { OpenTelemetryApi, OpenTelemetryApiTracer, OpenTelemetryContext, OpenTelemetryNodeSdk, OpenTelemetryResource, OpenTelemetryResources, OpenTelemetrySpanContext, OpenTelemetrySpanExporter, OpenTelemetrySpanProcessor, OpenTelemetryTracerProvider } from './open-telemetry-api.model.ts';
+import { OpenTelemetrySpanAdapter } from './open-telemetry.span.ts';
+import { OpenTelemetryUtilities } from './open-telemetry.utilities.ts';
+import { TraceBufferSpanProcessor } from './trace-buffer.span-processor.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { OnAppShutdown } from '../../global/on-app-shutdown.interface.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { zibriVersion } from '../../versioning/zibri-version.function.ts';
+import { TraceBufferInterface } from '../trace-buffer.interface.ts';
+import { TraceSpanContext } from '../trace-span-context.model.ts';
+import { TraceSpanInterface } from '../trace-span.interface.ts';
+import { StartSpanOptions, TracerInterface } from '../tracer.interface.ts';
 
 const sampledFlag: number = 0b0000_0001;
 
@@ -62,7 +62,7 @@ export class OpenTelemetryTracer implements TracerInterface, OnAppInit, OnAppShu
         this.tracer = this.api.trace.getTracer(instrumentationName, zibriVersion());
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         const sdk: OpenTelemetryNodeSdk = optionalPeer<OpenTelemetryNodeSdk>('@opentelemetry/sdk-trace-node', neededFor);
         const exporter: OpenTelemetrySpanExporter | undefined = inject(ZIBRI_DI_TOKENS.TRACE_EXPORTER);
@@ -77,7 +77,7 @@ export class OpenTelemetryTracer implements TracerInterface, OnAppInit, OnAppShu
         this.provider.register();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppShutdown(): Promise<void> {
         // what a batch costs: everything gathered since the last export is still in this process,
         // and an application that exits without saying so loses the spans of whatever it was doing
@@ -86,7 +86,7 @@ export class OpenTelemetryTracer implements TracerInterface, OnAppInit, OnAppShu
         this.provider = undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     startSpan(name: string, options: StartSpanOptions): TraceSpanInterface {
         return new OpenTelemetrySpanAdapter(
             this.tracer.startSpan(

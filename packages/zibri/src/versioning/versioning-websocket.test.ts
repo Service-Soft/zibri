@@ -1,23 +1,23 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 
-import { SemVerVersion } from './sem-ver.utilities';
-import { VersionFile } from './version.model';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { Newable } from '../types/newable.type';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { WebsocketController } from '../websocket/decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator';
-import { WebsocketEvent } from '../websocket/models/websocket-event.enum';
-import { WebsocketMessage } from '../websocket/models/websocket-message.model';
+import { SemVerVersion } from './sem-ver.utilities.ts';
+import { VersionFile } from './version.model.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { Newable } from '../types/newable.type.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { WebsocketController } from '../websocket/decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../websocket/decorators/websocket-route.decorator.ts';
+import { WebsocketEvent } from '../websocket/models/websocket-event.enum.ts';
+import { WebsocketMessage } from '../websocket/models/websocket-message.model.ts';
 
 const testVersionsDir: FsPath = FsUtilities.getPath(testFileFolder, 'versions-ws');
 

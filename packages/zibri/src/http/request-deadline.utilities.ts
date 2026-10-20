@@ -1,12 +1,12 @@
-import { HandlerTimeout } from './handler-timeout.type';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { GatewayTimeoutError } from '../error-handling/errors/gateway-timeout.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { $ts } from '../localization/translate.function';
-import { LoggerInterface } from '../logging/logger.interface';
+import { HandlerTimeout } from './handler-timeout.type.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { GatewayTimeoutError } from '../error-handling/errors/gateway-timeout.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
 
 /**
  * Bounds how long a handler may take, whichever kind of request it is answering.

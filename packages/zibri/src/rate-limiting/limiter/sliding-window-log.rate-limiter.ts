@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * State for a sliding window log rate limiter state.
@@ -37,7 +37,7 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): SlidingWindowLogState {
         return {
             timestamps: [],
@@ -47,17 +47,17 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: SlidingWindowLogState, count: number): SlidingWindowLogState {
         return { ...state, reservedSlots: state.reservedSlots + count };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: SlidingWindowLogState, count: number): SlidingWindowLogState {
         return { ...state, reservedSlots: Math.max(0, state.reservedSlots - count) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: SlidingWindowLogState,
         _reservations: RateLimitReservation[],
@@ -68,7 +68,7 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
         return this.computeReadyTimeForCount(state.timestamps, effectiveCount, now);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: SlidingWindowLogState, now: number): SlidingWindowLogState {
         const newReservations: RateLimitReservation[] = state.reservations.map(reservation => {
             const readyAt: number = this.computeReadyTimeForCount(
@@ -127,7 +127,7 @@ export class SlidingWindowLogRateLimiter extends BaseRateLimiter<SlidingWindowLo
         return Math.max(now, oldestToExpire + this.intervalInMs);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
         const cutoff: number = now - this.intervalInMs;

@@ -1,13 +1,13 @@
 import type { Batch, GlideClient } from '@valkey/valkey-glide';
 
-import { applyGuardedValKeyWrites } from './apply-guarded-val-key-writes.function';
-import { KeyDeclarationsChangedError } from './key-declarations-changed.error';
-import { queueValKeyWrite } from './queue-val-key-write.function';
-import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
-import { Transaction } from './transaction.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
+import { applyGuardedValKeyWrites } from './apply-guarded-val-key-writes.function.ts';
+import { KeyDeclarationsChangedError } from './key-declarations-changed.error.ts';
+import { queueValKeyWrite } from './queue-val-key-write.function.ts';
+import { TransactionAlreadyFinishedError } from './transaction-already-finished.error.ts';
+import { Transaction } from './transaction.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function.ts';
 
 /**
  * A write that has been buffered inside a valkey transaction.
@@ -195,7 +195,7 @@ export class ValKeyTransaction implements Transaction {
         private readonly logger: LoggerInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get isFinished(): boolean {
         return this.finished;
     }
@@ -496,7 +496,7 @@ export class ValKeyTransaction implements Transaction {
         return [...res];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async commit(): Promise<void> {
         if (this.finished) {
             throw new TransactionAlreadyFinishedError();
@@ -520,12 +520,12 @@ export class ValKeyTransaction implements Transaction {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterCommit(work: () => Promise<void>): void {
         this.committedWork.push(work);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterFinish(work: (committed: boolean) => Promise<void>): void {
         this.finishedWork.push(work);
     }
@@ -568,7 +568,7 @@ export class ValKeyTransaction implements Transaction {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async rollback(): Promise<void> {
         this.finished = true;
         this.writes.length = 0;

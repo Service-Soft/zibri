@@ -1,5 +1,5 @@
-import { OAuth2ClientCredentials } from './oauth2-client-credentials.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { OAuth2ClientCredentials } from './oauth2-client-credentials.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * What a caller sends to have a token introspected (RFC 7662) or revoked (RFC 7009).

@@ -1,11 +1,11 @@
 
-import { HttpStatus } from '../../http/http-status.enum';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse, RedirectOpenApiResponse } from '../open-api.model';
-import { KeysetPageClass, PaginationResultClass } from '../pagination-result.model';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse, RedirectOpenApiResponse } from '../open-api.model.ts';
+import { KeysetPageClass, PaginationResultClass } from '../pagination-result.model.ts';
 
 /**
  * Bundles decorators for http responses.

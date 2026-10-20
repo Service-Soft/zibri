@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { toSnakeCase } from '../utilities/to-snake-case.function';
+import { toSnakeCase } from '../utilities/to-snake-case.function.ts';
 
 /**
  * Builds the name of the unique constraint covering the given columns.

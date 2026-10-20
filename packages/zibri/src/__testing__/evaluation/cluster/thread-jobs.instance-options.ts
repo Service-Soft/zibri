@@ -1,17 +1,17 @@
 import { defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { BaseThreadJobWorkerData } from '../../../multithreading/models/base-thread-job-worker-data.model';
-import { ThreadJobEntity } from '../../../multithreading/models/thread-job-entity.model';
-import { type MultithreadingServiceInterface } from '../../../multithreading/services/multithreading-service.interface';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Get } from '../../../routing/decorators/get.decorator';
-import { Param } from '../../../routing/decorators/param.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { FsUtilities, type FsPath } from '../../../utilities/fs.utilities';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BaseThreadJobWorkerData } from '../../../multithreading/models/base-thread-job-worker-data.model.ts';
+import { ThreadJobEntity } from '../../../multithreading/models/thread-job-entity.model.ts';
+import { type MultithreadingServiceInterface } from '../../../multithreading/services/multithreading-service.interface.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../../routing/decorators/get.decorator.ts';
+import { Param } from '../../../routing/decorators/param.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { FsUtilities, type FsPath } from '../../../utilities/fs.utilities.ts';
 
 /**
  * What every instance of the thread job cluster boots with.
@@ -30,12 +30,12 @@ import { FsUtilities, type FsPath } from '../../../utilities/fs.utilities';
  * It reports the id of the instance it ran on, taken from that process's environment - so the
  * result of a job names the replica that did the work rather than the one that asked for it.
  */
-const workerFilePath: FsPath = FsUtilities.getPath(__dirname, 'thread-jobs.test.worker.ts');
+const workerFilePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'thread-jobs.test.worker.ts');
 
 /**
  * The worker file that reports which file the shared packages resolve to inside a worker thread.
  */
-const modulePathWorkerFilePath: FsPath = FsUtilities.getPath(__dirname, 'thread-jobs-module-path.test.worker.ts');
+const modulePathWorkerFilePath: FsPath = FsUtilities.getPath(import.meta.dirname, 'thread-jobs-module-path.test.worker.ts');
 
 /**
  * The data the fixture is given.
@@ -85,11 +85,11 @@ class ClusterThreadJobController {
 
     /**
      * Answers with the file `zibri-testing` resolves to in this instance's main thread.
-     * @returns The resolved path.
+     * @returns The resolved url.
      */
     @Get('/module-path')
     readModulePath(): string {
-        return require.resolve('zibri-testing');
+        return import.meta.resolve('zibri-testing');
     }
 
     /**

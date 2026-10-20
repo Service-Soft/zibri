@@ -1,5 +1,5 @@
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../localization/translate.function';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * Thrown by a route guarded by \@Auth.require2fa that accepts a recent login in place of a second

@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
+import { BackupEntity } from '../backup-entity.model.ts';
+import { BackupResourceEntity } from '../backup-resource-entity.model.ts';
 
 /**
  * The definition of a transport that handles sending and retrieving backup data.

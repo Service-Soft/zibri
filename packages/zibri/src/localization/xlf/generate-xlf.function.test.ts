@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { generateXlf } from './generate-xlf.function';
-import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
+import { generateXlf } from './generate-xlf.function.ts';
+import { ExtractedTranslationString } from './transform-source-translation-tokens.function.ts';
 
 function entry(overrides: Partial<ExtractedTranslationString> = {}): ExtractedTranslationString {
     return {

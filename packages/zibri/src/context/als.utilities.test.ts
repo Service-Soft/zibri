@@ -1,13 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { AlsUtilities } from './als.utilities';
-import { CacheContext } from './cache/cache.context';
-import { HttpRequestContext } from './request/http-request.context';
-import { WebsocketRequestContext } from './request/websocket-request.context';
-import { CacheOperation } from '../caching/cache/cache-operation.enum';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { AlsUtilities } from './als.utilities.ts';
+import { CacheContext } from './cache/cache.context.ts';
+import { HttpRequestContext } from './request/http-request.context.ts';
+import { WebsocketRequestContext } from './request/websocket-request.context.ts';
+import { CacheOperation } from '../caching/cache/cache-operation.enum.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 function createHttpContext(): HttpRequestContext {
     return new HttpRequestContext({} as HttpRequest, {} as HttpResponse);

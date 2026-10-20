@@ -657,6 +657,8 @@ export class Team extends BaseEntity {
 }
 
 // src/models/seat.model.ts
+import { BaseEntity, Entity, Property, Relation } from 'zibri';
+
 @Entity()
 export class Seat extends BaseEntity {
     @Property.string({ format: 'uuid' })
@@ -666,7 +668,7 @@ export class Seat extends BaseEntity {
     occupant!: string;
 
     @Property.manyToOne({ target: () => Team, joinColumn: 'teamId', inverseSide: 'seats', required: false })
-    team?: Team;
+    team?: Relation<Team>;
 
     @Property.string({ format: 'uuid', required: false })
     teamId?: string;

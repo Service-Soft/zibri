@@ -1,4 +1,4 @@
-import { Version } from '../../../versioning/version.model';
+import { Version } from '../../../versioning/version.model.ts';
 
 /**
  * Basic definition of a websocket connection.

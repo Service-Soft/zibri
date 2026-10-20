@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { InvalidClassMarkedWithInjectableError } from './invalid-class-marked-with-injectable.error';
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InvalidClassMarkedWithInjectableError } from './invalid-class-marked-with-injectable.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 describe('InvalidClassMarkedWithInjectableError', () => {
     it('extends InternalError and sets its name', () => {

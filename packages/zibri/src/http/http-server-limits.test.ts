@@ -1,18 +1,18 @@
 import { once } from 'node:events';
 import { connect, Socket } from 'node:net';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { HttpServerLimits } from './http-server-limits.model';
-import { HttpStatus } from './http-status.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { defineProvider, DiProvider } from '../di/models/di-provider.model';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
+import { HttpServerLimits } from './http-server-limits.model.ts';
+import { HttpStatus } from './http-status.enum.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { defineProvider, DiProvider } from '../di/models/di-provider.model.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
 
 @Controller('/limits')
 class LimitsController {

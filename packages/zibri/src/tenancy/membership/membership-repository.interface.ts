@@ -1,5 +1,5 @@
-import { BaseMembership } from './base-membership.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
+import { BaseMembership } from './base-membership.model.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
 
 /**
  * Interface for a membership repository, the one place the memberships of an application are read

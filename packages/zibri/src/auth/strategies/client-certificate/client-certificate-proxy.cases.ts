@@ -2,26 +2,26 @@ import { X509Certificate } from 'node:crypto';
 import { IncomingMessage } from 'node:http';
 import { request, RequestOptions } from 'node:https';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TestContainers } from 'testcontainers';
 import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, InMemoryDataSource } from 'zibri-testing';
 
-import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy';
-import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
-import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { inject } from '../../../di/inject.function';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Get } from '../../../routing/decorators/get.decorator';
-import { Newable } from '../../../types/newable.type';
-import { Auth } from '../../decorators/auth.decorator';
-import { CurrentUser } from '../../decorators/current-user.decorator';
-import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
+import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy.ts';
+import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type.ts';
+import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { Auth } from '../../decorators/auth.decorator.ts';
+import { CurrentUser } from '../../decorators/current-user.decorator.ts';
+import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy.ts';
 
 /**
  * What a proxy in front of the application is started with.
@@ -168,16 +168,16 @@ export function describeBehindProxy(proxyName: string, proxy: ClientCertificateP
          * tunnel testcontainers opens to it, and finds the user by the email address in its common name.
          */
         class ProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<Roles, JwtUser> {
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             readonly header: string = proxy.header;
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             readonly headerFormat: ClientCertificateHeaderFormat = proxy.headerFormat;
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             readonly trustedProxies: string[] = ['127.0.0.1', '::1'];
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             readonly certificateAuthorities: string[] = [authority.certificate];
 
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             async resolveUserByCertificate(certificate: X509Certificate): Promise<JwtUser | undefined> {
                 const email: string | undefined = /^CN=(.+)$/m.exec(certificate.subject)?.[1];
                 if (email == undefined) {

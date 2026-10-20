@@ -1,10 +1,10 @@
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
-import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
-import { Relation } from '../../entity/models/relation.enum';
-import { isNamedValue } from '../../parsing/functions/parse-one-of.function';
-import { Newable } from '../../types/newable.type';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model.ts';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { isNamedValue } from '../../parsing/functions/parse-one-of.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * What a class that holds nothing nested answers, shared rather than allocated per call.
@@ -74,7 +74,7 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
      */
     private readonly relationKeys: Set<string> = new Set();
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Whether or not anything in this class or the models it holds is acted on.
      */
@@ -141,11 +141,11 @@ export abstract class ModelDescriptor<D extends ModelDescriptor<D>> {
         descriptorOf: (cls: Newable<unknown>) => D
     ): NestedDescriptor<D> | undefined {
         switch (metadata.type) {
-            case Relation.MANY_TO_ONE:
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.MANY_TO_MANY:
-            case Relation.ONE_TO_MANY: {
+            case RelationType.MANY_TO_ONE:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.MANY_TO_MANY:
+            case RelationType.ONE_TO_MANY: {
                 return descriptorOf(metadata.target());
             }
             case 'object': {

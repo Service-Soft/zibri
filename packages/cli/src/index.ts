@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { Command, HelpCommand, NewCommand, resolveCommand, VersionCommand } from './commands';
-import { FigletUtilities } from './encapsulation';
-import { exitOnSignal } from './utilities';
+import { Command, HelpCommand, NewCommand, resolveCommand, VersionCommand } from './commands/index.ts';
+import { FigletUtilities } from './encapsulation/index.ts';
+import { exitOnSignal } from './utilities/index.ts';
 
 exitOnSignal();
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function main(): Promise<void> {
     const [,, ...args] = process.argv;
 

@@ -1,13 +1,13 @@
 /* eslint-disable unicorn/no-null */
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { ValueConversion } from '../models/value-conversion.enum';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { ValueConversion } from '../models/value-conversion.enum.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * What the migration helpers are tried on.

@@ -1,4 +1,4 @@
-import { HttpStatus } from '../../http/http-status.enum';
+import { HttpStatus } from '../../http/http-status.enum.ts';
 
 /**
  * What an OAuth2 error is answered with besides its code and description.

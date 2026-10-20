@@ -1,9 +1,9 @@
-import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators/param.decorator';
-import { ArrayParamItemMetadataInput, ArrayParamItemMetadata } from './models/array-param-metadata.model';
-import { OneOfParamMetadata, OneOfQueryParamMetadataInput, PathParamShapeMetadataInput } from './models/one-of-param-metadata.model';
-import { createAnyOfShapesMetadata } from '../entity/decorators/property.decorator';
-import { InternalError } from '../error-handling/internal-error.model';
-import { RegexUtilities } from '../utilities/regex.utilities';
+import { PathParamMetadataInput, PathParamMetadata, QueryParamMetadataInput, QueryParamMetadata, HeaderParamMetadataInput, HeaderParamMetadata } from './decorators/param.decorator.ts';
+import { ArrayParamItemMetadataInput, ArrayParamItemMetadata } from './models/array-param-metadata.model.ts';
+import { OneOfParamMetadata, OneOfQueryParamMetadataInput, PathParamShapeMetadataInput } from './models/one-of-param-metadata.model.ts';
+import { createAnyOfShapesMetadata } from '../entity/decorators/property.decorator.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { RegexUtilities } from '../utilities/regex.utilities.ts';
 
 const pathParamShapeTypes: PathParamShapeMetadataInput['type'][] = ['string', 'number', 'boolean', 'date'];
 
@@ -169,7 +169,7 @@ export function createQueryParamMetadata(name: string, data: QueryParamMetadataI
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function createHeaderParamMetadata(name: string, data: HeaderParamMetadataInput): HeaderParamMetadata {
     return createQueryParamMetadata(name, data);
 }

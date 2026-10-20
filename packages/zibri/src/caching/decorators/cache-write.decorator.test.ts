@@ -1,16 +1,16 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CacheWrite } from './cache-write.decorator';
-import { Cache } from './cache.decorator';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { CacheWrite } from './cache-write.decorator.ts';
+import { Cache } from './cache.decorator.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
 
 @Cache()
 class WriteTestCache extends WriteThroughReadThroughCache<string, { id: string }, 'Cache Write Decorator Test Cache'> {
@@ -50,7 +50,7 @@ describe('CacheWrite decorator', () => {
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('writes the result of the decorated method into the cache', async () => {
@@ -62,8 +62,8 @@ describe('CacheWrite decorator', () => {
 
     it('only builds the wrapped function once per instance', async () => {
         const cache: WriteTestCache = inject(WriteTestCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapWriteSpy = jest.spyOn(cache, 'wrapWrite');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapWriteSpy = vi.spyOn(cache, 'wrapWrite');
 
         const service: WriteService = new WriteService();
         await service.create('a');
@@ -74,8 +74,8 @@ describe('CacheWrite decorator', () => {
 
     it('builds a separate wrapped function per instance', async () => {
         const cache: WriteTestCache = inject(WriteTestCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapWriteSpy = jest.spyOn(cache, 'wrapWrite');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapWriteSpy = vi.spyOn(cache, 'wrapWrite');
 
         await new WriteService().create('a');
         await new WriteService().create('a');

@@ -1,8 +1,8 @@
 
-import { OpenApiDefinition } from './open-api.model';
-import { ZibriApplication } from '../application/application';
-import { Route } from '../routing/controller-route-configuration.model';
-import { Version } from '../versioning/version.model';
+import { OpenApiDefinition } from './open-api.model.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { Route } from '../routing/controller-route-configuration.model.ts';
+import { Version } from '../versioning/version.model.ts';
 
 /**
  * Interface for an open api service.

@@ -1,20 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { Transaction } from './transaction.model';
-import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
-import { MigrationEntity } from '../migration/migration-entity.model';
-import { Repository } from '../repository/repository';
+import { Transaction } from './transaction.model.ts';
+import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model.ts';
+import { MigrationEntity } from '../migration/migration-entity.model.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * What a valkey transaction that is started and then never finished keeps hold of.
@@ -53,7 +52,7 @@ describe('a valkey transaction that is never committed or rolled back', () => {
         server = await startTestServer({
             // the postgres data source keeps the framework entities working, the valkey one is what
             // this is about
-            dataSources: [postgresDataSourceClass as Newable<PostgresDataSource>, valKeyDataSourceClass]
+            dataSources: [postgresDataSourceClass, valKeyDataSourceClass]
         });
         dataSource = inject(valKeyDataSourceClass);
         repo = inject(repositoryTokenFor(ValKeyItem));

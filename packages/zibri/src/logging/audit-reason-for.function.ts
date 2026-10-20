@@ -1,8 +1,8 @@
-import { AuditReason } from './audit-event.model';
-import { ErrorUtilities } from '../error-handling/error.utilities';
-import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error';
-import { CredentialClonedError } from '../error-handling/errors/credential-cloned.error';
-import { CredentialReusedError } from '../error-handling/errors/credential-reused.error';
+import { AuditReason } from './audit-event.model.ts';
+import { ErrorUtilities } from '../error-handling/error.utilities.ts';
+import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error.ts';
+import { CredentialClonedError } from '../error-handling/errors/credential-cloned.error.ts';
+import { CredentialReusedError } from '../error-handling/errors/credential-reused.error.ts';
 
 /**
  * Whether a thrown error means the attempt was refused, or means something broke.

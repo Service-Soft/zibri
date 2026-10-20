@@ -1,15 +1,15 @@
-/* eslint-disable cspell/spellchecker */
-/* eslint-disable sonar/no-duplicate-string */
-import { describe, expect, it } from '@jest/globals';
+/* cspell:disable */
+/* eslint-disable sonarjs/no-duplicate-string */
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about searching for something similar. A file per

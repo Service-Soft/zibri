@@ -1,4 +1,4 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 /**
  * Thrown when a transaction commits after the indexes or uniques of an entity it wrote changed.

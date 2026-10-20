@@ -1,29 +1,29 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../../__testing__/wait-until.function';
-import { CronJob } from '../../cron/cron-job.model';
-import { type CronServiceInterface } from '../../cron/cron-service.interface';
-import { CronService } from '../../cron/cron.service';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { Ms } from '../../utilities/ms';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
-import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
-import { WebsocketEvent } from '../models/websocket-event.enum';
-import { WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '../models/websocket-message-sequence.model';
-import { CreateWebsocketMessageData, WebsocketMessage } from '../models/websocket-message.model';
-import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model';
-import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job';
+import { type WebsocketServiceInterface } from './websocket-service.interface.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../../__testing__/wait-until.function.ts';
+import { CronJob } from '../../cron/cron-job.model.ts';
+import { type CronServiceInterface } from '../../cron/cron-service.interface.ts';
+import { CronService } from '../../cron/cron.service.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
+import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model.ts';
+import { WebsocketEvent } from '../models/websocket-event.enum.ts';
+import { WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '../models/websocket-message-sequence.model.ts';
+import { CreateWebsocketMessageData, WebsocketMessage } from '../models/websocket-message.model.ts';
+import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model.ts';
+import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job.ts';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'replay:' })
 class ReplayWsController {

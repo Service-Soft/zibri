@@ -1,6 +1,6 @@
-import { MORE_INFORMATION_MESSAGE } from '../constants';
-import { ChalkUtilities } from '../encapsulation';
-import { exitGracefully } from './exit-gracefully.function';
+import { MORE_INFORMATION_MESSAGE } from '../constants.ts';
+import { ChalkUtilities } from '../encapsulation/index.ts';
+import { exitGracefully } from './exit-gracefully.function.ts';
 
 /**
  * Exits the cli with the given error message.

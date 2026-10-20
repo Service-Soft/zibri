@@ -1,4 +1,4 @@
-import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
+import { EncryptionRotationFailure } from './encryption-rotation-failure.model.ts';
 
 /**
  * What is still encrypted under the keys and strategies being retired.

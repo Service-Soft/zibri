@@ -1,10 +1,10 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { AlsUtilities } from './als.utilities';
-import { OperationLimitUtilities } from './operation-limit.utilities';
-import { InternalError } from '../error-handling/internal-error.model';
+import { AlsUtilities } from './als.utilities.ts';
+import { OperationLimitUtilities } from './operation-limit.utilities.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 describe('OperationLimitUtilities', () => {
     it('fires the signal of the work once it has run out of time', async () => {

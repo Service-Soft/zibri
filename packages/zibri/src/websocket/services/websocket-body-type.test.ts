@@ -1,11 +1,11 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { MimeType } from '../../http/mime-type.enum';
-import { Body } from '../../routing/decorators/body.decorator';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
+import { startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
 
 class Upload {
     @Property.string()

@@ -1,6 +1,6 @@
-import { OpenTelemetryApi, OpenTelemetryHrTime } from './open-telemetry-api.model';
-import { TraceSpanKind } from '../trace-span-kind.enum';
-import { TraceSpanStatus } from '../trace-span-status.enum';
+import { OpenTelemetryApi, OpenTelemetryHrTime } from './open-telemetry-api.model.ts';
+import { TraceSpanKind } from '../trace-span-kind.enum.ts';
+import { TraceSpanStatus } from '../trace-span-status.enum.ts';
 
 /**
  * What the api calls each of the framework's kinds.

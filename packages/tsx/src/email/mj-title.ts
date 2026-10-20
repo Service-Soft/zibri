@@ -1,6 +1,6 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
-import { HeadChannel } from './head-channels';
-import { textContent } from './text-content';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
+import { HeadChannel } from './head-channels.ts';
+import { textContent } from './text-content.ts';
 
 /**
  * The document title. Mirrors MJML's `mj-title`: it sets the `<title>` in the head and renders

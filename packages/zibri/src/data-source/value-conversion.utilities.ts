@@ -1,23 +1,23 @@
-import { MigratedEntityUtilities } from './migration/migrated-entity.utilities';
-import { ChangePropertyOfEntityInput } from './models/change-property-of-entity-input.model';
-import { ConversionRefusal } from './models/conversion-refusal.enum';
-import { ConvertedValue } from './models/converted-value.model';
-import { MigrationPropertyMetadata } from './models/migration-property-metadata.model';
-import { RefusedValue } from './models/refused-value.model';
-import { ResolvedPropertyConversion } from './models/resolved-property-conversion.model';
-import { ValueConversion } from './models/value-conversion.enum';
-import { BaseEntity } from '../entity/base-entity.model';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { NumberFormat, NumberPropertyMetadata } from '../entity/models/number-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
-import { StoredStringPropertyMetadata } from '../entity/models/string-property-metadata.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { INTEGER_REGEX } from '../parsing/functions/parse-number.function';
-import { toJsonValue } from '../parsing/functions/to-json-value.function';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { BigNumber } from '../utilities/number.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { UUID_REGEX } from '../validation/functions/validate-string.function';
+import { MigratedEntityUtilities } from './migration/migrated-entity.utilities.ts';
+import { ChangePropertyOfEntityInput } from './models/change-property-of-entity-input.model.ts';
+import { ConversionRefusal } from './models/conversion-refusal.enum.ts';
+import { ConvertedValue } from './models/converted-value.model.ts';
+import { MigrationPropertyMetadata } from './models/migration-property-metadata.model.ts';
+import { RefusedValue } from './models/refused-value.model.ts';
+import { ResolvedPropertyConversion } from './models/resolved-property-conversion.model.ts';
+import { ValueConversion } from './models/value-conversion.enum.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { NumberFormat, NumberPropertyMetadata } from '../entity/models/number-property-metadata.model.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { StoredStringPropertyMetadata } from '../entity/models/string-property-metadata.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { INTEGER_REGEX } from '../parsing/functions/parse-number.function.ts';
+import { toJsonValue } from '../parsing/functions/to-json-value.function.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { BigNumber } from '../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { UUID_REGEX } from '../validation/functions/validate-string.function.ts';
 
 /**
  * What a property change does to the values it converts, whichever data source stores them.
@@ -280,11 +280,11 @@ export abstract class ValueConversionUtilities {
             // a property that says nothing about its values, and the kinds no migration describes
             case 'unknown':
             case 'file':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY: {
                 return true;
             }
         }
@@ -397,11 +397,11 @@ export abstract class ValueConversionUtilities {
             case 'file': {
                 return `a ${metadata.type}`;
             }
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY: {
                 return `a ${metadata.type} relation`;
             }
         }

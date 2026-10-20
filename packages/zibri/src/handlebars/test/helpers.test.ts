@@ -1,7 +1,7 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { initDiContainer } from '../../di/init-di-container.function';
-import { HandlebarUtilities } from '../handlebar.utilities';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { HandlebarUtilities } from '../handlebar.utilities.ts';
 
 describe('the helpers registered for handlebar templates', () => {
     beforeAll(async () => {

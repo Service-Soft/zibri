@@ -1,6 +1,6 @@
-import { BaseScimProvisioner } from './base-scim-provisioner';
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
+import { BaseScimProvisioner } from './base-scim-provisioner.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * The provisioner a SCIM request is handled with.

@@ -1,4 +1,4 @@
-import { NumberUtilities } from './number.utilities';
+import { NumberUtilities } from './number.utilities.ts';
 
 const startHr: bigint = process.hrtime.bigint();
 // its okay that we loose precision here, that's what the calculation below is for

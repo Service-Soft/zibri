@@ -1,6 +1,6 @@
-import { XliffSegment } from './xliff-segment.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator';
+import { XliffSegment } from './xliff-segment.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator.ts';
 
 /**
  * One translation string, with its translation when there is one.

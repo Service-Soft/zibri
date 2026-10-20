@@ -1,6 +1,7 @@
-import { User } from './user.entity';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
+import { User } from './user.entity.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../../entity/models/relation.type.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class Profile {
@@ -11,7 +12,7 @@ export class Profile {
     bio!: string;
 
     @Property.belongsToOne({ target: () => User, joinColumn: 'userId', inverseSide: 'profile' })
-    user!: User;
+    user!: Relation<User>;
 
     @Property.string({ format: 'uuid' })
     userId!: string;

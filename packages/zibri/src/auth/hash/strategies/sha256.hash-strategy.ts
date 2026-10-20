@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import { HashStrategyInterface } from './hash-strategy.interface';
-import { HashContent, HashString, HashUtilities } from '../hash.utilities';
+import { HashStrategyInterface } from './hash-strategy.interface.ts';
+import { HashContent, HashString, HashUtilities } from '../hash.utilities.ts';
 
 /**
  * Hash strategy for values that carry their own entropy, and have to stay findable.
@@ -19,14 +19,14 @@ import { HashContent, HashString, HashUtilities } from '../hash.utilities';
  * hash service, which refuses to use this as the default strategy.
  */
 export class Sha256HashStrategy implements HashStrategyInterface<Record<string, never>> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'sha256';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly version: string = 'v1';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly deterministic: boolean = true;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hash(value: string): HashString {
         return HashUtilities.contentToHash({
             strategyName: this.name,
@@ -36,7 +36,7 @@ export class Sha256HashStrategy implements HashStrategyInterface<Record<string, 
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     equal(value: string, hash: HashString): boolean {
         const content: HashContent = HashUtilities.hashToContent(hash);
         const expected: Buffer = Buffer.from(content.hashedValue, 'hex');

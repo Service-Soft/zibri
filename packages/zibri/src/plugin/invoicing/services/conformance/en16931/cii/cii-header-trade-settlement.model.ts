@@ -1,11 +1,11 @@
-import { CiiHeaderMonetarySummation } from './cii-header-monetary-summation.model';
-import { CiiNamespace } from './cii-namespace.enum';
-import { CiiPaymentMeans } from './cii-payment-means.model';
-import { CiiPaymentTerms } from './cii-payment-terms.model';
-import { CiiTradeTax } from './cii-trade-tax.model';
-import { Property } from '../../../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiHeaderMonetarySummation } from './cii-header-monetary-summation.model.ts';
+import { CiiNamespace } from './cii-namespace.enum.ts';
+import { CiiPaymentMeans } from './cii-payment-means.model.ts';
+import { CiiPaymentTerms } from './cii-payment-terms.model.ts';
+import { CiiTradeTax } from './cii-trade-tax.model.ts';
+import { Property } from '../../../../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator.ts';
+import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator.ts';
 
 /**
  * How the invoice is settled.

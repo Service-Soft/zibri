@@ -1,4 +1,4 @@
-import { FederatedSignInAction } from './federated-sign-in-action.type';
+import { FederatedSignInAction } from './federated-sign-in-action.type.ts';
 
 /**
  * What a provider's answer to a sign-in is checked with.

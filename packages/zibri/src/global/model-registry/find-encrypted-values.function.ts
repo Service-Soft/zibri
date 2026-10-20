@@ -1,14 +1,14 @@
-import { resolveEncryptOptions, ResolvedEncryptOptions } from './encrypt-encryption-properties.function';
-import { EncryptionDescriptor } from './encryption-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueUtilities } from './string-value.utilities';
-import { EncryptionString } from '../../auth/encryption/encryption.utilities';
-import { BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AnyObject } from '../../entity/any-object.model';
-import { Newable } from '../../types/newable.type';
+import { resolveEncryptOptions, ResolvedEncryptOptions } from './encrypt-encryption-properties.function.ts';
+import { EncryptionDescriptor } from './encryption-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { StringValueUtilities } from './string-value.utilities.ts';
+import { EncryptionString } from '../../auth/encryption/encryption.utilities.ts';
+import { BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * An encrypted value as a row stores it.
@@ -48,7 +48,7 @@ export async function findEncryptedValues<Data, EntityClass>(
     return found;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function findEncryptedValuesRecursive<Data, EntityClass>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,

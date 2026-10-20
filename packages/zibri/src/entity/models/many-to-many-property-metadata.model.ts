@@ -1,7 +1,7 @@
-import { BaseRelationMetadata } from './base-relation-metadata.model';
-import { Relation } from './relation.enum';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { type BaseEntity } from '../base-entity.model';
+import { BaseRelationMetadata } from './base-relation-metadata.model.ts';
+import { RelationType } from './relation-type.enum.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
 
 /**
  * Metadata for many to many properties.
@@ -10,7 +10,7 @@ export type ManyToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetad
     /**
      * The type of the property.
      */
-    type: Relation.MANY_TO_MANY,
+    type: RelationType.MANY_TO_MANY,
     /**
      * Whether or not this entity should own the join table.
      */

@@ -1,27 +1,27 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { Inject } from './decorators/inject.decorator';
-import { Injectable } from './decorators/injectable.decorator';
-import { DiContainer } from './di-container';
-import { CapturedRequestScopeError } from './errors/captured-request-scope.error';
-import { CircularDependencyError } from './errors/circular-dependency.error';
-import { InjectInsideAsyncFactoryError } from './errors/inject-inside-async-factory.error';
-import { OutsideRequestScopeError } from './errors/outside-request-scope.error';
-import { UninjectableParameterError } from './errors/uninjectable-parameter.error';
-import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider.error';
-import { initDiContainer } from './init-di-container.function';
-import { inject } from './inject.function';
-import { defineProvider } from './models/di-provider.model';
-import { InjectionToken } from './models/injection-token.model';
-import { AlsUtilities } from '../context/als.utilities';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
+import { Inject } from './decorators/inject.decorator.ts';
+import { Injectable } from './decorators/injectable.decorator.ts';
+import { DiContainer } from './di-container.ts';
+import { CapturedRequestScopeError } from './errors/captured-request-scope.error.ts';
+import { CircularDependencyError } from './errors/circular-dependency.error.ts';
+import { InjectInsideAsyncFactoryError } from './errors/inject-inside-async-factory.error.ts';
+import { OutsideRequestScopeError } from './errors/outside-request-scope.error.ts';
+import { UninjectableParameterError } from './errors/uninjectable-parameter.error.ts';
+import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider.error.ts';
+import { initDiContainer } from './init-di-container.function.ts';
+import { inject } from './inject.function.ts';
+import { defineProvider } from './models/di-provider.model.ts';
+import { InjectionToken } from './models/injection-token.model.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
 
 /**
  * The container reads the request scope off the request context, and the request context reaches
  * back through its tokens to route resolution and `inject()` - a require cycle. Nothing above
- * `./di-container` in the import list touches that ring, and jest gives every test file its own
+ * `./di-container` in the import list touches that ring, and vitest gives every test file its own
  * module registry, so this file entering the ring at the container is the check: were the cycle to
  * stop resolving, the suite would not load at all.
  */

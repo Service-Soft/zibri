@@ -1,18 +1,18 @@
-import { ScimErrorType } from './scim-error-type.enum';
-import { ScimAttributePath, ScimFilter } from './scim-filter.model';
-import { ScimFilterUtilities } from './scim-filter.utilities';
-import { ScimPatchOperation } from './scim-patch-operation.model';
-import { ScimSchema } from './scim-schema.enum';
-import { ScimError } from './scim.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { ScimErrorType } from './scim-error-type.enum.ts';
+import { ScimAttributePath, ScimFilter } from './scim-filter.model.ts';
+import { ScimFilterUtilities } from './scim-filter.utilities.ts';
+import { ScimPatchOperation } from './scim-patch-operation.model.ts';
+import { ScimSchema } from './scim-schema.enum.ts';
+import { ScimError } from './scim.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 /**
  * Where in a resource a patch operation applies.
  */
 type PatchTarget = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     path: ScimAttributePath,
     /**
      * Which items of a multi-valued attribute it applies to, if it names them.

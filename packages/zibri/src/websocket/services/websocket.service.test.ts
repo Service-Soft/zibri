@@ -1,24 +1,24 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 
-import { type WebsocketServiceInterface } from './websocket-service.interface';
-import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
-import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model';
-import { WebsocketChannel } from '../models/websocket-channel.model';
-import { WebsocketEvent } from '../models/websocket-event.enum';
-import { WebsocketMessage } from '../models/websocket-message.model';
+import { type WebsocketServiceInterface } from './websocket-service.interface.ts';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
+import { SocketIOWebsocketConnection } from '../models/connection/socket-io-websocket-connection.model.ts';
+import { WebsocketChannel } from '../models/websocket-channel.model.ts';
+import { WebsocketEvent } from '../models/websocket-event.enum.ts';
+import { WebsocketMessage } from '../models/websocket-message.model.ts';
 
 type LoginResponseBody = { accessToken: { value: string } };
 
@@ -136,7 +136,7 @@ describe('WebsocketService', () => {
         }
         // give the server a moment to process the disconnects before the next test inspects connection state
         await new Promise(resolve => setTimeout(resolve, 50));
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     describe('message dispatch', () => {
@@ -236,8 +236,8 @@ describe('WebsocketService', () => {
             await wsService.joinChannel(connection, channel.id);
 
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(logger, 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(logger, 'warn');
 
             await wsService.joinChannel(connection, channel.id);
 

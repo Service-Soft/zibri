@@ -1,23 +1,23 @@
-import { type CompanyInfoServiceInterface } from './company-info-service.interface';
-import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface';
-import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface';
-import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface';
-import { validateInvoiceTotal } from './validate-invoice-total.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
-import { LocaleCode } from '../../../localization/models/locale-code.model';
-import { Timezone } from '../../../localization/models/timezone.model';
-import { BigNumber } from '../../../utilities/number.utilities';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
-import { CompanyInfo } from '../models/company-info.model';
-import { Invoice } from '../models/invoice.model';
-import { type InvoicingOptions } from '../models/invoicing-options.model';
-import { Vat } from '../models/vat.model';
+import { type CompanyInfoServiceInterface } from './company-info-service.interface.ts';
+import { InvoiceConformanceServiceInterface, InvoiceConformance } from './conformance/invoice-conformance-service.interface.ts';
+import { type InvoiceCalcServiceInterface } from './invoice-calc-service.interface.ts';
+import { InvoicePdfServiceInterface } from './invoice-pdf-service.interface.ts';
+import { validateInvoiceTotal } from './validate-invoice-total.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { PdfContentDefinition, PdfColumnDefinition, PdfDocument, PdfDocumentDefinition, PdfUtilities, PdfTableCellDefinition, PdfContentSize } from '../../../document/pdf.utilities.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface.ts';
+import { LocaleCode } from '../../../localization/models/locale-code.model.ts';
+import { Timezone } from '../../../localization/models/timezone.model.ts';
+import { BigNumber } from '../../../utilities/number.utilities.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens.ts';
+import { CompanyInfo } from '../models/company-info.model.ts';
+import { Invoice } from '../models/invoice.model.ts';
+import { type InvoicingOptions } from '../models/invoicing-options.model.ts';
+import { Vat } from '../models/vat.model.ts';
 
 /**
  * Default implementation of the invoice pdf service.
@@ -43,7 +43,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
         optionalPeer('pdfmake', 'The invoicing plugin');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async generateInvoicePdf(
         invoice: Invoice,
         locale: LocaleCode,
@@ -97,7 +97,7 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                     margin: [0, 10, 0, 10],
                     bold: true
                 },
-                await this.getNumberAndDates(invoice, locale, timezone),
+                this.getNumberAndDates(invoice, locale, timezone),
                 ...this.getContentFromParagraphs(invoice.textBeforeItems),
                 await this.getInvoiceItemsTable(invoice, taxGroups, locale),
                 await this.getTotalTable(invoice, taxGroups, locale),
@@ -400,7 +400,6 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
      * @returns The letterhead of the customer, containing the name and address.
      */
     protected getCustomerLetterheadColumn(invoice: Invoice, company: CompanyInfo): PdfColumnDefinition {
-        // eslint-disable-next-line stylistic/max-len
         const companyAddressLine: string = `${company.fullName} - ${company.address.street} ${company.address.number} - ${company.address.postcode} ${company.address.city}`;
         const fontSize: number = this.getFontSizeForLetterhead(companyAddressLine);
         return [

@@ -1,25 +1,25 @@
-/* eslint-disable cspell/spellchecker */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+/* cspell:disable */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { InvoiceNumberService } from './invoice-number.service';
-import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
-import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { ConflictError } from '../../../error-handling/errors/conflict.error';
-import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { ZibriInvoicingPlugin } from '../invoicing.plugin';
-import { InvoiceAddress } from '../models/invoice-address.model';
-import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
-import { Invoice } from '../models/invoice.model';
-import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoiceNumberService } from './invoice-number.service.ts';
+import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function.ts';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins.ts';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { ConflictError } from '../../../error-handling/errors/conflict.error.ts';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { ZibriInvoicingPlugin } from '../invoicing.plugin.ts';
+import { InvoiceAddress } from '../models/invoice-address.model.ts';
+import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from '../models/invoice.model.ts';
+import { NumberInvoices } from '../models/number-invoices.model.ts';
 
 // in memory, as the abbreviations are judged by the service alone, whichever store holds the counters.
 // A file of its own, because an application refuses a data source declared by another one the same

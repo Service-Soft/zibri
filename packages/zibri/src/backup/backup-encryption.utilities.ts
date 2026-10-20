@@ -1,6 +1,6 @@
 import { CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, DecipherGCM, randomBytes } from 'node:crypto';
 
-import { InternalError } from '../error-handling/internal-error.model';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * What a backup's data is encrypted with.

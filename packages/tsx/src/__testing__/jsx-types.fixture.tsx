@@ -1,4 +1,4 @@
-import { TsxChildren, TsxElement } from '../index';
+import { TsxChildren, TsxElement } from '../index.ts';
 
 /**
  * Type level verification of the jsx typings. Nothing here is executed — it fails the typecheck when
@@ -153,5 +153,5 @@ function report(value: string): void {
     void value;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export { Card, elementSpecific, globals, handlers, rejected, structures };

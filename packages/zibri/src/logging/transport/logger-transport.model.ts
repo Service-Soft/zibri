@@ -1,10 +1,10 @@
-import { TsxEmailComponent } from '../../tsx/tsx-email-component.model';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
-import { LogBudget } from './log-budget';
-import { logToConsole } from './log-to-console.function';
-import { logToDb } from './log-to-db.function';
-import { createLogToEmail, EmailLoggerTransportConfig, EmailLoggerTransportConfigInput } from './log-to-email.function';
+import { TsxEmailComponent } from '../../tsx/tsx-email-component.model.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
+import { LogBudget } from './log-budget.ts';
+import { logToConsole } from './log-to-console.function.ts';
+import { logToDb } from './log-to-db.function.ts';
+import { createLogToEmail, EmailLoggerTransportConfig, EmailLoggerTransportConfigInput } from './log-to-email.function.ts';
 
 /**
  * Properties for a log email template.
@@ -78,7 +78,7 @@ export type DbLoggerTransportOptions = {
     maxEntriesPerMinute?: number
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export class LoggerTransport<T extends BaseLoggerTransportConfig> {
     /**
      * The configuration options of the transport.

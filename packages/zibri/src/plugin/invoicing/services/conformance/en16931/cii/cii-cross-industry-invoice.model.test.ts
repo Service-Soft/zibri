@@ -1,9 +1,9 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { CiiCrossIndustryInvoice } from './cii-cross-industry-invoice.model';
-import { initDiContainer } from '../../../../../../di/init-di-container.function';
-import { XmlUtilities } from '../../../../../../document/xml.utilities';
-import { GlobalRegistry } from '../../../../../../global/global-registry';
+import { CiiCrossIndustryInvoice } from './cii-cross-industry-invoice.model.ts';
+import { initDiContainer } from '../../../../../../di/init-di-container.function.ts';
+import { XmlUtilities } from '../../../../../../document/xml.utilities.ts';
+import { GlobalRegistry } from '../../../../../../global/global-registry.ts';
 
 const invoice: CiiCrossIndustryInvoice = {
     exchangedDocumentContext: {

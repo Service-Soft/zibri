@@ -1,7 +1,7 @@
 import { Dirent, readdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { Path } from '../utilities';
+import { Path } from '../utilities/index.ts';
 
 /**
  * The root of this package, which is what the generator's own assets are found relative to.
@@ -9,7 +9,7 @@ import { Path } from '../utilities';
  * Shared by both parity suites, which cover the same tree at different costs: the fast one runs the
  * generator with "npm install" stubbed out, the heavy one runs it for real.
  */
-export const CLI_ROOT: string = path.join(__dirname, '..', '..');
+export const CLI_ROOT: string = path.join(import.meta.dirname, '..', '..');
 
 /**
  * The reference copy of a generated app, which both parity suites compare against.
@@ -61,7 +61,7 @@ const EXPLICITLY_CREATED_FILES: string[] = [
     'src/services/index.ts'
 ];
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function listCopiedTemplateFiles(sourceDir: string, destinationPrefix: string): string[] {
     const entries: Dirent[] = readdirSync(sourceDir, { withFileTypes: true });
     const files: string[] = [];

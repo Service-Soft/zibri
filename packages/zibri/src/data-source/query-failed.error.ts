@@ -1,6 +1,6 @@
 import { QueryFailedError as TOQueryFailedError } from 'typeorm';
 
-import { InternalError } from '../error-handling/internal-error.model';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * An error for a failed sql query.
@@ -13,7 +13,7 @@ export class QueryFailedError extends InternalError {
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function buildErrorMessage(error: TOQueryFailedError): string {
     let query: string = error.query;
     for (let i: number = 0; i < (error.parameters ?? []).length; i++) {

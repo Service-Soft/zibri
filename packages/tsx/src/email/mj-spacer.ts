@@ -1,5 +1,5 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
-import { withDefaults } from './with-defaults';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
+import { withDefaults } from './with-defaults.ts';
 
 /**
  * Props for {@link MjSpacer}.

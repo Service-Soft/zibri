@@ -1,30 +1,30 @@
-/* eslint-disable cspell/spellchecker */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+/* cspell:disable */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MailingListController } from './mailing-list.controller';
-import { ZibriMailingListPlugin } from './mailing-list.plugin';
-import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
-import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model';
-import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model';
-import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model';
-import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model';
-import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken } from './models/mailing-list-subscription-confirmation-token.model';
-import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model';
-import { MailingList } from './models/mailing-list.model';
-import { MailingListServiceInterface } from './services/mailing-list-service.interface';
-import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { MailingListController } from './mailing-list.controller.ts';
+import { ZibriMailingListPlugin } from './mailing-list.plugin.ts';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens.ts';
+import { MailingListBaseEmailTemplate } from './models/mailing-list-base-email-template.model.ts';
+import { MailingListPreferencesPageTemplate } from './models/mailing-list-preferences-page-template.model.ts';
+import { MailingListSubscribeConfirmationEmailTemplate } from './models/mailing-list-subscribe-confirmation-email-template.model.ts';
+import { MailingListSubscribeSuccessPageTemplate } from './models/mailing-list-subscribe-success-page-template.model.ts';
+import { MailingListSubscriber } from './models/mailing-list-subscriber.model.ts';
+import { MailingListSubscriptionConfirmationToken } from './models/mailing-list-subscription-confirmation-token.model.ts';
+import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing-list-unsubscribe-confirmation-page-template.model.ts';
+import { MailingList } from './models/mailing-list.model.ts';
+import { MailingListServiceInterface } from './services/mailing-list-service.interface.ts';
+import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 const ACME: string = UUIDUtilities.generate();
 const GLOBEX: string = UUIDUtilities.generate();

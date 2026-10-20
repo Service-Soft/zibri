@@ -1,14 +1,14 @@
-import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
-import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { MigrationEntity } from '../migration/migration-entity.model';
-import { Migration } from '../migration/migration.model';
-import { Transaction } from '../transaction/transaction.model';
+import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases.ts';
+import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { MigrationEntity } from '../migration/migration-entity.model.ts';
+import { Migration } from '../migration/migration.model.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * The entities of the postgres data source, the widget last - which the cases swap for another

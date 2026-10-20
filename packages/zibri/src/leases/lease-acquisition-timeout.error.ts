@@ -1,4 +1,4 @@
-import { InternalError } from '../error-handling/internal-error.model';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * Thrown when waiting for a grant ran out of patience.

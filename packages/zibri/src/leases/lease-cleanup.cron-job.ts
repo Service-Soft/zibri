@@ -1,8 +1,8 @@
-import { CreateLeaseData, Lease } from './lease.model';
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Repository } from '../data-source/repository/repository';
-import { InjectRepository } from '../di/decorators/inject-repository.decorator';
+import { CreateLeaseData, Lease } from './lease.model.ts';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { InjectRepository } from '../di/decorators/inject-repository.decorator.ts';
 
 /**
  * CronJob that removes grants nobody holds any more.
@@ -18,7 +18,7 @@ import { InjectRepository } from '../di/decorators/inject-repository.decorator';
  * that is already being done.
  */
 export class LeaseCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Lease Cleanup',
         cron: CronExpression.daily().build(),
@@ -32,7 +32,7 @@ export class LeaseCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         this.logger.info('cleans up expired leases');
 

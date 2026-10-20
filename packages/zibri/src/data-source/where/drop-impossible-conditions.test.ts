@@ -1,16 +1,17 @@
 /* eslint-disable unicorn/no-null */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { dropImpossibleConditions } from './drop-impossible-conditions.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { WhereFilter } from '../models/where/where-filter.model';
+import { dropImpossibleConditions } from './drop-impossible-conditions.function.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property, PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { WhereFilter } from '../models/where/where-filter.model.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class Document extends BaseEntity {
@@ -27,7 +28,7 @@ class Document extends BaseEntity {
 @Entity({ tenant: 'shared', allowOrphan: true })
 class Revision extends BaseEntity {
     @Property.manyToOne({ target: () => Document, joinColumn: 'documentId', inverseSide: 'revisions' })
-    document!: Document;
+    document!: Relation<Document>;
 
     @Property.string({ format: 'uuid' })
     documentId!: string;

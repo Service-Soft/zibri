@@ -1,10 +1,10 @@
-import { AnyEnum } from '../../types/any-enum.type';
+import { AnyEnum } from '../../types/any-enum.type.ts';
 
 /**
  * ISO 4217 alphabetic currency codes.
  * Snapshot of the active list (List One).
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const currencyCodes = [
     'AED',
     'AFN',

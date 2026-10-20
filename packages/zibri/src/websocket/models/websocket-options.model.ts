@@ -1,8 +1,8 @@
-import { BaseUser } from '../../auth/models/base-user.model';
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { HandlerTimeout } from '../../http/handler-timeout.type';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseUser } from '../../auth/models/base-user.model.ts';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
+import { HandlerTimeout } from '../../http/handler-timeout.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Options regarding websockets.

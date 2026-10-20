@@ -1,6 +1,12 @@
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-import { needsTsNode, registerTsNode } from '../../../utilities/register-ts-node.function';
+import { TypeScriptLoaderUtilities } from '../../../utilities/typescript-loader/typescript-loader.utilities.ts';
+
+/**
+ * Node's own `require`, whose cache is the one every commonjs module is loaded into.
+ */
+const nodeRequire: NodeJS.Require = createRequire(import.meta.url);
 
 /**
  * The files that turned out to be es modules, so the next run of one knows to ask for a new copy.
@@ -15,22 +21,6 @@ const esModuleFiles: Set<string> = new Set();
  * How many copies have been asked for, so each one is a url the loader has not seen.
  */
 let freshLoadCount: number = 0;
-
-/**
- * Imports a module by specifier, for real.
- *
- * Built through `new Function` because this package is compiled to commonjs, and TypeScript rewrites
- * a literal `await import(x)` into `require(x)` under that setting - which is exactly the call this
- * exists to avoid. The compiler cannot see through a string, so this survives the build as the
- * dynamic import it is written as.
- */
-// the rule is right everywhere else, and there is nothing dynamic about what is built here: the
-// source is a constant, and what varies is the specifier passed to it
-// eslint-disable-next-line typescript/no-implied-eval
-const dynamicImport: (specifier: string) => Promise<unknown> = new Function(
-    'specifier',
-    'return import(specifier);'
-) as (specifier: string) => Promise<unknown>;
 
 /**
  * Anything that might carry the tag an es module namespace carries.
@@ -73,8 +63,8 @@ function isModuleNamespace(loaded: unknown): boolean {
  * @param filePath - The absolute path of the file to run.
  */
 export async function loadWorkerFile(filePath: string): Promise<void> {
-    if (needsTsNode(filePath)) {
-        registerTsNode(`The worker file ${filePath}`);
+    if (TypeScriptLoaderUtilities.isNeededFor(filePath)) {
+        TypeScriptLoaderUtilities.register(`The worker file ${filePath}`);
     }
 
     if (!esModuleFiles.has(filePath)) {
@@ -91,7 +81,8 @@ export async function loadWorkerFile(filePath: string): Promise<void> {
     }
 
     freshLoadCount++;
-    await dynamicImport(`${pathToFileURL(filePath).href}?zibriRun=${freshLoadCount}`);
+    // a file of the application, which a bundler of this package has nothing to resolve
+    await import(`${pathToFileURL(filePath).href}?zibriRun=${freshLoadCount}`);
 }
 
 /**
@@ -108,9 +99,8 @@ type RequireOutcome = 'ran a commonjs module' | 'ran an es module' | 'refused';
 function requireWorkerFile(filePath: string): RequireOutcome {
     try {
         // eslint-disable-next-line typescript/no-dynamic-delete
-        delete require.cache[filePath];
-        // eslint-disable-next-line typescript/no-require-imports, typescript/no-var-requires
-        const loaded: unknown = require(filePath);
+        delete nodeRequire.cache[filePath];
+        const loaded: unknown = nodeRequire(filePath);
         return isModuleNamespace(loaded) ? 'ran an es module' : 'ran a commonjs module';
     }
     catch (error) {

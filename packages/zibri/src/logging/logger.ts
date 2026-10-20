@@ -1,34 +1,35 @@
-import { AuditEvent, AuditOutcome } from './audit-event.model';
-import { errorToLoggedError } from './error-to-logged-error.function';
-import { LogBuffer } from './log-buffer';
-import { LogCleanupCronJob } from './log-cleanup.cron-job';
-import { LogContextInput, LogRequestContext } from './log-context.model';
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
-import { LoggerInterface } from './logger.interface';
-import { ZibriApplication } from '../application/application';
-import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
-import { AlsUtilities } from '../context/als.utilities';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { ErrorUtilities } from '../error-handling/error.utilities';
-import { GlobalRegistry } from '../global/global-registry';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
-import { HttpRequest } from '../http/http-request.model';
-import { KnownHeader } from '../http/known-header.enum';
-import { MiddlewarePhase } from '../http/middleware-phase.enum';
-import { TraceContextUtilities } from '../tracing/trace-context.utilities';
-import { TraceSpanContext } from '../tracing/trace-span-context.model';
-import { TracingUtilities } from '../tracing/tracing.utilities';
-import { OmitStrict } from '../types/omit-strict.type';
-import { resolveCallSites } from '../utilities/resolve-call-sites.function';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { AuditEvent, AuditOutcome } from './audit-event.model.ts';
+import { errorToLoggedError } from './error-to-logged-error.function.ts';
+import { LogBuffer } from './log-buffer.ts';
+import { LogCleanupCronJob } from './log-cleanup.cron-job.ts';
+import { LogContextInput, LogRequestContext } from './log-context.model.ts';
+import { LogLevel } from './log-level.enum.ts';
+import { Log } from './log.model.ts';
+import { LoggerInterface } from './logger.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { ErrorUtilities } from '../error-handling/error.utilities.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { OnAppShutdown } from '../global/on-app-shutdown.interface.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MiddlewarePhase } from '../http/middleware-phase.enum.ts';
+import { TraceContextUtilities } from '../tracing/trace-context.utilities.ts';
+import { TraceSpanContext } from '../tracing/trace-span-context.model.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { resolveCallSiteFile } from '../utilities/resolve-call-site-file.function.ts';
+import { resolveCallSites } from '../utilities/resolve-call-sites.function.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * Finds the file the log call came from.
@@ -44,8 +45,8 @@ function resolveOrigin(): string {
     // start at `log` and the first one outside this file is the caller
     const callSites: NodeJS.CallSite[] = resolveCallSites(resolveOrigin);
     return callSites
-        .map(callSite => callSite.getFileName())
-        .find(fileName => fileName != undefined && fileName !== __filename)
+        .map(callSite => resolveCallSiteFile(callSite))
+        .find(fileName => fileName != undefined && fileName !== import.meta.filename)
         ?? 'unknown';
 }
 
@@ -86,7 +87,7 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
         this.buffer = new LogBuffer(bufferCapacity);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         // only for the builtin db transport: it is what writes the table, and without it there is
         // neither a table to require nor anything for the cleanup to remove. By name, since each one
@@ -188,32 +189,32 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
         }));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     debug(message: string, context?: LogContextInput): void {
         this.log(LogLevel.DEBUG, message, context);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     info(message: string, context?: LogContextInput): void {
         this.log(LogLevel.INFO, message, context);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     warn(message: string, context?: LogContextInput): void {
         this.log(LogLevel.WARN, message, context);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     error(error: Error, context?: OmitStrict<LogContextInput, 'error'>): void {
         this.log(LogLevel.ERROR, error.message, { ...context, error });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     critical(error: Error, context?: OmitStrict<LogContextInput, 'error'>): void {
         this.log(LogLevel.CRITICAL, error.message, { ...context, error });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     audit(event: AuditEvent): void {
         // info rather than debug so that the default db transport keeps it, and warn rather than
         // error for a failure because error() wants an Error and a refused login is not one - a

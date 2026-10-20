@@ -101,7 +101,7 @@ async function provisionApplicationRole(container: StartedPostgreSqlContainer, d
         'psql',
         '--username',
         POSTGRES_PROVISIONING_USER,
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         '--dbname',
         'postgres',
         '--set',
@@ -133,7 +133,7 @@ export async function runAsSuperuser(container: StartedTestContainer, dataSource
         'psql',
         '--username',
         POSTGRES_PROVISIONING_USER,
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         '--dbname',
         dataSource.options.database ?? 'db',
         '--set',

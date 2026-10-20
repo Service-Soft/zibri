@@ -1,18 +1,18 @@
-import { WebsocketMessage } from './models/websocket-message.model';
-import { type WebsocketOptions } from './models/websocket-options.model';
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Repository } from '../data-source/repository/repository';
-import { InjectRepository } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { InternalError } from '../error-handling/internal-error.model';
+import { WebsocketMessage } from './models/websocket-message.model.ts';
+import { type WebsocketOptions } from './models/websocket-options.model.ts';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { InjectRepository } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * Deletes the websocket messages that are older than `messageRetentionInMs`.
  */
 export class WebsocketMessageCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Websocket Message Cleanup',
         // hourly rather than daily, because a retention of minutes is an ordinary choice here. A
@@ -39,7 +39,7 @@ export class WebsocketMessageCleanupCronJob extends CronJob {
         this.retentionInMs = options.messageRetentionInMs;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         this.logger.info('cleans up expired websocket messages');
         const [newestExpired] = await this.repository.findAll({

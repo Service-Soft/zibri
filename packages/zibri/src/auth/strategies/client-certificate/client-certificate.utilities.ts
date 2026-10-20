@@ -1,11 +1,11 @@
 import { X509Certificate } from 'node:crypto';
 
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { isClientCertificateAuthStrategy } from '../client-certificate-auth-strategy.interface';
-import { JwtUtilities } from '../jwt/jwt.utilities';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { isClientCertificateAuthStrategy } from '../client-certificate-auth-strategy.interface.ts';
+import { JwtUtilities } from '../jwt/jwt.utilities.ts';
 
 /**
  * Checks client certificates, whoever presents and whoever issued them.

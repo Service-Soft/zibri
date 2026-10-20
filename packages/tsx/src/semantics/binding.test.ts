@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
+import { describe, expect, it } from 'vitest';
 
-import { collectOuterNames, collectPatternBindings, collectPatternNames, collectReferencedIdentifiers, collectReferencedSymbols } from './binding';
-import { symbolOf } from './symbols';
-import { parseTemplateArrow, parseTemplateBinding, parseTemplateExpression } from '../__testing__/parse.helper';
+import { collectOuterNames, collectPatternBindings, collectPatternNames, collectReferencedIdentifiers, collectReferencedSymbols } from './binding.ts';
+import { symbolOf } from './symbols.ts';
+import { parseTemplateArrow, parseTemplateBinding, parseTemplateExpression } from '../__testing__/parse.helper.ts';
 
 describe('binding analysis', () => {
     describe('collectPatternNames', () => {

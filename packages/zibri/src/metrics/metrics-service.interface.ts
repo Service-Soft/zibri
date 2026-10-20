@@ -1,9 +1,9 @@
-import { CounterInterface } from './counter.interface';
-import { GaugeInterface } from './gauge.interface';
-import { HistogramInterface } from './histogram.interface';
-import { Metric } from './metric.model';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
+import { CounterInterface } from './counter.interface.ts';
+import { GaugeInterface } from './gauge.interface.ts';
+import { HistogramInterface } from './histogram.interface.ts';
+import { Metric } from './metric.model.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
 
 /**
  * Name of a counter metric.

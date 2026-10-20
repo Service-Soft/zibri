@@ -1,6 +1,6 @@
-import { AcceptCrossSitePostsOptions } from './accept-cross-site-posts-options.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { AcceptCrossSitePostsOptions } from './accept-cross-site-posts-options.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Lets pages on the given origins send the route a request with cookies, which is otherwise refused

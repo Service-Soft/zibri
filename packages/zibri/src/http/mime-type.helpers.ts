@@ -1,20 +1,20 @@
-import { FileMimeType, LooseFileMimeType, MimeType } from './mime-type.enum';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { FileMimeType, LooseFileMimeType, MimeType } from './mime-type.enum.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
 /**
  * All possible file extensions.
  */
 export type FileExtension = NonNullable<(typeof mimeTypeToExtensions)[keyof typeof mimeTypeToExtensions]>[number];
 
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const mimeTypeToExtensions = {
     [MimeType.JSON]: ['.json'],
     [MimeType.HTML]: ['.html', '.htm'],
     [MimeType.PNG]: ['.png'],
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     [MimeType.JPEG]: ['.jpeg', '.jpg', '.jpe', '.jfif'],
     [MimeType.ZIP]: ['.zip'],
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     [MimeType.SVG]: ['.svg', '.svgz'],
     [MimeType.CSS]: ['.css'],
     [MimeType.TTF]: ['.ttf'],
@@ -28,9 +28,9 @@ const mimeTypeToExtensions = {
     [MimeType.GZIP]: ['.gz', '.gzip'],
     [MimeType.TAR]: ['.tar'],
     [MimeType.WASM]: ['.wasm'],
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     [MimeType.JSON_LD]: ['.jsonld', '.json-ld'],
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     [MimeType.NDJSON]: ['.ndjson', '.jsonl'],
     [MimeType.PPTX]: ['.pptx'],
     [MimeType.JAVASCRIPT]: ['.js', '.cjs', '.mjs'],
@@ -61,11 +61,11 @@ const extensionToMimeType: Record<FileExtension, MimeType | undefined> = {
     '.jpeg': MimeType.JPEG,
     '.jpg': MimeType.JPEG,
     '.jpe': MimeType.JPEG,
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     '.jfif': MimeType.JPEG,
     '.zip': MimeType.ZIP,
     '.svg': MimeType.SVG,
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     '.svgz': MimeType.SVG,
     '.css': MimeType.CSS,
     '.ttf': MimeType.TTF,
@@ -79,10 +79,10 @@ const extensionToMimeType: Record<FileExtension, MimeType | undefined> = {
     '.gzip': MimeType.GZIP,
     '.tar': MimeType.TAR,
     '.wasm': MimeType.WASM,
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     '.jsonld': MimeType.JSON_LD,
     '.json-ld': MimeType.JSON_LD,
-    // eslint-disable-next-line cspell/spellchecker
+    // cspell:disable-next-line
     '.ndjson': MimeType.NDJSON,
     '.jsonl': MimeType.NDJSON,
     '.pptx': MimeType.PPTX,
@@ -136,7 +136,7 @@ export function resolveFileExtension(type: LooseFileMimeType): FileExtension | u
     return extension;
 }
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Checks if the given value is a known mime type.
  * @param value - The value to check.

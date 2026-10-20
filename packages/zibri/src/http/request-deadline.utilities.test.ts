@@ -2,32 +2,32 @@ import { Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { Readable } from 'node:stream';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import express, { Express } from 'express';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { HttpMethod } from './http-method.enum';
-import { HttpServerLimits } from './http-server-limits.model';
-import { HttpStatus } from './http-status.enum';
-import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { AlsUtilities } from '../context/als.utilities';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider, DiProvider } from '../di/models/di-provider.model';
-import { HttpClientInterface } from '../http-client/http-client.interface';
-import { LeaseServiceInterface } from '../leases/lease-service.interface';
-import { Response } from '../open-api/decorators/response.decorator';
-import { FileResponse } from '../parsing/form-data/file-response.model';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { RouterInterface } from '../routing/router.interface';
+import { HttpMethod } from './http-method.enum.ts';
+import { HttpServerLimits } from './http-server-limits.model.ts';
+import { HttpStatus } from './http-status.enum.ts';
+import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../di/models/di-provider.model.ts';
+import { HttpClientInterface } from '../http-client/http-client.interface.ts';
+import { LeaseServiceInterface } from '../leases/lease-service.interface.ts';
+import { Response } from '../open-api/decorators/response.decorator.ts';
+import { FileResponse } from '../parsing/form-data/file-response.model.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { RouterInterface } from '../routing/router.interface.ts';
 
 /**
  * What a refused or failed request answers with.

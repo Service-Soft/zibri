@@ -1,11 +1,11 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { ComponentInfo, findComponents } from './component';
-import { EMAIL_MODULE, EmailComponentSchema, emailSchema, ZIBRI_MODULE } from './email-schema';
-import { readImports } from './imports';
-import { spanOf, ValidationCode } from './validate';
-import { childrenOf } from './walk';
-import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
+import { ComponentInfo, findComponents } from './component.ts';
+import { EMAIL_MODULE, EmailComponentSchema, emailSchema, ZIBRI_MODULE } from './email-schema.ts';
+import { readImports } from './imports.ts';
+import { spanOf, ValidationCode } from './validate.ts';
+import { childrenOf } from './walk.ts';
+import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model.ts';
 
 /**
  * The email component whose children are currently being checked: its schema plus its name. Undefined

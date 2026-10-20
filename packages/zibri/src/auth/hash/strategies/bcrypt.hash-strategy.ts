@@ -1,6 +1,6 @@
-import { HashStrategyInterface } from './hash-strategy.interface';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { HashContent, HashString, HashUtilities } from '../hash.utilities';
+import { HashStrategyInterface } from './hash-strategy.interface.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { HashContent, HashString, HashUtilities } from '../hash.utilities.ts';
 
 /**
  * Options for hashing via the bcrypt hash strategy.
@@ -24,11 +24,11 @@ export type BcryptHashOptions = {
 // the default of 10 rounds stays as it is: this exists to read what 2.x wrote, and raising it would
 // only make the strategy nobody should be writing with a little better at writing
 export class BcryptHashStrategy implements HashStrategyInterface<BcryptHashOptions> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'bcrypt';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly version: string = 'v1';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly deterministic: boolean = false;
 
     /**
@@ -38,7 +38,7 @@ export class BcryptHashStrategy implements HashStrategyInterface<BcryptHashOptio
      */
     private readonly bcrypt: typeof import('bcryptjs') = optionalPeer('bcryptjs', 'The bcrypt hash strategy');
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async hash(
         value: string,
         options: BcryptHashOptions | undefined
@@ -47,7 +47,7 @@ export class BcryptHashStrategy implements HashStrategyInterface<BcryptHashOptio
         return HashUtilities.contentToHash({ strategyName: this.name, version: this.version, hashedValue });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async equal(value: string, hash: HashString): Promise<boolean> {
         const content: HashContent = HashUtilities.hashToContent(hash);
         return await this.bcrypt.compare(value, content.hashedValue);

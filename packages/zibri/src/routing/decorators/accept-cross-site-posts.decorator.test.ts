@@ -1,11 +1,11 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { AcceptCrossSitePosts } from './accept-cross-site-posts.decorator';
-import { Controller } from './controller.decorator';
-import { Get } from './get.decorator';
-import { Post } from './post.decorator';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { Auth } from '../../auth/decorators/auth.decorator';
+import { AcceptCrossSitePosts } from './accept-cross-site-posts.decorator.ts';
+import { Controller } from './controller.decorator.ts';
+import { Get } from './get.decorator.ts';
+import { Post } from './post.decorator.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { Auth } from '../../auth/decorators/auth.decorator.ts';
 
 const providerOrigin: string = 'https://provider.example.com';
 

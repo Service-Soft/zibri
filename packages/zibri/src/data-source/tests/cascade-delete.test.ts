@@ -1,16 +1,16 @@
-import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
+import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 
-import { Child } from '../../__testing__/mocks/entities/child.entity';
-import { Company } from '../../__testing__/mocks/entities/company.entity';
-import { Parent } from '../../__testing__/mocks/entities/parent.entity';
-import { Profile } from '../../__testing__/mocks/entities/profile.entity';
-import { Role } from '../../__testing__/mocks/entities/role.entity';
-import { User, UserCreateData, mockCreateUserData } from '../../__testing__/mocks/entities/user.entity';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { Repository } from '../repository/repository';
+import { Child } from '../../__testing__/mocks/entities/child.entity.ts';
+import { Company } from '../../__testing__/mocks/entities/company.entity.ts';
+import { Parent } from '../../__testing__/mocks/entities/parent.entity.ts';
+import { Profile } from '../../__testing__/mocks/entities/profile.entity.ts';
+import { Role } from '../../__testing__/mocks/entities/role.entity.ts';
+import { User, UserCreateData, mockCreateUserData } from '../../__testing__/mocks/entities/user.entity.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Repository } from '../repository/repository.ts';
 
 describe('cascade delete', () => {
     let server: StartedTestServer;

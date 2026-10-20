@@ -1,15 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { compileServerRender } from './render-codegen';
-import { parseTemplateOk } from '../../__testing__/parse.helper';
-import { collectTsxFiles } from '../../__testing__/sandbox.helper';
-import { ComponentInfo, findComponents } from '../../semantics/component';
-import { eraseTypes } from '../erase-types';
+import { compileServerRender } from './render-codegen.ts';
+import { parseTemplateOk } from '../../__testing__/parse.helper.ts';
+import { collectTsxFiles } from '../../__testing__/sandbox.helper.ts';
+import { ComponentInfo, findComponents } from '../../semantics/component.ts';
+import { eraseTypes } from '../erase-types.ts';
 
-const templatesDir: string = join(__dirname, '..', '..', '..', '..', 'sandbox', 'src', 'templates');
+const templatesDir: string = join(import.meta.dirname, '..', '..', '..', '..', 'sandbox', 'src', 'templates');
 
 describe('server codegen against real sandbox templates', () => {
     const files: string[] = collectTsxFiles(templatesDir);

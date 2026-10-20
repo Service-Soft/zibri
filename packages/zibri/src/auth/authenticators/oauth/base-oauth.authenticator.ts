@@ -1,39 +1,39 @@
 import type { AuthorizationCodeGrantChecks, ClientAuth, Configuration, DiscoveryRequestOptions, TokenEndpointResponse, TokenEndpointResponseHelpers } from 'openid-client';
 
-import { OAuthClientAuthentication, OAuthClientSecret } from './oauth-client-authentication.model';
-import { OAuthCodeExchange } from './oauth-code-exchange.model';
-import { OAuthOfflineAccess } from './oauth-offline-access.model';
-import { OAuthProviderSignIn } from './oauth-provider-sign-in.model';
-import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './oauth-provider-tokens.model';
-import { OAuthResponseMode } from './oauth-response-mode.type';
-import { OpenIdClient } from './open-id-client.type';
-import { ZibriApplication } from '../../../application/application';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { type HttpClientInterface } from '../../../http-client/http-client.interface';
-import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
-import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { UrlUtilities } from '../../../utilities/url.utilities';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../../models/base-user.model';
-import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
-import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
-import { FederatedIdentity } from '../federated/federated-identity.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInStart } from '../federated/federated-sign-in-start.model';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
-import { FederatedSignIn } from '../federated/federated-sign-in.model';
-import { ProviderTokenGrant } from '../federated/provider-token-grant.model';
-import { ProviderAccessAuthenticatorInterface } from '../provider-access-authenticator.interface';
-import { ProviderAccessFailure } from '../provider-access-failure.enum';
-import { ProviderAccessError } from '../provider-access.error';
+import { OAuthClientAuthentication, OAuthClientSecret } from './oauth-client-authentication.model.ts';
+import { OAuthCodeExchange } from './oauth-code-exchange.model.ts';
+import { OAuthOfflineAccess } from './oauth-offline-access.model.ts';
+import { OAuthProviderSignIn } from './oauth-provider-sign-in.model.ts';
+import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './oauth-provider-tokens.model.ts';
+import { OAuthResponseMode } from './oauth-response-mode.type.ts';
+import { OpenIdClient } from './open-id-client.type.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { type HttpClientInterface } from '../../../http-client/http-client.interface.ts';
+import { type LeaseServiceInterface } from '../../../leases/lease-service.interface.ts';
+import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { UrlUtilities } from '../../../utilities/url.utilities.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator.ts';
+import { FederatedAnswerContext } from '../federated/federated-answer-context.model.ts';
+import { FederatedIdentity } from '../federated/federated-identity.model.ts';
+import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum.ts';
+import { FederatedSignInStart } from '../federated/federated-sign-in-start.model.ts';
+import { FederatedSignInError } from '../federated/federated-sign-in.error.ts';
+import { FederatedSignIn } from '../federated/federated-sign-in.model.ts';
+import { ProviderTokenGrant } from '../federated/provider-token-grant.model.ts';
+import { ProviderAccessAuthenticatorInterface } from '../provider-access-authenticator.interface.ts';
+import { ProviderAccessFailure } from '../provider-access-failure.enum.ts';
+import { ProviderAccessError } from '../provider-access.error.ts';
 
 /**
  * How long before it expires an access token is replaced, so it does not expire on its way to the
@@ -113,7 +113,7 @@ export abstract class BaseOAuthAuthenticator<
         this.resolveOpenIdClient();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveFormPostOrigins(): Promise<string[]> {
         if (this.responseMode !== 'form_post') {
             return [];
@@ -273,7 +273,7 @@ export abstract class BaseOAuthAuthenticator<
      * @returns The parameters of the authorization request.
      */
     protected getAuthorizationParameters(
-        // eslint-disable-next-line unusedImports/no-unused-vars
+        // eslint-disable-next-line no-unused-vars
         exchange: Pick<OAuthCodeExchange, 'nonce' | 'maxAgeInSeconds'>
     ): Record<string, string> {
         return {};
@@ -338,7 +338,7 @@ export abstract class BaseOAuthAuthenticator<
         return optionalPeer<OpenIdClient>('openid-client', 'Sign-in through a provider');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async createSignInUrl(start: FederatedSignInStart): Promise<string> {
         const client: OpenIdClient = this.resolveOpenIdClient();
         const configuration: Configuration = await this.resolveConfiguration();
@@ -367,7 +367,7 @@ export abstract class BaseOAuthAuthenticator<
         }).toString();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async verifyAnswer(answer: URLSearchParams, context: FederatedAnswerContext): Promise<FederatedSignIn> {
         const signIn: OAuthProviderSignIn = await this.resolveSignIn(answer, {
             state: context.state,
@@ -382,7 +382,7 @@ export abstract class BaseOAuthAuthenticator<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected answersWithFormPost(): boolean {
         return this.responseMode === 'form_post';
     }

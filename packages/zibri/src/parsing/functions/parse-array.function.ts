@@ -1,14 +1,14 @@
-import { parseBoolean } from './parse-boolean.function';
-import { parseDate } from './parse-date.function';
-import { parseNumber } from './parse-number.function';
-import { parseObject } from './parse-object.function';
-import { parseOneOf } from './parse-one-of.function';
-import { parseString } from './parse-string.function';
-import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
-import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { parseBoolean } from './parse-boolean.function.ts';
+import { parseDate } from './parse-date.function.ts';
+import { parseNumber } from './parse-number.function.ts';
+import { parseObject } from './parse-object.function.ts';
+import { parseOneOf } from './parse-one-of.function.ts';
+import { parseString } from './parse-string.function.ts';
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model.ts';
+import { ArrayParamItemMetadata } from '../../routing/models/array-param-metadata.model.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function parseArray(
     rawValue: unknown,
     itemMetadata: ArrayPropertyItemMetadata | ArrayParamItemMetadata

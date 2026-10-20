@@ -1,4 +1,4 @@
-import { InternalError } from '../internal-error.model';
+import { InternalError } from '../internal-error.model.ts';
 
 /**
  * A global error. Is used at the topmost level by eg. The error handler.

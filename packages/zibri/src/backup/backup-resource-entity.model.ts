@@ -1,9 +1,10 @@
-import { BackupEntity } from './backup-entity.model';
-import { type EncryptionString } from '../auth/encryption/encryption.utilities';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { OmitStrict } from '../types/omit-strict.type';
+import { BackupEntity } from './backup-entity.model.ts';
+import { type EncryptionString } from '../auth/encryption/encryption.utilities.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type Relation } from '../entity/models/relation.type.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 /**
  * A single resource entity.
@@ -52,7 +53,7 @@ export class BackupResourceEntity extends BaseEntity {
      * The backup that this resource belongs to.
      */
     @Property.belongsToOne({ target: () => BackupEntity, joinColumn: 'backupId', inverseSide: 'resources' })
-    backup!: BackupEntity;
+    backup!: Relation<BackupEntity>;
     /**
      * The id of the backup that this resource belongs to.
      */

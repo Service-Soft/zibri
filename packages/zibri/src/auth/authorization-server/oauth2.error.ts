@@ -1,21 +1,21 @@
-import { OAuth2ErrorCode } from './oauth2-error-code.enum';
-import { OAuth2ErrorOptions } from './oauth2-error-options.model';
-import { CustomBodyHttpError } from '../../error-handling/errors/custom-body-http.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { JsonMimeType } from '../../http/json-mime-type.type';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { TranslatedString } from '../../localization/models/translated-string.model';
-import { $ts } from '../../localization/translate.function';
+import { OAuth2ErrorCode } from './oauth2-error-code.enum.ts';
+import { OAuth2ErrorOptions } from './oauth2-error-options.model.ts';
+import { CustomBodyHttpError } from '../../error-handling/errors/custom-body-http.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { JsonMimeType } from '../../http/json-mime-type.type.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { TranslatedString } from '../../localization/models/translated-string.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * An error answered the way OAuth2 says errors look (RFC 6749, 5.2).
  */
 export class OAuth2Error extends CustomBodyHttpError {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly body: unknown;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly mimeTypes: JsonMimeType[] = [MimeType.JSON];
 
     override readonly headers: CustomBodyHttpError['headers'];

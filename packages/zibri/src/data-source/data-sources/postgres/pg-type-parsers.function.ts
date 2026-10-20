@@ -1,4 +1,4 @@
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * The oid postgres gives `numeric[]`.

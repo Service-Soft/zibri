@@ -1,4 +1,4 @@
-import { RestoreJournalEntry } from './restore-journal-entry.model';
+import { RestoreJournalEntry } from './restore-journal-entry.model.ts';
 
 /**
  * What a restore in progress has applied, kept on disk beside its snapshots.

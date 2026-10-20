@@ -1,32 +1,32 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { PeppolConformanceService } from './peppol-conformance.service';
-import { XRechnungConformanceService } from './x-rechnung-conformance.service';
-import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Repository } from '../../../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../../di/inject.function';
-import { defineProvider } from '../../../../../di/models/di-provider.model';
-import { BaseEntity } from '../../../../../entity/base-entity.model';
-import { type TenantServiceInterface } from '../../../../../tenancy/tenant-service.interface';
-import { Newable } from '../../../../../types/newable.type';
-import { OmitStrict } from '../../../../../types/omit-strict.type';
-import { Ms } from '../../../../../utilities/ms';
-import { UUIDUtilities } from '../../../../../utilities/uuid.utilities';
-import { ZibriInvoicingPlugin } from '../../../invoicing.plugin';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
-import { CompanyInfo } from '../../../models/company-info.model';
-import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model';
-import { Invoice } from '../../../models/invoice.model';
-import { InvoicingOptions } from '../../../models/invoicing-options.model';
-import { NumberInvoices } from '../../../models/number-invoices.model';
+import { PeppolConformanceService } from './peppol-conformance.service.ts';
+import { XRechnungConformanceService } from './x-rechnung-conformance.service.ts';
+import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function.ts';
+import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Repository } from '../../../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../../di/inject.function.ts';
+import { defineProvider } from '../../../../../di/models/di-provider.model.ts';
+import { BaseEntity } from '../../../../../entity/base-entity.model.ts';
+import { type TenantServiceInterface } from '../../../../../tenancy/tenant-service.interface.ts';
+import { Newable } from '../../../../../types/newable.type.ts';
+import { OmitStrict } from '../../../../../types/omit-strict.type.ts';
+import { Ms } from '../../../../../utilities/ms.ts';
+import { UUIDUtilities } from '../../../../../utilities/uuid.utilities.ts';
+import { ZibriInvoicingPlugin } from '../../../invoicing.plugin.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens.ts';
+import { CompanyInfo } from '../../../models/company-info.model.ts';
+import { InvoiceRecipientAbbreviation } from '../../../models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from '../../../models/invoice.model.ts';
+import { InvoicingOptions } from '../../../models/invoicing-options.model.ts';
+import { NumberInvoices } from '../../../models/number-invoices.model.ts';
 
 const baseInvoicingOptions: InvoicingOptions = {
     footerFontSize: 10,
@@ -91,7 +91,7 @@ const TENANT: string = UUIDUtilities.generate();
 
 function createValidInvoiceData(): OmitStrict<Invoice, 'id' | 'tenantId'> {
     return {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         number: `${new Date().getFullYear()}-GREATC-${Math.random().toString(36)
             .slice(2)}`,
         currency: 'EUR',

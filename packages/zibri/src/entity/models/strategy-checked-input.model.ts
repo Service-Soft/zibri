@@ -1,11 +1,11 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { type ArrayPropertyItemMetadataInput, type ArrayPropertyMetadataInput } from './array-property-metadata.model';
-import { type OneOfPropertyMetadataInput } from './one-of-property-metadata.model';
-import { type AnyStrategyStringPropertyMetadataInput, type StringPropertyMetadataInput } from './string-property-metadata.model';
-import { type BaseDecryptOptions, type BaseEncryptOptions, type EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { type HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface';
-import { type Newable } from '../../types/newable.type';
-import { type AnyObject } from '../any-object.model';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { type ArrayPropertyItemMetadataInput, type ArrayPropertyMetadataInput } from './array-property-metadata.model.ts';
+import { type OneOfPropertyMetadataInput } from './one-of-property-metadata.model.ts';
+import { type AnyStrategyStringPropertyMetadataInput, type StringPropertyMetadataInput } from './string-property-metadata.model.ts';
+import { type BaseDecryptOptions, type BaseEncryptOptions, type EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { type HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface.ts';
+import { type Newable } from '../../types/newable.type.ts';
+import { type AnyObject } from '../any-object.model.ts';
 
 /**
  * What an array item declared as `Item` may say, with every string in it checked against the encryption

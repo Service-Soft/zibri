@@ -1,7 +1,7 @@
-import { AtomicUpdate } from './atomic-update.model';
-import { Where } from './where/where-filter.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { DeepPartial } from '../../types/deep-partial.type';
+import { AtomicUpdate } from './atomic-update.model.ts';
+import { Where } from './where/where-filter.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
 
 /**
  * One row of an upsert: what to insert, and what to change when its identity is already held.

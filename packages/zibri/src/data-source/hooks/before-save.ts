@@ -1,6 +1,6 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * What a `beforeSave` hook is running for.

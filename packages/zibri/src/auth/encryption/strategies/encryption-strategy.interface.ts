@@ -1,4 +1,4 @@
-import { EncryptionString } from '../encryption.utilities';
+import { EncryptionString } from '../encryption.utilities.ts';
 
 /**
  * Where an encrypted value belongs, so that it only decrypts there.

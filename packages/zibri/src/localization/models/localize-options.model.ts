@@ -1,7 +1,7 @@
-import { CurrencyCode } from './currency-code.model';
-import { DefinedDateFormatString } from './date-format.model';
-import { LocaleCode } from './locale-code.model';
-import { Timezone } from './timezone.model';
+import { CurrencyCode } from './currency-code.model.ts';
+import { DefinedDateFormatString } from './date-format.model.ts';
+import { LocaleCode } from './locale-code.model.ts';
+import { Timezone } from './timezone.model.ts';
 
 /**
  * Configuration for a single supported locale.

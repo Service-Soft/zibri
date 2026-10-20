@@ -1,12 +1,12 @@
-import { ArrayPropertyMetadataInput } from '../../entity/models/array-property-metadata.model';
-import { BooleanPropertyMetadataInput } from '../../entity/models/boolean-property-metadata.model';
-import { DatePropertyMetadataInput } from '../../entity/models/date-property-metadata.model';
-import { NumberPropertyMetadataInput } from '../../entity/models/number-property-metadata.model';
-import { ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model';
-import { OneOfPropertyMetadataInput } from '../../entity/models/one-of-property-metadata.model';
-import { StringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model';
-import { UnknownPropertyMetadataInput } from '../../entity/models/unknown-property-metadata.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { ArrayPropertyMetadataInput } from '../../entity/models/array-property-metadata.model.ts';
+import { BooleanPropertyMetadataInput } from '../../entity/models/boolean-property-metadata.model.ts';
+import { DatePropertyMetadataInput } from '../../entity/models/date-property-metadata.model.ts';
+import { NumberPropertyMetadataInput } from '../../entity/models/number-property-metadata.model.ts';
+import { ObjectPropertyMetadataInput } from '../../entity/models/object-property-metadata.model.ts';
+import { OneOfPropertyMetadataInput } from '../../entity/models/one-of-property-metadata.model.ts';
+import { StringPropertyMetadataInput } from '../../entity/models/string-property-metadata.model.ts';
+import { UnknownPropertyMetadataInput } from '../../entity/models/unknown-property-metadata.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * How a migration says a property is stored: the same metadata the property decorator takes, and the

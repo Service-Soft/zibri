@@ -1,5 +1,5 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * A rate limit reservation, obtained via RateLimiterInterface.reserve.

@@ -1,40 +1,40 @@
-import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
-import { ZibriApplication } from '../../application/application';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { register } from '../../di/register.function';
-import { ErrorUtilities } from '../../error-handling/error.utilities';
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { type LeaseServiceInterface } from '../../leases/lease-service.interface';
-import { $ts } from '../../localization/translate.function';
-import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Ms } from '../../utilities/ms';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../models/base-user.model';
-import { TwoFactorMethod } from './methods/two-factor-method.interface';
-import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model';
-import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './two-factor-failure-streak.model';
-import { TwoFactorLockedError } from './two-factor-locked.error';
-import { TwoFactorMethods } from './two-factor-methods.model';
-import { TwoFactorServiceInterface } from './two-factor-service.interface';
-import { TwoFactorThrottledError } from './two-factor-throttled.error';
+import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { register } from '../../di/register.function.ts';
+import { ErrorUtilities } from '../../error-handling/error.utilities.ts';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { type LeaseServiceInterface } from '../../leases/lease-service.interface.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { AuditAction, AuditOutcome } from '../../logging/audit-event.model.ts';
+import { auditReasonFor } from '../../logging/audit-reason-for.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { BaseUser } from '../models/base-user.model.ts';
+import { TwoFactorMethod } from './methods/two-factor-method.interface.ts';
+import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model.ts';
+import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './two-factor-failure-streak.model.ts';
+import { TwoFactorLockedError } from './two-factor-locked.error.ts';
+import { TwoFactorMethods } from './two-factor-methods.model.ts';
+import { TwoFactorServiceInterface } from './two-factor-service.interface.ts';
+import { TwoFactorThrottledError } from './two-factor-throttled.error.ts';
 
 /**
  * Default implementation of the two factor service.
  */
 @Injectable({ register: 'onUse' })
 export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly twoFactorMethods: TwoFactorMethods = [];
 
     private failureLimit: TwoFactorFailureLimit = false;
@@ -54,7 +54,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         private readonly failureDelayInMs: number
     ) { }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         const { twoFactorMethods, twoFactorFailureLimit } = app.options;
         for (const method of twoFactorMethods) {
@@ -78,7 +78,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestRegisterTwoFactorMethodForUser<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -93,7 +93,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         return await method.requestRegisterForUser(user, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSecondFactor<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -107,7 +107,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         return await method.startSecondFactor(user);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmRegisterTwoFactorMethodForUser<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -121,7 +121,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         await method.confirmRegisterForUser(user, data);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unregisterTwoFactorMethodForUser<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -134,13 +134,13 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         await method.unregisterForUser(user);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isRegistered(user: BaseUser<string>, allowedMethods: TwoFactorMethods = this.twoFactorMethods): Promise<boolean> {
         const registered: boolean[] = await Promise.all(allowedMethods.map(async m => await inject(m).isRegisteredForUser(user)));
         return registered.includes(true);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async has2fa(
         user: BaseUser<string>,
         context: HttpRequestContext | WebsocketRequestContext,
@@ -160,7 +160,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validate2fa(
         user: BaseUser<string>,
         context: HttpRequestContext | WebsocketRequestContext,
@@ -239,7 +239,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         }
 
         try {
-            await Promise.any(methods.map(m => inject(m).validate(user, context)));
+            await Promise.any(methods.map(async m => await inject(m).validate(user, context)));
         }
         catch (error) {
             await this.handleValidateError(error, user, streak, locked);
@@ -329,7 +329,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveLock(user: BaseUser<string>): Promise<TwoFactorLock | undefined> {
         // asked on every login, so an application without a limit is not charged a read for it
         if (this.failureLimit === false) {
@@ -342,7 +342,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         return this.isLocked(streak) ? this.failureLimit.lock : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resetSecondFactors(user: BaseUser<string>): Promise<void> {
         await this.removeSecondFactors(user, this.twoFactorMethods);
         await this.failureStreakRepository.deleteAll({ userId: user.id });

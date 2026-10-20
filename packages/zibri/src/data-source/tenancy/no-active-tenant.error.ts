@@ -1,5 +1,5 @@
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Thrown when the rows of a tenant are reached while no tenant is active.

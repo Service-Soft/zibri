@@ -1,21 +1,21 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, Mock } from 'vitest';
 
-import { RateLimiterInterface } from './limiter/rate-limiter.interface';
-import { RateLimitingCleanupCronJob } from './rate-limiting-cleanup.cron-job';
-import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
-import { BaseRateLimitState } from './stores/rate-limiter-store.interface';
+import { RateLimiterInterface } from './limiter/rate-limiter.interface.ts';
+import { RateLimitingCleanupCronJob } from './rate-limiting-cleanup.cron-job.ts';
+import { RateLimitingServiceInterface } from './rate-limiting-service.interface.ts';
+import { BaseRateLimitState } from './stores/rate-limiter-store.interface.ts';
 
-function fakeRateLimitingService(): RateLimitingServiceInterface & { cleanup: jest.Mock<() => Promise<void>> } {
+function fakeRateLimitingService(): RateLimitingServiceInterface & { cleanup: Mock<() => Promise<void>> } {
     return {
         limiters: [] as RateLimiterInterface<BaseRateLimitState>[],
         addLimiter: () => undefined,
-        cleanup: jest.fn<() => Promise<void>>().mockResolvedValue(undefined)
+        cleanup: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
     };
 }
 
 describe('RateLimitingCleanupCronJob', () => {
     it('delegates onTick to the rate limiting service\'s cleanup', async () => {
-        const service: RateLimitingServiceInterface & { cleanup: jest.Mock<() => Promise<void>> } = fakeRateLimitingService();
+        const service: RateLimitingServiceInterface & { cleanup: Mock<() => Promise<void>> } = fakeRateLimitingService();
         const cronJob: RateLimitingCleanupCronJob = new RateLimitingCleanupCronJob(service);
 
         await cronJob.onTick();
@@ -24,7 +24,7 @@ describe('RateLimitingCleanupCronJob', () => {
     });
 
     it('propagates errors from the rate limiting service\'s cleanup', async () => {
-        const service: RateLimitingServiceInterface & { cleanup: jest.Mock<() => Promise<void>> } = fakeRateLimitingService();
+        const service: RateLimitingServiceInterface & { cleanup: Mock<() => Promise<void>> } = fakeRateLimitingService();
         service.cleanup.mockRejectedValue(new Error('cleanup failed'));
         const cronJob: RateLimitingCleanupCronJob = new RateLimitingCleanupCronJob(service);
 

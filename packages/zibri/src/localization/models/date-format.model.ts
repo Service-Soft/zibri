@@ -1,10 +1,10 @@
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type AllLetters = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm'
     | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z';
 
 // order is relevant here
-// eslint-disable-next-line typescript/typedef, jsdoc/require-jsdoc
+// eslint-disable-next-line typescript-js/typedef, jsdoc-js/require-jsdoc
 export const dateFormatTokens = [
     'YYYY', // 2026 (4 digit year)
     'YY', // 26 (2 digit year)
@@ -69,6 +69,6 @@ export type DateFormatShortcut = 'date' | 'date-time' | 'time';
  * A validated date format string.
  */
 export type DefinedDateFormatString = string & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     __brand: 'DateFormat'
 };

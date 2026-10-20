@@ -1,5 +1,5 @@
-import { ForbiddenError } from './forbidden.error';
-import { $ts } from '../../localization/translate.function';
+import { ForbiddenError } from './forbidden.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * An error to throw when a deactivated user tries to log in.

@@ -1,8 +1,8 @@
-import { EventSubscriberRun } from './event-subscriber-run.model';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { OmitClass } from '../entity/omit-class.model';
+import { EventSubscriberRun } from './event-subscriber-run.model.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../entity/omit-class.model.ts';
 
 /**
  * The status a event can have.

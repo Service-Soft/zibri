@@ -1,4 +1,4 @@
-import { RoundTrip } from './round-trip.model';
+import { RoundTrip } from './round-trip.model.ts';
 
 /**
  * How many frames of the stack are read to find the repository calls a round trip came from. A

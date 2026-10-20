@@ -1,26 +1,26 @@
-import { AlsUtilities } from '../context/als.utilities';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { CapturedRequestScopeError } from './errors/captured-request-scope.error';
-import { CircularDependencyError } from './errors/circular-dependency.error';
-import { InjectInsideAsyncFactoryError } from './errors/inject-inside-async-factory.error';
-import { MissedLifecycleHooksError } from './errors/missed-lifecycle-hooks.error';
-import { NoProviderError } from './errors/no-provider.error';
-import { OutsideRequestScopeError } from './errors/outside-request-scope.error';
-import { UninjectableParameterError } from './errors/uninjectable-parameter.error';
-import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider.error';
-import { implementsAfterAppInit } from '../global/after-app-init.interface';
-import { implementsAfterAppStart } from '../global/after-app-start.interface';
-import { implementsBeforeAppInit } from '../global/before-app-init.interface';
-import { LifecyclePhase } from '../global/lifecycle-phase.enum';
-import { implementsOnAppInit } from '../global/on-app-init.interface';
-import { implementsOnAppStart } from '../global/on-app-start.interface';
-import { DiProvider } from './models/di-provider.model';
-import { DiToken, tokenName } from './models/di-token.model';
-import { DiVariant } from './models/di-variant.model';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { CapturedRequestScopeError } from './errors/captured-request-scope.error.ts';
+import { CircularDependencyError } from './errors/circular-dependency.error.ts';
+import { InjectInsideAsyncFactoryError } from './errors/inject-inside-async-factory.error.ts';
+import { MissedLifecycleHooksError } from './errors/missed-lifecycle-hooks.error.ts';
+import { NoProviderError } from './errors/no-provider.error.ts';
+import { OutsideRequestScopeError } from './errors/outside-request-scope.error.ts';
+import { UninjectableParameterError } from './errors/uninjectable-parameter.error.ts';
+import { UnresolvedAsyncProviderError } from './errors/unresolved-async-provider.error.ts';
+import { implementsAfterAppInit } from '../global/after-app-init.interface.ts';
+import { implementsAfterAppStart } from '../global/after-app-start.interface.ts';
+import { implementsBeforeAppInit } from '../global/before-app-init.interface.ts';
+import { LifecyclePhase } from '../global/lifecycle-phase.enum.ts';
+import { implementsOnAppInit } from '../global/on-app-init.interface.ts';
+import { implementsOnAppStart } from '../global/on-app-start.interface.ts';
+import { DiProvider } from './models/di-provider.model.ts';
+import { DiToken, tokenName } from './models/di-token.model.ts';
+import { DiVariant } from './models/di-variant.model.ts';
 
 /**
  * An error to throw when the given providerToken is invalid.
@@ -232,7 +232,7 @@ export class DiContainer {
     unregister<T>(token: DiToken<T>): void {
         const provider: DiProvider<unknown> | undefined = this.providers.get(token);
         if (provider?.useClass) {
-            this.instances.delete(provider.useClass as unknown as DiToken<unknown>);
+            this.instances.delete(provider.useClass);
         }
         this.instances.delete(token);
         this.providers.delete(token);
@@ -342,8 +342,8 @@ export class DiContainer {
         }
 
         // If useClass, check if we already have an instance of that class cached under the class itself
-        if (provider.useClass && this.instances.has(provider.useClass as unknown as DiToken<unknown>)) {
-            const existing: T = this.instances.get(provider.useClass as unknown as DiToken<unknown>) as T;
+        if (provider.useClass && this.instances.has(provider.useClass)) {
+            const existing: T = this.instances.get(provider.useClass) as T;
             this.instances.set(token, existing); // cache under this token too for next time
             return existing;
         }
@@ -360,7 +360,7 @@ export class DiContainer {
             this.instances.set(provider.token, instance);
 
             if (provider.useClass) {
-                this.instances.set(provider.useClass as unknown as DiToken<unknown>, instance);
+                this.instances.set(provider.useClass, instance);
             }
         }
 
@@ -494,7 +494,7 @@ export class DiContainer {
      * @throws A {@link CircularDependencyError} when what it needs is already being built further up.
      */
     private construct<T>(provider: DiProvider<T>): T {
-        const target: Function | undefined = (provider.useClass ?? provider.useFactory) as Function | undefined;
+        const target: Function | undefined = (provider.useClass ?? provider.useFactory);
         if (target) {
             // an instance is kept only once its provider has returned, so a target already being
             // constructed can neither be answered from a cache nor built again - asking for it is
@@ -565,11 +565,14 @@ export class DiContainer {
             // the container failed to find - it is the answer TypeScript gives when the type was
             // never a class to begin with, so asking for it produces a NoProviderError for "Object"
             const declaredType: unknown = paramTypes[idx];
-            if (declaredType == undefined || UNINJECTABLE_PARAM_TYPES.has(declaredType)) {
+            // something other than a function is what a compiler that sees one file at a time - swc,
+            // oxc - records for an enum declared in another module: the enum object, where tsc records
+            // Number. It names no class either, so it is answered as if nothing had been recorded
+            if (typeof declaredType !== 'function' || UNINJECTABLE_PARAM_TYPES.has(declaredType)) {
                 throw new UninjectableParameterError(
                     provide,
                     idx,
-                    declaredType as Function | undefined,
+                    typeof declaredType === 'function' ? declaredType : undefined,
                     declaredOn,
                     this.targetsOfConstructing()
                 );

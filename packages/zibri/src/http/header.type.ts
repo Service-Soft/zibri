@@ -1,4 +1,4 @@
-import { KnownHeader } from './known-header.enum';
+import { KnownHeader } from './known-header.enum.ts';
 
 /**
  * All possible headers, including custom ones.

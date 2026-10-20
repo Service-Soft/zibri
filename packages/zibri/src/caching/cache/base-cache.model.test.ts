@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { CacheService } from '../cache.service';
-import { Cache } from '../decorators/cache.decorator';
-import { CachedValue } from '../store/cached-value.model';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { CacheService } from '../cache.service.ts';
+import { Cache } from '../decorators/cache.decorator.ts';
+import { CachedValue } from '../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
 
 @Cache()
 class BestEffortCache extends WriteThroughReadThroughCache<string, string, 'Base Cache Best Effort Cache'> {
@@ -67,15 +67,15 @@ describe('BaseCache', () => {
     describe('onInvalidationFailure', () => {
         it('"bestEffort" (default) logs a warning and does not throw when invalidation fails', async () => {
             const cache: BestEffortCache = inject(BestEffortCache);
-            // eslint-disable-next-line typescript/typedef
-            const invalidateSpy = jest.spyOn(cacheService, 'invalidateTags').mockRejectedValue(new Error('invalidation backend down'));
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(cache['logger'], 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const invalidateSpy = vi.spyOn(cacheService, 'invalidateTags').mockRejectedValue(new Error('invalidation backend down'));
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(cache['logger'], 'warn');
 
             try {
-                // eslint-disable-next-line typescript/typedef
-                const fn = jest.fn((id: string): string => `value:${id}`);
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
+                const fn = vi.fn((id: string): string => `value:${id}`);
+                // eslint-disable-next-line typescript-js/typedef
                 const wrapped = cache.wrapInvalidate(fn, { invalidatesTags: ['some-tag'] });
 
                 await expect(wrapped('a')).resolves.toBe('value:a');
@@ -91,13 +91,13 @@ describe('BaseCache', () => {
 
         it('"throw" rethrows when invalidation fails', async () => {
             const cache: ThrowingCache = inject(ThrowingCache);
-            // eslint-disable-next-line typescript/typedef
-            const invalidateSpy = jest.spyOn(cacheService, 'invalidateTags').mockRejectedValue(new Error('invalidation backend down'));
+            // eslint-disable-next-line typescript-js/typedef
+            const invalidateSpy = vi.spyOn(cacheService, 'invalidateTags').mockRejectedValue(new Error('invalidation backend down'));
 
             try {
-                // eslint-disable-next-line typescript/typedef
-                const fn = jest.fn((id: string): string => `value:${id}`);
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
+                const fn = vi.fn((id: string): string => `value:${id}`);
+                // eslint-disable-next-line typescript-js/typedef
                 const wrapped = cache.wrapInvalidate(fn, { invalidatesTags: ['some-tag'] });
 
                 await expect(wrapped('a')).rejects.toThrow('invalidation backend down');
@@ -111,12 +111,12 @@ describe('BaseCache', () => {
 
         it('does not invalidate or fail when no tags are resolved', async () => {
             const cache: BestEffortCache = inject(BestEffortCache);
-            // eslint-disable-next-line typescript/typedef
-            const invalidateSpy = jest.spyOn(cacheService, 'invalidateTags');
+            // eslint-disable-next-line typescript-js/typedef
+            const invalidateSpy = vi.spyOn(cacheService, 'invalidateTags');
 
-            // eslint-disable-next-line typescript/typedef
-            const fn = jest.fn((id: string): string => `value:${id}`);
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
+            const fn = vi.fn((id: string): string => `value:${id}`);
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrapInvalidate(fn, { invalidatesTags: [] });
 
             await expect(wrapped('a')).resolves.toBe('value:a');
@@ -129,17 +129,17 @@ describe('BaseCache', () => {
             const cache: BestEffortCache = inject(BestEffortCache);
             await cache.store.set('key:a', createCachedValue('value', ['own']));
 
-            // eslint-disable-next-line typescript/typedef
-            const deleteSpy = jest.spyOn(cache.store, 'delete').mockImplementation(() => {
+            // eslint-disable-next-line typescript-js/typedef
+            const deleteSpy = vi.spyOn(cache.store, 'delete').mockImplementation(() => {
                 throw new Error('store unavailable');
             });
-            // eslint-disable-next-line typescript/typedef
-            const warnSpy = jest.spyOn(cache['logger'], 'warn');
+            // eslint-disable-next-line typescript-js/typedef
+            const warnSpy = vi.spyOn(cache['logger'], 'warn');
 
             try {
-                // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-                const fn = jest.fn((_id: string): undefined => undefined);
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+                const fn = vi.fn((_id: string): undefined => undefined);
+                // eslint-disable-next-line typescript-js/typedef
                 const wrapped = cache.wrapDelete(fn, (id) => `key:${id}`);
 
                 await expect(wrapped('a')).resolves.toBeUndefined();
@@ -157,15 +157,15 @@ describe('BaseCache', () => {
     describe('updateSizeGauge', () => {
         it('never surfaces a failure from store.size()', async () => {
             const cache: BestEffortCache = inject(BestEffortCache);
-            // eslint-disable-next-line typescript/typedef
-            const sizeSpy = jest.spyOn(cache.store, 'size').mockImplementation(() => {
+            // eslint-disable-next-line typescript-js/typedef
+            const sizeSpy = vi.spyOn(cache.store, 'size').mockImplementation(() => {
                 throw new Error('size unavailable');
             });
 
             try {
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
                 const fn = (id: string): string => `value:${id}`;
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
                 const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
                 await expect(wrapped('a')).resolves.toBe('value:a');

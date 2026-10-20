@@ -1,14 +1,14 @@
-import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
-import { UniqueDeclaration } from './unique-declaration.model';
-import { EncryptOptions } from '../../auth/encryption/encryption-service.interface';
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { HashOptions } from '../../auth/hash/hash-service.interface';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AnyEnum } from '../../types/any-enum.type';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { AnyObject } from '../any-object.model';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model.ts';
+import { UniqueDeclaration } from './unique-declaration.model.ts';
+import { EncryptOptions } from '../../auth/encryption/encryption-service.interface.ts';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { HashOptions } from '../../auth/hash/hash-service.interface.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AnyEnum } from '../../types/any-enum.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { AnyObject } from '../any-object.model.ts';
 
 /**
  * Options for encrypt and decrypt.
@@ -68,7 +68,7 @@ export type EncryptionPropertyValue<
             | Promise<EncryptAndDecryptOptions<Data, TKey, TEncryptOptions, TDecryptOptions>>
     );
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type EncryptPropertyValue<Data, TKey, TEncryptOptions extends BaseEncryptOptions<TKey>> = boolean
     | EncryptOptions<TKey, TEncryptOptions>['strategyOptions']
     | (
@@ -79,7 +79,7 @@ type EncryptPropertyValue<Data, TKey, TEncryptOptions extends BaseEncryptOptions
             | Promise<EncryptOptions<TKey, TEncryptOptions>['strategyOptions'] | boolean>
     );
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type DecryptPropertyValue<Data, T extends AnyObject> = boolean | T
     | ((data: Data, ctx: HttpRequestContext | WebsocketRequestContext | undefined) => (boolean | T) | Promise<boolean | T>);
 

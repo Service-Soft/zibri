@@ -1,23 +1,23 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, describe, expect, jest, test } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, vi, test, MockInstance } from 'vitest';
 
-import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model';
-import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
-import { EncryptionService } from './encryption.service';
-import { EncryptionString } from './encryption.utilities';
-import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model';
+import { EncryptionKey, EncryptionKeyStatus } from './encryption-key.model.ts';
+import { EncryptionRotationCronJob } from './encryption-rotation.cron-job.ts';
+import { EncryptionService } from './encryption.service.ts';
+import { EncryptionString } from './encryption.utilities.ts';
+import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy.ts';
+import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { OtpCredentials } from '../2fa/methods/otp/otp-credentials.model.ts';
 
 // first, for the reason on startAndStopTestServerWithout
 describe('EncryptionService — starting', () => {
@@ -360,7 +360,7 @@ describe('EncryptionService', () => {
         test('caches key lookups so repeated decrypt calls for the same key hit the repository only once', async () => {
             const encrypted: EncryptionString = await encryptionService.encrypt('cache-read-test');
             // the key was already written to the cache by createKeyEntity's @CacheWrite when it was created above
-            const findByIdSpy: jest.SpiedFunction<typeof keyRepository.findById> = jest.spyOn(keyRepository, 'findById');
+            const findByIdSpy: MockInstance<typeof keyRepository.findById> = vi.spyOn(keyRepository, 'findById');
 
             await encryptionService.decrypt(encrypted);
             await encryptionService.decrypt(encrypted);
@@ -376,7 +376,7 @@ describe('EncryptionService', () => {
             });
             await encryptionService.markKeyAsDefaultForStrategy(created.id, AesGcmEncryptionStrategy);
 
-            const findByIdSpy: jest.SpiedFunction<typeof keyRepository.findById> = jest.spyOn(keyRepository, 'findById');
+            const findByIdSpy: MockInstance<typeof keyRepository.findById> = vi.spyOn(keyRepository, 'findById');
             // resolves the newly-promoted default key purely from cache, proving markKeyAsDefaultForStrategy's
             // updateKeyEntityById call (@CacheWrite) refreshed the cache rather than just updating the database
             const encrypted: EncryptionString = await encryptionService.encrypt('cache-write-test', {

@@ -1,26 +1,26 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { inject } from '../../../di/inject.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
-import { DataSource } from '../../decorators/data-source.decorator';
-import { MigrationEntity } from '../../migration/migration-entity.model';
-import { Migration } from '../../migration/migration.model';
-import { SchemaManagement } from '../../models/schema-management.model';
-import { Repository } from '../../repository/repository';
-import { Transaction } from '../../transaction/transaction.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model.ts';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities.ts';
+import { SemVerVersion } from '../../../versioning/sem-ver.utilities.ts';
+import { DataSource } from '../../decorators/data-source.decorator.ts';
+import { MigrationEntity } from '../../migration/migration-entity.model.ts';
+import { Migration } from '../../migration/migration.model.ts';
+import { SchemaManagement } from '../../models/schema-management.model.ts';
+import { Repository } from '../../repository/repository.ts';
+import { Transaction } from '../../transaction/transaction.model.ts';
 
 /**
  * What postgres says when it stops a statement for having run out of time.

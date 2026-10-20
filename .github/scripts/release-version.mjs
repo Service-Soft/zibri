@@ -1,4 +1,4 @@
-/* eslint-disable jsdoc/require-jsdoc */
+/* eslint-disable jsdoc-js/require-jsdoc */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

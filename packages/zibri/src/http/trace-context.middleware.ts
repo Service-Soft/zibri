@@ -1,15 +1,15 @@
 import { RequestHandler } from 'express';
 
-import { HttpRequest } from './http-request.model';
-import { HttpResponse } from './http-response.model';
-import { KnownHeader } from './known-header.enum';
-import { RouteLabelUtilities } from './route-label.utilities';
-import { TraceContextUtilities } from '../tracing/trace-context.utilities';
-import { TraceSpanContext } from '../tracing/trace-span-context.model';
-import { TraceSpanKind } from '../tracing/trace-span-kind.enum';
-import { TraceSpanStatus } from '../tracing/trace-span-status.enum';
-import { TraceSpanInterface } from '../tracing/trace-span.interface';
-import { TracingUtilities } from '../tracing/tracing.utilities';
+import { HttpRequest } from './http-request.model.ts';
+import { HttpResponse } from './http-response.model.ts';
+import { KnownHeader } from './known-header.enum.ts';
+import { RouteLabelUtilities } from './route-label.utilities.ts';
+import { TraceContextUtilities } from '../tracing/trace-context.utilities.ts';
+import { TraceSpanContext } from '../tracing/trace-span-context.model.ts';
+import { TraceSpanKind } from '../tracing/trace-span-kind.enum.ts';
+import { TraceSpanStatus } from '../tracing/trace-span-status.enum.ts';
+import { TraceSpanInterface } from '../tracing/trace-span.interface.ts';
+import { TracingUtilities } from '../tracing/tracing.utilities.ts';
 
 /**
  * Puts every request into a trace, records it as a span, and answers with the trace it ended up in.

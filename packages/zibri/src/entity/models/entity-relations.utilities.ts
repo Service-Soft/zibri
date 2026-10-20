@@ -1,9 +1,9 @@
-import { EntityRelations, RelationTree } from './entity-relations.model';
-import { isRelationMetadata } from './is-relation-metadata.function';
-import { Relation } from './relation.enum';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { type BaseEntity } from '../base-entity.model';
-import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator';
+import { EntityRelations, RelationTree } from './entity-relations.model.ts';
+import { isRelationMetadata } from './is-relation-metadata.function.ts';
+import { RelationType } from './relation-type.enum.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
+import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator.ts';
 
 /**
  * Utilities for the relations a read resolves.
@@ -103,7 +103,7 @@ export abstract class EntityRelationsUtilities {
      * @returns The tree below the relation.
      */
     private static filterTreeBelow(condition: unknown, metadata: RelationMetadata<BaseEntity>): RelationTree {
-        const toMany: boolean = metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY;
+        const toMany: boolean = metadata.type === RelationType.ONE_TO_MANY || metadata.type === RelationType.MANY_TO_MANY;
         // on a relation to one entity an array is an or of conditions; on one to many it is the list
         // of entities the relation has to hold, which reaches nothing below
         const options: unknown[] = Array.isArray(condition) && !toMany ? condition : [condition];

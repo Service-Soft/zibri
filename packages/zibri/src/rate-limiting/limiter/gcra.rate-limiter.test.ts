@@ -1,14 +1,14 @@
 import assert from 'node:assert';
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { GcraRateLimiter, GcraState } from './gcra.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Ms } from '../../utilities/ms';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { GcraRateLimiter, GcraState } from './gcra.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 const NOW: number = 1_700_000_000_000;
 const CAPACITY: number = 10;
@@ -33,13 +33,13 @@ describe('GcraRateLimiter', () => {
     beforeAll(() => initDiContainer());
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         limiter = new TestGcraLimiter();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     describe('consume', () => {
@@ -53,7 +53,7 @@ describe('GcraRateLimiter', () => {
         it('recovers one token after emission interval', async () => {
             // exhaust burst
             await limiter.consume('k', CAPACITY);
-            jest.setSystemTime(NOW + 100); // one emission interval (1000/10 = 100ms per token)
+            vi.setSystemTime(NOW + 100); // one emission interval (1000/10 = 100ms per token)
             const res: RateLimitResult = await limiter.consume('k', 1);
             expect(res.allowed).toBe(true);
             expect(res.remaining).toBe(0); // used the only available token
@@ -119,7 +119,7 @@ describe('GcraRateLimiter', () => {
         it('expired reservations are cleaned up and capacity refunded', async () => {
             const res: RateLimitReservationResult = await limiter.reserve('k', 4);
             assert(res.allowed);
-            jest.setSystemTime(res.reservation.expiresAtMs + 1);
+            vi.setSystemTime(res.reservation.expiresAtMs + 1);
             await limiter.cleanup();
             // Full capacity should be restored
             for (let i: number = 0; i < CAPACITY; i++) {
@@ -133,7 +133,7 @@ describe('GcraRateLimiter', () => {
             await limiter.consume('k', 1);
             // Far beyond any reasonable idle horizon, with no further
             // activity and no pending reservations for this key.
-            jest.setSystemTime(NOW + Ms.YEAR);
+            vi.setSystemTime(NOW + Ms.YEAR);
             await limiter.cleanup();
             expect(await limiter.config.store.get('k')).toBeUndefined();
         });

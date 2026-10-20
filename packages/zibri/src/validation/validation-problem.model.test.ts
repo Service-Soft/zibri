@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { IsRequiredValidationProblem,
     MaxFileSizeValidationProblem,
     MimeTypeMismatchValidationProblem,
     RelationsNotAllowedValidationProblem,
-    TypeMismatchValidationProblem } from './validation-problem.model';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
-import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
-import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
-import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
-import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
-import { MimeType } from '../http/mime-type.enum';
+    TypeMismatchValidationProblem } from './validation-problem.model.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model.ts';
+import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model.ts';
+import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model.ts';
+import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model.ts';
+import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
 
 class TargetEntity extends BaseEntity {}
 
@@ -65,7 +65,7 @@ describe('validation problems', () => {
     describe('RelationsNotAllowedValidationProblem example generation', () => {
         it('produces an object-shaped example for many-to-one relations, using the target entity name', () => {
             const metadata: ManyToOnePropertyMetadata<BaseEntity> = {
-                type: Relation.MANY_TO_ONE,
+                type: RelationType.MANY_TO_ONE,
                 target: () => TargetEntity,
                 inverseSide: 'id',
                 joinColumn: 'targetId',
@@ -84,7 +84,7 @@ describe('validation problems', () => {
 
         it('produces an object-shaped example for has-one relations', () => {
             const metadata: HasOnePropertyMetadata<BaseEntity> = {
-                type: Relation.HAS_ONE,
+                type: RelationType.HAS_ONE,
                 target: () => TargetEntity,
                 inverseSide: 'id',
                 cascade: false,
@@ -101,7 +101,7 @@ describe('validation problems', () => {
 
         it('produces an object-shaped example for belongs-to-one relations', () => {
             const metadata: BelongsToOnePropertyMetadata<BaseEntity> = {
-                type: Relation.BELONGS_TO_ONE,
+                type: RelationType.BELONGS_TO_ONE,
                 target: () => TargetEntity,
                 inverseSide: 'id',
                 joinColumn: 'targetId',
@@ -119,7 +119,7 @@ describe('validation problems', () => {
 
         it('produces an array-shaped example for one-to-many relations, using the target entity name', () => {
             const metadata: OneToManyPropertyMetadata<BaseEntity> = {
-                type: Relation.ONE_TO_MANY,
+                type: RelationType.ONE_TO_MANY,
                 target: () => TargetEntity,
                 inverseSide: 'id',
                 cascade: false,
@@ -137,7 +137,7 @@ describe('validation problems', () => {
 
         it('produces an array-shaped example for many-to-many relations', () => {
             const metadata: ManyToManyPropertyMetadata<BaseEntity> = {
-                type: Relation.MANY_TO_MANY,
+                type: RelationType.MANY_TO_MANY,
                 target: () => TargetEntity,
                 inverseSide: 'id',
                 joinTable: true,

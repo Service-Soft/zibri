@@ -1,10 +1,10 @@
-import { OmitClass } from './omit-class.model';
-import { Newable } from '../types/newable.type';
-import { getAllClassKeys, getAllPrototypeKeys } from './utilities/copy-class-properties.function';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { OmitClass } from './omit-class.model.ts';
+import { Newable } from '../types/newable.type.ts';
+import { getAllClassKeys, getAllPrototypeKeys } from './utilities/copy-class-properties.function.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Defines a pick class based on the provided class.
  * @param Base - The base class that should be made into a pick class.

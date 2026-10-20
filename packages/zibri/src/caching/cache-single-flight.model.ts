@@ -1,4 +1,4 @@
-import { cacheKeyOf } from './cache-key.function';
+import { cacheKeyOf } from './cache-key.function.ts';
 
 /**
  * Runs one call per cache key at a time, handing every other caller the same result.
@@ -14,7 +14,7 @@ import { cacheKeyOf } from './cache-key.function';
 export class CacheSingleFlight<V> {
     private readonly inFlight: Map<string, Promise<V>> = new Map();
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * How many calls are in flight right now.
      */

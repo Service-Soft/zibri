@@ -1,6 +1,6 @@
-import { BaseUser } from '../../../models/base-user.model';
-import { OAuthOfflineAccess } from '../../oauth/oauth-offline-access.model';
-import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { OAuthOfflineAccess } from '../../oauth/oauth-offline-access.model.ts';
+import { BaseOidcAuthenticator } from '../base-oidc.authenticator.ts';
 
 /**
  * Authenticates a user by a sign-in with their Google account.
@@ -11,10 +11,10 @@ export abstract class BaseGoogleAuthenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > extends BaseOidcAuthenticator<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'google';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly issuer: string = 'https://accounts.google.com';
 
     // Google refuses `prompt=login` with an error page, and has no prompt that asks for the password

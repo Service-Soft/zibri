@@ -1,5 +1,5 @@
-import { InternalError } from '../../error-handling/internal-error.model';
-import { DiToken, tokenName } from '../models/di-token.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { DiToken, tokenName } from '../models/di-token.model.ts';
 
 /**
  * An error to throw when something that outlives a request is being built out of a request scoped

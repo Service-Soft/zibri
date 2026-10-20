@@ -1,5 +1,5 @@
-import { EntityMigrationInput } from './entity-migration-input.model';
-import { BaseEntity } from '../../entity/base-entity.model';
+import { EntityMigrationInput } from './entity-migration-input.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
 
 /**
  * What a migration says when it merges what is stored under another table name into an entity.

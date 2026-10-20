@@ -1,15 +1,15 @@
-import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, RawXmlBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { Relation } from '../../entity/models/relation.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { resolveBodyMetadata } from '../resolve-body-metadata.function';
+import { BodyMetadata, BodyMetadataInput, BodyShapeMetadata, OneOfBodyMetadataInput, RawXmlBodyMetadataInput, ShapedBodyMetadata, StreamBodyMetadataInput } from './body-metadata.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { resolveBodyMetadata } from '../resolve-body-metadata.function.ts';
 
 /**
  * Defines an xml http request body handed over as the document that arrived, a string, such as one
@@ -27,6 +27,7 @@ export function Body(
     modelClass: Newable<unknown> | (() => Newable<unknown>),
     options?: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput>
 ): ParameterDecorator;
+// oxlint-disable-next-line no-redeclare
 export function Body(
     modelClassOrOptions: Newable<unknown> | (() => Newable<unknown>) | RawXmlBodyMetadataInput,
     options: ExcludeStrict<BodyMetadataInput, StreamBodyMetadataInput> = {}
@@ -69,8 +70,8 @@ export namespace Body {
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-function setRouteBody(target: Object, propertyKey: string | symbol | undefined, metadata: BodyMetadata): void {
+// eslint-disable-next-line jsdoc-js/require-jsdoc
+function setRouteBody(target: object, propertyKey: string | symbol | undefined, metadata: BodyMetadata): void {
     const ctor: Function = target.constructor;
     MetadataUtilities.setFilePath(ctor);
     const key: string = propertyKey?.toString() ?? '';
@@ -110,7 +111,7 @@ function largestOf(shapes: PropertyMetadata[]): BigNumber {
     return BigNumber.max(...shapes.map(shape => resolveMaxSize(NumberUtilities.new(0), { shape })));
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMetadata>): BigNumber {
     for (const property of ObjectUtilities.values(properties)) {
         switch (property.type) {
@@ -135,11 +136,11 @@ function resolveMaxSize(bytes: BigNumber, properties: Record<string, PropertyMet
                 bytes = bytes.plus(largestOf(ObjectUtilities.values(property.shapes)));
                 break;
             }
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'string':
             case 'number':
             case 'boolean':

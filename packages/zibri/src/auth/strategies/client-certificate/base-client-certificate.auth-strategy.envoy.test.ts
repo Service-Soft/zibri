@@ -1,7 +1,7 @@
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
-import { ClientCertificateProxyStartOptions, describeBehindProxy, StartedClientCertificateProxy } from './client-certificate-proxy.cases';
-import { JsonUtilities } from '../../../utilities/json.utilities';
+import { ClientCertificateProxyStartOptions, describeBehindProxy, StartedClientCertificateProxy } from './client-certificate-proxy.cases.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
 
 /**
  * The proxy that ends TLS in front of the application: the Envoy project's official image.

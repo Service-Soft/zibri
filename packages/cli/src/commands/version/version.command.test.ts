@@ -1,21 +1,21 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { VersionCommand } from './version.command';
+import { VersionCommand } from './version.command.ts';
 
 describe('VersionCommand', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('prints the version from this package\'s own package.json', async () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const pkg: { version: string } = JSON.parse(
-            readFileSync(join(__dirname, '..', '..', '..', 'package.json'), 'utf8')
+            readFileSync(join(import.meta.dirname, '..', '..', '..', 'package.json'), 'utf8')
         );
-        const logSpy: jest.SpiedFunction<typeof console.log> = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const logSpy: MockInstance<typeof console.log> = vi.spyOn(console, 'log').mockImplementation(() => {});
 
         await new VersionCommand().start([]);
 

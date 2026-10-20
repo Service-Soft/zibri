@@ -1,10 +1,10 @@
-import { CurrencyCode } from './models/currency-code.model';
-import { DateFormatShortcut, DateFormatString } from './models/date-format.model';
-import { LocaleCode } from './models/locale-code.model';
-import { Timezone } from './models/timezone.model';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
+import { CurrencyCode } from './models/currency-code.model.ts';
+import { DateFormatShortcut, DateFormatString } from './models/date-format.model.ts';
+import { LocaleCode } from './models/locale-code.model.ts';
+import { Timezone } from './models/timezone.model.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model.ts';
 
 /**
  * The options for formatting a price.

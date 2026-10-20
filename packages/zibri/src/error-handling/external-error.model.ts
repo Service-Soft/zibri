@@ -1,4 +1,4 @@
-import { TranslatedString } from '../localization/models/translated-string.model';
+import { TranslatedString } from '../localization/models/translated-string.model.ts';
 
 /**
  * A error that could be visible from the outside, requires messages to be translated strings.

@@ -1,20 +1,20 @@
 
-import { Event, EventStatus } from './event.model';
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Repository } from '../data-source/repository/repository';
-import { InjectRepository } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { InternalError } from '../error-handling/internal-error.model';
-import { type RetentionInMs } from '../types/retention-in-ms.type';
+import { Event, EventStatus } from './event.model.ts';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { InjectRepository } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { type RetentionInMs } from '../types/retention-in-ms.type.ts';
 
 /**
  * CronJob that cleans up past events: the finished ones past their `cleanupAt`, and the failed ones
  * older than `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS`.
  */
 export class EventCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Event Cleanup',
         cron: CronExpression.daily().build(),
@@ -37,7 +37,7 @@ export class EventCleanupCronJob extends CronJob {
         this.failedRetentionInMs = failedRetentionInMs;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         this.logger.info('cleans up past events');
 

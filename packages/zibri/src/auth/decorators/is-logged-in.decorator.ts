@@ -1,6 +1,6 @@
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { IsLoggedInMetadata } from '../models/is-logged-in-metadata.model';
-import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { IsLoggedInMetadata } from '../models/is-logged-in-metadata.model.ts';
+import { AuthStrategies } from '../strategies/auth-strategies.model.ts';
 
 /**
  * The type of the is logged in decorator.
@@ -21,7 +21,7 @@ export const isLoggedInDecorator: IsLoggedInFn = ((allowedStrategies?: AuthStrat
     const fullMetadata: IsLoggedInMetadata = { allowedStrategies };
 
     const decorator: MethodDecorator & ClassDecorator = (
-        target: Object,
+        target: object,
         propertyKey?: string | symbol
     ) => {
         if (propertyKey !== undefined) {
@@ -34,7 +34,7 @@ export const isLoggedInDecorator: IsLoggedInFn = ((allowedStrategies?: AuthStrat
     return decorator;
 }) as IsLoggedInFn;
 isLoggedInDecorator.skip = () => ((
-    target: Object,
+    target: object,
     propertyKey?: string | symbol
 ) => {
     if (propertyKey !== undefined) {
@@ -43,4 +43,4 @@ isLoggedInDecorator.skip = () => ((
     else {
         MetadataUtilities.setControllerSkipIsLoggedIn(target as Function, {});
     }
-}) as MethodDecorator & ClassDecorator;
+});

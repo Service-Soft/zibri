@@ -1,34 +1,34 @@
 import assert from 'assert';
 
-import { AnyBodyParser, BodyParserInterface, BodyParserMetadata, isBodyParser } from './body-parser.interface';
-import { ParserInterface } from './parser.interface';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function';
-import { getDiTokenName } from '../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
-import { inject } from '../di/inject.function';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { UnsupportedMediaTypeError } from '../error-handling/errors/unsupported-media-type.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpRequest, isHttpRequest } from '../http/http-request.model';
-import { KnownHeader } from '../http/known-header.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { isJsonMimeType, isMimeType, isXmlMimeType } from '../http/mime-type.helpers';
-import { HttpClientResponse, isHttpClientResponse } from '../http-client/http-client-response.model';
-import { LoggerInterface } from '../logging/logger.interface';
-import { parseArray } from './functions/parse-array.function';
-import { parseBoolean } from './functions/parse-boolean.function';
-import { parseDate } from './functions/parse-date.function';
-import { parseNumber } from './functions/parse-number.function';
-import { parseObject } from './functions/parse-object.function';
-import { parseAnyOf } from './functions/parse-one-of.function';
-import { parseString } from './functions/parse-string.function';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { AnyBodyParser, BodyParserInterface, BodyParserMetadata, isBodyParser } from './body-parser.interface.ts';
+import { ParserInterface } from './parser.interface.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function.ts';
+import { getDiTokenName } from '../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
+import { UnsupportedMediaTypeError } from '../error-handling/errors/unsupported-media-type.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { HttpRequest, isHttpRequest } from '../http/http-request.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { isJsonMimeType, isMimeType, isXmlMimeType } from '../http/mime-type.helpers.ts';
+import { HttpClientResponse, isHttpClientResponse } from '../http-client/http-client-response.model.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { parseArray } from './functions/parse-array.function.ts';
+import { parseBoolean } from './functions/parse-boolean.function.ts';
+import { parseDate } from './functions/parse-date.function.ts';
+import { parseNumber } from './functions/parse-number.function.ts';
+import { parseObject } from './functions/parse-object.function.ts';
+import { parseAnyOf } from './functions/parse-one-of.function.ts';
+import { parseString } from './functions/parse-string.function.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 /**
  * Function for parsing path parameters.
@@ -126,26 +126,26 @@ export class Parser implements ParserInterface, OnAppInit {
         this.logger = inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseHeaderParam(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: HeaderParamMetadata): unknown {
         const rawValue: string | undefined = req.headers?.[metadata.name as KnownHeader];
         return this.headerParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseQueryParam(req: HttpRequest | WebsocketRequest, metadata: QueryParamMetadata): unknown {
         const rawValue: string | undefined = req.query?.[metadata.name];
         const res: unknown = this.queryParamParseFunctions[metadata.type](rawValue, metadata);
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parsePathParam(req: HttpRequest | WebsocketRequest, metadata: PathParamMetadata): unknown {
         const rawValue: string | undefined = req.params?.[metadata.name];
         return this.pathParamParseFunctions[metadata.type](rawValue, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async parseBody(req: HttpRequest | WebsocketRequest | HttpClientResponse, metadata: BodyMetadata): Promise<unknown> {
         const contentTypeHeader: string | undefined = req.headers?.[KnownHeader.CONTENT_TYPE]
             ?? req.headers?.[KnownHeader.CONTENT_TYPE.toLowerCase() as KnownHeader];
@@ -233,7 +233,7 @@ export class Parser implements ParserInterface, OnAppInit {
         return await parser.parseFromWebsocketRequest(req, metadata);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(): void {
         const providers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.BODY_PARSER);
         this.logger.info(`registers ${providers.length} request body parsers:`);

@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities';
+import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities.ts';
 
 describe('SemVerUtilities', () => {
     describe('isSemVerVersion', () => {

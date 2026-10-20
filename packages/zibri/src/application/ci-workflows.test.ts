@@ -4,9 +4,9 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { JsonUtilities } from '../utilities/json.utilities';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * What CI runs, checked against what the packages promise.
@@ -21,7 +21,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
  * the derivation itself, which is why it lives in a module of its own instead of inside a `run:`.
  */
 
-const repoRoot: string = path.resolve(__dirname, '..', '..', '..', '..');
+const repoRoot: string = path.resolve(import.meta.dirname, '..', '..', '..', '..');
 const packagesDir: string = path.join(repoRoot, 'packages');
 const workflowsDir: string = path.join(repoRoot, '.github', 'workflows');
 const resolverPath: string = path.join(repoRoot, '.github', 'scripts', 'supported-node-majors.mjs');
@@ -554,7 +554,7 @@ describe('the release workflow', () => {
             path.join(packagesDir, 'cli', 'src', 'commands', 'new', 'new.command.ts'),
             'utf8'
         );
-        const installedByVersion: string[] = [...generator.matchAll(/`(zibri[\w-]*)@\${version}`/g)]
+        const installedByVersion: string[] = [...generator.matchAll(/`(zibri[\w-]*)@\${packageJson\.version}`/g)]
             .map(m => m[1])
             .filter(name => name != undefined);
 

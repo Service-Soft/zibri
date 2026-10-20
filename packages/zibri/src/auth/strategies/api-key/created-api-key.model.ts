@@ -1,4 +1,4 @@
-import { ApiKey } from './api-key.model';
+import { ApiKey } from './api-key.model.ts';
 
 /**
  * An api key that was just created as a secret.

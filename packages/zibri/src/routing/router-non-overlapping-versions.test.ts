@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
 
 @Controller('/versioned', { versions: ['1.0.0'] })
 class VersionedControllerV1 {

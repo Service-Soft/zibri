@@ -1,9 +1,10 @@
-import { Event } from './event.model';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { LoggedError } from '../logging/logged-error.model';
-import { OmitStrict } from '../types/omit-strict.type';
+import { Event } from './event.model.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { type Relation } from '../entity/models/relation.type.ts';
+import { LoggedError } from '../logging/logged-error.model.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 /**
  * How one subscriber's handling of one event ended, or has not ended yet.
@@ -59,7 +60,7 @@ export class EventSubscriberRun<T> extends BaseEntity {
      * The event that triggered this run.
      */
     @Property.manyToOne({ target: () => Event, joinColumn: 'eventId', inverseSide: 'eventSubscriberRuns' })
-    event!: Event<T>;
+    event!: Relation<Event<T>>;
     /**
      * The id of the event that this run belongs to.
      */

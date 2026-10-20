@@ -1,18 +1,18 @@
-import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
-import { HashService } from './hash.service';
-import { HashString } from './hash.utilities';
-import { HashStrategyEntity, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
-import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
-import { Sha256HashStrategy } from './strategies/sha256.hash-strategy';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
+import { HashService } from './hash.service.ts';
+import { HashString } from './hash.utilities.ts';
+import { HashStrategyEntity, HashStrategyStatus } from './strategies/hash-strategy-entity.model.ts';
+import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy.ts';
+import { Sha256HashStrategy } from './strategies/sha256.hash-strategy.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
 
 // first, for the reason on startAndStopTestServerWithout
 describe('HashService — starting', () => {

@@ -11,9 +11,9 @@ import { BasicConstraintsExtension,
     X509Certificate,
     X509CertificateGenerator } from '@peculiar/x509';
 
-import { FakeKeyPairOptions } from './fake-key-pair-options.model';
-import { FakeKeyPair } from './fake-key-pair.model';
-import { FakeKeyUsage } from './fake-key-usage.type';
+import { FakeKeyPairOptions } from './fake-key-pair-options.model.ts';
+import { FakeKeyPair } from './fake-key-pair.model.ts';
+import { FakeKeyUsage } from './fake-key-usage.type.ts';
 
 /**
  * The key: RSA, signing with SHA-256, which SAML and every TLS server take.

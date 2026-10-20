@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { parseTemplate, symbolOf } from '../../semantics/symbols';
+import { parseTemplate, symbolOf } from '../../semantics/symbols.ts';
 
 /**
  * Finds the names a finished client script reads that are not available where it runs.

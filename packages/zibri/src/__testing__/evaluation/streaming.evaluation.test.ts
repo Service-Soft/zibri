@@ -1,19 +1,19 @@
 import { Readable } from 'stream';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { LogLevel } from '../../logging/log-level.enum';
-import { Log } from '../../logging/log.model';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Response } from '../../open-api/decorators/response.decorator';
-import { FileResponse } from '../../parsing/form-data/file-response.model';
-import { HtmlResponse } from '../../parsing/html/html-response.model';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { LogLevel } from '../../logging/log-level.enum.ts';
+import { Log } from '../../logging/log.model.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Response } from '../../open-api/decorators/response.decorator.ts';
+import { FileResponse } from '../../parsing/form-data/file-response.model.ts';
+import { HtmlResponse } from '../../parsing/html/html-response.model.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/02-http-runtime-core.md M1 - a stream error after the headers were
@@ -93,16 +93,10 @@ let baseUrl: string;
 /**
  * How the uncaught exception half of this finding is observed.
  *
- * Not with a `process.on('uncaughtException')` recorder, which was the first attempt and is dead
- * code under jest. Measured rather than assumed: inside a test `process.listeners('uncaughtException')`
- * is empty, `process.hasUncaughtExceptionCaptureCallback()` is false, and a throw from a
- * `process.nextTick` callback reaches **no** listener registered during the test - yet still fails
- * the test. Jest intercepts uncaught exceptions ahead of the listener chain.
- *
- * Two things follow. A listener cannot observe the throw, so there is nothing to assert on; and the
- * framework's own handler (application.ts:536, which logs and deliberately rethrows) does not run
- * here either, so nothing is at risk of ending the worker. Jest failing the test *is* the
- * assertion, and it reports the real error and the real line, which an assertion could not.
+ * By the guard in vitest.setup.ts, which fails the test an uncaught exception was thrown in with
+ * that error and its line. It catches the throw before any listener does, so the framework's own
+ * handler (which logs and deliberately rethrows) does not run here, and nothing ends the worker
+ * along with the tests after this one.
  *
  * What each test below states explicitly is the other half - that the response ends.
  */
@@ -125,7 +119,7 @@ const CLIENT_TIMEOUT_MS: number = 1000;
  * Asks for a route and reads it to the end, giving up rather than waiting forever.
  *
  * The abort is what keeps this test reporting a failed assertion instead of a timed out test: a
- * response the server never ends would otherwise hold the request until jest gives up, which says
+ * response the server never ends would otherwise hold the request until the test times out, which says
  * nothing about why.
  * @param path - The route to request.
  * @returns How the download ended.
@@ -175,11 +169,11 @@ describe('evaluation/02-http-runtime-core M1 - a stream that fails mid download'
     it('survives a file stream that fails after the head was sent, and ends the response', async () => {
         const outcome: DownloadOutcome = await download('/failing-file');
 
-        // Today this never reaches the assertion. removeHeader after the head is flushed throws
+        // Today this fails on more than the assertion. removeHeader after the head is flushed throws
         // ERR_HTTP_HEADERS_SENT from inside the very listener that exists to handle the failure,
-        // and jest fails the test with that error and that line - see the note above for why no
-        // listener can catch it instead. Streaming a large download is not an exotic case, it is
-        // the only case: any file past one chunk has its head out already.
+        // and the guard fails the test with that error and that line - see the note above.
+        // Streaming a large download is not an exotic case, it is the only case: any file past one
+        // chunk has its head out already.
         //
         // The assertion is the second half. The throw lands on the *first* removeHeader, so
         // next(err) is never reached and nothing ever ends the response - the client holds an open

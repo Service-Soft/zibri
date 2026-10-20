@@ -1,17 +1,17 @@
-import { AlsUtilities } from '../../context/als.utilities';
-import { CacheContext } from '../../context/cache/cache.context';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { CacheMetrics } from '../cache-metrics.model';
-import { CacheServiceInterface } from '../cache-service.interface';
-import { CacheSingleFlight } from '../cache-single-flight.model';
-import { CacheTagMatcher } from '../cache-tag-matchers';
-import { CacheOperation } from './cache-operation.enum';
-import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model';
-import { CacheInterface } from './cache.interface';
-import { CacheStoreInterface } from '../store/cache-store.interface';
-import { CachedValue } from '../store/cached-value.model';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { CacheContext } from '../../context/cache/cache.context.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { CacheMetrics } from '../cache-metrics.model.ts';
+import { CacheServiceInterface } from '../cache-service.interface.ts';
+import { CacheSingleFlight } from '../cache-single-flight.model.ts';
+import { CacheTagMatcher } from '../cache-tag-matchers.ts';
+import { CacheOperation } from './cache-operation.enum.ts';
+import { CacheKeyProvider, CacheSetDirectOptions, CacheTagsProvider, CacheTtlProvider, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, OnInvalidationFailure, ResultCacheTagsProvider, ResultCacheTtlProvider } from './cache-options.model.ts';
+import { CacheInterface } from './cache.interface.ts';
+import { CacheStoreInterface } from '../store/cache-store.interface.ts';
+import { CachedValue } from '../store/cached-value.model.ts';
 
 /**
  * Shared base class of all caches.
@@ -31,7 +31,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
 
     abstract readonly _writeResultAvailable: WriteResultAvailable;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The cache metrics.
      */
@@ -48,7 +48,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         readonly onInvalidationFailure?: OnInvalidationFailure
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrapDelete<TReturn, TArgs extends unknown[]>(
         fn: (...args: TArgs) => TReturn | Promise<TReturn>,
         keyFn: CacheKeyProvider<K, TArgs>,
@@ -90,7 +90,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrapInvalidate<TReturn, TArgs extends unknown[]>(
         fn: (...args: TArgs) => TReturn | Promise<TReturn>,
         options: CacheWrapInvalidateOptions<TArgs, CacheTag>
@@ -163,12 +163,12 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async safeInvalidateTags<TArgs extends unknown[]>(
         provider: CacheTagsProvider<TArgs, CacheTag> | undefined,
         args: TArgs
     ): Promise<void>;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async safeInvalidateTags<TArgs extends unknown[]>(
         provider: ResultCacheTagsProvider<V, TArgs, CacheTag> | undefined,
         result: V,

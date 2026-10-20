@@ -1,15 +1,15 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { HelpCommand } from './help.command';
-import { Command } from '../command.enum';
+import { HelpCommand } from './help.command.ts';
+import { Command } from '../command.enum.ts';
 
 describe('HelpCommand', () => {
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('prints every command', async () => {
-        const logSpy: jest.SpiedFunction<typeof console.log> = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const logSpy: MockInstance<typeof console.log> = vi.spyOn(console, 'log').mockImplementation(() => {});
 
         await new HelpCommand().start([]);
 

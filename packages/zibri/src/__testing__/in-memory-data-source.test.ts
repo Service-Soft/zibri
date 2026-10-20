@@ -1,47 +1,47 @@
 import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi, MockInstance } from 'vitest';
 import { InMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
 
-import { ZibriApplication } from '../application/application';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { FindAllPaginatedOptions } from '../data-source/models/options/find-all-paginated-options.model';
-import { Repository } from '../data-source/repository/repository';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../data-source/unique-constraint-violation.error';
-import { initDiContainer } from '../di/init-di-container.function';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { EntityOrder } from '../entity/models/entity-order.model';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { EventSubscriberRegistration } from '../event/event-subscriber-registration.model';
-import { KeysetPage, PaginationResult } from '../open-api/pagination-result.model';
-import { Newable } from '../types/newable.type';
-import { Company } from './mocks/entities/company.entity';
-import { Profile } from './mocks/entities/profile.entity';
-import { Role } from './mocks/entities/role.entity';
-import { mockCreateUserData, User, UserCreateData } from './mocks/entities/user.entity';
-import { defaultTestServerEntities } from './test-server/create-test-data-source.function';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import './test-server/membership-repository';
-import { defaultTestServerPlugins } from './test-server/plugins';
-import { defaultTestServerProviders } from './test-server/providers';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import './test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
+import { ZibriApplication } from '../application/application.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { FindAllPaginatedOptions } from '../data-source/models/options/find-all-paginated-options.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../data-source/unique-constraint-violation.error.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { EntityOrder } from '../entity/models/entity-order.model.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { EventSubscriberRegistration } from '../event/event-subscriber-registration.model.ts';
+import { KeysetPage, PaginationResult } from '../open-api/pagination-result.model.ts';
+import { Newable } from '../types/newable.type.ts';
+import { Company } from './mocks/entities/company.entity.ts';
+import { Profile } from './mocks/entities/profile.entity.ts';
+import { Role } from './mocks/entities/role.entity.ts';
+import { mockCreateUserData, User, UserCreateData } from './mocks/entities/user.entity.ts';
+import { defaultTestServerEntities } from './test-server/create-test-data-source.function.ts';
+// eslint-disable-next-line import/no-unassigned-import
+import './test-server/membership-repository.ts';
+import { defaultTestServerPlugins } from './test-server/plugins.ts';
+import { defaultTestServerProviders } from './test-server/providers.ts';
+// eslint-disable-next-line import/no-unassigned-import
+import './test-server/user-repository.ts'; // this import is needed so that the DI system can pick up the user repository.
 
 /**
  * The stub that keeps ZibriApplication.shutdown()'s unconditional process.exit from ending the run.
  */
-type ProcessExitSpy = jest.Spied<typeof process.exit>;
+type ProcessExitSpy = MockInstance<typeof process.exit>;
 
 /**
  * Stubs ZibriApplication.shutdown()'s unconditional process.exit, so it cannot end the test run.
  * @returns The spy, to be restored on teardown.
  */
 function stubProcessExit(): ProcessExitSpy {
-    return jest.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    return vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 }
 
 /**
@@ -426,14 +426,14 @@ describe('InMemoryDataSource', () => {
 
         const inserted: EventSubscriberRegistration = await registrations.upsert(
             identity,
-            { ...identity, expiresAt: first } as EventSubscriberRegistration,
+            { ...identity, expiresAt: first },
             { expiresAt: { set: first } }
         );
         expect(inserted.expiresAt.getTime()).toBe(first.getTime());
 
         const updated: EventSubscriberRegistration = await registrations.upsert(
             identity,
-            { ...identity, expiresAt: second } as EventSubscriberRegistration,
+            { ...identity, expiresAt: second },
             { expiresAt: { set: second } }
         );
 

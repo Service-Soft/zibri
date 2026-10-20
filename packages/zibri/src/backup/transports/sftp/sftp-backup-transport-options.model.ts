@@ -1,4 +1,4 @@
-import { SftpAuthentication } from './sftp-authentication.model';
+import { SftpAuthentication } from './sftp-authentication.model.ts';
 
 /**
  * Where and how an SFTP backup transport stores backups.

@@ -2,36 +2,36 @@ import { Dirent } from 'node:fs';
 
 import express from 'express';
 
-import { AssetServiceInterface } from './asset-service.interface';
-import { ZibriApplication } from '../application/application';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { HttpMethod } from '../http/http-method.enum';
-import { MiddlewarePhase } from '../http/middleware-phase.enum';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { FileResponse } from '../parsing/form-data/file-response.model';
-import { Route } from '../routing/controller-route-configuration.model';
-import { FsUtilities, type FsPath } from '../utilities/fs.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { AssetServiceInterface } from './asset-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { MiddlewarePhase } from '../http/middleware-phase.enum.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { FileResponse } from '../parsing/form-data/file-response.model.ts';
+import { Route } from '../routing/controller-route-configuration.model.ts';
+import { FsUtilities, type FsPath } from '../utilities/fs.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type FileNode = { type: 'file', name: string, route: string };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type DirectoryNode = { type: 'directory', name: string, children: TreeNode[] };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type TreeNode = FileNode | DirectoryNode;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type NodeMap = Record<string, { directory?: NodeMap, fileRoute?: string }>;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type WalkedPath = { relPath: string, isFile: boolean };
 
 /**
@@ -39,13 +39,13 @@ type WalkedPath = { relPath: string, isFile: boolean };
  */
 @Injectable({ register: 'onUse' })
 export class AssetService implements AssetServiceInterface, OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly assetsPath: FsPath;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly publicAssetsPath: FsPath;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly componentTemplatePath: FsPath;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly assetsRoute: Route = '/assets';
 
     constructor(
@@ -59,7 +59,7 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
         this.componentTemplatePath = FsUtilities.getPath(assetsPath, 'templates', 'components');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         this.logger.info(`registers public static assets from folder "${this.publicAssetsPath}" at ${this.assetsRoute}`);
         // routing rather than anything earlier: serving a file is answering the request, so it
@@ -87,7 +87,7 @@ export class AssetService implements AssetServiceInterface, OnAppInit {
 
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async buildFileTree(): Promise<TreeNode[]> {
         // 1) Gather every path relative to assetsPath
         const items: WalkedPath[] = await this.walk(this.publicAssetsPath);

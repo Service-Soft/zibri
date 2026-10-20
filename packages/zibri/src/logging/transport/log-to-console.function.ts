@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
-import { blue, bright, getTimestamp, green, purple, red, reset, spacing, warn } from '../logger.helpers';
-import { BaseLoggerTransportConfig, LoggerTransportSend } from './logger-transport.model';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
+import { blue, bright, getTimestamp, green, purple, red, reset, spacing, warn } from '../logger.helpers.ts';
+import { BaseLoggerTransportConfig, LoggerTransportSend } from './logger-transport.model.ts';
 
 /**
  * Prints the given logs in the console.

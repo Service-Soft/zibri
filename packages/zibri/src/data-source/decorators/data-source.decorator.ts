@@ -1,5 +1,5 @@
-import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { Injectable, InjectableOptions } from '../../di/decorators/injectable.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Metadata for a data source.

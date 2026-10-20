@@ -1,14 +1,14 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource, defaultTestProviders, StartedTestServer, startTestServer } from 'zibri-testing';
 
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { defineProvider } from '../di/models/di-provider.model';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
 
 /**
  * Where a test server writes the things an application writes at runtime.
@@ -82,7 +82,7 @@ describe('a test server\'s scratch directory', () => {
     }, 15000);
 
     it('yields to a path the test names itself', async () => {
-        const ownPath: FsPath = FsUtilities.getPath(__dirname, '__testing__', 'file-output', 'scratch-override');
+        const ownPath: FsPath = FsUtilities.getPath(import.meta.dirname, '__testing__', 'file-output', 'scratch-override');
         await FsUtilities.rm(ownPath);
         // empty rather than absent, which is what a project that has not recorded a version yet looks
         // like. An application refuses to start on a versions folder that is not there at all

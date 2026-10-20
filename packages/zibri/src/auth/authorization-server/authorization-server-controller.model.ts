@@ -1,27 +1,27 @@
-import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type';
-import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model';
-import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model';
-import { type AuthorizationServerServiceInterface } from './authorization-server-service.interface';
-import { IntrospectionResponse } from './introspection-response.model';
-import { TokenPresentation } from './token-presentation.model';
-import { TokenRequest } from './token-request.model';
-import { TokenResponse } from './token-response.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { HttpStatus } from '../../http/http-status.enum';
-import { JsonResponse } from '../../http/json-response.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { Response } from '../../open-api/decorators/response.decorator';
-import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator';
-import { ControllerUtilities } from '../../routing/controller.utilities';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Param } from '../../routing/decorators/param.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { Newable } from '../../types/newable.type';
-import { Auth } from '../decorators/auth.decorator';
+import { AuthorizationServerControllerClass } from './authorization-server-controller-class.type.ts';
+import { AuthorizationServerControllerOptions } from './authorization-server-controller-options.model.ts';
+import { AuthorizationServerEndpoint } from './authorization-server-endpoint.model.ts';
+import { type AuthorizationServerServiceInterface } from './authorization-server-service.interface.ts';
+import { IntrospectionResponse } from './introspection-response.model.ts';
+import { TokenPresentation } from './token-presentation.model.ts';
+import { TokenRequest } from './token-request.model.ts';
+import { TokenResponse } from './token-response.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { JsonResponse } from '../../http/json-response.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { Response } from '../../open-api/decorators/response.decorator.ts';
+import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator.ts';
+import { ControllerUtilities } from '../../routing/controller.utilities.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Param } from '../../routing/decorators/param.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Auth } from '../decorators/auth.decorator.ts';
 
 /**
  * What a response holding a token, or what one says, carries besides its body: no cache in between
@@ -29,7 +29,7 @@ import { Auth } from '../decorators/auth.decorator';
  */
 const NO_STORE_HEADERS: Record<string, string> = { [KnownHeader.CACHE_CONTROL]: 'no-store', [KnownHeader.PRAGMA]: 'no-cache' };
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Defines the routes of an OAuth2 authorization server below the path of the controller that extends
  * it: `/token`, where a client exchanges its api key for an access token (RFC 6749, 4.4), `/introspect`,
@@ -43,7 +43,7 @@ export function AuthorizationServerController<RoleType extends string>(
 ): AuthorizationServerControllerClass {
     // every route authenticates its caller itself, the way OAuth2 says: a client by its credentials,
     // and a revocation by the token it holds. `allowRedundant` for the reason AuthController gives
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Auth.skip({ allowRedundant: true })
     class Temp {
         /**
@@ -68,7 +68,7 @@ export function AuthorizationServerController<RoleType extends string>(
             return toEndpoint(this.constructor, options);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.object(TokenResponse)
         @Post('/token')
@@ -85,7 +85,7 @@ export function AuthorizationServerController<RoleType extends string>(
 
         // not rate limited like the routes that authenticate a client for the first time: a resource
         // server asks for every request it is sent, and it authenticates before anything is answered
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(IntrospectionResponse)
         @Post('/introspect')
         async introspect(
@@ -102,7 +102,7 @@ export function AuthorizationServerController<RoleType extends string>(
             return JsonResponse.of(response, { headers: NO_STORE_HEADERS });
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.empty({ status: HttpStatus.OK, mimeTypes: [MimeType.JSON] })
         @Post('/revoke')

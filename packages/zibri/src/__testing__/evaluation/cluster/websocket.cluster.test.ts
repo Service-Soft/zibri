@@ -1,10 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin } from './websocket.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
-import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model';
+import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin } from './websocket.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
+import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 1.10.
@@ -25,7 +25,7 @@ const openSockets: Socket[] = [];
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'websocket.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'websocket.instance-options.ts'),
         instances: 2
     });
 }, 15000);

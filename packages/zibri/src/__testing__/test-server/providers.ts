@@ -1,12 +1,12 @@
 import { defaultTestProviders } from 'zibri-testing';
 
-import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { LocalizeService } from '../../localization/localize.service';
-import { Ms } from '../../utilities/ms';
-import { compileTsxTemplate } from '../compile-tsx-template.function';
-import { testVersionsFolder } from '../constants';
+import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { LocalizeService } from '../../localization/localize.service.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { compileTsxTemplate } from '../compile-tsx-template.function.ts';
+import { testVersionsFolder } from '../constants.ts';
 
 export { testMasterKey } from 'zibri-testing';
 

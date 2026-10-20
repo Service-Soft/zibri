@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { AstProgram } from '../ast.model';
-import { PathTree } from '../generate-handlebar-type-files.function';
-import { HandlebarUtilities } from '../handlebar.utilities';
-import { resolveAllArrayKeys } from '../resolve-all-array-keys.function';
-import { resolveTree } from '../resolve-tree.function';
+import { AstProgram } from '../ast.model.ts';
+import { PathTree } from '../generate-handlebar-type-files.function.ts';
+import { HandlebarUtilities } from '../handlebar.utilities.ts';
+import { resolveAllArrayKeys } from '../resolve-all-array-keys.function.ts';
+import { resolveTree } from '../resolve-tree.function.ts';
 
 /**
  * What a template needs to be rendered with, the way the type file is generated from it.

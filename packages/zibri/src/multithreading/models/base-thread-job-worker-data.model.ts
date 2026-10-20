@@ -1,4 +1,4 @@
-import { FsPath } from '../../utilities/fs.utilities';
+import { FsPath } from '../../utilities/fs.utilities.ts';
 
 /**
  * The base data for a thread job worker.

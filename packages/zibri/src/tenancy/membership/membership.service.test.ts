@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MembershipServiceInterface } from './membership-service.interface';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { TenantServiceInterface } from '../tenant-service.interface';
+import { MembershipServiceInterface } from './membership-service.interface.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { TenantServiceInterface } from '../tenant-service.interface.ts';
 
 let server: StartedTestServer | undefined;
 

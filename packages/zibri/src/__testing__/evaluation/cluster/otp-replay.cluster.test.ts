@@ -1,16 +1,16 @@
 import { setTimeout as wait } from 'node:timers/promises';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOTP } from 'otpauth';
 import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { otpUserEmail, otpUserPassword } from './otp-replay.instance-options';
-import { OtpRegistration } from '../../../auth/2fa/methods/otp/otp.two-factor-method';
-import { OTP_PERIOD_IN_SECONDS } from '../../../auth/2fa/methods/otp/otp.utilities';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { FsUtilities } from '../../../utilities/fs.utilities';
-import { JsonUtilities } from '../../../utilities/json.utilities';
+import { otpUserEmail, otpUserPassword } from './otp-replay.instance-options.ts';
+import { OtpRegistration } from '../../../auth/2fa/methods/otp/otp.two-factor-method.ts';
+import { OTP_PERIOD_IN_SECONDS } from '../../../auth/2fa/methods/otp/otp.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md C3, the half that only more than one replica
@@ -33,7 +33,7 @@ let otpHeader: string;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'otp-replay.instance-options.ts')
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'otp-replay.instance-options.ts')
     });
     // read rather than written out, so a deployment that moves the header does not quietly stop
     // being covered here

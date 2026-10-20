@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { isHttpRequest } from './http-request.model';
+import { isHttpRequest } from './http-request.model.ts';
 
 describe('isHttpRequest', () => {
     it('returns true for an object with the expected http request shape', () => {

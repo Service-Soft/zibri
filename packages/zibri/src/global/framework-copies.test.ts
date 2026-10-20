@@ -1,12 +1,12 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi } from 'vitest';
 
-import { DuplicateFrameworkCopyError } from './framework-copies';
-import { GlobalRegistry } from './global-registry';
-import { initDiContainer } from '../di/init-di-container.function';
+import { DuplicateFrameworkCopyError } from './framework-copies.ts';
+import { GlobalRegistry } from './global-registry.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
 
 /**
  * The second copy loaded below counts itself into a slot the whole realm shares, and nothing takes
- * it back out - so the duplicate test has to be the last one in this file. Jest gives every test
+ * it back out - so the duplicate test has to be the last one in this file. Vitest gives every test
  * file its own realm, so it reaches no further than that. The constraint is the finding restated as
  * a property of the suite: what a copy of the framework does to a process cannot be undone from
  * inside it.
@@ -17,11 +17,11 @@ describe('framework copies', () => {
         expect(() => initDiContainer()).not.toThrow();
     });
 
-    it('refuses to initialize once a second copy is loaded', () => {
+    it('refuses to initialize once a second copy is loaded', async () => {
         // a fresh module registry evaluating the same files is what two copies in node_modules are:
         // one realm, two module instances, and two of everything those modules declare
-        jest.resetModules();
-        const secondCopy: typeof import('./global-registry') = jest.requireActual('./global-registry');
+        vi.resetModules();
+        const secondCopy: typeof import('./global-registry.ts') = await import('./global-registry.ts');
 
         // the registry the second copy keeps its injectables and entities in is not the one the
         // first copy reads, and neither of them can tell

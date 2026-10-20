@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { EmailServiceInterface } from '../../email/email-service.interface';
-import { EmailConfigInput } from '../../email/models/email-config.model';
-import { EmailPriority } from '../../email/models/email-priority.enum';
-import { EmailStatus } from '../../email/models/email-status.enum';
-import { Email } from '../../email/models/email.model';
-import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { EmailServiceInterface } from '../../email/email-service.interface.ts';
+import { EmailConfigInput } from '../../email/models/email-config.model.ts';
+import { EmailPriority } from '../../email/models/email-priority.enum.ts';
+import { EmailStatus } from '../../email/models/email-status.enum.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 3.5, the half that was withdrawn.

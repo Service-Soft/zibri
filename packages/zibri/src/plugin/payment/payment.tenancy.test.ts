@@ -1,25 +1,25 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { PaymentStatus } from './models/payment-status.enum';
-import { Payment } from './models/payment.model';
-import { ZibriPaymentPlugin } from './payment.plugin';
-import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
-import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
-import { PaymentServiceInterface } from './services/payment-service.interface';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { KnownPaymentMethod, PaymentMethod } from './models/payment-method.model.ts';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model.ts';
+import { PaymentStatus } from './models/payment-status.enum.ts';
+import { Payment } from './models/payment.model.ts';
+import { ZibriPaymentPlugin } from './payment.plugin.ts';
+import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens.ts';
+import { AnyPaymentProviderInterface } from './providers/payment-provider.interface.ts';
+import { PaymentServiceInterface } from './services/payment-service.interface.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 /**
  * A provider that accepts any payment data and makes no calls.
@@ -36,14 +36,14 @@ function createFakeProvider(): AnyPaymentProviderInterface {
         __cancellationSupportMap: {},
         __refundSupportMap: {},
         __reservationSupportMap: {},
-        validatePaymentData: jest.fn((_method: unknown, data: unknown) => data),
-        startPayment: jest.fn(),
-        startPaymentReservation: jest.fn(),
-        confirmPaymentReservation: jest.fn(),
-        confirmPayment: jest.fn(),
-        collectPaymentFromReservation: jest.fn(),
-        cancelPayment: jest.fn(),
-        refundPayment: jest.fn()
+        validatePaymentData: vi.fn((_method: unknown, data: unknown) => data),
+        startPayment: vi.fn(),
+        startPaymentReservation: vi.fn(),
+        confirmPaymentReservation: vi.fn(),
+        confirmPayment: vi.fn(),
+        collectPaymentFromReservation: vi.fn(),
+        cancelPayment: vi.fn(),
+        refundPayment: vi.fn()
     };
 }
 

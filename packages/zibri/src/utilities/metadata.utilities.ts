@@ -1,32 +1,33 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
-import { ReflectUtilities } from './reflect.utilities';
-import { resolveCallSites } from './resolve-call-sites.function';
-import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
-import { HasRoleMetadata, SkipHasRoleMetadata } from '../auth/models/has-role-metadata.model';
-import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
-import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
-import { Require2faMetadata, SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model';
-import { SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
-import { BackupResourceInterface } from '../backup/backup-resource.interface';
-import { BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model';
-import { DataSourceMetadata } from '../data-source/decorators/data-source.decorator';
-import { DiToken } from '../di/models/di-token.model';
-import { type BaseEntity } from '../entity/base-entity.model';
-import { EntityMetadata } from '../entity/decorators/entity.decorator';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { OpenApiResponse } from '../open-api/open-api.model';
-import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
-import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
-import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model';
-import { AcceptCrossSitePostsOptions } from '../routing/decorators/accept-cross-site-posts-options.model';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { ControllerData } from '../routing/decorators/controller.decorator';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
-import { Newable } from '../types/newable.type';
-import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
-import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
-import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { MetadataInjectionKeys } from './metadata-injection-keys.enum.ts';
+import { ReflectUtilities } from './reflect.utilities.ts';
+import { resolveCallSiteFile } from './resolve-call-site-file.function.ts';
+import { resolveCallSites } from './resolve-call-sites.function.ts';
+import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator.ts';
+import { HasRoleMetadata, SkipHasRoleMetadata } from '../auth/models/has-role-metadata.model.ts';
+import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model.ts';
+import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model.ts';
+import { Require2faMetadata, SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model.ts';
+import { SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model.ts';
+import { BackupResourceInterface } from '../backup/backup-resource.interface.ts';
+import { BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model.ts';
+import { DataSourceMetadata } from '../data-source/decorators/data-source.decorator.ts';
+import { DiToken } from '../di/models/di-token.model.ts';
+import { type BaseEntity } from '../entity/base-entity.model.ts';
+import { EntityMetadata } from '../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { OpenApiResponse } from '../open-api/open-api.model.ts';
+import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model.ts';
+import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model.ts';
+import { ControllerRouteConfiguration } from '../routing/controller-route-configuration.model.ts';
+import { AcceptCrossSitePostsOptions } from '../routing/decorators/accept-cross-site-posts-options.model.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { ControllerData } from '../routing/decorators/controller.decorator.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
+import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator.ts';
+import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator.ts';
+import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model.ts';
 
 const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> = new WeakMap();
 const xmlPropertiesStore: WeakMap<Function, Record<string, XmlPropertyMetadata>> = new WeakMap();
@@ -145,7 +146,7 @@ export abstract class MetadataUtilities {
      * Records the file the decorated class is declared in. Called from inside a decorator.
      * @param target - The class, or its prototype.
      */
-    static setFilePath(target: Object): void {
+    static setFilePath(target: object): void {
         const ctor: Newable<unknown> = this.toNewable(target);
         // every decorator of a class records this - once per property, route and parameter - and
         // they all answer the same file, so only the first one pays for reading the stack. Own
@@ -170,7 +171,8 @@ export abstract class MetadataUtilities {
         const helperEnd: number = callSites.findIndex(
             (callSite, index) => index > helperStart && !MetadataUtilities.isDecorateHelper(callSite)
         );
-        return callSites[helperEnd]?.getFileName() ?? 'unknown';
+        const declaringFrame: NodeJS.CallSite | undefined = callSites[helperEnd];
+        return (declaringFrame == undefined ? undefined : resolveCallSiteFile(declaringFrame)) ?? 'unknown';
     }
 
     private static isDecorateHelper(callSite: NodeJS.CallSite): boolean {
@@ -178,12 +180,12 @@ export abstract class MetadataUtilities {
         return /^_*decorate$/.test(callSite.getFunctionName() ?? '');
     }
 
-    static getFilePath(target: Object): string | undefined {
+    static getFilePath(target: object): string | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.FILE_LOCATION, this.toNewable(target));
     }
 
     // ---------- param types / DI ----------
-    static getParamTypes(target: Object): unknown[] {
+    static getParamTypes(target: object): unknown[] {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.PARAM_TYPES, target) ?? [];
     }
 
@@ -194,19 +196,19 @@ export abstract class MetadataUtilities {
      * case both for a class that inherits its constructor and for any class of a build that records
      * no decorator metadata.
      */
-    static findOwnParamTypes(target: Object): unknown[] | undefined {
+    static findOwnParamTypes(target: object): unknown[] | undefined {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.PARAM_TYPES, target);
     }
 
-    static setDiToken<T>(target: Object, token?: DiToken<T>): void {
+    static setDiToken<T>(target: object, token?: DiToken<T>): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.DI_TOKEN, token ?? target, target);
     }
 
-    static setInjectParamTokens(target: Object, tokens: Record<number, DiToken<unknown>>): void {
+    static setInjectParamTokens(target: object, tokens: Record<number, DiToken<unknown>>): void {
         ReflectUtilities.setMetadata(MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS, tokens, target);
     }
 
-    static getInjectParamTokens(target: Object): Record<number, DiToken<unknown>> {
+    static getInjectParamTokens(target: object): Record<number, DiToken<unknown>> {
         const ownInjectParamTokens: unknown = ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.DI_INJECT_PARAM_TOKENS, target);
         if (ownInjectParamTokens != undefined) {
             return ownInjectParamTokens as Record<number, DiToken<unknown>>;
@@ -527,7 +529,7 @@ export abstract class MetadataUtilities {
         for (const metadata of Object.values(properties)) {
             MetadataUtilities.freezeMetadata(metadata);
         }
-        modelPropertiesStore.set(ctor as unknown as Function, { ...properties });
+        modelPropertiesStore.set(ctor, { ...properties });
     }
 
     static getModelProperties<T extends Newable<unknown>>(ctor: T): Record<string, PropertyMetadata> {
@@ -536,7 +538,7 @@ export abstract class MetadataUtilities {
 
     // ---------- xml properties (WeakMap store, inherit) ----------
     static setXmlProperties<T extends Newable<unknown>>(ctor: T, properties: Record<string, XmlPropertyMetadata>): void {
-        xmlPropertiesStore.set(ctor as unknown as Function, { ...properties });
+        xmlPropertiesStore.set(ctor, { ...properties });
     }
 
     static getXmlProperties<T extends Newable<unknown>>(ctor: T): Record<string, XmlPropertyMetadata> {

@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { InvoiceCalcService } from './invoice-calc.service';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type CurrencyCode } from '../../../localization/models/currency-code.model';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { InvoiceItem } from '../models/invoice-item.model';
-import { Invoice } from '../models/invoice.model';
+import { InvoiceCalcService } from './invoice-calc.service.ts';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type CurrencyCode } from '../../../localization/models/currency-code.model.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { InvoiceItem } from '../models/invoice-item.model.ts';
+import { Invoice } from '../models/invoice.model.ts';
 
 const invoiceItem: InvoiceItem = {
     name: '',

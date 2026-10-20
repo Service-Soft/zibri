@@ -1,13 +1,13 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { validateEntitiesRegistered } from './validate-entities-registered.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZibriApplication } from '../application/application';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { AppState } from '../global/app-state.enum';
-import { GlobalRegistry } from '../global/global-registry';
-import { ZibriPlugin } from '../plugin/plugin.model';
+import { validateEntitiesRegistered } from './validate-entities-registered.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { AppState } from '../global/app-state.enum.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { ZibriPlugin } from '../plugin/plugin.model.ts';
 
 @Entity({ tenant: 'shared', allowOrphan: true })
 class UnregisteredScratchEntity extends BaseEntity {}

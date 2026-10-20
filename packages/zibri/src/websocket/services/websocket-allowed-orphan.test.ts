@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, describe, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { WebsocketController } from '../decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../decorators/websocket-route.decorator';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { WebsocketController } from '../decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../decorators/websocket-route.decorator.ts';
 
 @WebsocketController({ allowOrphan: true, eventPrefix: 'allowed-orphan:' })
 class AllowedOrphanWebsocketController {

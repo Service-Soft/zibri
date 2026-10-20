@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { JsonUtilities } from './json.utilities';
+import { JsonUtilities } from './json.utilities.ts';
 
 describe('JsonUtilities', () => {
     describe('parse', () => {
@@ -90,7 +90,7 @@ describe('JsonUtilities', () => {
             ['a string holding a newline', 'line\nbreak'],
             ['a string holding a tab, which json has a short escape for', 'a\tb'],
             ['a string holding an unprintable character, which json escapes the long way', 'ab'],
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             ['a string holding two byte characters', 'ümläut'],
             ['a string holding three byte characters', '日本語'],
             ['a string holding a surrogate pair', 'a 😀 b'],
@@ -115,7 +115,7 @@ describe('JsonUtilities', () => {
             expectSameSizeAsStringify({
                 key: 'user:1',
                 value: {
-                    // eslint-disable-next-line cspell/spellchecker
+                    // cspell:disable-next-line
                     value: { id: 'u1', name: 'Ünïcödé', roles: ['admin', 'user'] },
                     tags: ['user'],
                     createdAt: new Date('2026-09-09T12:00:00.000Z'),

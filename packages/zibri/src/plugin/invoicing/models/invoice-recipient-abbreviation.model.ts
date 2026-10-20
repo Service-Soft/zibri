@@ -1,7 +1,7 @@
-/* eslint-disable cspell/spellchecker */
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
+/* cspell:disable */
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
 
 /**
  * The name abbreviation a recipient's invoice numbers carry, eg. `SIEMEN` in `2026-SIEMEN-0001`.

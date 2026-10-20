@@ -1,30 +1,30 @@
 import { randomBytes } from 'node:crypto';
 
-import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
-import { NoRegisterData } from '../no-register-data.model';
-import { TwoFactorMethod } from '../two-factor-method.interface';
-import { base32Encode } from './base32-encode.function';
-import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error';
-import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model';
-import { OTP_PERIOD_IN_SECONDS, OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities';
-import { ZibriApplication } from '../../../../application/application';
-import { HttpRequestContext } from '../../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
-import { Repository } from '../../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error';
-import { KnownHeader } from '../../../../http/known-header.enum';
-import { type LeaseServiceInterface } from '../../../../leases/lease-service.interface';
-import { $ts } from '../../../../localization/translate.function';
-import { Newable } from '../../../../types/newable.type';
-import { Ms } from '../../../../utilities/ms';
-import { optionalPeer } from '../../../../utilities/optional-peer.function';
-import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../../../models/base-user.model';
+import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error.ts';
+import { NoRegisterData } from '../no-register-data.model.ts';
+import { TwoFactorMethod } from '../two-factor-method.interface.ts';
+import { base32Encode } from './base32-encode.function.ts';
+import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error.ts';
+import { OtpCredentials, OtpCredentialsCreateData } from './otp-credentials.model.ts';
+import { OTP_PERIOD_IN_SECONDS, OtpUtilities, type OtpValidationWindowInMs } from './otp.utilities.ts';
+import { ZibriApplication } from '../../../../application/application.ts';
+import { HttpRequestContext } from '../../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context.ts';
+import { Repository } from '../../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { UnauthorizedError } from '../../../../error-handling/errors/unauthorized.error.ts';
+import { KnownHeader } from '../../../../http/known-header.enum.ts';
+import { type LeaseServiceInterface } from '../../../../leases/lease-service.interface.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { Newable } from '../../../../types/newable.type.ts';
+import { Ms } from '../../../../utilities/ms.ts';
+import { optionalPeer } from '../../../../utilities/optional-peer.function.ts';
+import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
 
 /**
  * The data for confirming the registration of the otp two factor method.
@@ -62,19 +62,19 @@ export class OtpRegistration {
  * One Time Password Two Factor Method.
  */
 export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegisterData, OtpRegistration> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'otp';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly requestRegisterModel: Newable<void> = NoRegisterData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly confirmRegisterModel: Newable<OtpConfirmRegisterData> = OtpConfirmRegisterData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly registrationModel: Newable<OtpRegistration> = OtpRegistration;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly secondFactorStartModel: undefined = undefined;
 
     // read when used rather than injected, so that an application without the entity is told to
@@ -100,7 +100,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
         optionalPeer('otpauth', 'Two factor authentication with an otp');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(OtpTwoFactorMethod.name, app, OtpCredentials);
     }
@@ -135,7 +135,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType
     ): Promise<OtpRegistration> {
@@ -155,12 +155,12 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
         return { qrCodeUrl: OtpUtilities.createQrCodeUrl(secret), secret };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startSecondFactor(): Promise<void> {
         // the app shows the code by itself, so there is nothing to start
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         data: OtpConfirmRegisterData
@@ -186,12 +186,12 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
         throw new InvalidTwoFactorCodeError();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
         await this.otpCredentialsRepository.deleteAll({ userId: user.id });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
         // confirmed only, for the reason validate gives: an unconfirmed secret is one nobody has
         // proven they hold, so a user with nothing but that has no second factor to present
@@ -202,7 +202,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
         return credentials != undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validate<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext

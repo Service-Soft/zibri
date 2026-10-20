@@ -1,4 +1,4 @@
-/* eslint-disable jsdoc/require-jsdoc */
+/* eslint-disable jsdoc-js/require-jsdoc */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';

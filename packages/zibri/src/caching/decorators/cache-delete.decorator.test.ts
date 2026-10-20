@@ -1,17 +1,17 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CacheDelete } from './cache-delete.decorator';
-import { Cache } from './cache.decorator';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
-import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache';
-import { type CacheServiceInterface } from '../cache-service.interface';
-import { CachedValue } from '../store/cached-value.model';
-import { InMemoryCacheStore } from '../store/in-memory.cache-store';
+import { CacheDelete } from './cache-delete.decorator.ts';
+import { Cache } from './cache.decorator.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface.ts';
+import { WriteThroughReadThroughCache } from '../cache/read-through/write-through-read-through.cache.ts';
+import { type CacheServiceInterface } from '../cache-service.interface.ts';
+import { CachedValue } from '../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../store/in-memory.cache-store.ts';
 
 @Cache()
 class DeleteTestCache extends WriteThroughReadThroughCache<string, string, 'Cache Delete Decorator Test Cache'> {
@@ -55,7 +55,7 @@ describe('CacheDelete decorator', () => {
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     it('deletes the resolved key after the decorated method runs', async () => {
@@ -68,8 +68,8 @@ describe('CacheDelete decorator', () => {
 
     it('only builds the wrapped function once per instance', async () => {
         const cache: DeleteTestCache = inject(DeleteTestCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapDeleteSpy = jest.spyOn(cache, 'wrapDelete');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapDeleteSpy = vi.spyOn(cache, 'wrapDelete');
 
         const service: DeleteService = new DeleteService();
         await service.remove('a');
@@ -80,8 +80,8 @@ describe('CacheDelete decorator', () => {
 
     it('builds a separate wrapped function per instance', async () => {
         const cache: DeleteTestCache = inject(DeleteTestCache);
-        // eslint-disable-next-line typescript/typedef
-        const wrapDeleteSpy = jest.spyOn(cache, 'wrapDelete');
+        // eslint-disable-next-line typescript-js/typedef
+        const wrapDeleteSpy = vi.spyOn(cache, 'wrapDelete');
 
         await new DeleteService().remove('a');
         await new DeleteService().remove('a');

@@ -1,10 +1,10 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { Parser } from './parser';
-import { initDiContainer } from '../di/init-di-container.function';
-import { HeaderParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
-import { createHeaderParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { Parser } from './parser.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { HeaderParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { createHeaderParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 describe('parsing an array parameter', () => {
     let parser: Parser;

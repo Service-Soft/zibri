@@ -1,42 +1,42 @@
 import { randomBytes, timingSafeEqual } from 'crypto';
 
-import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface';
-import { type AssetServiceInterface } from '../../../assets/asset-service.interface';
-import { type HashServiceInterface } from '../../../auth/hash/hash-service.interface';
-import { Sha256HashStrategy } from '../../../auth/hash/strategies/sha256.hash-strategy';
-import { Repository } from '../../../data-source/repository/repository';
-import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type EmailServiceInterface } from '../../../email/email-service.interface';
-import { EmailPriority } from '../../../email/models/email-priority.enum';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../../global/global-registry';
-import { OnAppInit } from '../../../global/on-app-init.interface';
-import { $ts } from '../../../localization/translate.function';
-import { Route } from '../../../routing/controller-route-configuration.model';
-import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
-import { TsxUtilities } from '../../../tsx/tsx.utilities';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { PromiseUtilities } from '../../../utilities/promise.utilities';
-import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens';
-import { type MailingListBaseEmailTemplate, MailingListTemplateData } from '../models/mailing-list-base-email-template.model';
-import { type MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model';
-import { MailingListSubscriber } from '../models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model';
-import { MailingList } from '../models/mailing-list.model';
+import { MailingListSubscriberCreateData, MailingListQueueEmailData, MailingListServiceInterface } from './mailing-list-service.interface.ts';
+import { type AssetServiceInterface } from '../../../assets/asset-service.interface.ts';
+import { type HashServiceInterface } from '../../../auth/hash/hash-service.interface.ts';
+import { Sha256HashStrategy } from '../../../auth/hash/strategies/sha256.hash-strategy.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type EmailServiceInterface } from '../../../email/email-service.interface.ts';
+import { EmailPriority } from '../../../email/models/email-priority.enum.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../../global/global-registry.ts';
+import { OnAppInit } from '../../../global/on-app-init.interface.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { Route } from '../../../routing/controller-route-configuration.model.ts';
+import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface.ts';
+import { TsxUtilities } from '../../../tsx/tsx.utilities.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { PromiseUtilities } from '../../../utilities/promise.utilities.ts';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from '../mailing-list.tokens.ts';
+import { type MailingListBaseEmailTemplate, MailingListTemplateData } from '../models/mailing-list-base-email-template.model.ts';
+import { type MailingListSubscribeConfirmationEmailTemplate } from '../models/mailing-list-subscribe-confirmation-email-template.model.ts';
+import { MailingListSubscriber } from '../models/mailing-list-subscriber.model.ts';
+import { MailingListSubscriptionConfirmationToken, MailingListSubscriptionConfirmationTokenCreateData } from '../models/mailing-list-subscription-confirmation-token.model.ts';
+import { MailingList } from '../models/mailing-list.model.ts';
 
 /**
  * Default mailing list service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
 export class MailingListService implements MailingListServiceInterface, OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly mailingListBaseRoute: Route = '/mailing-lists';
 
     constructor(
@@ -87,7 +87,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         return inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(): void {
         if (inject(ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_CONFIRMATION_EMAIL_TEMPLATE) == undefined) {
             throw new InternalError([
@@ -103,22 +103,22 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveSubscribeConfirmationLink(listId: string, confirmationToken: string): Promise<string> {
         return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/subscribe/${confirmationToken}`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUnsubscribeLink(listId: string, subscriber: MailingListSubscriber): Promise<string> {
         return await this.resolveLink(`${this.mailingListBaseRoute}/${listId}/unsubscribe?${this.getSubscriberQuery(subscriber)}`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveManagePreferencesLink(subscriber: MailingListSubscriber): Promise<string> {
         return await this.resolveLink(`${this.mailingListBaseRoute}/preferences?${this.getSubscriberQuery(subscriber)}`);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveSubscriberOfLink(subscriberId: string, secret: string): Promise<MailingListSubscriber> {
         const found: MailingListSubscriber | undefined = await this.subscriberRepository.findOne(
             { where: { id: subscriberId }, relations: ['mailingLists'], required: false }
@@ -159,7 +159,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         return await this.tenantService.resolveTenantUrl(`${baseUrl}${path}`, tenantId);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async queueEmailForList<T>(listId: string, data: MailingListQueueEmailData<T>): Promise<void> {
         const list: MailingList = await this.mailingListRepository.findById(listId, { relations: ['subscribers'] });
         await PromiseUtilities.allChunked(
@@ -195,7 +195,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestSubscribeToList<T>(
         listId: string,
         subscriber: MailingListSubscriberCreateData,
@@ -237,7 +237,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         await this.emailService.queue({ ...emailData, html, recipients: [subscriber.email], persist: false });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmSubscribeToList(listId: string, confirmationTokenValue: string): Promise<MailingListSubscriber> {
         // the list is part of the lookup, so the list a link names is the one it subscribes to
         const foundToken: MailingListSubscriptionConfirmationToken | undefined = await this.confirmationTokenRepository.findOne({
@@ -301,7 +301,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unsubscribeFromList(listId: string, subscriberId: string): Promise<void> {
         await this.mailingListRepository.findById(listId);
         const foundSubscriber: MailingListSubscriber = await this.subscriberRepository.findOne(

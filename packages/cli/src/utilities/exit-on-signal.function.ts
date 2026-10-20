@@ -1,4 +1,4 @@
-import { exitWithInterrupt } from './exit-with-interrupt.function';
+import { exitWithInterrupt } from './exit-with-interrupt.function.ts';
 
 /**
  * The signals a terminal sends to ask the cli to stop.

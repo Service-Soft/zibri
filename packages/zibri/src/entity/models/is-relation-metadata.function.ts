@@ -1,11 +1,11 @@
-import { Relation } from './relation.enum';
-import { type BaseEntity } from '../base-entity.model';
-import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator';
+import { RelationType } from './relation-type.enum.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
+import { type PropertyMetadata, type RelationMetadata } from '../decorators/property.decorator.ts';
 
 /**
  * Every kind of relation, as the `type` its metadata carries.
  */
-const RELATION_TYPES: Set<string> = new Set(Object.values(Relation));
+const RELATION_TYPES: Set<string> = new Set(Object.values(RelationType));
 
 /**
  * Checks whether a property's metadata declares a relation to another entity.

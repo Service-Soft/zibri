@@ -98,9 +98,9 @@ The `reportCompletion` and `reportError` parts are really important, as the thre
 
 A worker file may be TypeScript, CommonJS or an es module, and may use top level `await`. Its top level code is the job, and one worker thread runs many jobs, so the file is evaluated again for each of them — which is also why a value left in module scope by one job is not there for the next.
 
-A TypeScript worker file is compiled as it is loaded, which needs the optional peer dependency `ts-node` installed. `multithreading.enableTsWorkerFiles` declares whether this application uses such files, and it defaults to `true`. Startup fails when it is `true` and `ts-node` is missing, so a deployment that left the compiler out finds out on the way up rather than from the first job that happens to name a `.ts` file.
+A TypeScript worker file (`.ts`, `.mts` or `.cts`) is compiled as it is loaded, which needs the optional peer dependency `oxc-transform` installed. `multithreading.enableTsWorkerFiles` declares whether this application uses such files, and it defaults to `true`. Startup fails when it is `true` and `oxc-transform` is missing, so a deployment that left the compiler out finds out on the way up rather than from the first job that happens to name a `.ts` file.
 
-Set it to `false` for a deployment that ships compiled worker files. Nothing then loads a TypeScript compiler, a `.ts` file is refused the moment it is queued, and neither `ts-node` nor the TypeScript compiler behind it has to be installed.
+Set it to `false` for a deployment that ships compiled worker files. Nothing then loads a TypeScript compiler, a `.ts` file is refused the moment it is queued, and `oxc-transform` does not have to be installed.
 
 An error that reaches neither a `try`/`catch` nor `reportError` — thrown from a timer, a callback or a promise nobody awaited — ends the worker. The job is marked `FAILED` with that error, and a fresh worker takes its place in the pool. A thread is reused by every job after it, so anything the throw left half done would otherwise be the state the next one starts from.
 

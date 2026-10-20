@@ -1,9 +1,9 @@
-import { ExcludeDescriptor } from './exclude-descriptor';
-import { ModelRegistry } from './model.registry';
-import { AlsUtilities } from '../../context/als.utilities';
-import { AnyObject } from '../../entity/any-object.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
+import { ExcludeDescriptor } from './exclude-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum.ts';
 
 /**
  * Replaces all properties defined with "exclude: true" (or a function returning true)
@@ -23,7 +23,7 @@ export async function removeExcludeProperties<Data, EntityClass>(
     await removeExcludePropertiesRecursive(data, descriptor, new Set());
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function removeExcludePropertiesRecursive<Data, EntityClass>(
     data: Data,
     descriptor: ExcludeDescriptor<EntityClass>,
@@ -49,7 +49,7 @@ async function removeExcludePropertiesRecursive<Data, EntityClass>(
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function hideProperty(data: AnyObject, key: string): void {
     const currentDescriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(data, key);
     if (currentDescriptor && currentDescriptor.enumerable !== true) {

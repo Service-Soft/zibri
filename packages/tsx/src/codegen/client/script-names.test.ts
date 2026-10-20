@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { unavailableNamesIn } from './script-names';
+import { unavailableNamesIn } from './script-names.ts';
 
 describe('unavailableNamesIn', () => {
     const available: ReadonlySet<string> = new Set(['document', 'console']);

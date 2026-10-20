@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { InMemoryTraceBuffer } from './in-memory.trace-buffer';
-import { TraceSpanKind } from './trace-span-kind.enum';
-import { TraceSpanRecord } from './trace-span-record.model';
-import { TraceSpanStatus } from './trace-span-status.enum';
+import { InMemoryTraceBuffer } from './in-memory.trace-buffer.ts';
+import { TraceSpanKind } from './trace-span-kind.enum.ts';
+import { TraceSpanRecord } from './trace-span-record.model.ts';
+import { TraceSpanStatus } from './trace-span-status.enum.ts';
 
 /**
  * A finished span, of the trace and under the name given.

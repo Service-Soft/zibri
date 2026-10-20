@@ -1,6 +1,6 @@
-import { BaseParamMetadata } from './base-param-metadata.model';
-import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { BaseParamMetadata } from './base-param-metadata.model.ts';
+import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Metadata for Date parameters.

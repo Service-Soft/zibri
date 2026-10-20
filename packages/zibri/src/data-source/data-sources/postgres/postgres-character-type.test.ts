@@ -1,14 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Logger } from '../../../logging/logger';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { DataSource } from '../../decorators/data-source.decorator';
-import { SchemaManagement } from '../../models/schema-management.model';
+import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model.ts';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Logger } from '../../../logging/logger.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { DataSource } from '../../decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../../models/schema-management.model.ts';
 
 /**
  * The database a data source built now connects to.
@@ -47,7 +47,7 @@ describe('a database that counts only ascii as a letter', () => {
     let server: StartedTestServer;
     // on the class rather than on an instance: the warning is written while the application starts,
     // before a test can reach the logger it starts with
-    const warn: jest.SpiedFunction<Logger['warn']> = jest.spyOn(Logger.prototype, 'warn');
+    const warn: MockInstance<Logger['warn']> = vi.spyOn(Logger.prototype, 'warn');
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [CharacterTypeDataSource] });
@@ -55,7 +55,7 @@ describe('a database that counts only ascii as a letter', () => {
         // from. Owned by the application's role, which is what lets it install the trigram extension
         await server.runAsSuperuser(CharacterTypeDataSource, [
             `CREATE DATABASE ${ASCII_ONLY_DATABASE} OWNER postgres TEMPLATE template0 ENCODING 'UTF8'`
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             + ' LOCALE_PROVIDER libc LC_COLLATE \'C\' LC_CTYPE \'C\''
         ]);
     }, 90000);

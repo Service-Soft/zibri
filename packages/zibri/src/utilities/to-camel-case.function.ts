@@ -9,7 +9,7 @@ export function toCamelCase(input: string): string {
     }
     const normalized: string = input
         .replaceAll(/([\da-z])([A-Z])/g, '$1 $2') // split camel/Pascal transitions
-        .replaceAll(/[._\-]+/g, ' ')
+        .replaceAll(/[._-]+/g, ' ')
         .trim();
     const parts: string[] = normalized.split(/\s+/);
     const [firstPart] = parts;

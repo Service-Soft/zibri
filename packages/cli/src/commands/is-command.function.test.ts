@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Command } from './command.enum';
-import { isCommand } from './is-command.function';
+import { Command } from './command.enum.ts';
+import { isCommand } from './is-command.function.ts';
 
 describe('isCommand', () => {
     it.each(Object.values(Command))('recognizes "%s" as a valid command', command => {

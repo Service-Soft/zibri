@@ -1,8 +1,8 @@
-import { OtpTwoFactorMethod } from '../../../auth/2fa/methods/otp/otp.two-factor-method';
-import { AuthController } from '../../../auth/auth-controller/auth-controller.model';
-import { PasswordAuthenticator } from '../../../auth/authenticators/password/password.authenticator';
-import { JwtAuthStrategy } from '../../../auth/strategies/jwt/jwt.auth-strategy';
-import { Controller } from '../../../routing/decorators/controller.decorator';
+import { OtpTwoFactorMethod } from '../../../auth/2fa/methods/otp/otp.two-factor-method.ts';
+import { AuthController } from '../../../auth/auth-controller/auth-controller.model.ts';
+import { PasswordAuthenticator } from '../../../auth/authenticators/password/password.authenticator.ts';
+import { JwtAuthStrategy } from '../../../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
 
 /**
  * The auth routes of an application on the defaults: jwt logins, passwords, and the authenticator app

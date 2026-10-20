@@ -1,6 +1,6 @@
-import { exitWithError } from '../utilities';
-import { Command } from './command.enum';
-import { isCommand } from './is-command.function';
+import { exitWithError } from '../utilities/index.ts';
+import { Command } from './command.enum.ts';
+import { isCommand } from './is-command.function.ts';
 
 /**
  * Resolves the command from the given args.

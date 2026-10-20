@@ -1,6 +1,6 @@
-import { findEncryptedValues, StoredEncryptedValue } from './find-encrypted-values.function';
-import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
-import { Newable } from '../../types/newable.type';
+import { findEncryptedValues, StoredEncryptedValue } from './find-encrypted-values.function.ts';
+import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Whether anything on the given row is not stored the way it should be.

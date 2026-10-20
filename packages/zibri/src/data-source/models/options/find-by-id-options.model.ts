@@ -1,5 +1,5 @@
-import { FindOneOptions } from './find-one-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
+import { FindOneOptions } from './find-one-options.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
 
 /**
  * Options for finding a single entity by its id.

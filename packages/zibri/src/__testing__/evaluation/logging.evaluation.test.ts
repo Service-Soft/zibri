@@ -1,10 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { DiContainer } from '../../di/di-container';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { inject } from '../../di/inject.function';
-import { LoggerInterface } from '../../logging/logger.interface';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { DiContainer } from '../../di/di-container.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 3.2.

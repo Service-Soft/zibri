@@ -1,6 +1,6 @@
-import { BigNumber } from './number.utilities';
-import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
-import { NumberFormat } from '../entity/models/number-property-metadata.model';
+import { BigNumber } from './number.utilities.ts';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model.ts';
+import { NumberFormat } from '../entity/models/number-property-metadata.model.ts';
 
 /**
  * Reads a stored or transported number back into the type its format declares.

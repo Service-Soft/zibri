@@ -1,47 +1,47 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { CookieAuthData } from './cookie-auth-data.model';
-import { CookieAuthLogoutData, CookieAuthLogoutDto } from './cookie-auth-logout-data.model';
-import { CookieAuthRefreshLoginData, CookieAuthRefreshLoginDto } from './cookie-auth-refresh-login-data.model';
-import { CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData } from './cookie-auth-refresh-session.model';
-import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job';
-import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-session.model';
-import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../../di/errors/no-provider.error';
-import { inject } from '../../../di/inject.function';
-import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { type CookieOptions } from '../../../http/cookie-options.model';
-import { HttpMethod } from '../../../http/http-method.enum';
-import { KnownHeader } from '../../../http/known-header.enum';
-import { $ts } from '../../../localization/translate.function';
-import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { Newable } from '../../../types/newable.type';
-import { type OmitStrict } from '../../../types/omit-strict.type';
-import { Ms } from '../../../utilities/ms';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
-import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
-import { FederatedSession } from '../../authenticators/federated/federated-session.model';
-import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import { type HashString } from '../../hash/hash.utilities';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
-import { Authentication } from '../../models/authentication.model';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
-import { CsrfTokenAuthStrategyInterface } from '../csrf-token-auth-strategy.interface';
+import { CookieAuthData } from './cookie-auth-data.model.ts';
+import { CookieAuthLogoutData, CookieAuthLogoutDto } from './cookie-auth-logout-data.model.ts';
+import { CookieAuthRefreshLoginData, CookieAuthRefreshLoginDto } from './cookie-auth-refresh-login-data.model.ts';
+import { CookieAuthRefreshSession, CookieAuthRefreshSessionCreateData } from './cookie-auth-refresh-session.model.ts';
+import { CookieAuthSessionCleanupCronJob } from './cookie-auth-session-cleanup.cron-job.ts';
+import { CookieAuthSession, CookieAuthSessionCreateData } from './cookie-auth-session.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../../di/errors/no-provider.error.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { type CookieOptions } from '../../../http/cookie-options.model.ts';
+import { HttpMethod } from '../../../http/http-method.enum.ts';
+import { KnownHeader } from '../../../http/known-header.enum.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { type OmitStrict } from '../../../types/omit-strict.type.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model.ts';
+import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model.ts';
+import { FederatedSession } from '../../authenticators/federated/federated-session.model.ts';
+import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities.ts';
+import { type HashServiceInterface } from '../../hash/hash-service.interface.ts';
+import { type HashString } from '../../hash/hash.utilities.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
+import { Authentication } from '../../models/authentication.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface.ts';
+import { CsrfTokenAuthStrategyInterface } from '../csrf-token-auth-strategy.interface.ts';
 
 /**
  * Options input for any cookie session.
@@ -105,18 +105,18 @@ export class CookieAuthStrategy<
     CookieAuthRefreshLoginData,
     CookieAuthLogoutData
 >, CsrfTokenAuthStrategyInterface<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'cookie';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly authDataModel: Newable<CookieAuthData<RoleType>> = CookieAuthData;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly refreshLoginModel: Newable<CookieAuthRefreshLoginDto> = CookieAuthRefreshLoginDto;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly logoutModel: Newable<CookieAuthLogoutDto> = CookieAuthLogoutDto;
     // the cookies go out with whichever response the login is started in, a redirect included
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly logsInWithResponse: boolean = true;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject;
 
     private readonly sessionOptions: CookieAuthSessionOptions;
@@ -183,7 +183,7 @@ export class CookieAuthStrategy<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         // first, since the cleanup job below needs them as well
         validateEntitiesRegistered(CookieAuthStrategy.name, app, CookieAuthSession, CookieAuthRefreshSession);
@@ -192,7 +192,7 @@ export class CookieAuthStrategy<
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
         // either cookie, though resolving needs both: a request carrying only the refresh cookie is
         // still addressing this strategy - its session has lapsed and is about to be rotated - and
@@ -211,7 +211,7 @@ export class CookieAuthStrategy<
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const sessions: SessionPair | undefined = await this.resolveAndValidateSessions(context, undefined);
         if (!sessions) {
@@ -234,7 +234,7 @@ export class CookieAuthStrategy<
         return sessions?.csrfToken;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         // read without validating again. Validating rotates a session that has lapsed, and the user
         // this is asked about was resolved earlier in the same request - which already rotated it,
@@ -248,7 +248,7 @@ export class CookieAuthStrategy<
         return new Date(refreshSession.authenticatedAt);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         // the refresh session's, read without validating for the reason resolveAuthenticatedAt gives:
         // a session that lapses before it is rotated into a new one, so the pair is accepted until then
@@ -256,12 +256,12 @@ export class CookieAuthStrategy<
         return refreshSession == undefined ? undefined : new Date(refreshSession.expirationDate);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startTransaction(): Promise<Transaction> {
         return await this.sessionRepository.dataSource.startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<CookieAuthData<RoleType>> {
         // the tokens exist here and in the cookies only, the rows hold their hashes
         const refreshToken: string = this.generateToken();
@@ -288,7 +288,7 @@ export class CookieAuthStrategy<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
         await this.sessionRepository.deleteAll({ userId }, { transaction });
         // the refresh sessions too. With only the sessions gone, a refresh session from before rotated
@@ -297,7 +297,7 @@ export class CookieAuthStrategy<
         await this.refreshSessionRepository.deleteAll({ userId }, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
         const refreshSessions: CookieAuthRefreshSession[] = await this.refreshSessionRepository.findAll({
             where: FederatedSessionUtilities.toWhere(session),
@@ -312,7 +312,7 @@ export class CookieAuthStrategy<
         await this.refreshSessionRepository.deleteAll({ familyId: { oneOf: familyIds } }, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async logout(data: CookieAuthLogoutData): Promise<FederatedSession | undefined> {
         // the login of the cookies the request carries. It used to be the refresh session the body
         // named by id: a browser cannot read an httpOnly cookie to send it, and with the cookie no
@@ -353,7 +353,7 @@ export class CookieAuthStrategy<
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async refreshLogin(data: CookieAuthRefreshLoginData): Promise<CookieAuthData<RoleType>> {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (!(context instanceof HttpRequestContext)) {

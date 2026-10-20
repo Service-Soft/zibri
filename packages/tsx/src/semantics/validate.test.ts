@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { validate, ValidationCode } from './validate';
-import { parseTemplateOk } from '../__testing__/parse.helper';
-import { collectTsxFiles } from '../__testing__/sandbox.helper';
-import { Diagnostic } from '../diagnostics/diagnostic.model';
+import { validate, ValidationCode } from './validate.ts';
+import { parseTemplateOk } from '../__testing__/parse.helper.ts';
+import { collectTsxFiles } from '../__testing__/sandbox.helper.ts';
+import { Diagnostic } from '../diagnostics/diagnostic.model.ts';
 
 function diagnose(source: string): Diagnostic[] {
     return validate(parseTemplateOk(source));
@@ -37,7 +37,7 @@ describe('validate', () => {
 });
 
 describe('validate against real sandbox templates', () => {
-    const files: string[] = collectTsxFiles(join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates'));
+    const files: string[] = collectTsxFiles(join(import.meta.dirname, '..', '..', '..', 'sandbox', 'src', 'templates'));
 
     it.each(files.map(f => [f.split('/templates/')[1], f] as const))(
         'reports no errors for %s',

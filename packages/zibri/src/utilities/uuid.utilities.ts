@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { MetadataUtilities } from './metadata.utilities';
-import { BaseEntity } from '../entity/base-entity.model';
-import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
-import { Relation } from '../entity/models/relation.enum';
-import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from './metadata.utilities.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Any string a store that types its columns as uuid is able to hold.
@@ -113,10 +113,10 @@ export abstract class UUIDUtilities {
     }
 
     private static isRelation(metadata: PropertyMetadata | undefined): metadata is RelationMetadata<BaseEntity> {
-        return metadata?.type === Relation.HAS_ONE
-            || metadata?.type === Relation.BELONGS_TO_ONE
-            || metadata?.type === Relation.MANY_TO_ONE
-            || metadata?.type === Relation.ONE_TO_MANY
-            || metadata?.type === Relation.MANY_TO_MANY;
+        return metadata?.type === RelationType.HAS_ONE
+            || metadata?.type === RelationType.BELONGS_TO_ONE
+            || metadata?.type === RelationType.MANY_TO_ONE
+            || metadata?.type === RelationType.ONE_TO_MANY
+            || metadata?.type === RelationType.MANY_TO_MANY;
     }
 }

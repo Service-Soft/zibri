@@ -1,16 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { validateFile } from './validate-file.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { File } from '../../parsing/form-data/file.model';
+import { validateFile } from './validate-file.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { File } from '../../parsing/form-data/file.model.ts';
 import { IsRequiredValidationProblem,
     MaxFileSizeValidationProblem,
     MimeTypeMismatchValidationProblem,
     TypeMismatchValidationProblem,
-    ValidationProblem } from '../validation-problem.model';
+    ValidationProblem } from '../validation-problem.model.ts';
 
 function meta(overrides: Partial<FilePropertyMetadata> = {}): FilePropertyMetadata {
     return {

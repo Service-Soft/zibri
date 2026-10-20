@@ -1,12 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { ConflictError } from '../../error-handling/errors/conflict.error';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { ConflictError } from '../../error-handling/errors/conflict.error.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about what an update hands back. A file per data
@@ -112,7 +113,7 @@ export class Seat extends BaseEntity {
      * The team it belongs to.
      */
     @Property.manyToOne({ target: () => Team, joinColumn: 'teamId', inverseSide: 'seats', required: false })
-    team?: Team;
+    team?: Relation<Team>;
 
     /**
      * The key that relation is stored as.

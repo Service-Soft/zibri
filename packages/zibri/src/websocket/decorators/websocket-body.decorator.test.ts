@@ -1,12 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { WebsocketBody } from './websocket-body.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { WebsocketBody } from './websocket-body.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { BodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 class Message {
     @Property.string()

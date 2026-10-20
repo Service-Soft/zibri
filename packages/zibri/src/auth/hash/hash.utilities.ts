@@ -1,4 +1,4 @@
-import { InternalError } from '../../error-handling/internal-error.model';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 /**
  * The longest password the builtin auth routes accept, in characters.
@@ -15,7 +15,7 @@ export const PASSWORD_MAX_LENGTH: number = 1024;
  * A string with hashed data stored inside of it.
  */
 export type HashString = string & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     __brand: 'hash'
 };
 

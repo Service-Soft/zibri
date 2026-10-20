@@ -1,7 +1,7 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { renderPage } from './render-page';
-import { compilePage } from '../__testing__/server-render.helper';
+import { renderPage } from './render-page.ts';
+import { compilePage } from '../__testing__/server-render.helper.ts';
 
 /**
  * A value as it arrives from outside: through json, which can hold any plain object.

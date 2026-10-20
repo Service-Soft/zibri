@@ -1,7 +1,7 @@
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * A descriptor that keeps track of the properties an entity refuses to have written blindly.

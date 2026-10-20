@@ -1,8 +1,8 @@
-import { HttpError } from './http.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { JsonMimeType } from '../../http/json-mime-type.type';
-import { KnownHeader } from '../../http/known-header.enum';
-import { TranslatedString } from '../../localization/models/translated-string.model';
+import { HttpError } from './http.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { JsonMimeType } from '../../http/json-mime-type.type.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { TranslatedString } from '../../localization/models/translated-string.model.ts';
 
 /**
  * An http error that is answered with a body of its own, written as json, in place of the body every

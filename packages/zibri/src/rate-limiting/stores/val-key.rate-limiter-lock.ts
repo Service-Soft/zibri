@@ -1,10 +1,10 @@
 import type { GlideClient, GlideString, Script } from '@valkey/valkey-glide';
 
-import { RateLimiterLockInterface } from './rate-limiter-lock.interface';
-import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
-import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { RateLimiterLockInterface } from './rate-limiter-lock.interface.ts';
+import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 /**
  * How long a lock is held at most, so that a crashed process cannot block a key forever.
@@ -59,7 +59,7 @@ export class ValKeyRateLimiterLock implements RateLimiterLockInterface {
 
     constructor(private readonly ds: ValKeyDataSource) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async withLock<T>(key: string, run: () => Promise<T>): Promise<T> {
         const client: GlideClient = this.ds.connection;
         const lockKey: string = `${this.ds.keyPrefix}:rate-limit-lock:${key}`;

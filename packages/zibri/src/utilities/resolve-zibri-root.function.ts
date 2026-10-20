@@ -1,6 +1,7 @@
+import { createRequire } from 'node:module';
 
-import { FsPath, FsUtilities } from './fs.utilities';
-import { JsonUtilities } from './json.utilities';
+import { FsPath, FsUtilities } from './fs.utilities.ts';
+import { JsonUtilities } from './json.utilities.ts';
 
 /**
  * Resolves the root of the zibri package, no matter the runtime.
@@ -9,11 +10,13 @@ import { JsonUtilities } from './json.utilities';
  * @returns The path of the compiled zibri package.
  * @throws When the package could not be found.
  */
-export function resolveZibriRoot(resolvePackageJsonPath: () => string = () => require.resolve('zibri/package.json')): FsPath {
+export function resolveZibriRoot(
+    resolvePackageJsonPath: () => string = () => createRequire(import.meta.url).resolve('zibri/package.json')
+): FsPath {
     try {
-        // Bundlers (eg. webpack) that can statically resolve this call rewrite it to a module id (a number),
-        // not a path string, which makes getPath/dirName throw below and fall through to the manual walk.
-        // Keep the fallback even though require.resolve succeeds in plain (unbundled) Node.js.
+        // a bundle the framework is compiled into resolves from wherever the bundle is, which need not
+        // have zibri installed beside it. Keep the fallback even though the resolution succeeds in plain
+        // (unbundled) Node.js.
         return FsUtilities.dirName(FsUtilities.getPath(resolvePackageJsonPath()));
     }
     catch {
@@ -31,7 +34,7 @@ export function resolveZibriRoot(resolvePackageJsonPath: () => string = () => re
         }
         if (FsUtilities.existsSync(directCandidate)) {
             const content: string = FsUtilities.readFileSync(directCandidate);
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             const { name } = JsonUtilities.parse<{ name: string }>(content);
             if (name === 'zibri') {
                 return FsUtilities.dirName(directCandidate);

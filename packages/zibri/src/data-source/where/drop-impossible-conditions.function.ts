@@ -1,13 +1,13 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
-import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
-import { Relation } from '../../entity/models/relation.enum';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { $ts } from '../../localization/translate.function';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { WhereFilter } from '../models/where/where-filter.model';
-import { ScopeWhereUtilities } from '../scopes/scope-where.utilities';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator.ts';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { WhereFilter } from '../models/where/where-filter.model.ts';
+import { ScopeWhereUtilities } from '../scopes/scope-where.utilities.ts';
 
 /**
  * The marker returned for a condition no stored value can satisfy.
@@ -307,7 +307,7 @@ function isImpossibleEntityId(entity: unknown): boolean {
  * @returns True when the values of a filter on it are lists of entities.
  */
 function isToManyRelation(property: PropertyMetadata | undefined): boolean {
-    return property?.type === Relation.ONE_TO_MANY || property?.type === Relation.MANY_TO_MANY;
+    return property?.type === RelationType.ONE_TO_MANY || property?.type === RelationType.MANY_TO_MANY;
 }
 
 /**

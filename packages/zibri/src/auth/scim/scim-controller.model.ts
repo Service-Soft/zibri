@@ -1,35 +1,35 @@
-import { BaseScimProvisioner } from './base-scim-provisioner';
-import { ScimBody } from './scim-body.model';
-import { ScimControllerClass } from './scim-controller-class.type';
-import { ScimControllerOptions } from './scim-controller-options.model';
-import { ScimEndpoint } from './scim-endpoint.model';
-import { ScimResourceResponse } from './scim-resource-response.model';
-import { type ScimServiceInterface } from './scim-service.interface';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { HttpStatus } from '../../http/http-status.enum';
-import { JsonMimeType } from '../../http/json-mime-type.type';
-import { JsonResponse } from '../../http/json-response.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { Response } from '../../open-api/decorators/response.decorator';
-import { Route } from '../../routing/controller-route-configuration.model';
-import { Body } from '../../routing/decorators/body.decorator';
-import { ControllerData } from '../../routing/decorators/controller.decorator';
-import { Delete } from '../../routing/decorators/delete.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Param, QueryParamMetadataInput } from '../../routing/decorators/param.decorator';
-import { Patch } from '../../routing/decorators/patch.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { Put } from '../../routing/decorators/put.decorator';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Auth } from '../decorators/auth.decorator';
-import { BaseUser } from '../models/base-user.model';
-import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
+import { BaseScimProvisioner } from './base-scim-provisioner.ts';
+import { ScimBody } from './scim-body.model.ts';
+import { ScimControllerClass } from './scim-controller-class.type.ts';
+import { ScimControllerOptions } from './scim-controller-options.model.ts';
+import { ScimEndpoint } from './scim-endpoint.model.ts';
+import { ScimResourceResponse } from './scim-resource-response.model.ts';
+import { type ScimServiceInterface } from './scim-service.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { JsonMimeType } from '../../http/json-mime-type.type.ts';
+import { JsonResponse } from '../../http/json-response.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { Response } from '../../open-api/decorators/response.decorator.ts';
+import { Route } from '../../routing/controller-route-configuration.model.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { ControllerData } from '../../routing/decorators/controller.decorator.ts';
+import { Delete } from '../../routing/decorators/delete.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Param, QueryParamMetadataInput } from '../../routing/decorators/param.decorator.ts';
+import { Patch } from '../../routing/decorators/patch.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { Put } from '../../routing/decorators/put.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { Auth } from '../decorators/auth.decorator.ts';
+import { BaseUser } from '../models/base-user.model.ts';
+import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy.ts';
 
 /**
  * What SCIM answers in: its own json type, and plain json for a client that asks for that.
@@ -55,7 +55,7 @@ const DEFAULT_MAX_BULK_PAYLOAD_SIZE: FileSize = '1mb';
  */
 const LIST_QUERY_OPTIONS: QueryParamMetadataInput = { type: 'string', required: false };
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Defines the SCIM routes (RFC 7644) an identity provider provisions users and groups through:
  * `/Users`, `/Groups`, `/Bulk`, `/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas`, below the
@@ -72,7 +72,7 @@ export function ScimController<RoleType extends string>(
 ): Newable<object> {
     const maxBulkPayloadSize: FileSize = options.bulk?.maxPayloadSize ?? DEFAULT_MAX_BULK_PAYLOAD_SIZE;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Auth.hasRole(options.roles, [ApiKeyAuthStrategy])
     class Temp {
         /**
@@ -105,21 +105,21 @@ export function ScimController<RoleType extends string>(
             };
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/ServiceProviderConfig')
         serviceProviderConfig(): ScimBody {
             return this.scimService.getServiceProviderConfig(this.endpoint);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/ResourceTypes')
         resourceTypes(): ScimBody {
             return this.scimService.getResourceTypes(this.endpoint);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/ResourceTypes/:id')
         resourceType(
@@ -129,14 +129,14 @@ export function ScimController<RoleType extends string>(
             return this.scimService.findResourceType(this.endpoint, id);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/Schemas')
         schemas(): ScimBody {
             return this.scimService.getSchemas(this.endpoint);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/Schemas/:id')
         schema(
@@ -146,7 +146,7 @@ export function ScimController<RoleType extends string>(
             return this.scimService.findSchema(this.endpoint, id);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { status: HttpStatus.CREATED, mimeTypes: SCIM_MIME_TYPES })
         @Post('/Users')
         async createUser(
@@ -156,7 +156,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.createUser(this.endpoint, body));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/Users')
         async findUsers(
@@ -181,7 +181,7 @@ export function ScimController<RoleType extends string>(
             );
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get(USER_PATH)
         async findUser(
@@ -195,7 +195,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.findUser(this.endpoint, id, { attributes, excludedAttributes }));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Put(USER_PATH)
         async replaceUser(
@@ -209,7 +209,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.replaceUser(this.endpoint, id, body, ifMatch));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Patch(USER_PATH)
         async patchUser(
@@ -223,7 +223,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.patchUser(this.endpoint, id, body, ifMatch));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.empty({ mimeTypes: SCIM_MIME_TYPES })
         @Delete(USER_PATH)
         async deleteUser(
@@ -235,7 +235,7 @@ export function ScimController<RoleType extends string>(
             await this.scimService.deleteUser(this.endpoint, id, ifMatch);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { status: HttpStatus.CREATED, mimeTypes: SCIM_MIME_TYPES })
         @Post('/Groups')
         async createGroup(
@@ -245,7 +245,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.createGroup(this.endpoint, body));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get('/Groups')
         async findGroups(
@@ -270,7 +270,7 @@ export function ScimController<RoleType extends string>(
             );
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Get(GROUP_PATH)
         async findGroup(
@@ -284,7 +284,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.findGroup(this.endpoint, id, { attributes, excludedAttributes }));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Put(GROUP_PATH)
         async replaceGroup(
@@ -298,7 +298,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.replaceGroup(this.endpoint, id, body, ifMatch));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Patch(GROUP_PATH)
         async patchGroup(
@@ -312,7 +312,7 @@ export function ScimController<RoleType extends string>(
             return toJsonResponse(await this.scimService.patchGroup(this.endpoint, id, body, ifMatch));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.empty({ mimeTypes: SCIM_MIME_TYPES })
         @Delete(GROUP_PATH)
         async deleteGroup(
@@ -324,7 +324,7 @@ export function ScimController<RoleType extends string>(
             await this.scimService.deleteGroup(this.endpoint, id, ifMatch);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(ScimBody, { mimeTypes: SCIM_MIME_TYPES })
         @Post('/Bulk')
         async bulk(

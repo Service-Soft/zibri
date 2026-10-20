@@ -1,4 +1,4 @@
-import { ConversionRefusal } from './conversion-refusal.enum';
+import { ConversionRefusal } from './conversion-refusal.enum.ts';
 
 /**
  * A stored value that a property change cannot convert, and why.

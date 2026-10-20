@@ -1,11 +1,11 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { browserGlobals, declaredValueNames } from './browser-globals';
-import { ComponentInfo, findComponents, hasModifier } from './component';
-import { readImports, TemplateImport } from './imports';
-import { isAmbient } from './symbols';
-import { ModuleLoadingSite, OuterName } from '../codegen/client/client-codegen';
-import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
+import { browserGlobals, declaredValueNames } from './browser-globals.ts';
+import { ComponentInfo, findComponents, hasModifier } from './component.ts';
+import { readImports, TemplateImport } from './imports.ts';
+import { isAmbient } from './symbols.ts';
+import { ModuleLoadingSite, OuterName } from '../codegen/client/client-codegen.ts';
+import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model.ts';
 
 /**
  * Diagnostic codes produced by dialect validation.

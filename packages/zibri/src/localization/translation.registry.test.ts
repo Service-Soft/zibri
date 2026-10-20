@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { LocaleCode } from './models/locale-code.model';
-import { TranslationRegistry } from './translation.registry';
+import { LocaleCode } from './models/locale-code.model.ts';
+import { TranslationRegistry } from './translation.registry.ts';
 
 describe('TranslationRegistry.findTranslation', () => {
     beforeEach(() => {

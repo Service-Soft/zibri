@@ -1,7 +1,7 @@
-import { ObjectUtilities } from './object.utilities';
-import { inject } from '../di/inject.function';
-import { DiToken, TokenRecord } from '../di/models/di-token.model';
-import { MissingTokensError } from '../error-handling/errors/missing-tokens.error';
+import { ObjectUtilities } from './object.utilities.ts';
+import { inject } from '../di/inject.function.ts';
+import { DiToken, TokenRecord } from '../di/models/di-token.model.ts';
+import { MissingTokensError } from '../error-handling/errors/missing-tokens.error.ts';
 
 /**
  * Validates that the tokens from the given record are registered and available for injection.

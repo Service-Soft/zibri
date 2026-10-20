@@ -1,12 +1,12 @@
 
-import { ArrayWhereFilter, ObjectArrayWhereFilter } from './array-where-filter.model';
-import { BooleanWhereFilter } from './boolean-where-filter.model';
-import { DateWhereFilter } from './date-where-filter.model';
-import { NumberWhereFilter } from './number-where-filter.model';
-import { ObjectWhereFilter } from './object-where-filter.model';
-import { StringWhereFilter } from './string-where-filter.model';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { ArrayWhereFilter, ObjectArrayWhereFilter } from './array-where-filter.model.ts';
+import { BooleanWhereFilter } from './boolean-where-filter.model.ts';
+import { DateWhereFilter } from './date-where-filter.model.ts';
+import { NumberWhereFilter } from './number-where-filter.model.ts';
+import { ObjectWhereFilter } from './object-where-filter.model.ts';
+import { StringWhereFilter } from './string-where-filter.model.ts';
+import { ExcludeStrict } from '../../../types/exclude-strict.type.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
 
 /**
  * Where filter keys of object properties.
@@ -83,7 +83,7 @@ const whereFilterKeysRecord: Record<WhereFilterKeys, WhereFilterKeys> = {
 };
 const whereFilterKeySet: Set<WhereFilterKeys> = new Set<WhereFilterKeys>(ObjectUtilities.values(whereFilterKeysRecord));
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Checks if the given key is a where filter key.
  * @param key - The key to check.

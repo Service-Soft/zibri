@@ -1,5 +1,5 @@
-import { NotFoundError } from './not-found.error';
-import { $ts } from '../../localization/translate.function';
+import { NotFoundError } from './not-found.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * An error to throw when a route requested by a user does not exist at all.

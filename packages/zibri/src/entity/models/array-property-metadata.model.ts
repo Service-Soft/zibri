@@ -1,15 +1,15 @@
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { type BaseEntity } from '../base-entity.model';
-import { BasePropertyMetadata } from './base-property-metadata.model';
-import { BooleanPropertyMetadataInput } from './boolean-property-metadata.model';
-import { DatePropertyMetadataInput } from './date-property-metadata.model';
-import { FilePropertyMetadataInput, FileSize } from './file-property-metadata.model';
-import { NumberPropertyMetadataInput } from './number-property-metadata.model';
-import { ObjectPropertyMetadataInput } from './object-property-metadata.model';
-import { type OneOfPropertyMetadataInput, type OneOfShapesMetadataInput } from './one-of-property-metadata.model';
-import { StringPropertyMetadataInput } from './string-property-metadata.model';
-import { UnknownPropertyMetadataInput } from './unknown-property-metadata.model';
-import { PropertyMetadata, RelationMetadata } from '../decorators/property.decorator';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
+import { BasePropertyMetadata } from './base-property-metadata.model.ts';
+import { BooleanPropertyMetadataInput } from './boolean-property-metadata.model.ts';
+import { DatePropertyMetadataInput } from './date-property-metadata.model.ts';
+import { FilePropertyMetadataInput, FileSize } from './file-property-metadata.model.ts';
+import { NumberPropertyMetadataInput } from './number-property-metadata.model.ts';
+import { ObjectPropertyMetadataInput } from './object-property-metadata.model.ts';
+import { type OneOfPropertyMetadataInput, type OneOfShapesMetadataInput } from './one-of-property-metadata.model.ts';
+import { StringPropertyMetadataInput } from './string-property-metadata.model.ts';
+import { UnknownPropertyMetadataInput } from './unknown-property-metadata.model.ts';
+import { PropertyMetadata, RelationMetadata } from '../decorators/property.decorator.ts';
 
 /**
  * Metadata for array properties.
@@ -42,23 +42,23 @@ export type ArrayPropertyItemMetadata = ExcludeStrict<PropertyMetadata, Relation
  */
 export type ArrayPropertyItemMetadataInput<
     TStringInput = StringPropertyMetadataInput
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
 > = TStringInput & { type: 'string' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | NumberPropertyMetadataInput & { type: 'number' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | ObjectPropertyMetadataInput & { type: 'object' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | ArrayPropertyMetadataInput<TStringInput> & { type: 'array' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | DatePropertyMetadataInput & { type: 'date' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | BooleanPropertyMetadataInput & { type: 'boolean' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | UnknownPropertyMetadataInput & { type: 'unknown' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | FilePropertyMetadataInput & { type: 'file' }
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     | OneOfPropertyMetadataInput<OneOfShapesMetadataInput<TStringInput>> & { type: 'oneOf' };
 
 /**
@@ -69,7 +69,7 @@ type DefaultArrayPropertyMetadataInput<TStringInput> = Partial<BasePropertyMetad
      * Input Metadata for array property items.
      */
     items: ExcludeStrict<ArrayPropertyItemMetadataInput<TStringInput>, FileArrayPropertyMetadataInput['items']>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     totalMaxSize?: never
 };
 
@@ -80,7 +80,7 @@ type FileArrayPropertyMetadataInput = Partial<BasePropertyMetadata> & {
     /**
      * Input Metadata for file array property items.
      */
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     items: FilePropertyMetadataInput & { type: 'file' },
     /**
      * The total maximum file size.

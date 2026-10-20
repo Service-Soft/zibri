@@ -1,5 +1,5 @@
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
-import { TraceSpanContext } from '../../tracing/trace-span-context.model';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model.ts';
+import { TraceSpanContext } from '../../tracing/trace-span-context.model.ts';
 
 /**
  * What a worker is handed to run a job.

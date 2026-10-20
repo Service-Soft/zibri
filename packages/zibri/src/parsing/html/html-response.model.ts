@@ -1,13 +1,13 @@
 import { Readable } from 'stream';
 
-import { buildCspOptions, CspOptions, CspOptionsInput } from './csp-options.model';
-import { type HttpRequestContext } from '../../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
-import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { SelfDescribing } from '../../types/self-describing.type';
+import { buildCspOptions, CspOptions, CspOptionsInput } from './csp-options.model.ts';
+import { type HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model.ts';
+import { type WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { SelfDescribing } from '../../types/self-describing.type.ts';
 
 /**
  * Additional options for a html response.
@@ -36,7 +36,7 @@ export class HtmlResponse implements SelfDescribing {
      * Excluded, so that it stays wiring: it is not part of what a caller is answered with.
      */
     @Property.string({ exclude: true })
-    readonly className: 'HtmlResponse' = 'HtmlResponse';
+    readonly className: 'HtmlResponse' = 'HtmlResponse' as const;
 
     private constructor(
         readonly data: Readable | string,

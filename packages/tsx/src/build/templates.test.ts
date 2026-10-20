@@ -1,12 +1,12 @@
 import { join } from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { collectClientPackagesFromFiles, findTemplateFiles } from './templates';
+import { collectClientPackagesFromFiles, findTemplateFiles } from './templates.ts';
 
 // The sandbox app is the real-world corpus: it holds page, component and email templates, some of
 // which import browser packages with `?client`.
-const templates: string = join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
+const templates: string = join(import.meta.dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
 
 describe('findTemplateFiles', () => {
     it('finds the sandbox templates recursively', () => {

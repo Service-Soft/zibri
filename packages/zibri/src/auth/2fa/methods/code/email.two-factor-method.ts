@@ -1,12 +1,12 @@
-import { CodeTwoFactorMethod } from './code.two-factor-method';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { EmailPriority } from '../../../../email/models/email-priority.enum';
-import { $ts } from '../../../../localization/translate.function';
-import { Newable } from '../../../../types/newable.type';
-import { Ms } from '../../../../utilities/ms';
-import { BaseUser } from '../../../models/base-user.model';
-import { NoRegisterData } from '../no-register-data.model';
+import { CodeTwoFactorMethod } from './code.two-factor-method.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { EmailPriority } from '../../../../email/models/email-priority.enum.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { Newable } from '../../../../types/newable.type.ts';
+import { Ms } from '../../../../utilities/ms.ts';
+import { BaseUser } from '../../../models/base-user.model.ts';
+import { NoRegisterData } from '../no-register-data.model.ts';
 
 /**
  * A code sent to the email address of the user as the second factor.
@@ -20,13 +20,13 @@ import { NoRegisterData } from '../no-register-data.model';
  * protects an account against a stolen password, not against a stolen mailbox.
  */
 export class EmailTwoFactorMethod extends CodeTwoFactorMethod<void> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected readonly channel: string = 'email';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly requestRegisterModel: Newable<void> = NoRegisterData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected async deliver(user: BaseUser<string>, _destination: string | undefined, code: string): Promise<void> {
         const minutes: number = Math.round(this.resolveOptions().expiresInMs / Ms.MINUTE);
         const text: string = $ts`Your verification code is ${code}. It is valid for ${minutes} minutes.`;
@@ -39,12 +39,12 @@ export class EmailTwoFactorMethod extends CodeTwoFactorMethod<void> {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected resolveDestination(): undefined {
         return undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected resolveHeader(): string {
         return inject(ZIBRI_DI_TOKENS.EMAIL_CODE_HEADER);
     }

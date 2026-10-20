@@ -1,6 +1,6 @@
-import { BaseEntity } from './base-entity.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { Newable } from '../types/newable.type';
+import { BaseEntity } from './base-entity.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * An error that gets thrown when entity metadata that is required is missing.

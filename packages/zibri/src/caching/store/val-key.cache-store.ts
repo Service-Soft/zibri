@@ -1,16 +1,16 @@
 import type { GlideClient, GlideString, Script } from '@valkey/valkey-glide';
 
-import { cacheKeyOf } from '../cache-key.function';
-import { CacheModel } from './cache-model.model';
-import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface';
-import { CachedValue } from './cached-value.model';
-import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
-import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function';
-import { parseObject } from '../../parsing/functions/parse-object.function';
-import { Newable } from '../../types/newable.type';
-import { Bytes } from '../../utilities/bytes';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { nowInNs } from '../../utilities/now-in-ns.function';
+import { cacheKeyOf } from '../cache-key.function.ts';
+import { CacheModel } from './cache-model.model.ts';
+import { CacheStoreConfig, CacheStoreInterface } from './cache-store.interface.ts';
+import { CachedValue } from './cached-value.model.ts';
+import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { valKeyGlide } from '../../data-source/data-sources/val-key/val-key-glide.function.ts';
+import { parseObject } from '../../parsing/functions/parse-object.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Bytes } from '../../utilities/bytes.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { nowInNs } from '../../utilities/now-in-ns.function.ts';
 
 /**
  * The number of eviction candidates that are pulled from the index in one go. Only as many of them
@@ -42,7 +42,7 @@ type CacheScripts = {
  */
 const cacheScripts: CacheScripts = {};
 
-/* eslint-disable cspell/spellchecker -- the two scripts below are written in valkey's own vocabulary */
+/* cspell:disable */
 
 /**
  * Writes an entry, records its size, moves the byte counter by the difference and puts the entry
@@ -105,7 +105,7 @@ function dropEntriesScript(): Script {
     ].join('\n'));
 }
 
-/* eslint-enable cspell/spellchecker */
+/* cspell:enable */
 
 /**
  * What a {@link ValKeyCacheStore} is built with.
@@ -144,7 +144,7 @@ export type ValKeyCacheStoreConfig = Partial<CacheStoreConfig> & {
  * sweep behind removeExpired.
  */
 export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly config: CacheStoreConfig;
 
     /**
@@ -171,7 +171,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * The prefix that all keys of this store are stored under.
      */
@@ -179,7 +179,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         return `${this.ds.keyPrefix}:cache`;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async get(key: K): Promise<CachedValue<V> | undefined> {
         const fullKey: string = this.toKey(key);
 
@@ -199,7 +199,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         return this.toCachedValue(this.toStringValue(raw));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async set(key: K, value: CachedValue<V>): Promise<void> {
         const fullKey: string = this.toKey(key);
         const serialized: string = JsonUtilities.stringify(value);
@@ -226,12 +226,12 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         await this.evictOverflow();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async delete(key: K): Promise<void> {
         await this.drop([this.toKey(key)]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async removeExpired(): Promise<number> {
         const client: GlideClient = this.ds.connection;
         let removed: number = this.expiredSinceLastReport;
@@ -242,7 +242,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         // whose value is no longer there
         let examined: number = 0;
         for (;;) {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             const chunk: GlideString[] = await client.zrange(
                 this.indexKey(),
                 { start: examined, end: examined + EVICTION_CHUNK_SIZE - 1 }
@@ -269,7 +269,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async clear(): Promise<void> {
         const client: GlideClient = this.ds.connection;
         const keys: string[] = await this.scanKeys(`${this.prefix}:*`);
@@ -278,7 +278,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async invalidateTags(tags: string[]): Promise<void> {
         if (!tags.length) {
             return;
@@ -287,7 +287,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         const client: GlideClient = this.ds.connection;
         const tagKeys: string[] = tags.map(t => this.tagKey(t));
 
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const memberSets: Set<GlideString>[] = await Promise.all(tagKeys.map(k => client.smembers(k)));
         // an entry can carry multiple of the invalidated tags, it must only be forgotten once
         const members: string[] = [...new Set(memberSets.flatMap(s => [...s].map(m => this.toStringValue(m))))];
@@ -295,9 +295,9 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         await Promise.all([this.drop(members), client.del(tagKeys)]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async size(): Promise<number> {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         return await this.ds.connection.zcard(this.indexKey());
     }
 
@@ -311,7 +311,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         const client: GlideClient = this.ds.connection;
 
         if (this.config.removeOnOverflow === 'leastFrequentlyUsed') {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             await client.zincrby(this.indexKey(), 1, fullKey);
             return;
         }
@@ -319,7 +319,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
             // the insertion order must not change when an entry is only read
             return;
         }
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         await client.zadd(this.indexKey(), { [fullKey]: Number(nowInNs()) });
     }
 
@@ -379,7 +379,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         const client: GlideClient = this.ds.connection;
         const fromEnd: boolean = this.config.removeOnOverflow === 'mostRecentlyUsed';
 
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const res: GlideString[] = await client.zrange(
             this.indexKey(),
             fromEnd
@@ -400,7 +400,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
         const client: GlideClient = this.ds.connection;
 
         const [entries, bytes]: [number, GlideString | null] = await Promise.all([
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             client.zcard(this.indexKey()),
             client.get(this.bytesKey())
         ]);
@@ -414,7 +414,7 @@ export class ValKeyCacheStore<K, V> implements CacheStoreInterface<K, V> {
      * @returns The size of every entry in bytes, entries without a recorded size count as zero.
      */
     private async sizesOf(fullKeys: string[]): Promise<number[]> {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const values: (GlideString | null)[] = await this.ds.connection.hmget(this.sizesKey(), fullKeys);
         return values.map(v => v == undefined ? 0 : Number(this.toStringValue(v)));
     }

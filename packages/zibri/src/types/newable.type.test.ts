@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { isNewable } from './newable.type';
+import { isNewable } from './newable.type.ts';
 
 class Foo {}
 

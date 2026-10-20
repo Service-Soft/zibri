@@ -1,5 +1,4 @@
-/* eslint-disable stylistic/max-len, sonar/no-duplicate-string --
-   The diffs below are the recorded output of diffFileContents(). They are data, not code: their
+/* eslint-disable sonarjs/no-duplicate-string -- The diffs below are the recorded output of diffFileContents(). They are data, not code: their
    repetition and line lengths come from the compared files and must stay verbatim. */
 /**
  * Explicitly reviewed, intentional differences between what "zi new" generates and the

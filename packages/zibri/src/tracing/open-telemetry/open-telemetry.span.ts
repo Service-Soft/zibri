@@ -1,10 +1,10 @@
-import { OpenTelemetryApi, OpenTelemetrySpan, OpenTelemetrySpanContext } from './open-telemetry-api.model';
-import { OpenTelemetryUtilities } from './open-telemetry.utilities';
-import { TraceContextUtilities } from '../trace-context.utilities';
-import { TraceSpanAttributeName, TraceSpanAttributeValue, TraceSpanAttributes } from '../trace-span-attributes.model';
-import { TraceSpanContext } from '../trace-span-context.model';
-import { TraceSpanStatus } from '../trace-span-status.enum';
-import { TraceSpanInterface } from '../trace-span.interface';
+import { OpenTelemetryApi, OpenTelemetrySpan, OpenTelemetrySpanContext } from './open-telemetry-api.model.ts';
+import { OpenTelemetryUtilities } from './open-telemetry.utilities.ts';
+import { TraceContextUtilities } from '../trace-context.utilities.ts';
+import { TraceSpanAttributeName, TraceSpanAttributeValue, TraceSpanAttributes } from '../trace-span-attributes.model.ts';
+import { TraceSpanContext } from '../trace-span-context.model.ts';
+import { TraceSpanStatus } from '../trace-span-status.enum.ts';
+import { TraceSpanInterface } from '../trace-span.interface.ts';
 
 const sampledFlag: number = 0b0000_0001;
 
@@ -14,7 +14,7 @@ const allZeroes: RegExp = /^0+$/;
  * A span recorded through whichever OpenTelemetry SDK the application set up.
  */
 export class OpenTelemetrySpanAdapter implements TraceSpanInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly context: TraceSpanContext;
 
     /**
@@ -33,22 +33,22 @@ export class OpenTelemetrySpanAdapter implements TraceSpanInterface {
         this.context = this.resolveContext(span.spanContext(), parent);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     updateName(name: string): void {
         this.span.updateName(name);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     recordAttribute(name: TraceSpanAttributeName, value: TraceSpanAttributeValue | undefined): void {
         this.recordAttributes({ [name]: value });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     recordAttributes(attributes: TraceSpanAttributes): void {
         this.span.setAttributes(attributes);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     recordError(error: unknown): void {
         // the type of the error as its own attribute, because that is the one part of an error a
         // backend can group by - a message carries ids and a stack carries paths, and neither
@@ -57,7 +57,7 @@ export class OpenTelemetrySpanAdapter implements TraceSpanInterface {
         this.span.recordException(error instanceof Error ? error : String(error));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     end(status: TraceSpanStatus = TraceSpanStatus.UNSET): void {
         if (this.ended) {
             return;

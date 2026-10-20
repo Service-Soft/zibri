@@ -1,28 +1,28 @@
-import { BaseMembership } from './base-membership.model';
-import { ChangedMembership } from './changed-membership.model';
-import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
-import { MembershipServiceInterface } from './membership-service.interface';
-import { type UserServiceInterface } from '../../auth/user/user-service.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { getAllInstantiatedValues } from '../../di/get-all-instantiated-values.function';
-import { getDiTokenName } from '../../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function';
-import { inject } from '../../di/inject.function';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { DiVariants } from '../../di/models/di-variant.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { AfterAppInit } from '../../global/after-app-init.interface';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Newable } from '../../types/newable.type';
-import { type BaseWebsocketConnection } from '../../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
-import { type TenantServiceInterface } from '../tenant-service.interface';
+import { BaseMembership } from './base-membership.model.ts';
+import { ChangedMembership } from './changed-membership.model.ts';
+import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface.ts';
+import { MembershipServiceInterface } from './membership-service.interface.ts';
+import { type UserServiceInterface } from '../../auth/user/user-service.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { getAllInstantiatedValues } from '../../di/get-all-instantiated-values.function.ts';
+import { getDiTokenName } from '../../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { DiProvider } from '../../di/models/di-provider.model.ts';
+import { DiVariants } from '../../di/models/di-variant.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { AfterAppInit } from '../../global/after-app-init.interface.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { type BaseWebsocketConnection } from '../../websocket/models/connection/base-websocket-connection.model.ts';
+import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface.ts';
+import { type TenantServiceInterface } from '../tenant-service.interface.ts';
 
 /**
  * Default membership service implementation of Zibri, reading the memberships from the one class
@@ -48,7 +48,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         private readonly tenantService: TenantServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(): void {
         const providers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.MEMBERSHIP_REPO);
         if (providers.length > 1) {
@@ -62,7 +62,6 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
             const repository: unknown = inject(provider.token);
             if (!isMembershipRepository(repository)) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
                     `Invalid class marked with @MembershipRepo: ${getDiTokenName(provider.token)} needs to implement MembershipRepositoryInterface`
                 );
             }
@@ -76,13 +75,12 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
             .find(value => value !== this && value !== this.repository && isMembershipRepository(value));
         if (undecorated != undefined && typeof undecorated === 'object') {
             throw new InternalError(
-                // eslint-disable-next-line stylistic/max-len
                 `The class "${undecorated.constructor.name}" seems to be a membership repository but has not been decorated with @MembershipRepo()`
             );
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterAppInit(): void {
         // after init rather than on it, once the user service has found its repositories. The roles
         // of a logged in user live on their membership, and every request of theirs in a tenant is
@@ -98,7 +96,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findMembership<Role extends string, T extends BaseMembership<Role>>(userId: string, tenantId: string): Promise<T | undefined> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> | undefined = this.repository;
         if (repository == undefined) {
@@ -115,13 +113,13 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         return (membership?.deactivatedAt == undefined ? membership : undefined) as T | undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findMemberships<Role extends string, T extends BaseMembership<Role>>(userId: string): Promise<T[]> {
         const memberships: BaseMembership<string>[] = await this.repository?.findMemberships(userId) ?? [];
         return memberships.filter(m => m.deactivatedAt == undefined) as T[];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveMembership<Role extends string, T extends BaseMembership<Role>>(
         userId: string,
         tenantId: string,
@@ -131,7 +129,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         return await this.tenantService.runAs(tenantId, async () => await repository.resolveMembership(userId, transaction)) as T;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateDeactivatedAt(
         userId: string,
         tenantId: string,
@@ -142,7 +140,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         await this.tenantService.runAs(tenantId, async () => await repository.updateDeactivatedAt(userId, deactivatedAt, transaction));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteMembership(userId: string, tenantId: string, transaction: Transaction | undefined): Promise<void> {
         const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
         await this.tenantService.runAs(tenantId, async () => await repository.deleteMembership(userId, transaction));
@@ -160,7 +158,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         return this.repository;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {
         if (!userIds.length) {
             return;
@@ -168,14 +166,14 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         await this.repository?.deleteMemberships(userIds, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     isMembershipEntity(entityClass: Newable<BaseEntity>): boolean {
         // only a repository of this framework writes through the data layer that reports writes. One
         // reading memberships from anywhere else reports its own changes
         return this.repository instanceof Repository && this.repository.entityClass === entityClass;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async handleMembershipsChanged(memberships: ChangedMembership[]): Promise<void> {
         if (!memberships.length) {
             return;

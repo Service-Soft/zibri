@@ -1,10 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { inject } from '../../di/inject.function';
-import { Logger } from '../../logging/logger';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { createTestDataSource } from '../test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { inject } from '../../di/inject.function.ts';
+import { Logger } from '../../logging/logger.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { createTestDataSource } from '../test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/01-data-layer.md C4.
@@ -47,7 +47,7 @@ describe('evaluation/01-data-layer C4 - installing an extension is not a conditi
     let server: StartedTestServer;
     // on the class rather than on an instance: the extension is installed while the application
     // starts, before a test can reach the logger it starts with
-    const warn: jest.SpiedFunction<Logger['warn']> = jest.spyOn(Logger.prototype, 'warn');
+    const warn: MockInstance<Logger['warn']> = vi.spyOn(Logger.prototype, 'warn');
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [EvalTrigramDataSource] });

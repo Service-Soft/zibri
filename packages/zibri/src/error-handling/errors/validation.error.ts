@@ -1,14 +1,14 @@
-import { BadRequestError } from './bad-request.error';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { LocaleCode } from '../../localization/models/locale-code.model';
-import { TranslatedString } from '../../localization/models/translated-string.model';
-import { $t, $ts, TranslationToken } from '../../localization/translate.function';
-import { ValidationProblem } from '../../validation/validation-problem.model';
+import { BadRequestError } from './bad-request.error.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { LocaleCode } from '../../localization/models/locale-code.model.ts';
+import { TranslatedString } from '../../localization/models/translated-string.model.ts';
+import { $t, $ts, TranslationToken } from '../../localization/translate.function.ts';
+import { ValidationProblem } from '../../validation/validation-problem.model.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type ValidationErrorType = 'body' | 'path' | 'query' | 'header' | 'websocketRequest';
 
 const startMessage: Record<ValidationErrorType, TranslationToken> = {

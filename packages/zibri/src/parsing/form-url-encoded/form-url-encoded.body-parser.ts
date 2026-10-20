@@ -1,19 +1,19 @@
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { HttpRequest } from '../../http/http-request.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientResponse } from '../../http-client/http-client-response.model';
-import { $ts } from '../../localization/translate.function';
-import { BodyShapeMetadata, FormUrlEncodedBodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { shapeProblems } from '../../validation/functions/shape-problems.function';
-import { BodyParserInterface } from '../body-parser.interface';
-import { BodyParserUtilities } from '../body-parser.utilities';
-import { BodyParser } from '../decorators/body-parser.decorator';
-import { parseFormField } from '../functions/parse-form-field.function';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../../http-client/http-client-response.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { BodyShapeMetadata, FormUrlEncodedBodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveMaxBodySize } from '../../routing/decorators/body.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { shapeProblems } from '../../validation/functions/shape-problems.function.ts';
+import { BodyParserInterface } from '../body-parser.interface.ts';
+import { BodyParserUtilities } from '../body-parser.utilities.ts';
+import { BodyParser } from '../decorators/body-parser.decorator.ts';
+import { parseFormField } from '../functions/parse-form-field.function.ts';
 
 /**
  * The fields of a form, by name. A field sent more than once has each of its texts, in order.
@@ -29,15 +29,15 @@ type FormFields = Map<string, string | string[]>;
  */
 @BodyParser()
 export class FormUrlEncodedBodyParser implements BodyParserInterface<MimeType.FORM_URL_ENCODED> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly contentType: MimeType.FORM_URL_ENCODED = MimeType.FORM_URL_ENCODED;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromWebsocketRequest(): unknown {
         throw new InternalError('A url encoded form body cannot be used with websocket requests');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     parseFromHttpClientResponse(res: HttpClientResponse, metadata: FormUrlEncodedBodyMetadata): unknown {
         if (res.body !== undefined) {
             return res.body;
@@ -45,7 +45,7 @@ export class FormUrlEncodedBodyParser implements BodyParserInterface<MimeType.FO
         return this.parseForm(res.rawBody, metadata.shape);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async parseFromHttpRequest(req: HttpRequest, metadata: FormUrlEncodedBodyMetadata): Promise<unknown> {
         if (req.body !== undefined) {
             return req.body;

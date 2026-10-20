@@ -1,79 +1,79 @@
-import { AuthServiceInterface } from './auth-service.interface';
-import { ZibriApplication } from '../application/application';
-import { DefaultAuth } from '../application/application-options.model';
-import { register } from '../di/register.function';
-import { ReauthenticationRequiredError } from './2fa/reauthentication-required.error';
-import { type TwoFactorServiceInterface } from './2fa/two-factor-service.interface';
-import { AuthControllerUtilities } from './auth-controller/auth-controller.utilities';
-import { AuthenticatorInterface } from './authenticators/authenticator.interface';
-import { Authenticators } from './authenticators/authenticators.model';
-import { ConnectionCompletingAuthenticatorInterface } from './authenticators/connection-completing-authenticator.interface';
-import { FederatedAuthenticatorInterface } from './authenticators/federated/federated-authenticator.interface';
-import { FederatedRouteUtilities } from './authenticators/federated/federated-route.utilities';
-import { FederatedSessionMatch } from './authenticators/federated/federated-session-match.model';
-import { FederatedSession } from './authenticators/federated/federated-session.model';
-import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './authenticators/identity-linking-authenticator.interface';
-import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model';
-import { LinkedIdentity } from './authenticators/linked-identity.model';
-import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
-import { PasswordAuthenticator } from './authenticators/password/password.authenticator';
-import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
-import { isProviderAccessAuthenticator, ProviderAccessAuthenticatorInterface } from './authenticators/provider-access-authenticator.interface';
-import { ProviderAccessFailure } from './authenticators/provider-access-failure.enum';
-import { ProviderAccessError } from './authenticators/provider-access.error';
-import { isRefreshResolvingAuthenticator } from './authenticators/refresh-resolving-authenticator.interface';
-import { Authentication } from './models/authentication.model';
-import { BaseUser } from './models/base-user.model';
-import { DeclaredRoleChecks } from './models/declared-role-checks.model';
-import { HasRoleMetadata, SkipHasRoleMetadata } from './models/has-role-metadata.model';
-import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from './models/is-logged-in-metadata.model';
-import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
-import { LogoutResult } from './models/logout-result.model';
-import { Require2faMetadata, SkipRequire2faMetadata } from './models/require-2fa-metadata.model';
-import type { Require2faReauth, Require2faReauthOptions } from './models/require-2fa-reauth.model';
-import { ResolvedAuthMetadata, ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
-import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
-import { SkipAuthMetadata } from './models/skip-auth-metadata.model';
-import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model';
-import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model';
-import { type ApiKeyServiceInterface } from './strategies/api-key/api-key-service.interface';
-import { ApiKey } from './strategies/api-key/api-key.model';
-import { CreatedApiKey } from './strategies/api-key/created-api-key.model';
-import { AuthStrategies } from './strategies/auth-strategies.model';
-import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
-import { CredentialLimits } from './strategies/credential-limits.model';
-import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
-import { type UserServiceInterface } from './user/user-service.interface';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { ErrorUtilities } from '../error-handling/error.utilities';
-import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error';
-import { AccountLockedError } from '../error-handling/errors/account-locked.error';
-import { ForbiddenError } from '../error-handling/errors/forbidden.error';
-import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../error-handling/errors/unauthorized.error';
-import { BeforeAppInit } from '../global/before-app-init.interface';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppStart } from '../global/on-app-start.interface';
-import { RouteRegistry } from '../global/route-registry/route.registry';
-import { $ts } from '../localization/translate.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model';
-import { auditReasonFor } from '../logging/audit-reason-for.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { BaseMembership } from '../tenancy/membership/base-membership.model';
-import { type MembershipServiceInterface } from '../tenancy/membership/membership-service.interface';
-import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { type BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../websocket/services/websocket-service.interface';
+import { AuthServiceInterface } from './auth-service.interface.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { DefaultAuth } from '../application/application-options.model.ts';
+import { register } from '../di/register.function.ts';
+import { ReauthenticationRequiredError } from './2fa/reauthentication-required.error.ts';
+import { type TwoFactorServiceInterface } from './2fa/two-factor-service.interface.ts';
+import { AuthControllerUtilities } from './auth-controller/auth-controller.utilities.ts';
+import { AuthenticatorInterface } from './authenticators/authenticator.interface.ts';
+import { Authenticators } from './authenticators/authenticators.model.ts';
+import { ConnectionCompletingAuthenticatorInterface } from './authenticators/connection-completing-authenticator.interface.ts';
+import { FederatedAuthenticatorInterface } from './authenticators/federated/federated-authenticator.interface.ts';
+import { FederatedRouteUtilities } from './authenticators/federated/federated-route.utilities.ts';
+import { FederatedSessionMatch } from './authenticators/federated/federated-session-match.model.ts';
+import { FederatedSession } from './authenticators/federated/federated-session.model.ts';
+import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './authenticators/identity-linking-authenticator.interface.ts';
+import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model.ts';
+import { LinkedIdentity } from './authenticators/linked-identity.model.ts';
+import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model.ts';
+import { PasswordAuthenticator } from './authenticators/password/password.authenticator.ts';
+import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model.ts';
+import { isProviderAccessAuthenticator, ProviderAccessAuthenticatorInterface } from './authenticators/provider-access-authenticator.interface.ts';
+import { ProviderAccessFailure } from './authenticators/provider-access-failure.enum.ts';
+import { ProviderAccessError } from './authenticators/provider-access.error.ts';
+import { isRefreshResolvingAuthenticator } from './authenticators/refresh-resolving-authenticator.interface.ts';
+import { Authentication } from './models/authentication.model.ts';
+import { BaseUser } from './models/base-user.model.ts';
+import { DeclaredRoleChecks } from './models/declared-role-checks.model.ts';
+import { HasRoleMetadata, SkipHasRoleMetadata } from './models/has-role-metadata.model.ts';
+import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from './models/is-logged-in-metadata.model.ts';
+import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model.ts';
+import { LogoutResult } from './models/logout-result.model.ts';
+import { Require2faMetadata, SkipRequire2faMetadata } from './models/require-2fa-metadata.model.ts';
+import type { Require2faReauth, Require2faReauthOptions } from './models/require-2fa-reauth.model.ts';
+import { ResolvedAuthMetadata, ResolvedRouteAuth } from './models/resolved-auth-metadata.model.ts';
+import { RouteAuthConfiguration } from './models/route-auth-configuration.model.ts';
+import { SkipAuthMetadata } from './models/skip-auth-metadata.model.ts';
+import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model.ts';
+import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model.ts';
+import { type ApiKeyServiceInterface } from './strategies/api-key/api-key-service.interface.ts';
+import { ApiKey } from './strategies/api-key/api-key.model.ts';
+import { CreatedApiKey } from './strategies/api-key/created-api-key.model.ts';
+import { AuthStrategies } from './strategies/auth-strategies.model.ts';
+import { AuthStrategyInterface } from './strategies/auth-strategy.interface.ts';
+import { CredentialLimits } from './strategies/credential-limits.model.ts';
+import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface.ts';
+import { type UserServiceInterface } from './user/user-service.interface.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { ErrorUtilities } from '../error-handling/error.utilities.ts';
+import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error.ts';
+import { AccountLockedError } from '../error-handling/errors/account-locked.error.ts';
+import { ForbiddenError } from '../error-handling/errors/forbidden.error.ts';
+import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../error-handling/errors/unauthorized.error.ts';
+import { BeforeAppInit } from '../global/before-app-init.interface.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { OnAppStart } from '../global/on-app-start.interface.ts';
+import { RouteRegistry } from '../global/route-registry/route.registry.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../logging/audit-event.model.ts';
+import { auditReasonFor } from '../logging/audit-reason-for.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { BaseMembership } from '../tenancy/membership/base-membership.model.ts';
+import { type MembershipServiceInterface } from '../tenancy/membership/membership-service.interface.ts';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { type BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model.ts';
+import { type WebsocketServiceInterface } from '../websocket/services/websocket-service.interface.ts';
 
 /**
  * The account a set of credentials names, as far as the framework can tell.
@@ -121,10 +121,10 @@ const AUTH_REQUIRE_2FA_LABEL: string = '@Auth.require2fa';
  */
 @Injectable({ register: 'onUse' })
 export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppInit, OnAppStart {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly strategies: AuthStrategies = [];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly authenticators: Authenticators = [];
 
     /**
@@ -189,7 +189,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         private readonly defaultReauthWindowInMs: number
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     beforeAppInit(app: ZibriApplication): void {
         // before rather than on init, and this is the whole reason the hook is implemented at all:
         // what a route declared is resolved while the route is registered, and the router is
@@ -198,7 +198,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         this.defaultAuth = app.options.defaultAuth;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         const { authenticators, authStrategies } = app.options;
         for (const authenticator of authenticators) {
@@ -229,7 +229,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppStart(app: ZibriApplication): void {
         // on start rather than on init, once every strategy, authenticator and two factor method has
         // been initialized
@@ -241,7 +241,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async login<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -294,7 +294,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async refreshLogin<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -327,7 +327,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveRegistration<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -347,7 +347,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return await inject(authenticator).resolveRegistration(ticket, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async linkIdentity<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -380,7 +380,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startConnection<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -408,7 +408,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return await inject(authenticator).startConnection(user.id, request);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async completeConnection<Role extends string, UserType extends BaseUser<Role>, CredentialsType, ConnectionAnswerType>(
         authenticator: Newable<ConnectionCompletingAuthenticatorInterface<Role, UserType, CredentialsType, ConnectionAnswerType>>,
         answer: ConnectionAnswerType
@@ -434,15 +434,15 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIdentities(userId: string, transaction: Transaction | undefined): Promise<LinkedIdentity[]>;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIdentities<IdentityType extends Pick<BaseEntity, 'id'>>(
         userId: string,
         transaction: Transaction | undefined,
         authenticators: IdentityLinkingAuthenticators<IdentityType>
     ): Promise<LinkedIdentity<IdentityType>[]>;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIdentities(
         userId: string,
         transaction: Transaction | undefined,
@@ -455,7 +455,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return found.flat();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async unlinkIdentity(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         try {
             const holder: InstanceType<IdentityLinkingAuthenticators[number]>
@@ -474,7 +474,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveProviderAccessToken(userId: string, identityId: string, scopes: string[]): Promise<string> {
         // no transaction on purpose: a refresh writes the provider's new tokens, and a provider that
         // rotates its refresh token has refused the old one by then. Rolled back with the caller's
@@ -483,7 +483,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return await holder.resolveAccessToken(userId, identityId, scopes);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeProviderAccess(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         try {
             const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
@@ -502,7 +502,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeProviderSignIn(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         try {
             const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
@@ -521,19 +521,19 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createApiKey<Role extends string>(
         userId: string,
         data: ApiKeyCreateData<Role, undefined>,
         transaction: Transaction | undefined
     ): Promise<CreatedApiKey>;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createApiKey<Role extends string>(
         userId: string,
         data: ApiKeyCreateData<Role, ApiKeyClientAuthentication>,
         transaction: Transaction | undefined
     ): Promise<ApiKey>;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createApiKey<Role extends string>(
         userId: string,
         data: ApiKeyCreateData<Role>,
@@ -560,18 +560,18 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findApiKeys(userId: string, transaction: Transaction | undefined): Promise<ApiKey[]> {
         return await this.apiKeyService.findForUser(userId, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeApiKey(userId: string, apiKeyId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revoke(userId, apiKeyId, transaction));
         await this.websocketService.disconnectEndedLogins([userId], transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeApiKeys(userId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revokeForUser(userId, transaction));
         await this.websocketService.disconnectEndedLogins([userId], transaction);
@@ -598,7 +598,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deactivateUser(userId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditUserChange(AuditAction.USER_DEACTIVATED, userId, async () => {
             await this.userService.updateDeactivatedAt(userId, new Date(), transaction);
@@ -609,7 +609,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endAccess(userId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditUserChange(AuditAction.ACCESS_ENDED, userId, async () => {
             await this.endLogins(userId, transaction);
@@ -617,7 +617,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveRefreshUser<Role extends string, UserType extends BaseUser<Role>>(
         user: UserType,
         transaction: Transaction | undefined
@@ -647,7 +647,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return res as UserType;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async reactivateUser(userId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditUserChange(AuditAction.USER_REACTIVATED, userId, async () => {
             // null rather than undefined: it clears the column
@@ -673,14 +673,14 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveStrategies<Capable extends AuthStrategyInterface<string, BaseUser<string>>>(
         hasCapability: (strategy: AuthStrategyInterface<string, BaseUser<string>>) => strategy is Capable
     ): Capable[] {
         return this.strategies.map(s => inject(s)).filter(s => hasCapability(s));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async getCurrentUser<
         Role extends string,
         UserType extends BaseUser<Role>,
@@ -711,7 +711,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return currentUser as B extends false ? UserType | undefined : UserType;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async requestPasswordReset<Role extends string, UserType extends BaseUser<Role>>(
         data: RequestPasswordResetData<Role, UserType>
     ): Promise<void> {
@@ -722,12 +722,12 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         await inject(PasswordAuthenticator).requestPasswordReset(data);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isPasswordResetTokenValid(resetToken: string): Promise<boolean> {
         return await inject(PasswordAuthenticator).isPasswordResetTokenValid(resetToken);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmPasswordReset(data: ConfirmPasswordResetData): Promise<void> {
         try {
             const userId: string = await inject(PasswordAuthenticator).confirmPasswordReset(data);
@@ -748,7 +748,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async checkAccess(
         controllerClass: Newable<unknown>,
         controllerMethod: string,
@@ -760,7 +760,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         await this.runChecks(metadata, requiresLogin, context);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveRouteAuth(controllerClass: Newable<unknown>, controllerMethod: string): ResolvedRouteAuth {
         const metadata: ResolvedAuthMetadata = {
             isLoggedIn: this.resolveIsLoggedInMetadata(controllerClass, controllerMethod),
@@ -780,7 +780,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async checkRouteAccess(
         auth: RouteAuthConfiguration | undefined,
         context: HttpRequestContext | WebsocketRequestContext
@@ -791,7 +791,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         await this.runChecks(metadata, this.requiresLoginGiven(metadata, this.defaultAuthAppliesTo(auth)), context);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     requiresRouteAuthentication(auth: RouteAuthConfiguration | undefined): boolean {
         return this.requiresLoginGiven(this.toResolvedAuthMetadata(auth), this.defaultAuthAppliesTo(auth));
     }
@@ -1065,7 +1065,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async isLoggedIn(
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies
@@ -1076,7 +1076,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return await this.resolvePrincipal(context, allowedStrategies) != undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async hasRole(
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
@@ -1086,7 +1086,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return membership?.roles.some(r => allowedRoles.includes(r)) ?? false;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async hasPlatformRole(
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
@@ -1099,7 +1099,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return principal.roles.some(r => allowedRoles.includes(r));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async getCurrentMembership<
         Role extends string,
         MembershipType extends BaseMembership<Role>,
@@ -1116,14 +1116,14 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return membership as B extends false ? MembershipType | undefined : MembershipType;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveCredentialTenant(context: HttpRequestContext | WebsocketRequestContext): Promise<string | undefined> {
         // every strategy, for the reason isMemberOfActiveTenant gives
         const limits: CredentialLimits | undefined = await this.strategyFor(context, this.strategies)?.resolveCredentialLimits?.(context);
         return limits?.tenantId;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveCredentialExpiry(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         return await this.strategyFor(context, this.strategies)?.resolveExpiresAt(context);
     }
@@ -1279,7 +1279,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
             && !MetadataUtilities.getControllerSkipIsLoggedIn(controllerClass);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     requiresAuthentication(controllerClass: Newable<unknown>, controllerMethod: string): boolean {
         return RouteRegistry.get(controllerClass, controllerMethod).auth.requiresLogin;
     }
@@ -1452,7 +1452,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return strategies[0];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveIsLoggedInMetadata(controllerClass: Newable<unknown>, controllerMethod: string): IsLoggedInMetadata | undefined {
         const controllerIsLoggedIn: IsLoggedInMetadata | undefined = MetadataUtilities.getControllerIsLoggedIn(controllerClass);
         const routeIsLoggedIn: IsLoggedInMetadata | undefined = MetadataUtilities.getRouteIsLoggedIn(
@@ -1509,7 +1509,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return controllerIsLoggedIn;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveIsNotLoggedInMetadata(
         controllerClass: Newable<unknown>,
         controllerMethod: string
@@ -1566,7 +1566,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return controllerIsNotLoggedIn;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveHasRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): HasRoleMetadata | undefined {
         return this.resolveRoleMetadata(controllerClass, controllerMethod, AUTH_HAS_ROLE_LABEL, {
             controller: MetadataUtilities.getControllerHasRole(controllerClass),
@@ -1576,7 +1576,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveHasPlatformRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): HasRoleMetadata | undefined {
         return this.resolveRoleMetadata(controllerClass, controllerMethod, AUTH_HAS_PLATFORM_ROLE_LABEL, {
             controller: MetadataUtilities.getControllerHasPlatformRole(controllerClass),
@@ -1648,7 +1648,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return controllerHasRole;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveRequire2faMetadata(
         controllerClass: Newable<unknown>,
         controllerMethod: string
@@ -1705,14 +1705,14 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return controllerRequire2fa;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
         await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endLogins(userId, transaction)));
         // after the strategies, so that what a socket is checked against is what they left
         await this.websocketService.disconnectEndedLogins([userId], transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
         await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endFederatedLogins(session, transaction)));
     }
@@ -1726,7 +1726,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         return this.strategies.map(s => inject(s)).filter(isLoginAuthStrategy);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async logout<
         Role extends string,
         UserType extends BaseUser<Role>,

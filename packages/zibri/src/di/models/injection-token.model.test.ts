@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { InjectionToken } from './injection-token.model';
+import { InjectionToken } from './injection-token.model.ts';
 
 describe('InjectionToken', () => {
     it('constructs successfully with a unique key', () => {
@@ -14,11 +14,11 @@ describe('InjectionToken', () => {
     });
 
     it('toString returns the key', () => {
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         const token: InjectionToken<string> = new InjectionToken<string>('test-token-tostring');
-        // eslint-disable-next-line cspell/spellchecker
+        // cspell:disable-next-line
         expect(token.toString()).toBe('test-token-tostring');
-        // eslint-disable-next-line cspell/spellchecker
+        // oxlint-disable-next-line typescript/restrict-template-expressions cspell:disable-next-line
         expect(`${token}`).toBe('test-token-tostring');
     });
 });

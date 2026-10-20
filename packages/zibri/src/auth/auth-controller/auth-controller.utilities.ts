@@ -1,25 +1,25 @@
-import { AuthControllerClass } from './auth-controller-class.type';
-import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
-import { isAuthControllerClass } from './is-auth-controller-class.function';
-import { ZibriApplication } from '../../application/application';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { $ts } from '../../localization/translate.function';
-import { JsonBodyMetadata, XmlBodyMetadata } from '../../routing/decorators/body-metadata.model';
-import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function';
-import { Newable } from '../../types/newable.type';
-import { type AuthServiceInterface } from '../auth-service.interface';
-import { isAuthControllerAuthenticator } from '../authenticators/auth-controller-authenticator.interface';
-import { isConnectingAuthenticator } from '../authenticators/connecting-authenticator.interface';
-import { isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface';
-import { isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
-import { isSignInOptionsAuthenticator } from '../authenticators/sign-in-options-authenticator.interface';
-import { isSignUpAuthenticator } from '../authenticators/sign-up-authenticator.interface';
-import { isAuthControllerStrategy } from '../strategies/auth-controller-strategy.interface';
+import { AuthControllerClass } from './auth-controller-class.type.ts';
+import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type.ts';
+import { isAuthControllerClass } from './is-auth-controller-class.function.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { JsonBodyMetadata, XmlBodyMetadata } from '../../routing/decorators/body-metadata.model.ts';
+import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { type AuthServiceInterface } from '../auth-service.interface.ts';
+import { isAuthControllerAuthenticator } from '../authenticators/auth-controller-authenticator.interface.ts';
+import { isConnectingAuthenticator } from '../authenticators/connecting-authenticator.interface.ts';
+import { isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface.ts';
+import { isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface.ts';
+import { isSignInOptionsAuthenticator } from '../authenticators/sign-in-options-authenticator.interface.ts';
+import { isSignUpAuthenticator } from '../authenticators/sign-up-authenticator.interface.ts';
+import { isAuthControllerStrategy } from '../strategies/auth-controller-strategy.interface.ts';
 
 /**
  * The routes of `AuthController` that read more than a login from an authenticator.
@@ -181,7 +181,6 @@ export abstract class AuthControllerUtilities {
             const lacking: Newable<unknown> | undefined = authenticators.find(a => this.hasMember([a], member) && !isCapable(inject(a)));
             if (lacking != undefined) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
                     `${lacking.name} is given to ${controller.name} for its ${route} route, and does not declare all it reads: implement ${implement}.`
                 );
             }

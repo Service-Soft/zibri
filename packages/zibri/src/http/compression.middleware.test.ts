@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { Readable } from 'node:stream';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import express, { Express } from 'express';
 
-import { compressionMiddleware } from './compression.middleware';
-import { MimeType } from './mime-type.enum';
-import { initDiContainer } from '../di/init-di-container.function';
-import { FsUtilities, FsPath } from '../utilities/fs.utilities';
+import { compressionMiddleware } from './compression.middleware.ts';
+import { MimeType } from './mime-type.enum.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities.ts';
 
 type RawResponse = { status: number, contentEncoding: string | undefined, body: Buffer };
 

@@ -1,6 +1,6 @@
-import { Event } from './event.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { Event } from './event.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * An error that gets logged when the processing of an event failed.

@@ -1,12 +1,12 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * The cases every data source answers the same way about what creating a row hands back of the rows
@@ -31,7 +31,7 @@ export class Book extends BaseEntity {
     title!: string;
 
     @Property.manyToOne({ target: () => Shelf, joinColumn: 'shelfId', inverseSide: 'books' })
-    shelf!: Shelf;
+    shelf!: Relation<Shelf>;
 
     @Property.string({ format: 'uuid', required: false })
     shelfId?: string;
@@ -43,7 +43,7 @@ export class Plaque extends BaseEntity {
     text!: string;
 
     @Property.belongsToOne({ target: () => Shelf, joinColumn: 'shelfId', inverseSide: 'plaque' })
-    shelf!: Shelf;
+    shelf!: Relation<Shelf>;
 
     @Property.string({ format: 'uuid', required: false })
     shelfId?: string;

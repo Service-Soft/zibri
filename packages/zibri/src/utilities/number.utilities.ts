@@ -4,7 +4,7 @@
 // alias is not one.
 import BigNumber from 'bignumber.js';
 
-import { AnyNumber } from '../data-source/models/where/number-where-filter.model';
+import { AnyNumber } from '../data-source/models/where/number-where-filter.model.ts';
 
 /**
  * Number with increased precision. (No rounding errors).

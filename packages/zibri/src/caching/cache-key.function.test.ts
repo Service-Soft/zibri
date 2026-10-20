@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { cacheKeyOf } from './cache-key.function';
-import { AlsUtilities } from '../context/als.utilities';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { cacheKeyOf } from './cache-key.function.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 /**
  * What counts as the same cache key.

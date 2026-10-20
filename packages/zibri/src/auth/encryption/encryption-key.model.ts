@@ -1,12 +1,13 @@
-import { type EncryptionString } from './encryption.utilities';
-import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
-import { whereFor } from '../../data-source/models/where/where-for.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { type EncryptionString } from './encryption.utilities.ts';
+import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model.ts';
+import { whereFor } from '../../data-source/models/where/where-for.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * The status that an encryption key can have.
@@ -31,7 +32,7 @@ export class EncryptionKey extends BaseEntity {
      * The encryption strategy that this key belongs to.
      */
     @Property.manyToOne({ target: () => EncryptionStrategyEntity, joinColumn: 'strategyId', inverseSide: 'keys' })
-    strategy!: EncryptionStrategyEntity;
+    strategy!: Relation<EncryptionStrategyEntity>;
     /**
      * The id of the strategy that this key belongs to.
      *

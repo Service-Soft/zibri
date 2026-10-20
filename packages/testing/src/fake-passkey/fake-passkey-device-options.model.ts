@@ -1,4 +1,4 @@
-import { FakePasskeyAttestation } from './fake-passkey-attestation.model';
+import { FakePasskeyAttestation } from './fake-passkey-attestation.model.ts';
 
 /**
  * What kind of device a fake one is.

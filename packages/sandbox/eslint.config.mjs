@@ -1,9 +1,14 @@
-import baseConfig from '../../eslint.config.mjs';
-import { cspellOptions } from 'eslint-config-service-soft';
+import { configs, cspellOptions } from 'eslint-config-service-soft';
 
 /** @type {import('eslint').Linter.Config} */
 export default [
-    ...baseConfig,
+    ...configs,
+    {
+        files: ['*.js', '*.mjs'],
+        rules: {
+            'jsdoc/require-description': 'off'
+        }
+    },
     { ignores: ['assets'] },
     {
         rules: {

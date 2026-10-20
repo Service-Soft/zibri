@@ -1,5 +1,5 @@
-import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
-import { $ts } from '../../localization/translate.function';
+import { ForbiddenError } from '../../error-handling/errors/forbidden.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * An error to throw when a user's second factor is locked after too many wrong codes in a row.

@@ -1,15 +1,15 @@
 /* eslint-disable unicorn/no-null */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EqualOperator, FindOptionsWhere, FindOperator, Equal, ObjectLiteral, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
 
-import { Where, WhereFilter } from './where-filter.model';
-import { Address } from '../../../__testing__/mocks/entities/address.model';
-import { User } from '../../../__testing__/mocks/entities/user.entity';
-import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { inject } from '../../../di/inject.function';
-import { Newable } from '../../../types/newable.type';
-import { DataSource } from '../../decorators/data-source.decorator';
+import { Where, WhereFilter } from './where-filter.model.ts';
+import { Address } from '../../../__testing__/mocks/entities/address.model.ts';
+import { User } from '../../../__testing__/mocks/entities/user.entity.ts';
+import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { DataSource } from '../../decorators/data-source.decorator.ts';
 
 // the factory returns a decorated class, so extending it registers two data sources and deploys one.
 // The base exists to be inherited from, never to be run

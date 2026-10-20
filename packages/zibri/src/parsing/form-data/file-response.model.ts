@@ -1,16 +1,16 @@
 import { Readable } from 'stream';
 
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { Property } from '../../entity/decorators/property.decorator';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { LooseFileMimeType, MimeType } from '../../http/mime-type.enum';
-import { resolveMimeType } from '../../http/mime-type.helpers';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { SelfDescribing } from '../../types/self-describing.type';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { buildCspOptions, CspOptions, CspOptionsInput } from '../html/csp-options.model';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { LooseFileMimeType, MimeType } from '../../http/mime-type.enum.ts';
+import { resolveMimeType } from '../../http/mime-type.helpers.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { SelfDescribing } from '../../types/self-describing.type.ts';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities.ts';
+import { buildCspOptions, CspOptions, CspOptionsInput } from '../html/csp-options.model.ts';
 
 /**
  * Data shared by all FileResponses.
@@ -77,7 +77,7 @@ export class FileResponse implements SelfDescribing {
      * Excluded, so that it stays wiring: it is not part of what a caller is answered with.
      */
     @Property.string({ exclude: true })
-    readonly className: 'FileResponse' = 'FileResponse';
+    readonly className: 'FileResponse' = 'FileResponse' as const;
 
     private constructor(
         readonly data: Readable | string,

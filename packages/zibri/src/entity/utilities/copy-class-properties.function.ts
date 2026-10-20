@@ -1,11 +1,11 @@
-import { ControllerRouteConfiguration } from '../../routing/controller-route-configuration.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ReflectUtilities } from '../../utilities/reflect.utilities';
-import type { PropertyMetadata } from '../decorators/property.decorator';
+import { ControllerRouteConfiguration } from '../../routing/controller-route-configuration.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ReflectUtilities } from '../../utilities/reflect.utilities.ts';
+import type { PropertyMetadata } from '../decorators/property.decorator.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function getAllPrototypeKeys<T>(Clazz: Newable<T>, omitKeys: (keyof T)[]): (keyof T)[] {
     const keys: Set<keyof T> = new Set<keyof T>();
     // eslint-disable-next-line typescript/no-unsafe-assignment
@@ -29,7 +29,7 @@ export function getAllPrototypeKeys<T>(Clazz: Newable<T>, omitKeys: (keyof T)[])
     return Array.from(keys);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function getAllClassKeys<T>(Clazz: Newable<T>, omitKeys: (keyof T)[]): (keyof T)[] {
     const keys: Set<keyof T> = new Set<keyof T>();
     // static/constructor keys (walk constructor chain)
@@ -54,8 +54,8 @@ export function getAllClassKeys<T>(Clazz: Newable<T>, omitKeys: (keyof T)[]): (k
     return Array.from(keys);
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-function getOwnDescriptorFromProtoChain(protoRoot: Object, key: PropertyKey): PropertyDescriptor | undefined {
+// eslint-disable-next-line jsdoc-js/require-jsdoc
+function getOwnDescriptorFromProtoChain(protoRoot: object, key: PropertyKey): PropertyDescriptor | undefined {
     let p: object | null = protoRoot;
     while (p && p !== Object.prototype) {
         const desc: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(p, key);
@@ -68,7 +68,7 @@ function getOwnDescriptorFromProtoChain(protoRoot: Object, key: PropertyKey): Pr
     return undefined;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function getOwnDescriptorFromClassChain(ctorRoot: Function, key: PropertyKey): PropertyDescriptor | undefined {
     let c: Function | null = ctorRoot;
     while (c && c !== Function.prototype) {

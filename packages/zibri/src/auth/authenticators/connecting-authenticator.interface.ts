@@ -1,7 +1,7 @@
-import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './identity-linking-authenticator.interface';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { BaseUser } from '../models/base-user.model';
+import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from './identity-linking-authenticator.interface.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an authenticator whose identities a logged in user connects to their account through

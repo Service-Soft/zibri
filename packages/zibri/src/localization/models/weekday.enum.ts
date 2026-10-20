@@ -1,4 +1,4 @@
-import { $t, TranslationToken } from '../translate.function';
+import { $t, TranslationToken } from '../translate.function.ts';
 
 /**
  * Definition of the days in the week as defined by the js Date object.

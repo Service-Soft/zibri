@@ -1,11 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { validateNumber } from './validate-number.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { validateNumber } from './validate-number.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 enum Size {
     SMALL = 1,

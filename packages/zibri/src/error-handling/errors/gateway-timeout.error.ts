@@ -1,7 +1,7 @@
-import { HttpError } from './http.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { TranslatedString } from '../../localization/models/translated-string.model';
-import { $ts } from '../../localization/translate.function';
+import { HttpError } from './http.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { TranslatedString } from '../../localization/models/translated-string.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * An error to throw when something took longer to answer than it was given.

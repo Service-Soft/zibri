@@ -1,11 +1,11 @@
 import assert from 'node:assert';
 
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * Result of rolling the sliding window forward to the current point in time.
@@ -64,7 +64,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): SlidingWindowCounterState {
         const currentWindow: number = Math.floor(now / this.intervalInMs) * this.intervalInMs;
         return {
@@ -77,12 +77,12 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: SlidingWindowCounterState, count: number): SlidingWindowCounterState {
         return { ...state, reservedCount: state.reservedCount + count };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: SlidingWindowCounterState, count: number): SlidingWindowCounterState {
         return { ...state, reservedCount: Math.max(0, state.reservedCount - count) };
     }
@@ -134,7 +134,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         return NumberUtilities.subtract(1, NumberUtilities.divide(elapsed, this.intervalInMs)).toNumber();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: SlidingWindowCounterState,
         _reservations: RateLimitReservation[],
@@ -195,7 +195,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         return Number.MAX_SAFE_INTEGER;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: SlidingWindowCounterState, now: number): SlidingWindowCounterState {
         const newReservations: RateLimitReservation[] = state.reservations.map(r => ({
             ...r,
@@ -209,7 +209,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
 

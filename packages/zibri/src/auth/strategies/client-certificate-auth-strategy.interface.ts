@@ -1,9 +1,9 @@
 import { X509Certificate } from 'node:crypto';
 
-import { AuthStrategyInterface } from './auth-strategy.interface';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { BaseUser } from '../models/base-user.model';
+import { AuthStrategyInterface } from './auth-strategy.interface.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for an auth strategy that identifies a caller by the client certificate of a request.

@@ -1,6 +1,6 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols.ts';
 
 /**
  * Parses a template into TypeScript's syntax tree, asserting that it has no syntax error.

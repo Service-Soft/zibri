@@ -1,5 +1,5 @@
-import { AccessShape, projectValue } from './access-shape';
-import type { TranslationSources } from '../semantics/translation-sources';
+import { AccessShape, projectValue } from './access-shape.ts';
+import type { TranslationSources } from '../semantics/translation-sources.ts';
 
 // What tells the runtime's own objects apart from a value that only looks like one: a property keyed
 // by a symbol, which json cannot write, so nothing that came in as data - a json column, a body, a
@@ -155,7 +155,7 @@ export function renderStyle(value: unknown): string {
         .join(';');
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function kebabCase(name: string): string {
     // Preserve CSS custom properties (--var) as-is.
     if (name.startsWith('--')) {
@@ -268,7 +268,7 @@ function primitiveToString(value: unknown): string {
     return '';
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function isEventHandler(name: string): boolean {
     return name.length > 2 && name.startsWith('on') && name[2] === name[2].toUpperCase();
 }
@@ -727,12 +727,12 @@ export function createServerRuntime(): RenderServerRuntime {
     // render returns. The nearest provider wins, so the stack is searched from the top.
     const contextStack: ContextFrame[] = [];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function provideContext<T>(context: RenderContext<T>, value: T): void {
-        contextStack.push({ context: context as RenderContext<unknown>, value });
+        contextStack.push({ context: context, value });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function useContext<T>(context: RenderContext<T>): T {
         for (let i: number = contextStack.length - 1; i >= 0; i--) {
             if (contextStack[i].context === context) {
@@ -745,7 +745,7 @@ export function createServerRuntime(): RenderServerRuntime {
     // Values surfaced from deep in the tree to an ancestor that assembles after its children render.
     const channels: Map<string, string[]> = new Map<string, string[]>();
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function collect(channel: string, value: string): void {
         const values: string[] = channels.get(channel) ?? [];
         if (!values.includes(value)) {
@@ -754,12 +754,12 @@ export function createServerRuntime(): RenderServerRuntime {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function collected(channel: string): string[] {
         return channels.get(channel) ?? [];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function on(specs: HandlerSpec[]): string {
         const ids: string[] = [];
         for (const spec of specs) {
@@ -774,12 +774,12 @@ export function createServerRuntime(): RenderServerRuntime {
         return ids.length > 0 ? ` data-ssr-handlers="${ids.join('|')}"` : '';
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function mark(site: string, captured: unknown[]): HandlerMarker {
         return { [HANDLER_MARKER]: true, site, captured, owner: currentOwner };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     function markProp(site: string, captured: unknown[]): ClientPropMarker {
         const marker: ClientPropMarker = { [CLIENT_PROP_MARKER]: true, site, id: `${site}_${counter++}`, captured, owner: currentOwner };
         clientProps.push({ id: marker.id, site, captured, owner: marker.owner });

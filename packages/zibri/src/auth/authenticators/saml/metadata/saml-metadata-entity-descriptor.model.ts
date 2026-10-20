@@ -1,8 +1,8 @@
-import { SamlMetadataIdpSsoDescriptor } from './saml-metadata-idp-sso-descriptor.model';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator';
-import { XmlElement } from '../../../../parsing/xml/xml-element.decorator';
-import { XmlRoot } from '../../../../parsing/xml/xml-root.decorator';
+import { SamlMetadataIdpSsoDescriptor } from './saml-metadata-idp-sso-descriptor.model.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator.ts';
+import { XmlElement } from '../../../../parsing/xml/xml-element.decorator.ts';
+import { XmlRoot } from '../../../../parsing/xml/xml-root.decorator.ts';
 
 /**
  * The SAML metadata document an identity provider publishes about itself.

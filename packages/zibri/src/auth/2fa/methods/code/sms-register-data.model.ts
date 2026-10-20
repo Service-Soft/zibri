@@ -1,4 +1,4 @@
-import { Property } from '../../../../entity/decorators/property.decorator';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
 
 /**
  * The data for starting to enroll the sms two factor method.

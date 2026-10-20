@@ -1,6 +1,6 @@
-import { DiContainer } from './di-container';
-import { DiProvider } from './models/di-provider.model';
-import { DiVariant } from './models/di-variant.model';
+import { DiContainer } from './di-container.ts';
+import { DiProvider } from './models/di-provider.model.ts';
+import { DiVariant } from './models/di-variant.model.ts';
 
 /**
  * Gets all registered DI providers of the given variant.

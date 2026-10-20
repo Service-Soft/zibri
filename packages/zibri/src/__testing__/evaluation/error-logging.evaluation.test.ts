@@ -1,21 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Where } from '../../data-source/models/where/where-filter.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { LogLevel } from '../../logging/log-level.enum';
-import { Log } from '../../logging/log.model';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Newable } from '../../types/newable.type';
-import { createTestDataSource } from '../test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Where } from '../../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { LogLevel } from '../../logging/log-level.enum.ts';
+import { Log } from '../../logging/log.model.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { createTestDataSource } from '../test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/02-http-runtime-core.md section M6.

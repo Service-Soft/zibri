@@ -1,7 +1,7 @@
-import { ControllerData } from './decorators/controller.decorator';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { ControllerData } from './decorators/controller.decorator.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
 
 /**
  * Utilities for the controllers of an application.

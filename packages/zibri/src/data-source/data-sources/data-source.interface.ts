@@ -1,21 +1,21 @@
-import { BackupResourceInterface } from '../../backup/backup-resource.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { Migration } from '../migration/migration.model';
-import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
-import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
-import { CreateEntityInput } from '../models/create-entity-input.model';
-import { MergeEntityInput } from '../models/merge-entity-input.model';
-import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
-import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
-import { RenameEntityInput } from '../models/rename-entity-input.model';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
+import { BackupResourceInterface } from '../../backup/backup-resource.interface.ts';
+import { ChangeSetRepository } from '../../change-sets/change-set-repository.ts';
+import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model.ts';
+import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model.ts';
+import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { Migration } from '../migration/migration.model.ts';
+import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model.ts';
+import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model.ts';
+import { CreateEntityInput } from '../models/create-entity-input.model.ts';
+import { MergeEntityInput } from '../models/merge-entity-input.model.ts';
+import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model.ts';
+import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model.ts';
+import { RenameEntityInput } from '../models/rename-entity-input.model.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * The isolation level of any data source calls made inside a transaction.

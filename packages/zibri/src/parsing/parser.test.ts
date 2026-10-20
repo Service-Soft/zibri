@@ -1,11 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { Body } from '../routing/decorators/body.decorator';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Post } from '../routing/decorators/post.decorator';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { Body } from '../routing/decorators/body.decorator.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Post } from '../routing/decorators/post.decorator.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 class ParserTestBody {
     @Property.string()

@@ -1,4 +1,4 @@
-import { Raw } from '../runtime/server-runtime';
+import { Raw } from '../runtime/server-runtime.ts';
 
 /**
  * What a jsx expression evaluates to.

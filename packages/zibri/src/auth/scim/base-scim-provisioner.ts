@@ -1,8 +1,8 @@
-import { ScimGroupResource } from './scim-group-resource.model';
-import { ScimUserResource } from './scim-user-resource.model';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { BaseUser } from '../models/base-user.model';
+import { ScimGroupResource } from './scim-group-resource.model.ts';
+import { ScimUserResource } from './scim-user-resource.model.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { BaseMembership } from '../../tenancy/membership/base-membership.model.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * What the provisioning of a tenant's identity provider through SCIM does to the users of the

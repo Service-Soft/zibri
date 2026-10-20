@@ -1,5 +1,5 @@
-import { ShutdownSignal, ZibriApplication } from '../application/application';
-import { InternalError } from '../error-handling/internal-error.model';
+import { ShutdownSignal, ZibriApplication } from '../application/application.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * Runs when the app shuts down.
@@ -26,7 +26,7 @@ export class OnAppShutdownError extends InternalError {
     }
 }
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Checks if the given value implements the OnAppShutdown interface.
  * @param value - The value to check.

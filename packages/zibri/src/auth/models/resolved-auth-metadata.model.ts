@@ -1,7 +1,7 @@
-import { HasRoleMetadata } from './has-role-metadata.model';
-import { IsLoggedInMetadata } from './is-logged-in-metadata.model';
-import { IsNotLoggedInMetadata } from './is-not-logged-in-metadata.model';
-import { Require2faMetadata } from './require-2fa-metadata.model';
+import { HasRoleMetadata } from './has-role-metadata.model.ts';
+import { IsLoggedInMetadata } from './is-logged-in-metadata.model.ts';
+import { IsNotLoggedInMetadata } from './is-not-logged-in-metadata.model.ts';
+import { Require2faMetadata } from './require-2fa-metadata.model.ts';
 
 /**
  * What the \@Auth decorators of a route and its controller resolve to, with the skips already applied.

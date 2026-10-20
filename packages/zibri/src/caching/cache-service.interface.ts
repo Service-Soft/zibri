@@ -1,4 +1,4 @@
-import { AnyCache } from './cache/cache.interface';
+import { AnyCache } from './cache/cache.interface.ts';
 
 /**
  * Interface for a cache service.

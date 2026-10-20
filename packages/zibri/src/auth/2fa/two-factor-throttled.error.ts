@@ -1,5 +1,5 @@
-import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
-import { $ts } from '../../localization/translate.function';
+import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * Thrown when a user has to wait before their next two factor code is checked.

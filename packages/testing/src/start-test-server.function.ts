@@ -2,13 +2,13 @@ import { AddressInfo } from 'node:net';
 
 import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, LoggerInterface, Newable, PostgresDataSource, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 
-import { createInMemoryDataSource } from './in-memory-data-source/create-in-memory-data-source.function';
-import { registerAheadOfInit } from './register-ahead-of-init.function';
-import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function';
-import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function';
-import { applyContainerPort, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
-import { StartTestServerOptions } from './start-test-server-options.model';
-import { defaultTestProviders } from './test-providers';
+import { createInMemoryDataSource } from './in-memory-data-source/create-in-memory-data-source.function.ts';
+import { registerAheadOfInit } from './register-ahead-of-init.function.ts';
+import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function.ts';
+import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function.ts';
+import { applyContainerPort, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function.ts';
+import { StartTestServerOptions } from './start-test-server-options.model.ts';
+import { defaultTestProviders } from './test-providers.ts';
 
 /**
  * What a test server falls back to for whatever neither the call nor the application named.

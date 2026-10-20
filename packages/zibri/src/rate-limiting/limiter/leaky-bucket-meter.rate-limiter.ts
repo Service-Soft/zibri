@@ -1,9 +1,9 @@
-import { RateLimitResult } from '../rate-limit-result.model';
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * Persisted state for the leaky bucket meter.
@@ -44,7 +44,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): LeakyBucketMeterState {
         return {
             water: 0,
@@ -55,17 +55,17 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: LeakyBucketMeterState, count: number): LeakyBucketMeterState {
         return { ...state, reservedWater: state.reservedWater + count };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: LeakyBucketMeterState, count: number): LeakyBucketMeterState {
         return { ...state, reservedWater: Math.max(0, state.reservedWater - count) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: LeakyBucketMeterState,
         _reservations: RateLimitReservation[],
@@ -84,7 +84,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
         return now + waitMs;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: LeakyBucketMeterState, now: number): LeakyBucketMeterState {
         const leakRate: number = this.config.capacity / this.intervalInMs;
         const elapsed: number = now - state.lastLeakMs;
@@ -145,7 +145,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
         let allowed: boolean = false;

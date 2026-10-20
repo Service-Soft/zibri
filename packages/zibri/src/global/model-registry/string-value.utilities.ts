@@ -1,10 +1,10 @@
-import { DescribedString, StringValueDescriptor } from './string-value-descriptor.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
-import { Relation } from '../../entity/models/relation.enum';
-import { StoredStringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
-import { isNamedValue } from '../../parsing/functions/parse-one-of.function';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { DescribedString, StringValueDescriptor } from './string-value-descriptor.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { StoredStringPropertyMetadata } from '../../entity/models/string-property-metadata.model.ts';
+import { isNamedValue } from '../../parsing/functions/parse-one-of.function.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * Finds and replaces the strings a property acts on - encrypts, decrypts, hashes - wherever its
@@ -40,11 +40,11 @@ export abstract class StringValueUtilities {
                 }
                 return shapes.size ? { kind: 'shapes', shapes } : undefined;
             }
-            case Relation.MANY_TO_ONE:
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.MANY_TO_MANY:
-            case Relation.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.MANY_TO_MANY:
+            case RelationType.ONE_TO_MANY:
             case 'object': {
                 // these hold models, whose own strings the descriptor of their class keeps
                 return undefined;

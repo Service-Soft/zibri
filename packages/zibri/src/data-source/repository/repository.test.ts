@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { Repository } from './repository';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
-import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
+import { Repository } from './repository.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model.ts';
 
 // ==================== ENTITIES ====================
 
@@ -60,7 +60,7 @@ class Post extends BaseEntity {
     author!: Relation<User>;
 
     @Property.oneToMany({ target: () => Comment, inverseSide: 'post' })
-    comments!: Relation<Comment>;
+    comments!: Comment[];
 
     @Property.string({ format: 'uuid' })
     userId!: string;
@@ -75,7 +75,7 @@ class Comment extends BaseEntity {
     text!: string;
 
     @Property.manyToOne({ target: () => Post, inverseSide: 'comments', joinColumn: 'postId' })
-    post!: Post;
+    post!: Relation<Post>;
 
     @Property.string({ format: 'uuid' })
     postId!: string;
@@ -87,7 +87,7 @@ class User extends BaseEntity {
     name!: string;
 
     @Property.manyToOne({ target: () => Company, inverseSide: 'employees', joinColumn: 'companyId' })
-    company!: Company;
+    company!: Relation<Company>;
 
     @Property.string({ format: 'uuid', required: false })
     companyId?: string | null;
@@ -96,7 +96,7 @@ class User extends BaseEntity {
     posts!: Post[];
 
     @Property.belongsToOne({ target: () => Profile, inverseSide: 'user', joinColumn: 'profileId' })
-    profile!: Profile;
+    profile!: Relation<Profile>;
 
     @Property.string({ format: 'uuid', required: false })
     profileId?: string | null;

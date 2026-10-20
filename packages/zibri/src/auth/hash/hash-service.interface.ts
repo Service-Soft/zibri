@@ -1,7 +1,7 @@
-import { HashString } from './hash.utilities';
-import { HashStrategyInterface } from './strategies/hash-strategy.interface';
-import { AnyObject } from '../../entity/any-object.model';
-import { Newable } from '../../types/newable.type';
+import { HashString } from './hash.utilities.ts';
+import { HashStrategyInterface } from './strategies/hash-strategy.interface.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Options for hashing a value.

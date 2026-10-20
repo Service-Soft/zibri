@@ -1,30 +1,30 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Body } from './decorators/body.decorator';
-import { Controller } from './decorators/controller.decorator';
-import { Delete } from './decorators/delete.decorator';
-import { Get } from './decorators/get.decorator';
-import { Param } from './decorators/param.decorator';
-import { Post } from './decorators/post.decorator';
-import { Put } from './decorators/put.decorator';
-import { UndeclaredResultError } from './undeclared-result.error';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { ConflictError } from '../error-handling/errors/conflict.error';
-import { HttpStatus } from '../http/http-status.enum';
-import { KnownHeader } from '../http/known-header.enum';
-import { RedirectResponse } from '../http/redirect-response.model';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { Response } from '../open-api/decorators/response.decorator';
-import { FileResponse } from '../parsing/form-data/file-response.model';
-import { HtmlResponse } from '../parsing/html/html-response.model';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { Body } from './decorators/body.decorator.ts';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Delete } from './decorators/delete.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { Param } from './decorators/param.decorator.ts';
+import { Post } from './decorators/post.decorator.ts';
+import { Put } from './decorators/put.decorator.ts';
+import { UndeclaredResultError } from './undeclared-result.error.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { ConflictError } from '../error-handling/errors/conflict.error.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { RedirectResponse } from '../http/redirect-response.model.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { Response } from '../open-api/decorators/response.decorator.ts';
+import { FileResponse } from '../parsing/form-data/file-response.model.ts';
+import { HtmlResponse } from '../parsing/html/html-response.model.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 class Greeting {
     @Property.string()
@@ -319,7 +319,7 @@ describe('Router — HTTP dispatch', () => {
     });
 
     it('returns 500 when the handler result violates the declared json-only response type', async () => {
-        const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
+        const logged: MockInstance<LoggerInterface['error']> = vi.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
 
         const res: Response = await fetch(`${baseUrl}/greet/mismatch/response`);
 
@@ -354,7 +354,7 @@ describe('Router — HTTP dispatch', () => {
     });
 
     it('returns 500 when a route declaring only redirects does not return one', async () => {
-        const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
+        const logged: MockInstance<LoggerInterface['error']> = vi.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
 
         const res: Response = await fetch(`${baseUrl}/greet/mismatch/redirect`, { redirect: 'manual' });
 

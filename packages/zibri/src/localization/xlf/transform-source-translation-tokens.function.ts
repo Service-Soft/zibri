@@ -1,14 +1,14 @@
-import type ts from 'typescript';
+import type ts from '@typescript/typescript6';
 
-import { FsPath, FsUtilities, GlobPattern } from '../../utilities/fs.utilities';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { LocaleCode } from '../models/locale-code.model';
+import { FsPath, FsUtilities, GlobPattern } from '../../utilities/fs.utilities.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { LocaleCode } from '../models/locale-code.model.ts';
 
 /**
  * TypeScript's own module, as loaded at runtime.
  *
- * Only the types are imported at the top of this file. Extraction is a build step - it runs from a
- * webpack config - and a value import here would be resolved by every consumer the barrel reaches,
+ * Only the types are imported at the top of this file. Extraction is a build step - it runs from the
+ * application's build config - and a value import here would be resolved by every consumer the barrel reaches,
  * which a production image that pruned its devDependencies cannot do, and followed by every bundler,
  * which ships the whole compiler inside the application.
  */
@@ -110,7 +110,7 @@ export async function transformSourceTranslationOriginTokens(
 ): Promise<Record<string, TransformResult>> {
     // asked for before anything is read, so a missing compiler is named up front rather than only
     // once some origin turns out to have a file in it
-    const typescript: TypeScriptModule = optionalPeer<TypeScriptModule>('typescript', 'Extracting source translations');
+    const typescript: TypeScriptModule = optionalPeer<TypeScriptModule>('@typescript/typescript6', 'Extracting source translations');
     const res: Record<string, TransformResult> = {};
 
     await Promise.all(origins.map(async origin => {
@@ -133,7 +133,7 @@ export async function transformSourceTranslationOriginTokens(
     return res;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function transformSourceTranslationTokensInternal(
     typescript: TypeScriptModule,
     sourceCode: string,
@@ -175,7 +175,7 @@ function transformSourceTranslationTokensInternal(
     return { code, extracted };
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function isTargetTag(typescript: TypeScriptModule, node: ts.Expression): boolean {
     return typescript.isIdentifier(node) && (node.text === '$t' || node.text === '$ts');
 }
@@ -197,13 +197,13 @@ function getMemberKey(typescript: TypeScriptModule, node: ts.Expression): string
     return undefined;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function rewriteTemplate(
     typescript: TypeScriptModule,
     node: ts.TaggedTemplateExpression,
     factory: ts.NodeFactory,
     sourceCode: string
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 ): { transformed: ts.TaggedTemplateExpression, source: string } {
     const template: ts.TemplateLiteral = node.template;
 
@@ -247,12 +247,12 @@ function rewriteTemplate(
     };
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function escapeBraces(text: string): string {
     return text.replaceAll('{', '{{').replaceAll('}', '}}');
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function getExpressionSourceText(sourceCode: string, expr: ts.Expression): string | undefined {
     const text: string = sourceCode.slice(expr.getStart(), expr.getEnd()).trim();
     // If the text contains } it would break our {key} placeholder format — fall back to positional

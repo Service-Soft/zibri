@@ -1,8 +1,8 @@
 /* eslint-disable unicorn/no-null */
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { parseArray } from './parse-array.function';
-import { ArrayParamMetadata } from '../../routing/models/array-param-metadata.model';
+import { parseArray } from './parse-array.function.ts';
+import { ArrayParamMetadata } from '../../routing/models/array-param-metadata.model.ts';
 
 describe('parseArray', () => {
     const meta: ArrayParamMetadata = {

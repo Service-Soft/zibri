@@ -1,12 +1,12 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { normalizeJsxText } from './jsx-text';
-import { AccessShape } from '../../runtime/access-shape';
-import { escapeAttribute, escapeText, VOID_ELEMENTS } from '../../runtime/server-runtime';
-import { tagNameOf } from '../../semantics/validate-email';
-import { unwrapTypeSyntax } from '../../semantics/walk';
-import { ClientPropSite } from '../client/client-props';
-import { attributeExpression, attributesOf, HandlerSite, isEventHandlerName, JsxElementLike } from '../client/handlers';
+import { normalizeJsxText } from './jsx-text.ts';
+import { AccessShape } from '../../runtime/access-shape.ts';
+import { escapeAttribute, escapeText, VOID_ELEMENTS } from '../../runtime/server-runtime.ts';
+import { tagNameOf } from '../../semantics/validate-email.ts';
+import { unwrapTypeSyntax } from '../../semantics/walk.ts';
+import { ClientPropSite } from '../client/client-props.ts';
+import { attributeExpression, attributesOf, HandlerSite, isEventHandlerName, JsxElementLike } from '../client/handlers.ts';
 
 /**
  * Name of the injected server-runtime helper namespace referenced by generated code.

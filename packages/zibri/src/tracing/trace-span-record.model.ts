@@ -1,7 +1,7 @@
-import { type TraceSpanAttributes } from './trace-span-attributes.model';
-import { TraceSpanKind } from './trace-span-kind.enum';
-import { TraceSpanStatus } from './trace-span-status.enum';
-import { Property } from '../entity/decorators/property.decorator';
+import { type TraceSpanAttributes } from './trace-span-attributes.model.ts';
+import { TraceSpanKind } from './trace-span-kind.enum.ts';
+import { TraceSpanStatus } from './trace-span-status.enum.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
 
 /**
  * One finished span, as something reading them back sees it.

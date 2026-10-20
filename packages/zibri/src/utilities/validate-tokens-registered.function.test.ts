@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { validateTokensRegistered } from './validate-tokens-registered.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { InjectionToken } from '../di/models/injection-token.model';
-import { AppState } from '../global/app-state.enum';
-import { GlobalRegistry } from '../global/global-registry';
-import { ZibriPlugin } from '../plugin/plugin.model';
+import { validateTokensRegistered } from './validate-tokens-registered.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { InjectionToken } from '../di/models/injection-token.model.ts';
+import { AppState } from '../global/app-state.enum.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { ZibriPlugin } from '../plugin/plugin.model.ts';
 
 const UNREGISTERED_TOKEN: InjectionToken<string> = new InjectionToken<string>('UNREGISTERED_SCRATCH_TOKEN');
 

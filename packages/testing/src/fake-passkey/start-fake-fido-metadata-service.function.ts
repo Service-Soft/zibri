@@ -1,4 +1,4 @@
-import { FakeFidoMetadataService } from './fake-fido-metadata-service.model';
+import { FakeFidoMetadataService } from './fake-fido-metadata-service.model.ts';
 
 /**
  * Starts a FIDO Metadata Service in the test's own process, reached over plain http on the loopback

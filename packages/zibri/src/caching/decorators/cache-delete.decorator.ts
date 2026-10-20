@@ -1,8 +1,8 @@
-import { inject } from '../../di/inject.function';
-import { DiToken } from '../../di/models/di-token.model';
-import { CacheKeyProvider, CacheWrapDeleteOptions } from '../cache/cache-options.model';
+import { inject } from '../../di/inject.function.ts';
+import { DiToken } from '../../di/models/di-token.model.ts';
+import { CacheKeyProvider, CacheWrapDeleteOptions } from '../cache/cache-options.model.ts';
 
-// eslint-disable-next-line jsdoc/require-returns
+// eslint-disable-next-line jsdoc-js/require-returns
 /**
  * Marks the method to delete a cached value under the resolved key using the provided cache.
  * @param cacheToken - The token of the cache to use.
@@ -10,7 +10,7 @@ import { CacheKeyProvider, CacheWrapDeleteOptions } from '../cache/cache-options
  * @param options - Additional options like tags to invalidate.
  */
 export function CacheDelete<
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, typescript/no-explicit-any
     C extends { wrapDelete: (...args: any[]) => any },
     K,
     CacheTag extends string,
@@ -34,7 +34,7 @@ export function CacheDelete<
 
         descriptor.value = async function(this: object, ...args: TArgs): Promise<TReturn> {
             if (!wrappedFns.has(this)) {
-                // eslint-disable-next-line typescript/typedef
+                // eslint-disable-next-line typescript-js/typedef
                 const cache = inject(cacheToken);
                 // eslint-disable-next-line typescript/no-unsafe-argument
                 wrappedFns.set(this, cache.wrapDelete(original.bind(this), keyFn, options));

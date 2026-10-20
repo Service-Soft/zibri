@@ -1,14 +1,14 @@
-import { type ApiKeyServiceInterface } from './api-key-service.interface';
-import { CronExpression } from '../../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
+import { type ApiKeyServiceInterface } from './api-key-service.interface.ts';
+import { CronExpression } from '../../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
 
 /**
  * Deletes the api keys that expired longer ago than `deleteExpiredAfterMs` of `API_KEY_OPTIONS`.
  */
 export class ApiKeyCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Cleanup expired api keys',
         cron: CronExpression.every(1, 'hours').build(),
@@ -22,7 +22,7 @@ export class ApiKeyCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         await this.apiKeyService.deleteExpired();
     }

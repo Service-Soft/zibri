@@ -1,6 +1,6 @@
-import { Require2faReauth } from './require-2fa-reauth.model';
-import { SkipMetadata } from './skip-auth-metadata.model';
-import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
+import { Require2faReauth } from './require-2fa-reauth.model.ts';
+import { SkipMetadata } from './skip-auth-metadata.model.ts';
+import { TwoFactorMethods } from '../2fa/two-factor-methods.model.ts';
 
 /**
  * Metadata for the \@Auth.require2fa decorator.

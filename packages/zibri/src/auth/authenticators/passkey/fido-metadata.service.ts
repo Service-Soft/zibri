@@ -3,15 +3,15 @@ import { X509Certificate } from 'node:crypto';
 import type { MDSJWTPayload, MetadataBLOBPayloadEntry } from '@simplewebauthn/server';
 import type { CompactVerifyResult } from 'jose';
 
-import { FidoMetadataServiceInterface } from './fido-metadata-service.interface';
-import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { Ms } from '../../../utilities/ms';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { FidoMetadataServiceInterface } from './fido-metadata-service.interface.ts';
+import { SimpleWebAuthnHelpers } from './simple-web-authn-helpers.type.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * The module of `jose`, which checks the signature of the metadata.
@@ -111,7 +111,7 @@ vouXsXgxT7PntgMTzlSdriVZzH81Xwj3QEUxeCp6
 
 // the list the FIDO Alliance publishes was 10.6 MB in October 2026, over the http client's default
 // limit, and grows with every model certified
-const MAX_METADATA_SIZE: '100mb' = '100mb';
+const MAX_METADATA_SIZE: '100mb' = '100mb' as const;
 
 /**
  * Default implementation of the FIDO metadata service: downloads what a FIDO Metadata Service
@@ -126,7 +126,7 @@ export class FidoMetadataService implements FidoMetadataServiceInterface {
     // ends, so a failed one is tried again by the next registration
     private readonly downloads: Map<string, Promise<VerifiedMetadata>> = new Map();
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findEntry(url: string, rootCertificates: string[], aaguid: string): Promise<MetadataBLOBPayloadEntry | undefined> {
         const metadata: VerifiedMetadata = await this.resolveMetadata(url, rootCertificates);
         return metadata.entries.get(aaguid);

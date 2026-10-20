@@ -1,14 +1,14 @@
 import { CompiledPage, createServerRuntime, renderChild, renderPage, RenderServerRuntime } from 'zibri-tsx';
 
-import { TsxComponent } from './tsx-component.model';
-import { TsxEmailComponent } from './tsx-email-component.model';
-import { TsxLocaleData } from './tsx-locale-data.model';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { TsxComponent } from './tsx-component.model.ts';
+import { TsxEmailComponent } from './tsx-email-component.model.ts';
+import { TsxLocaleData } from './tsx-locale-data.model.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * Utilities for handling tsx templates.
@@ -94,8 +94,8 @@ export abstract class TsxUtilities {
         }
         throw new InternalError([
             `The template '${this.nameOf(component)}' was not compiled by zibri-tsx.`,
-            'Route your template files through the zibri-tsx webpack loader, for example:',
-            '{ test: /\\.tsx$/, include: /src[\\\\/]templates/, use: \'zibri-tsx/webpack\' }'
+            'Route your template files through the zibri-tsx Vite plugin from \'zibri-tsx/vite\', for example:',
+            'plugins: [zibriTsx({ templateDirs: [path.resolve(\'src\', \'templates\')], vendorOutDir: path.resolve(\'assets\', \'public\', \'vendor\') })]'
         ].join('\n'));
     }
 
@@ -108,7 +108,7 @@ export abstract class TsxUtilities {
         if (typeof value !== 'object' || value === null) {
             return false;
         }
-        const candidate: Partial<CompiledPage> = value as Partial<CompiledPage>;
+        const candidate: Partial<CompiledPage> = value;
         return typeof candidate.name === 'string'
             && typeof candidate.render === 'function'
             && typeof candidate.client === 'object';
@@ -133,6 +133,6 @@ export abstract class TsxUtilities {
      * @returns The props as a record.
      */
     private static toPropsRecord<T>(props: T | undefined): Record<string, unknown> {
-        return (props ?? {}) as Record<string, unknown>;
+        return (props ?? {});
     }
 }

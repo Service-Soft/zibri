@@ -2,27 +2,27 @@ import { And, ArrayContainedBy, ArrayContains, Raw, FindOperator, DataSource as 
 import { ColumnMetadata as ToColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { RelationMetadata as ToRelationMetadata } from 'typeorm/metadata/RelationMetadata.js';
 
-import { ParameterizedSql } from './parameterized-sql.model';
-import { TypeOrmParameters } from './typeorm-parameters';
-import { TypeOrmWhereFilterConverter, WhereFilterHandler } from './typeorm-where-filter.converter';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
-import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
-import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
-import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model';
-import { Relation } from '../../../entity/models/relation.enum';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
-import { parseFuzzyLikeFilter, SimilarityBound } from '../../models/where/fuzzy-like.model';
-import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities';
-import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
-import { Where } from '../../models/where/where-filter.model';
+import { ParameterizedSql } from './parameterized-sql.model.ts';
+import { TypeOrmParameters } from './typeorm-parameters.ts';
+import { TypeOrmWhereFilterConverter, WhereFilterHandler } from './typeorm-where-filter.converter.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error.ts';
+import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model.ts';
+import { RelationType } from '../../../entity/models/relation-type.enum.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
+import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities.ts';
+import { parseFuzzyLikeFilter, SimilarityBound } from '../../models/where/fuzzy-like.model.ts';
+import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities.ts';
+import { WhereFilterKeys } from '../../models/where/where-filter-keys.model.ts';
+import { Where } from '../../models/where/where-filter.model.ts';
 
 const ALIAS: string = '$$COL$$';
 
@@ -240,7 +240,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         super(dataSource);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected fuzzyLikeWhereFilterHandler: WhereFilterHandler = (value, metadata, nestedProperties, entityClass, property) => {
         const { value: searchString, minSimilarityRatio, bound } = parseFuzzyLikeFilter(value);
         const parameters: TypeOrmParameters = this.createParameters();
@@ -265,7 +265,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return Raw(alias => `${alias} % ${search} AND ${ratioCondition(alias)}`, parameters.values);
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected equalsOneOf(values: unknown[], entityClass: Newable<unknown>, property: string): FindOperator<unknown> {
         const column: ToColumnMetadata | undefined = this.typeOrmDataSource.hasMetadata(entityClass)
             ? this.typeOrmDataSource.getMetadata(entityClass).findColumnWithPropertyName(property)
@@ -282,7 +282,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return Raw(alias => `${alias} = ANY(${list})`, parameters.values);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildArrayIncludesOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown> {
         if (!this.isStoredAsJson(metadata)) {
             return ArrayContains(values);
@@ -294,7 +294,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildArrayIsIncludedInOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown> {
         // not empty as well: an empty array is asked for with a length of 0 alone, so that no allow
         // list finds one without saying so
@@ -308,7 +308,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildArrayLengthOperator(operator: string, value: unknown, metadata: PropertyMetadata): FindOperator<unknown> {
         // the filter value is typed as a number but nothing checks that at runtime, so it is bound
         // rather than written into the statement. A caller that sends something else now gets the
@@ -356,7 +356,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return value;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     similarityExpression(path: string, similarTo: string): ParameterizedSql {
         const parameters: TypeOrmParameters = this.createParameters();
         return { sql: `similarity(${path}, ${parameters.add(similarTo)})`, parameters: parameters.values };
@@ -489,7 +489,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }, parameters.values) as FindOperator<unknown>;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildOneOfOperator(filter: Record<string, unknown>, metadata: OneOfPropertyMetadata): FindOperator<unknown> {
         const parameters: TypeOrmParameters = this.createParameters();
         const sql: string = this.buildJsonbOneOfCondition(ALIAS, filter, metadata, parameters, ALIAS);
@@ -538,7 +538,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
                 jsonPath,
                 'value',
                 shapeFilter,
-                { ...shape } as PropertyMetadata,
+                { ...shape },
                 parameters,
                 `${path}.${name}`
             );
@@ -551,7 +551,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return `zi_elem_${this.elementAliasIndex++}`;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildRelationLengthRawOperator<T>(
         entityClass: Newable<T>,
         propertyName: string,
@@ -561,7 +561,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     ): FindOperator<unknown> {
         const operator: string = this.lengthKeyToSqlOperator(lengthKey);
 
-        if (metadata.type === Relation.ONE_TO_MANY) {
+        if (metadata.type === RelationType.ONE_TO_MANY) {
             const targetEntity: Newable<BaseEntity> = metadata.target();
             const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
             if (!targetMeta) {
@@ -569,7 +569,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             }
             const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
-            if (inverseProp?.type !== Relation.MANY_TO_ONE) {
+            if (inverseProp?.type !== RelationType.MANY_TO_ONE) {
                 throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
             }
             const fkColumn: string | undefined = inverseProp.joinColumn;
@@ -593,7 +593,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return Raw(alias => rawSql.replaceAll('$alias$', alias));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildRelationIncludesOperator<T>(
         entityClass: Newable<T>,
         propertyName: string,
@@ -606,7 +606,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
 
         const parameters: TypeOrmParameters = this.createParameters();
 
-        if (metadata.type === Relation.ONE_TO_MANY) {
+        if (metadata.type === RelationType.ONE_TO_MANY) {
             const targetEntity: Newable<BaseEntity> = metadata.target();
             const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
             if (!targetMeta) {
@@ -614,7 +614,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             }
             const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
-            if (inverseProp?.type !== Relation.MANY_TO_ONE) {
+            if (inverseProp?.type !== RelationType.MANY_TO_ONE) {
                 throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
             }
             const fkColumn: string | undefined = inverseProp.joinColumn;
@@ -649,7 +649,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         return this.rawOnRelation(rawSql, parameters);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected buildRelationIsIncludedInOperator<T>(
         entityClass: Newable<T>,
         propertyName: string,
@@ -663,7 +663,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
 
         const parameters: TypeOrmParameters = this.createParameters();
 
-        if (metadata.type === Relation.ONE_TO_MANY) {
+        if (metadata.type === RelationType.ONE_TO_MANY) {
             const targetEntity: Newable<BaseEntity> = metadata.target();
             const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
             if (!targetMeta) {
@@ -671,7 +671,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             }
             const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
             const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
-            if (inverseProp?.type !== Relation.MANY_TO_ONE || !inverseProp.joinColumn) {
+            if (inverseProp?.type !== RelationType.MANY_TO_ONE || !inverseProp.joinColumn) {
                 throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
             }
             const fkColumn: string = inverseProp.joinColumn;
@@ -745,7 +745,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         const andParts: string[] = [];
-        for (const [key, filterValue] of ObjectUtilities.entries(whereFilter as Record<string, unknown>)) {
+        for (const [key, filterValue] of ObjectUtilities.entries(whereFilter)) {
             const propMeta: PropertyMetadata | undefined = propertyMetadataMap[key];
             andParts.push(this.buildJsonbFieldCondition(jsonbAlias, key, filterValue, propMeta, parameters, path));
         }
@@ -798,11 +798,11 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     ): string {
         // Guard against relations inside JSONB
         if (propMeta && (
-            propMeta.type === Relation.HAS_ONE
-            || propMeta.type === Relation.BELONGS_TO_ONE
-            || propMeta.type === Relation.MANY_TO_ONE
-            || propMeta.type === Relation.ONE_TO_MANY
-            || propMeta.type === Relation.MANY_TO_MANY
+            propMeta.type === RelationType.HAS_ONE
+            || propMeta.type === RelationType.BELONGS_TO_ONE
+            || propMeta.type === RelationType.MANY_TO_ONE
+            || propMeta.type === RelationType.ONE_TO_MANY
+            || propMeta.type === RelationType.MANY_TO_MANY
         )) {
             throw new InternalError(`Cannot filter on relation "${fieldKey}" inside a JSONB column. `
                 + 'Relations are not supported as part of embedded JSON objects/arrays.');
@@ -883,11 +883,11 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             }
             case 'string':
             case 'object':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY:
             case 'array':
             case 'file':
             case 'unknown':

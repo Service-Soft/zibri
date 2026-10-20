@@ -1,17 +1,17 @@
-import { BaseEntity } from '../entity/base-entity.model';
-import { RelationMetadata } from '../entity/decorators/property.decorator';
-import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
-import { FileSize } from '../entity/models/file-property-metadata.model';
-import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
-import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model';
-import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model';
-import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
-import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { TranslatedString } from '../localization/models/translated-string.model';
-import { $ts } from '../localization/translate.function';
-import { type ShapeAttempt } from '../parsing/functions/parse-one-of.function';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { RelationMetadata } from '../entity/decorators/property.decorator.ts';
+import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model.ts';
+import { FileSize } from '../entity/models/file-property-metadata.model.ts';
+import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model.ts';
+import { ManyToManyPropertyMetadata } from '../entity/models/many-to-many-property-metadata.model.ts';
+import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property-metadata.model.ts';
+import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model.ts';
+import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { TranslatedString } from '../localization/models/translated-string.model.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type ShapeAttempt } from '../parsing/functions/parse-one-of.function.ts';
 
 /**
  * A validation problem, consisting of the key where the problem is located and a description of the problem.
@@ -31,7 +31,7 @@ export type ValidationProblem = {
  * The validation problem that the property is required and no value has been provided.
  */
 export class IsRequiredValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString = $ts`is required`;
     constructor(readonly key: string) {}
 }
@@ -40,7 +40,7 @@ export class IsRequiredValidationProblem implements ValidationProblem {
  * The validation problem that the provided value has an incorrect type.
  */
 export class TypeMismatchValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, type: string) {
         this.message = $ts`should be of type ${type}`;
@@ -51,7 +51,7 @@ export class TypeMismatchValidationProblem implements ValidationProblem {
  * The validation problem that the provided file is too big.
  */
 export class MaxFileSizeValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, maxSize: FileSize) {
         this.message = $ts`needs to be smaller than ${maxSize}`;
@@ -62,7 +62,7 @@ export class MaxFileSizeValidationProblem implements ValidationProblem {
  * The validation problem that the provided file has an incorrect mime type.
  */
 export class MimeTypeMismatchValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, allowedMimeTypes: MimeType[]) {
         this.message = allowedMimeTypes.length > 1
@@ -79,7 +79,7 @@ export class MimeTypeMismatchValidationProblem implements ValidationProblem {
  * they meant and what it still needs.
  */
 export class NoShapeFitsValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, attempts: ShapeAttempt[]) {
         this.message = [
@@ -98,7 +98,7 @@ export class NoShapeFitsValidationProblem implements ValidationProblem {
  * The validation problem that a value of several named shapes names none of them.
  */
 export class UnknownShapeValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, names: string[]) {
         this.message = $ts`has to be one of: ${names.join(', ')}`;
@@ -118,7 +118,7 @@ function shapeName(shape: OneOfShapeMetadata): string {
  * The validation problem that the provided value has relation data on it, which is not supported.
  */
 export class RelationsNotAllowedValidationProblem implements ValidationProblem {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, metadata: RelationMetadata<BaseEntity>, relationKey: string) {
         this.message = [
@@ -130,13 +130,13 @@ export class RelationsNotAllowedValidationProblem implements ValidationProblem {
 
     private getExample(metadata: RelationMetadata<BaseEntity>, relationKey: string): string {
         switch (metadata.type) {
-            case Relation.MANY_TO_ONE:
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE: {
+            case RelationType.MANY_TO_ONE:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE: {
                 return this.getObjectExample(metadata, relationKey);
             }
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_MANY: {
                 return this.getArrayExample(metadata, relationKey);
             }
         }

@@ -1,45 +1,45 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { Change } from './models/change.model';
-import { SoftDeleteEntity } from './models/soft-delete-entity.model';
-import { SoftDeleteWhere } from './models/soft-delete-where.model';
-import { SoftDeleteRepository } from './soft-delete-repository';
-import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
-import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository';
-import { AuthServiceInterface } from '../auth/auth-service.interface';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../auth/authenticators/password/password-credentials.model';
-import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
-import { Auth } from '../auth/decorators/auth.decorator';
-import { BaseUserEntity } from '../auth/models/base-user.model';
-import { JwtAuthData } from '../auth/strategies/jwt/jwt-auth-data.model';
-import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
-import { Where } from '../data-source/models/where/where-filter.model';
-import { Repository } from '../data-source/repository/repository';
-import { InjectRepository, repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { OmitClass } from '../entity/omit-class.model';
-import { PartialClass } from '../entity/partial-class.model';
-import { ConflictError } from '../error-handling/errors/conflict.error';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { Body } from '../routing/decorators/body.decorator';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Delete } from '../routing/decorators/delete.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Param } from '../routing/decorators/param.decorator';
-import { Patch } from '../routing/decorators/patch.decorator';
-import { Post } from '../routing/decorators/post.decorator';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { ChangeSetType } from './models/change-set-type.enum.ts';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model.ts';
+import { Change } from './models/change.model.ts';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model.ts';
+import { SoftDeleteWhere } from './models/soft-delete-where.model.ts';
+import { SoftDeleteRepository } from './soft-delete-repository.ts';
+import { Roles } from '../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository.ts';
+import { AuthServiceInterface } from '../auth/auth-service.interface.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../auth/authenticators/password/password-credentials.model.ts';
+import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator.ts';
+import { Auth } from '../auth/decorators/auth.decorator.ts';
+import { BaseUserEntity } from '../auth/models/base-user.model.ts';
+import { JwtAuthData } from '../auth/strategies/jwt/jwt-auth-data.model.ts';
+import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { Where } from '../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { InjectRepository, repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../entity/omit-class.model.ts';
+import { PartialClass } from '../entity/partial-class.model.ts';
+import { ConflictError } from '../error-handling/errors/conflict.error.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { Body } from '../routing/decorators/body.decorator.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Delete } from '../routing/decorators/delete.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Param } from '../routing/decorators/param.decorator.ts';
+import { Patch } from '../routing/decorators/patch.decorator.ts';
+import { Post } from '../routing/decorators/post.decorator.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 // ---------- Test entity ----------
 @Entity({ tenant: 'shared' })
@@ -139,7 +139,7 @@ beforeAll(async () => {
 
     changeSetRepo = inject(repositoryTokenFor(ChangeSet));
     changeRepo = inject(repositoryTokenFor(Change));
-    taskRepo = inject(repositoryTokenFor(Task)) as SoftDeleteRepository<Task>;
+    taskRepo = inject(repositoryTokenFor(Task));
 
     const userRepo: DefaultTestServerUserRepository = inject(DefaultTestServerUserRepository);
     const credentialsRepo: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
@@ -173,14 +173,11 @@ beforeEach(async () => {
 });
 
 async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
-    const res: Response = await fetch(`${baseUrl}${path}`, {
-        ...options,
-        headers: {
-            ...options.headers,
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-        }
-    });
+    // a Headers instance or a list of pairs loses its entries when spread into an object
+    const headers: Headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${accessToken}`);
+    headers.set('Content-Type', 'application/json');
+    const res: Response = await fetch(`${baseUrl}${path}`, { ...options, headers });
     if (!res.ok) {
         const body: unknown = await res.json();
         throw new Error(`Request "${options.method ?? 'GET'} ${path}" failed:\n${JsonUtilities.stringify(body, undefined, 4)}`);

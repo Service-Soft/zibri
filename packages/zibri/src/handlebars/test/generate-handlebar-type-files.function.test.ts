@@ -1,10 +1,10 @@
 import { utimes } from 'node:fs/promises';
 
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { testFileFolder } from '../../__testing__/constants';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { generateHandlebarTypeFiles } from '../generate-handlebar-type-files.function';
+import { testFileFolder } from '../../__testing__/constants.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { generateHandlebarTypeFiles } from '../generate-handlebar-type-files.function.ts';
 
 const rootFolder: FsPath = FsUtilities.getPath(testFileFolder, 'handlebars-glob');
 
@@ -61,7 +61,7 @@ describe('generateHandlebarTypeFiles', () => {
         await FsUtilities.createFile(brokenFile, '{{#each a b}}{{/each}}');
         await FsUtilities.createFile(goodFile, '{{z}}');
 
-        const errorSpy: jest.SpiedFunction<typeof console.error> = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const errorSpy: MockInstance<typeof console.error> = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         await expect(generateHandlebarTypeFiles(`${rootFolder}/**/*.hbs`)).resolves.toBeUndefined();
 

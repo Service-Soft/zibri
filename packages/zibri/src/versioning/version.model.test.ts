@@ -1,10 +1,10 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { StoredRoute } from './stored-route.model';
-import { VersionFile } from './version.model';
-import { initDiContainer } from '../di/init-di-container.function';
-import { GlobalRegistry } from '../global/global-registry';
-import { parseObject } from '../parsing/functions/parse-object.function';
+import { StoredRoute } from './stored-route.model.ts';
+import { VersionFile } from './version.model.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { parseObject } from '../parsing/functions/parse-object.function.ts';
 
 describe('VersionFile', () => {
     beforeAll(() => {

@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { Controller } from './decorators/controller.decorator';
-import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { Controller } from './decorators/controller.decorator.ts';
+import { Get } from './decorators/get.decorator.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
 
 // in process rather than the postgres container the test server defaults to: the check fails the boot
 // before anything is stored, and starting and stopping a container around it was the whole of what

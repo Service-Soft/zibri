@@ -1,7 +1,7 @@
-import { OmitStrict } from '../../types/omit-strict.type';
-import { BaseEntity } from '../base-entity.model';
-import { BaseRelationMetadata } from './base-relation-metadata.model';
-import { Relation } from './relation.enum';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { BaseEntity } from '../base-entity.model.ts';
+import { BaseRelationMetadata } from './base-relation-metadata.model.ts';
+import { RelationType } from './relation-type.enum.ts';
 
 /**
  * Metadata for has one properties.
@@ -10,7 +10,7 @@ export type HasOnePropertyMetadata<T extends BaseEntity> = BaseRelationMetadata<
     /**
      * The type of the property.
      */
-    type: Relation.HAS_ONE
+    type: RelationType.HAS_ONE
 };
 
 /**

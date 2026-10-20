@@ -1,11 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { SmtpEmailTransport } from './smtp.email-transport';
-import { CapturingSmtpServer } from '../../__testing__/capturing-smtp-server.model';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { EmailPriority } from '../models/email-priority.enum';
-import { EmailStatus } from '../models/email-status.enum';
-import { Email } from '../models/email.model';
+import { SmtpEmailTransport } from './smtp.email-transport.ts';
+import { CapturingSmtpServer } from '../../__testing__/capturing-smtp-server.model.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { EmailPriority } from '../models/email-priority.enum.ts';
+import { EmailStatus } from '../models/email-status.enum.ts';
+import { Email } from '../models/email.model.ts';
 
 let smtp: CapturingSmtpServer;
 let transport: SmtpEmailTransport;

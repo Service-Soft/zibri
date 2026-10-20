@@ -1,4 +1,4 @@
-import { type ZibriEventMap } from './event-service.interface';
+import { type ZibriEventMap } from './event-service.interface.ts';
 
 /**
  * Which failed runs to offer to their subscribers again.

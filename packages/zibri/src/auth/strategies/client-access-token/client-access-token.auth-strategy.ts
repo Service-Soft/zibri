@@ -1,40 +1,40 @@
-import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { $ts } from '../../../localization/translate.function';
-import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { Ms } from '../../../utilities/ms';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
-import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
-import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum';
-import { OAuth2Error } from '../../authorization-server/oauth2.error';
-import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { type ApiKeyServiceInterface } from '../api-key/api-key-service.interface';
-import { ApiKey } from '../api-key/api-key.model';
-import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
-import { AuthorizationToken } from '../authorization-token.model';
-import { ClientAccessTokenGrant } from '../client-access-token-grant.model';
-import { ClientAccessTokenIssuingAuthStrategyInterface } from '../client-access-token-issuing-auth-strategy.interface';
-import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities';
-import { CredentialLimits } from '../credential-limits.model';
-import { IssuedClientAccessToken } from '../issued-client-access-token.model';
-import { type AccessTokenRevocation } from '../jwt/access-token-revocation.type';
-import { isJwtClientAccessTokenPayload, JwtClientAccessTokenPayload } from '../jwt/jwt-client-access-token-payload.model';
-import { isJwtConfirmation, JwtConfirmation } from '../jwt/jwt-confirmation.model';
-import { JwtRevokedAccessTokenCleanupCronJob } from '../jwt/jwt-revoked-access-token-cleanup.cron-job';
-import { JwtRevokedAccessToken, JwtRevokedAccessTokenCreateData } from '../jwt/jwt-revoked-access-token.model';
-import { type JwtServiceInterface } from '../jwt/jwt-service.interface';
-import { VerifiedJwt } from '../jwt/verified-jwt.model';
+import { ZibriApplication } from '../../../application/application.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model.ts';
+import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface.ts';
+import { IntrospectionResponse } from '../../authorization-server/introspection-response.model.ts';
+import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum.ts';
+import { OAuth2Error } from '../../authorization-server/oauth2.error.ts';
+import { type DpopServiceInterface } from '../../dpop/dpop-service.interface.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { type ApiKeyServiceInterface } from '../api-key/api-key-service.interface.ts';
+import { ApiKey } from '../api-key/api-key.model.ts';
+import { AuthorizationHeaderUtilities } from '../authorization-header.utilities.ts';
+import { AuthorizationToken } from '../authorization-token.model.ts';
+import { ClientAccessTokenGrant } from '../client-access-token-grant.model.ts';
+import { ClientAccessTokenIssuingAuthStrategyInterface } from '../client-access-token-issuing-auth-strategy.interface.ts';
+import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities.ts';
+import { CredentialLimits } from '../credential-limits.model.ts';
+import { IssuedClientAccessToken } from '../issued-client-access-token.model.ts';
+import { type AccessTokenRevocation } from '../jwt/access-token-revocation.type.ts';
+import { isJwtClientAccessTokenPayload, JwtClientAccessTokenPayload } from '../jwt/jwt-client-access-token-payload.model.ts';
+import { isJwtConfirmation, JwtConfirmation } from '../jwt/jwt-confirmation.model.ts';
+import { JwtRevokedAccessTokenCleanupCronJob } from '../jwt/jwt-revoked-access-token-cleanup.cron-job.ts';
+import { JwtRevokedAccessToken, JwtRevokedAccessTokenCreateData } from '../jwt/jwt-revoked-access-token.model.ts';
+import { type JwtServiceInterface } from '../jwt/jwt-service.interface.ts';
+import { VerifiedJwt } from '../jwt/verified-jwt.model.ts';
 
 /**
  * What a verified access token of a client says.
@@ -66,10 +66,10 @@ export class ClientAccessTokenAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > implements ClientAccessTokenIssuingAuthStrategyInterface<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'client-access-token';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {
         type: 'http',
         scheme: 'bearer',
@@ -98,7 +98,7 @@ export class ClientAccessTokenAuthStrategy<
         private readonly accessTokenRevocation: AccessTokenRevocation
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         if (this.accessTokenRevocation === 'onExpiry') {
             return;
@@ -110,14 +110,14 @@ export class ClientAccessTokenAuthStrategy<
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
         // a bearer token shaped like a client's being there, not a valid one, for the reason the jwt
         // strategy gives. That strategy takes every other jwt
         return AuthorizationHeaderUtilities.findJwtKind(context, this.jwtService.issuer) === 'client';
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const token: ClientAccessToken | undefined = await this.findRequestToken(context);
         if (token == undefined) {
@@ -136,7 +136,7 @@ export class ClientAccessTokenAuthStrategy<
         return { ...user, roles: user.roles.filter(role => token.roles.includes(role)) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<BaseUser<RoleType> | undefined> {
         const token: ClientAccessToken | undefined = await this.findRequestToken(context);
         return token == undefined
@@ -144,7 +144,7 @@ export class ClientAccessTokenAuthStrategy<
             : { id: token.payload.sub, email: token.payload.email, roles: token.roles.filter(role => this.isRole<RoleType>(role)) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveCredentialLimits(context: HttpRequestContext | WebsocketRequestContext): Promise<CredentialLimits | undefined> {
         // read off the token rather than the key, so that what the token may do is what it was issued
         // with, whether or not the key is read again
@@ -152,19 +152,19 @@ export class ClientAccessTokenAuthStrategy<
         return token == undefined ? undefined : { roles: token.roles, tenantId: token.payload.tenant_id };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAuthenticatedAt(): Promise<Date | undefined> {
         // a client is never logged in with, so there is no time to give
         return await Promise.resolve<Date | undefined>(undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         const token: ClientAccessToken | undefined = await this.findRequestToken(context);
         return token == undefined ? undefined : new Date(token.verified.expiresAt * Ms.SECOND);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async issueClientAccessToken(user: BaseUser<string>, grant: ClientAccessTokenGrant): Promise<IssuedClientAccessToken> {
         const confirmation: JwtConfirmation = {
             ...grant.certificateThumbprint == undefined ? {} : { 'x5t#S256': grant.certificateThumbprint },
@@ -183,7 +183,7 @@ export class ClientAccessTokenAuthStrategy<
         return { value, expiresInMs: this.jwtService.accessTokenExpiresInMs };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async introspectToken(token: string): Promise<IntrospectionResponse> {
         // whoever the token is for: a service asking about it is not the application
         const found: ClientAccessToken | undefined = await this.findClientAccessToken(token, undefined);
@@ -214,7 +214,7 @@ export class ClientAccessTokenAuthStrategy<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeToken(token: string): Promise<void> {
         const found: ClientAccessToken | undefined = await this.findClientAccessToken(token, undefined);
         if (found == undefined) {

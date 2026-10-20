@@ -1,33 +1,33 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { TOTP } from 'otpauth';
 
-import { OtpCredentials, OtpCredentialsCreateData } from '../../auth/2fa/methods/otp/otp-credentials.model';
-import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
-import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
-import { Auth } from '../../auth/decorators/auth.decorator';
-import { AuthStrategyInterface } from '../../auth/strategies/auth-strategy.interface';
-import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
-import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../mocks/entities/jwt-user.entity';
-import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { OtpCredentials, OtpCredentialsCreateData } from '../../auth/2fa/methods/otp/otp-credentials.model.ts';
+import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method.ts';
+import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model.ts';
+import { Auth } from '../../auth/decorators/auth.decorator.ts';
+import { AuthStrategyInterface } from '../../auth/strategies/auth-strategy.interface.ts';
+import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model.ts';
+import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/03-auth-and-security.md B2 and C3, plus the half of C2 that the
@@ -48,7 +48,7 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * Fixed rather than generated so a failure is reproducible: a flaky TOTP test that cannot be re-run
  * with the same input is not worth having.
  */
-// eslint-disable-next-line cspell/spellchecker
+// cspell:disable-next-line
 const OTP_SECRET: string = 'JBSWY3DPEHPK3PXPJBSWY3DP';
 
 /**

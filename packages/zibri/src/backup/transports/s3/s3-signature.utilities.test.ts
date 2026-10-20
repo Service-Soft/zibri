@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { S3SignatureUtilities } from './s3-signature.utilities';
+import { S3SignatureUtilities } from './s3-signature.utilities.ts';
 
 // the examples AWS publishes for signature version 4 on S3, with their credentials and their results:
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html

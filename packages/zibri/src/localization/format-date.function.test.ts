@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { formatDate } from './format-date.function';
+import { formatDate } from './format-date.function.ts';
 
 describe('formatDate', () => {
     describe('AM/PM boundary handling', () => {

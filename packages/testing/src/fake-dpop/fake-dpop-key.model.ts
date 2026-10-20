@@ -2,7 +2,7 @@ import { createHash, generateKeyPairSync, JsonWebKey, KeyObject, randomUUID, sig
 
 import { JsonUtilities } from 'zibri';
 
-import { FakeDpopProofOptions } from './fake-dpop-proof-options.model';
+import { FakeDpopProofOptions } from './fake-dpop-proof-options.model.ts';
 
 /**
  * The key pair a client signs its DPoP proofs with (RFC 9449), held the way a client holds it.

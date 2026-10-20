@@ -1,10 +1,10 @@
-import { DefaultDescriptor } from './default-descriptor';
-import { ModelRegistry } from './model.registry';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AnyObject } from '../../entity/any-object.model';
-import { Newable } from '../../types/newable.type';
+import { DefaultDescriptor } from './default-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Sets the default value resolved from the given entityClass on the given data.
@@ -20,7 +20,7 @@ export async function setDefaultValues<Data, EntityClass>(
     await setDefaultValuesRecursive(context, data, descriptor, new Set());
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function setDefaultValuesRecursive<Data>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,

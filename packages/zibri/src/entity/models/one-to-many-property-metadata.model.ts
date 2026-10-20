@@ -1,7 +1,7 @@
-import { BaseRelationMetadata } from './base-relation-metadata.model';
-import { Relation } from './relation.enum';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { type BaseEntity } from '../base-entity.model';
+import { BaseRelationMetadata } from './base-relation-metadata.model.ts';
+import { RelationType } from './relation-type.enum.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { type BaseEntity } from '../base-entity.model.ts';
 
 /**
  * Metadata for one to many properties.
@@ -10,7 +10,7 @@ export type OneToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetada
     /**
      * The type of the property.
      */
-    type: Relation.ONE_TO_MANY
+    type: RelationType.ONE_TO_MANY
 };
 
 /**

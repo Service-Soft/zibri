@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { eventLeaseInMs, slowHookWorkInMs } from './events.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
-import { Ms } from '../../../utilities/ms';
+import { eventLeaseInMs, slowHookWorkInMs } from './events.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
+import { Ms } from '../../../utilities/ms.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md sections 1.4 and 1.5.
@@ -24,7 +24,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'events.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'events.instance-options.ts'),
         instances: 3
     });
 }, 30000);

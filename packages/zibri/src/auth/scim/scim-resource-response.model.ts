@@ -1,4 +1,4 @@
-import { ScimBody } from './scim-body.model';
+import { ScimBody } from './scim-body.model.ts';
 
 /**
  * A SCIM resource as a route answers with it: its body, and what its headers say.

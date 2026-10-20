@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { optionalPeer } from './optional-peer.function';
+import { optionalPeer } from './optional-peer.function.ts';
 
 describe('optionalPeer', () => {
     let directory: string;

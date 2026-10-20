@@ -1,4 +1,4 @@
-import { DateFormatString, DefinedDateFormatString } from './models/date-format.model';
+import { DateFormatString, DefinedDateFormatString } from './models/date-format.model.ts';
 
 /**
  * Helper that validates a date format string at compile time.

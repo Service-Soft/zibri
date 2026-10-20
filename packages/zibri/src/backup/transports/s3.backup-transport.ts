@@ -1,29 +1,29 @@
 import { Readable } from 'node:stream';
 import { text } from 'node:stream/consumers';
 
-import { BackupTransportInterface } from './backup-transport.interface';
-import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model';
-import { S3CompleteMultipartUploadResult } from './s3/s3-complete-multipart-upload-result.model';
-import { S3CompleteMultipartUpload } from './s3/s3-complete-multipart-upload.model';
-import { S3CompletedPart } from './s3/s3-completed-part.model';
-import { S3InitiateMultipartUploadResult } from './s3/s3-initiate-multipart-upload-result.model';
-import { S3ListBucketResult } from './s3/s3-list-bucket-result.model';
-import { S3SignatureUtilities } from './s3/s3-signature.utilities';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { XmlString } from '../../document/xml-string.type';
-import { XmlUtilities } from '../../document/xml.utilities';
-import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { HttpMethod } from '../../http/http-method.enum';
-import { KnownHeader } from '../../http/known-header.enum';
-import { MimeType } from '../../http/mime-type.enum';
-import { HttpClientInterface } from '../../http-client/http-client.interface';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { Ms } from '../../utilities/ms';
-import { BigNumber } from '../../utilities/number.utilities';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
+import { BackupTransportInterface } from './backup-transport.interface.ts';
+import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model.ts';
+import { S3CompleteMultipartUploadResult } from './s3/s3-complete-multipart-upload-result.model.ts';
+import { S3CompleteMultipartUpload } from './s3/s3-complete-multipart-upload.model.ts';
+import { S3CompletedPart } from './s3/s3-completed-part.model.ts';
+import { S3InitiateMultipartUploadResult } from './s3/s3-initiate-multipart-upload-result.model.ts';
+import { S3ListBucketResult } from './s3/s3-list-bucket-result.model.ts';
+import { S3SignatureUtilities } from './s3/s3-signature.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { XmlString } from '../../document/xml-string.type.ts';
+import { XmlUtilities } from '../../document/xml.utilities.ts';
+import { FileSize, fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { HttpMethod } from '../../http/http-method.enum.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { HttpClientInterface } from '../../http-client/http-client.interface.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
+import { BackupEntity } from '../backup-entity.model.ts';
+import { BackupResourceEntity } from '../backup-resource-entity.model.ts';
 
 const METADATA_FILENAME: string = 'metadata.json';
 
@@ -79,7 +79,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         return this.options.prefix == undefined ? '' : `${this.options.prefix}/`;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveBackups(existingNames: string[]): Promise<string[]> {
         const names: Set<string> = new Set();
         const withMetadata: Set<string> = new Set();
@@ -113,17 +113,17 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         return documents.filter(d => d != undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         await this.upload(this.resolveResourceKey(backup, resource), data);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async storeMetadata(backup: BackupEntity, document: string): Promise<void> {
         await this.putObject(this.resolveMetadataKey(backup.name), Buffer.from(document));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async retrieveData(backup: BackupEntity, resource: BackupResourceEntity): Promise<Readable> {
         if (resource.size == undefined) {
             throw new InternalError(`The backup "${backup.name}" recorded no size for "${resource.name}", so it cannot be retrieved.`);
@@ -139,12 +139,12 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         })).body;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteData(backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         await this.deleteObject(this.resolveResourceKey(backup, resource));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteMetadata(backup: BackupEntity): Promise<void> {
         await this.deleteObject(this.resolveMetadataKey(backup.name));
     }

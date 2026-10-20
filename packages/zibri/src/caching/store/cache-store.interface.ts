@@ -1,4 +1,4 @@
-import { CachedValue } from './cached-value.model';
+import { CachedValue } from './cached-value.model.ts';
 
 /**
  * The different strategies on how to handle cache overflows.

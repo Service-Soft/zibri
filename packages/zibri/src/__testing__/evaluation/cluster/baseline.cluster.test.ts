@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ClusterInstance, ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { baselineUserEmail, baselineUserPassword } from './baseline.instance-options';
-import { FsUtilities } from '../../../utilities/fs.utilities';
-import { JsonUtilities } from '../../../utilities/json.utilities';
+import { baselineUserEmail, baselineUserPassword } from './baseline.instance-options.ts';
+import { FsUtilities } from '../../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
 
 /**
  * The control for the cluster harness.
@@ -20,7 +20,7 @@ let cluster: StartedTestCluster | undefined;
 
 beforeAll(async () => {
     cluster = await startTestCluster({
-        instanceOptions: FsUtilities.getPath(__dirname, 'baseline.instance-options.ts'),
+        instanceOptions: FsUtilities.getPath(import.meta.dirname, 'baseline.instance-options.ts'),
         instances: 2
     });
 }, 15000);

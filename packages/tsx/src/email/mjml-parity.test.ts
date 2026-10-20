@@ -1,22 +1,22 @@
-import { describe, expect, it } from '@jest/globals';
 import mjml2html from 'mjml';
+import { describe, expect, it } from 'vitest';
 
-import { MjBody } from './mj-body';
-import { MjButton } from './mj-button';
-import { MjColumn } from './mj-column';
-import { MjDivider } from './mj-divider';
-import { MjGroup } from './mj-group';
-import { MjHead } from './mj-head';
-import { MjImage } from './mj-image';
-import { MjPreview } from './mj-preview';
-import { MjSection } from './mj-section';
-import { MjSpacer } from './mj-spacer';
-import { MjStyle } from './mj-style';
-import { MjText } from './mj-text';
-import { MjTitle } from './mj-title';
-import { MjWrapper } from './mj-wrapper';
-import { Mjml } from './mjml';
-import { renderEmail, Mount } from '../__testing__/email-render.helper';
+import { MjBody } from './mj-body.ts';
+import { MjButton } from './mj-button.ts';
+import { MjColumn } from './mj-column.ts';
+import { MjDivider } from './mj-divider.ts';
+import { MjGroup } from './mj-group.ts';
+import { MjHead } from './mj-head.ts';
+import { MjImage } from './mj-image.ts';
+import { MjPreview } from './mj-preview.ts';
+import { MjSection } from './mj-section.ts';
+import { MjSpacer } from './mj-spacer.ts';
+import { MjStyle } from './mj-style.ts';
+import { MjText } from './mj-text.ts';
+import { MjTitle } from './mj-title.ts';
+import { MjWrapper } from './mj-wrapper.ts';
+import { Mjml } from './mjml.ts';
+import { renderEmail, Mount } from '../__testing__/email-render.helper.ts';
 
 /**
  * The structural fingerprint of an email's body: the ordered list of element tags, including those

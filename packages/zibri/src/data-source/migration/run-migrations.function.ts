@@ -1,16 +1,16 @@
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { Newable } from '../../types/newable.type';
-import { SemVerUtilities, SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { DataSourceInterface } from '../data-sources/data-source.interface';
-import { Repository } from '../repository/repository';
+import { MigrationEntity } from './migration-entity.model.ts';
+import { Migration } from './migration.model.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { SemVerUtilities, SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { DataSourceInterface } from '../data-sources/data-source.interface.ts';
+import { Repository } from '../repository/repository.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type MigrationWithName = { migration: Migration, name: string };
 
 /**

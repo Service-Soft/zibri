@@ -1,4 +1,4 @@
-import { QueueEmailData } from './models/create-email-data.model';
+import { QueueEmailData } from './models/create-email-data.model.ts';
 
 /**
  * Interface for a email service.

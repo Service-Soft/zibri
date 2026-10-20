@@ -1,8 +1,8 @@
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { Ms } from '../../utilities/ms';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { LogLevel } from '../log-level.enum';
-import { Log } from '../log.model';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { LogLevel } from '../log-level.enum.ts';
+import { Log } from '../log.model.ts';
 
 /**
  * How many kinds of entries a minute keeps apart once its budget is spent.

@@ -1,27 +1,27 @@
-import { CronExpressionString } from './cron-expression.utilities';
-import { CronJobEntity } from './cron-job-entity.model';
-import { CronJob } from './cron-job.model';
-import { CronServiceInterface } from './cron-service.interface';
-import { CronSyncCronJob } from './cron-sync.cron-job';
-import { ZibriApplication } from '../application/application';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { register } from '../di/register.function';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { AfterAppInit } from '../global/after-app-init.interface';
-import { AfterAppStart } from '../global/after-app-start.interface';
-import { BeforeAppShutdown } from '../global/before-app-shutdown.interface';
-import { type LeaseServiceInterface } from '../leases/lease-service.interface';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { OmitStrict } from '../types/omit-strict.type';
-import { Ms } from '../utilities/ms';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { CronExpressionString } from './cron-expression.utilities.ts';
+import { CronJobEntity } from './cron-job-entity.model.ts';
+import { CronJob } from './cron-job.model.ts';
+import { CronServiceInterface } from './cron-service.interface.ts';
+import { CronSyncCronJob } from './cron-sync.cron-job.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { register } from '../di/register.function.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { AfterAppInit } from '../global/after-app-init.interface.ts';
+import { AfterAppStart } from '../global/after-app-start.interface.ts';
+import { BeforeAppShutdown } from '../global/before-app-shutdown.interface.ts';
+import { type LeaseServiceInterface } from '../leases/lease-service.interface.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { Ms } from '../utilities/ms.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * Data that can be used to update a cron job.
@@ -48,7 +48,7 @@ class CronJobWithNameNotFoundError extends NotFoundError {
  */
 @Injectable({ register: 'onUse' })
 export class CronService implements CronServiceInterface, AfterAppInit, AfterAppStart, BeforeAppShutdown {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly cronJobs: CronJob[] = [];
 
     constructor(
@@ -58,7 +58,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         private readonly leaseService: LeaseServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async afterAppInit(app: ZibriApplication): Promise<void> {
         const { options } = app;
         const { cronJobs } = options;
@@ -109,7 +109,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async afterAppStart(): Promise<void> {
         // registration above happens while the app is still coming up, because it reads and writes
         // the data source. Firing does not: a job that begins working here is one an operator can
@@ -199,7 +199,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         return undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async shouldRunExecution(key: string, ttlMs: number): Promise<boolean> {
         // 'retain', because the grant is not only an exclusion but the record that this tick has
         // been dealt with. Handing it back at the end of the election would let a replica arriving
@@ -218,12 +218,12 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         return claimed ?? false;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async beforeAppShutdown(): Promise<void> {
         await Promise.all(this.cronJobs.map(j => j.shutdown()));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async schedule(cronJob: CronJob): Promise<void> {
         await cronJob.init(
             this.logger,
@@ -236,7 +236,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         await cronJob.start();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async applyStoredChanges(): Promise<void> {
         // a job keeping no row has no other instance to hear from, only its own cooldown
         for (const job of this.cronJobs.filter(j => !j.syncsToDataSource)) {
@@ -260,7 +260,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async enable(name: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
@@ -269,7 +269,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         await foundJob.enable();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async disable(name: string): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
@@ -278,7 +278,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         await foundJob.disable();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async changeCron(name: string, cron: CronExpressionString): Promise<void> {
         const foundJob: CronJob | undefined = this.cronJobs.find(c => c.name === name);
         if (!foundJob) {
@@ -287,7 +287,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         await foundJob.changeCron(cron);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async update(
         name: string,
         data: CronUpdateData

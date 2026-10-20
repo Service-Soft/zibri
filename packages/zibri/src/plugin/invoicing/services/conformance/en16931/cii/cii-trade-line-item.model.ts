@@ -1,12 +1,12 @@
-import { CiiLineDocument } from './cii-line-document.model';
-import { CiiLineTradeAgreement } from './cii-line-trade-agreement.model';
-import { CiiLineTradeDelivery } from './cii-line-trade-delivery.model';
-import { CiiLineTradeSettlement } from './cii-line-trade-settlement.model';
-import { CiiNamespace } from './cii-namespace.enum';
-import { CiiTradeProduct } from './cii-trade-product.model';
-import { Property } from '../../../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiLineDocument } from './cii-line-document.model.ts';
+import { CiiLineTradeAgreement } from './cii-line-trade-agreement.model.ts';
+import { CiiLineTradeDelivery } from './cii-line-trade-delivery.model.ts';
+import { CiiLineTradeSettlement } from './cii-line-trade-settlement.model.ts';
+import { CiiNamespace } from './cii-namespace.enum.ts';
+import { CiiTradeProduct } from './cii-trade-product.model.ts';
+import { Property } from '../../../../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator.ts';
+import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator.ts';
 
 /**
  * One line of the invoice.

@@ -1,7 +1,7 @@
-import { CronExpression } from '../../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
+import { CronExpression } from '../../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
 
 /**
  * A directory the job asks for its disabled entries.
@@ -29,14 +29,14 @@ function isDisabledEntryEnding<T extends object>(value: T): value is T & Disable
  * `BaseLdapAuthenticator` registers it, and every directory of the application is asked.
  */
 export class DisabledLdapEntriesCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Disabled Directory Entries',
         cron: CronExpression.every(15, 'minutes').build(),
         runOnInit: false
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         const directories: DisabledEntryEnding[] = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).authenticators
             .map(authenticator => inject(authenticator))

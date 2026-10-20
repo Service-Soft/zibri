@@ -1,17 +1,17 @@
 import { Dirent } from 'node:fs';
 
-import { CLEANUP_AT_FILE_NAME } from './form-data.model';
-import { CronExpression } from '../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { FsUtilities, type FsPath } from '../../utilities/fs.utilities';
+import { CLEANUP_AT_FILE_NAME } from './form-data.model.ts';
+import { CronExpression } from '../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../cron/cron-job.model.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { FsUtilities, type FsPath } from '../../utilities/fs.utilities.ts';
 
 /**
  * CronJob that cleans up the temp folder of the form data body parser.
  */
 export class FormDataBodyParserCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'FormDataBodyParser Cleanup',
         cron: CronExpression.daily().build(),
@@ -28,7 +28,7 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         this.logger.info(`cleans up temp folder ${this.tempPath}`);
 

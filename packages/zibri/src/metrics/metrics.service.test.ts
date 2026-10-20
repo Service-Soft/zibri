@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import si from 'systeminformation';
 
-import { MetricType } from './metric-type.enum';
-import { Metric } from './metric.model';
-import { MetricsSnapshot } from './metrics-service.interface';
-import { PrometheusMetricsService } from './metrics.service';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { inject } from '../di/inject.function';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { $ts } from '../localization/translate.function';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Param } from '../routing/decorators/param.decorator';
+import { MetricType } from './metric-type.enum.ts';
+import { Metric } from './metric.model.ts';
+import { MetricsSnapshot } from './metrics-service.interface.ts';
+import { PrometheusMetricsService } from './metrics.service.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Param } from '../routing/decorators/param.decorator.ts';
 
 @Controller('/metrics-integration-test')
 class MetricsIntegrationController {
@@ -212,7 +212,7 @@ describe('PrometheusMetricsService', () => {
         });
 
         it('reports every interface under its own label rather than whichever one is enumerated first', async () => {
-            const networkStats: jest.Spied<typeof si.networkStats> = jest.spyOn(si, 'networkStats');
+            const networkStats: MockInstance<typeof si.networkStats> = vi.spyOn(si, 'networkStats');
             networkStats.mockResolvedValue([networkStatsFor('lo', 11, 12), networkStatsFor('eth0', 21, 22)]);
 
             try {
@@ -237,7 +237,7 @@ describe('PrometheusMetricsService', () => {
         });
 
         it('still records a snapshot on a machine that reports no network interface', async () => {
-            const networkStats: jest.Spied<typeof si.networkStats> = jest.spyOn(si, 'networkStats');
+            const networkStats: MockInstance<typeof si.networkStats> = vi.spyOn(si, 'networkStats');
             // a container with no interface of its own, or a probe the host would not answer. The
             // only way to be that machine from here
             networkStats.mockResolvedValue([]);

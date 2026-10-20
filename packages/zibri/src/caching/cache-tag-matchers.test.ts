@@ -1,6 +1,6 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi } from 'vitest';
 
-import { CacheTagMatcher, matchesAnyTag, matchesTag } from './cache-tag-matchers';
+import { CacheTagMatcher, matchesAnyTag, matchesTag } from './cache-tag-matchers.ts';
 
 describe('matchesTag', () => {
     it('matches exact string tags', () => {
@@ -28,7 +28,7 @@ describe('matchesTag', () => {
     });
 
     it('predicate matchers receive the exact tag string', () => {
-        const matcher: CacheTagMatcher = jest.fn((tag: string): boolean => tag === 'abc');
+        const matcher: CacheTagMatcher = vi.fn((tag: string): boolean => tag === 'abc');
         expect(matchesTag(matcher, 'abc')).toBe(true);
         expect(matcher).toHaveBeenCalledTimes(1);
         expect(matcher).toHaveBeenCalledWith('abc');
@@ -71,8 +71,8 @@ describe('matchesAnyTag', () => {
     });
 
     it('short-circuits once a match is found', () => {
-        const matcher1: CacheTagMatcher = jest.fn((tag: string): boolean => tag === 'match');
-        const matcher2: CacheTagMatcher = jest.fn((): boolean => true);
+        const matcher1: CacheTagMatcher = vi.fn((tag: string): boolean => tag === 'match');
+        const matcher2: CacheTagMatcher = vi.fn((): boolean => true);
 
         expect(matchesAnyTag([matcher1, matcher2], ['match'])).toBe(true);
         expect(matcher1).toHaveBeenCalledTimes(1);
@@ -80,8 +80,8 @@ describe('matchesAnyTag', () => {
     });
 
     it('checks tags against all matchers until one succeeds', () => {
-        const matcher1: CacheTagMatcher = jest.fn((tag: string): boolean => tag === 'nope');
-        const matcher2: CacheTagMatcher = jest.fn((tag: string): boolean => tag === 'match');
+        const matcher1: CacheTagMatcher = vi.fn((tag: string): boolean => tag === 'nope');
+        const matcher2: CacheTagMatcher = vi.fn((tag: string): boolean => tag === 'match');
 
         expect(matchesAnyTag([matcher1, matcher2], ['a', 'match'])).toBe(true);
         expect(matcher1).toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('matchesAnyTag', () => {
     });
 
     it('handles duplicate matchers without issue', () => {
-        const matcher: CacheTagMatcher = jest.fn((tag: string): boolean => tag === 'x');
+        const matcher: CacheTagMatcher = vi.fn((tag: string): boolean => tag === 'x');
 
         expect(matchesAnyTag([matcher, matcher], ['x'])).toBe(true);
         expect(matcher).toHaveBeenCalledTimes(1);

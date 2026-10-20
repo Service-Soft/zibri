@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { createServerRuntime, RenderServerRuntime } from './server-runtime';
+import { createServerRuntime, RenderServerRuntime } from './server-runtime.ts';
 
 describe('runtime collect/collected', () => {
     it('records values in first-seen order, de-duplicated', () => {

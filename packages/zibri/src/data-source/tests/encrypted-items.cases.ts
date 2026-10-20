@@ -1,19 +1,19 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { beforeEach, describe, expect, it } from '@jest/globals';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { EncryptionKey, EncryptionKeyStatus } from '../../auth/encryption/encryption-key.model';
-import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
-import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { HashServiceInterface } from '../../auth/hash/hash-service.interface';
-import { HashString } from '../../auth/hash/hash.utilities';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { type OneOf } from '../../entity/models/one-of.model';
-import { needsReEncryption } from '../../global/model-registry/needs-re-encryption.function';
-import { Repository } from '../repository/repository';
+import { EncryptionKey, EncryptionKeyStatus } from '../../auth/encryption/encryption-key.model.ts';
+import { EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface.ts';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { HashServiceInterface } from '../../auth/hash/hash-service.interface.ts';
+import { HashString } from '../../auth/hash/hash.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type OneOf } from '../../entity/models/one-of.model.ts';
+import { needsReEncryption } from '../../global/model-registry/needs-re-encryption.function.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about encryption and hashing declared on the items

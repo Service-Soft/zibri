@@ -1,6 +1,6 @@
-import { XliffTransUnit } from './xliff-trans-unit.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
+import { XliffTransUnit } from './xliff-trans-unit.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../parsing/xml/xml-element.decorator.ts';
 
 /**
  * The translation strings of a file.

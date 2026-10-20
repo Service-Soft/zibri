@@ -1,18 +1,18 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { PostgresDataSource } from './data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource } from './data-sources/val-key/val-key-data-source.model';
-import { MigrationEntity } from './migration/migration-entity.model';
-import { Repository } from './repository/repository';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../__testing__/test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { Newable } from '../types/newable.type';
+import { PostgresDataSource } from './data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { ValKeyDataSource } from './data-sources/val-key/val-key-data-source.model.ts';
+import { MigrationEntity } from './migration/migration-entity.model.ts';
+import { Repository } from './repository/repository.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../__testing__/test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Lives in both data sources on purpose, eg. Postgres owns it and valkey caches it.

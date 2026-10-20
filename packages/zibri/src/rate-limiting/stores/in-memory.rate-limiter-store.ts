@@ -1,7 +1,7 @@
-import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
+import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
 
 /**
  * How many keys an in memory store holds at most.
@@ -55,7 +55,7 @@ export class InMemoryRateLimiterStore<TState extends BaseRateLimitState> impleme
         this.maxKeys = options.maxKeys ?? defaultMaxKeys;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     atomicUpdate(
         key: string,
         updater: (current: TState | undefined) => TState
@@ -82,12 +82,12 @@ export class InMemoryRateLimiterStore<TState extends BaseRateLimitState> impleme
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     delete(key: string): void {
         this.internalEntries.delete(key);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     deleteExpired(now: number): void {
         for (const [key, state] of this.internalEntries) {
             if (state.expiresAtMs <= now) {
@@ -101,7 +101,7 @@ export class InMemoryRateLimiterStore<TState extends BaseRateLimitState> impleme
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     keysWithExpiredReservations(now: number): string[] {
         const res: string[] = [];
         for (const [key, state] of this.internalEntries) {
@@ -112,12 +112,12 @@ export class InMemoryRateLimiterStore<TState extends BaseRateLimitState> impleme
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     size(): number {
         return this.internalEntries.size;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get(key: string): TState | undefined {
         const entry: TState | undefined = this.internalEntries.get(key);
         if (!entry || entry.expiresAtMs <= Date.now()) {
@@ -126,17 +126,17 @@ export class InMemoryRateLimiterStore<TState extends BaseRateLimitState> impleme
         return entry;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getAll(): TState[] {
         return [...this.internalEntries.values()];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     keys(): string[] {
         return [...this.internalEntries.keys()];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     entries(): Map<string, TState> {
         return this.internalEntries;
     }

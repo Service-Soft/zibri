@@ -1,8 +1,8 @@
-import { SoftDeleteEntity } from './soft-delete-entity.model';
-import { SoftDeleteWhere } from './soft-delete-where.model';
-import { SoftDeletedRows } from './soft-deleted-rows.type';
-import { CountOptions } from '../../data-source/models/options/count-options.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { SoftDeleteEntity } from './soft-delete-entity.model.ts';
+import { SoftDeleteWhere } from './soft-delete-where.model.ts';
+import { SoftDeletedRows } from './soft-deleted-rows.type.ts';
+import { CountOptions } from '../../data-source/models/options/count-options.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Options for counting soft delete entities, or asking whether any exists.

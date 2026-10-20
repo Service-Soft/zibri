@@ -1,12 +1,12 @@
-import { XmlPropertyMetadata } from './xml-property-metadata.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model';
-import { OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { XmlPropertyMetadata } from './xml-property-metadata.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model.ts';
+import { OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * What the parts of a mixed property can be.

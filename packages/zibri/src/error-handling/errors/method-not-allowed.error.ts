@@ -1,7 +1,7 @@
-import { HttpError } from './http.error';
-import { HttpMethod } from '../../http/http-method.enum';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
+import { HttpError } from './http.error.ts';
+import { HttpMethod } from '../../http/http-method.enum.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * A http error to throw when the path exists but not under the method it was asked for.

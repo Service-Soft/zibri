@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SlidingWindowCounterRateLimiter, SlidingWindowCounterState } from './sliding-window-counter.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Ms } from '../../utilities/ms';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { SlidingWindowCounterRateLimiter, SlidingWindowCounterState } from './sliding-window-counter.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 const NOW: number = 1_700_000_000_000;
 const CAPACITY: number = 10;
@@ -34,13 +34,13 @@ describe('SlidingWindowCounterRateLimiter', () => {
     });
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         limiter = new TestSlidingWindowCounterLimiter();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     describe('consume – sliding window counter', () => {
@@ -56,7 +56,7 @@ describe('SlidingWindowCounterRateLimiter', () => {
             await limiter.consume('k', 5); // currentCount = 5
 
             // Advance just into the next window
-            jest.setSystemTime(NOW + INTERVAL);
+            vi.setSystemTime(NOW + INTERVAL);
             // Now previousCount = 5, currentCount = 0, weight = 1 (just at start)
             // estimated = 0 + 5*1 = 5, remaining = 5
             let result: RateLimitResult = await limiter.consume('k', 1);
@@ -64,7 +64,7 @@ describe('SlidingWindowCounterRateLimiter', () => {
             expect(result.remaining).toBe(4); // consumed 1, so currentCount=1, estimated=1+5*1=6
 
             // Advance 500ms into the window (halfway)
-            jest.setSystemTime(NOW + INTERVAL + 500);
+            vi.setSystemTime(NOW + INTERVAL + 500);
             // weight = 1 - 500/1000 = 0.5
             // estimated = 1 + 5*0.5 = 3.5, remaining = 6.5 → floor 6
             result = await limiter.consume('k', 1);
@@ -96,18 +96,18 @@ describe('SlidingWindowCounterRateLimiter', () => {
             }
 
             // Right at the start of the new window, previous window still fully counts → denied
-            jest.setSystemTime(NOW + 1000);
+            vi.setSystemTime(NOW + 1000);
             let result: RateLimitResult = await limiter.consume('k', 1);
             expect(result.allowed).toBe(false);
 
             // Halfway through the new window (500 ms), weight = 0.5, estimated = 0 + 10*0.5 = 5, capacity left ≈ 5
-            jest.setSystemTime(NOW + 1500);
+            vi.setSystemTime(NOW + 1500);
             result = await limiter.consume('k', 1);
             expect(result.allowed).toBe(true);
             expect(result.remaining).toBe(4); // consumed 1, currentCount=1, estimated=1+10*0.5=6, remaining=4
 
             // At the very end of the window (999 ms), weight ≈ 0.001, almost all capacity free
-            jest.setSystemTime(NOW + 1999);
+            vi.setSystemTime(NOW + 1999);
             result = await limiter.consume('k', 1);
             expect(result.allowed).toBe(true);
             expect(result.remaining).toBe(7); // currentCount=2, estimated≈2+10*0.001≈2.01, remaining≈7.99→ floor 7? Actually need precise calculation.
@@ -184,7 +184,7 @@ describe('SlidingWindowCounterRateLimiter', () => {
             // real capacity for a new reservation yet. A plain consume()
             // here is denied (see the 'previous window weight decays...'
             // test above); a reservation must not be granted "now" either.
-            jest.setSystemTime(NOW + INTERVAL);
+            vi.setSystemTime(NOW + INTERVAL);
             const res: RateLimitReservationResult = await limiter.reserve('k', 1);
             expect(res.allowed).toBe(true);
             assert(res.allowed);

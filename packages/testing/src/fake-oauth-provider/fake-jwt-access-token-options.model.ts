@@ -1,4 +1,4 @@
-import type { FakeOidcIdTokenClaims } from './fake-oauth-provider.model';
+import type { FakeOidcIdTokenClaims } from './fake-oauth-provider.model.ts';
 
 /**
  * What a fake provider signs an access token for an api with.

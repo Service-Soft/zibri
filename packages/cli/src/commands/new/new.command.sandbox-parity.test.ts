@@ -1,22 +1,22 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
-import ts from 'typescript';
+import ts from '@typescript/typescript6';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { NewCommand } from './new.command';
-import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences';
-import { testFileFolder } from '../../__testing__/constants';
-import { diffFileContents } from '../../__testing__/diff-file-contents.function';
+import { NewCommand } from './new.command.ts';
+import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences.ts';
+import { testFileFolder } from '../../__testing__/constants.ts';
+import { diffFileContents } from '../../__testing__/diff-file-contents.function.ts';
 import { AUTHORED_CODE_PATHS,
     CLI_ROOT,
     GENERATED_FILE_PATHS,
     NEEDS_A_REAL_INSTALL,
     NOT_IN_VERSION_CONTROL,
-    SANDBOX_DIR } from '../../__testing__/generated-file-paths';
-import { quietly } from '../../__testing__/quietly.function';
-import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { getPath, Path } from '../../utilities';
+    SANDBOX_DIR } from '../../__testing__/generated-file-paths.ts';
+import { quietly } from '../../__testing__/quietly.function.ts';
+import { CPUtilities, FsUtilities } from '../../encapsulation/index.ts';
+import { getPath, Path } from '../../utilities/index.ts';
 
 /**
  * Whether "zi new" still writes what packages/sandbox holds, in milliseconds.
@@ -78,7 +78,7 @@ describe('NewCommand (sandbox parity, without installing)', () => {
 
         // the only thing stubbed. `zi new` calls out twice, both times to npm, and neither call
         // writes a file this compares - so what is left running is the whole generator.
-        jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
+        vi.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
         // no ci workflow: the sandbox lives inside this repository, whose own workflows are the ones
         // GitHub runs, so it has none of its own to compare against. new.command.test.ts reads the
         // generated one and the heavy suite runs it
@@ -87,7 +87,7 @@ describe('NewCommand (sandbox parity, without installing)', () => {
 
     afterAll(async () => {
         CPUtilities['cwd'] = undefined;
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
         await FsUtilities.rm(workDir);
 
         const recording: string = `${JSON.stringify(recordedDifferences, undefined, 4)}\n`;

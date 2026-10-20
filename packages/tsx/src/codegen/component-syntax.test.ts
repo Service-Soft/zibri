@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { compile, CompileResult } from './compile';
-import { compilePage } from '../__testing__/server-render.helper';
-import { renderPage } from '../runtime/render-page';
-import { ValidationCode } from '../semantics/validate';
+import { compile, CompileResult } from './compile.ts';
+import { compilePage } from '../__testing__/server-render.helper.ts';
+import { renderPage } from '../runtime/render-page.ts';
+import { ValidationCode } from '../semantics/validate.ts';
 
 /**
  * Compiles a template and returns its first component's client script, asserting it compiled cleanly.

@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { AstProgram } from '../ast.model';
-import { HandlebarUtilities } from '../handlebar.utilities';
-import { resolveAllArrayKeys } from '../resolve-all-array-keys.function';
-import { resolveAllKeys, resolveTree } from '../resolve-tree.function';
+import { AstProgram } from '../ast.model.ts';
+import { HandlebarUtilities } from '../handlebar.utilities.ts';
+import { resolveAllArrayKeys } from '../resolve-all-array-keys.function.ts';
+import { resolveAllKeys, resolveTree } from '../resolve-tree.function.ts';
 
 function parse(src: string): AstProgram {
     return HandlebarUtilities.parse(src);

@@ -1,5 +1,5 @@
-import { TsxChildren, TsxElement } from '../jsx/jsx.model';
-import { CompiledComponent, ComponentClientMeta, Raw, RenderServerRuntime } from '../runtime/server-runtime';
+import { TsxChildren, TsxElement } from '../jsx/jsx.model.ts';
+import { CompiledComponent, ComponentClientMeta, Raw, RenderServerRuntime } from '../runtime/server-runtime.ts';
 
 /**
  * A component usable in JSX. At runtime a zibri-tsx compiled component is a plain object, but tsx

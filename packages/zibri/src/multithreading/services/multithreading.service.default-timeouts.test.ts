@@ -1,22 +1,22 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { MultithreadingServiceInterface } from './multithreading-service.interface';
-import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { Ms } from '../../utilities/ms';
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model';
-import { ThreadJobEntity } from '../models/thread-job-entity.model';
+import { MultithreadingServiceInterface } from './multithreading-service.interface.ts';
+import { MultithreadingService } from './multithreading.service.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from '../models/base-thread-job-worker-data.model.ts';
+import { ThreadJobEntity } from '../models/thread-job-entity.model.ts';
 
-const computingWorker: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
+const computingWorker: FsPath = FsUtilities.getPath(import.meta.dirname, 'multithreading.service.test.worker.ts');
 
 // in memory, so the timeout a queued job is given can be read off its row without a container
 describe('MultithreadingService, given a job without a timeout', () => {

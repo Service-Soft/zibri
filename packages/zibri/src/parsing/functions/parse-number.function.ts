@@ -1,13 +1,13 @@
-import { NumberFormat } from '../../entity/models/number-property-metadata.model';
-import { isNumeric } from '../../utilities/is-numeric.function';
-import { readNumber } from '../../utilities/read-number.function';
+import { NumberFormat } from '../../entity/models/number-property-metadata.model.ts';
+import { isNumeric } from '../../utilities/is-numeric.function.ts';
+import { readNumber } from '../../utilities/read-number.function.ts';
 
 /**
  * Regex that matches integers.
  */
 export const INTEGER_REGEX: RegExp = /^-?(0|[1-9]\d*)$/;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function parseNumber(rawValue: unknown, format: NumberFormat = 'number'): unknown {
     if (!isNumeric(rawValue)) {
         return rawValue;

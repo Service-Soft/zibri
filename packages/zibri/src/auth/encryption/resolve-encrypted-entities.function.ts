@@ -1,10 +1,10 @@
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { ModelRegistry } from '../../global/model-registry/model.registry';
-import { Newable } from '../../types/newable.type';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { ModelRegistry } from '../../global/model-registry/model.registry.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * An entity that holds encrypted values, and the repository that reads it.

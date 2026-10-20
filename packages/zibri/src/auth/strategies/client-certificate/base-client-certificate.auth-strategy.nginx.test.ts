@@ -1,6 +1,6 @@
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 
-import { ClientCertificateProxyStartOptions, describeBehindProxy, StartedClientCertificateProxy } from './client-certificate-proxy.cases';
+import { ClientCertificateProxyStartOptions, describeBehindProxy, StartedClientCertificateProxy } from './client-certificate-proxy.cases.ts';
 
 /**
  * The proxy that ends TLS in front of the application: nginx's official image.

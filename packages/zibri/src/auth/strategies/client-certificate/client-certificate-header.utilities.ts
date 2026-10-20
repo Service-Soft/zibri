@@ -1,4 +1,4 @@
-import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
+import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type.ts';
 
 /**
  * Reads the client certificate out of the header a proxy forwards it in.

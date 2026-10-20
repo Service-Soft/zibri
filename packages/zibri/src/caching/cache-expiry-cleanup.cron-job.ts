@@ -1,8 +1,8 @@
-import { type CacheServiceInterface } from './cache-service.interface';
-import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
-import { Inject } from '../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { type CacheServiceInterface } from './cache-service.interface.ts';
+import { CronExpression } from '../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../cron/cron-job.model.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
 
 /**
  * Takes the values whose time to live has run out out of the caches.
@@ -18,7 +18,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  * gone is dropped once, whichever instance gets there first.
  */
 export class CacheExpiryCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Cache Expiry Cleanup',
         // rarely, because nothing is served wrong in the meantime - the only cost of waiting is
@@ -35,7 +35,7 @@ export class CacheExpiryCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         await this.cacheService.removeExpiredValues();
     }

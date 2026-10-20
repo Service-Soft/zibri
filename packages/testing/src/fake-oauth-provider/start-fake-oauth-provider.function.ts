@@ -1,5 +1,5 @@
-import { FakeOAuthProviderOptions } from './fake-oauth-provider-options.model';
-import { FakeOAuthProvider } from './fake-oauth-provider.model';
+import { FakeOAuthProviderOptions } from './fake-oauth-provider-options.model.ts';
+import { FakeOAuthProvider } from './fake-oauth-provider.model.ts';
 
 /**
  * Starts a provider in the test's own process, reached over plain http on the loopback interface. It

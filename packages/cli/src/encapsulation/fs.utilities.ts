@@ -2,7 +2,7 @@ import { Dirent } from 'fs';
 import { access, writeFile, mkdir, readFile, readdir, rm, rename, cp } from 'fs/promises';
 import { dirname } from 'path';
 
-import { getPath, Path } from '../utilities';
+import { getPath, Path } from '../utilities/index.ts';
 
 /**
  * Definition for a line in a file.
@@ -311,7 +311,6 @@ export abstract class FsUtilities {
         }
         else {
             // It's a file — copy it with the (possibly renamed) destination
-            // eslint-disable-next-line angular/no-experimental
             await cp(source, dest, { errorOnExist: true });
         }
     }

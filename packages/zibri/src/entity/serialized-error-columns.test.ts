@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
 /**
  * What an entity may declare a failure with.
@@ -23,7 +23,7 @@ import { describe, expect, it } from '@jest/globals';
  * that survives serialization and follows the `cause` chain.
  */
 
-const sourceRoot: string = path.resolve(__dirname, '..');
+const sourceRoot: string = path.resolve(import.meta.dirname, '..');
 
 /**
  * Every TypeScript file the framework ships, tests aside.

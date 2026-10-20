@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { validateString } from './validate-string.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { StringPropertyMetadata } from '../../entity/models/string-property-metadata.model';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { validateString } from './validate-string.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { StringPropertyMetadata } from '../../entity/models/string-property-metadata.model.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 enum Role {
     ADMIN = 'admin',
@@ -183,7 +183,7 @@ describe('validateString', () => {
         });
 
         it('rejects a value not matching any enum value', async () => {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             const problems: ValidationProblem[] = await validateString('role', 'superadmin', meta({ enum: Role }), undefined, undefined);
             expect(problems).toHaveLength(1);
         });

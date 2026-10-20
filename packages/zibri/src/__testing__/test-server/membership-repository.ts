@@ -1,14 +1,14 @@
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { MembershipRepo } from '../../tenancy/membership/membership-repo.decorator';
-import { MembershipRepositoryInterface } from '../../tenancy/membership/membership-repository.interface';
-import { Roles } from '../mocks/entities/roles.enum';
-import { TestMembership } from '../mocks/entities/test-membership.entity';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../data-source/hooks/hooks.default.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { InjectRepository } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { MembershipRepo } from '../../tenancy/membership/membership-repo.decorator.ts';
+import { MembershipRepositoryInterface } from '../../tenancy/membership/membership-repository.interface.ts';
+import { Roles } from '../mocks/entities/roles.enum.ts';
+import { TestMembership } from '../mocks/entities/test-membership.entity.ts';
 
 @MembershipRepo()
 export class DefaultTestServerMembershipRepository extends Repository<TestMembership>

@@ -1,17 +1,17 @@
-import { XmlElementNode } from './xml-element-node.model';
-import { XmlGenerateOptions } from './xml-generate-options.model';
-import { XmlParseOptions } from './xml-parse-options.model';
-import { XmlReaderUtilities } from './xml-reader.utilities';
-import { XmlString } from './xml-string.type';
-import { XmlWriterUtilities } from './xml-writer.utilities';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { MimeType } from '../http/mime-type.enum';
-import { parseShape } from '../parsing/functions/parse-one-of.function';
-import { JsonBodyMetadata, XmlBodyMetadata } from '../routing/decorators/body-metadata.model';
-import { resolveStructuredBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { Newable } from '../types/newable.type';
+import { XmlElementNode } from './xml-element-node.model.ts';
+import { XmlGenerateOptions } from './xml-generate-options.model.ts';
+import { XmlParseOptions } from './xml-parse-options.model.ts';
+import { XmlReaderUtilities } from './xml-reader.utilities.ts';
+import { XmlString } from './xml-string.type.ts';
+import { XmlWriterUtilities } from './xml-writer.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { parseShape } from '../parsing/functions/parse-one-of.function.ts';
+import { JsonBodyMetadata, XmlBodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { resolveStructuredBodyMetadata } from '../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Utility class for handling xml documents.

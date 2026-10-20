@@ -1,33 +1,33 @@
 import { filter, Subject, Subscription } from 'rxjs';
 
-import { EventCleanupCronJob } from './event-cleanup.cron-job';
-import { EventDispatchCronJob } from './event-dispatch.cron-job';
-import { EventProcessingError } from './event-processing.error';
-import { type EventReplayOptions } from './event-replay-options.model';
-import { EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
-import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventCreateData, EventStatus } from './event.model';
-import { ZibriApplication } from '../application/application';
-import { WhereFilter } from '../data-source/models/where/where-filter.model';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { type LeaseServiceInterface } from '../leases/lease-service.interface';
-import { errorToLoggedError } from '../logging/error-to-logged-error.function';
-import { LoggedError } from '../logging/logged-error.model';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { Newable } from '../types/newable.type';
-import { Ms } from '../utilities/ms';
-import { PromiseUtilities } from '../utilities/promise.utilities';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { EventCleanupCronJob } from './event-cleanup.cron-job.ts';
+import { EventDispatchCronJob } from './event-dispatch.cron-job.ts';
+import { EventProcessingError } from './event-processing.error.ts';
+import { type EventReplayOptions } from './event-replay-options.model.ts';
+import { EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface.ts';
+import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model.ts';
+import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model.ts';
+import { Event, EventCreateData, EventStatus } from './event.model.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { WhereFilter } from '../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { AfterAppShutdown } from '../global/after-app-shutdown.interface.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { type LeaseServiceInterface } from '../leases/lease-service.interface.ts';
+import { errorToLoggedError } from '../logging/error-to-logged-error.function.ts';
+import { LoggedError } from '../logging/logged-error.model.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { Newable } from '../types/newable.type.ts';
+import { Ms } from '../utilities/ms.ts';
+import { PromiseUtilities } from '../utilities/promise.utilities.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * Names the grant on one subscriber's work on one event.
@@ -139,7 +139,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         return inject(repositoryTokenFor(EventSubscriberRegistration));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered('EventService', app, Event, EventSubscriberRun, EventSubscriberRegistration);
         if (inject(ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS) == undefined) {
@@ -156,7 +156,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterAppShutdown(): void {
         // We unsubscribe on the internal rxjs subscription here
         // => emit calls happening now will create the correct events
@@ -168,7 +168,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async emit<K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterMs: number = Ms.DAY): Promise<void> {
         const event: Event<ZibriEventMap[keyof ZibriEventMap]> = await this.eventRepository.create({
             type: String(type),
@@ -183,7 +183,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         this.eventSubject.next({ ...event, eventSubscriberRuns: [] });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async subscribe<K extends keyof ZibriEventMap>(
         type: K,
         hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
@@ -233,7 +233,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         return subscriber;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async subscribeAll(
         hook: (value: Event<ZibriEventMap[keyof ZibriEventMap]>, signal: AbortSignal) => void | Promise<void>,
         options: EventSubscribeOptions
@@ -600,7 +600,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         return false;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async replayFailed(options: EventReplayOptions): Promise<number> {
         const where: WhereFilter<EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>> = {
             status: EventSubscriberRunStatus.FAILED

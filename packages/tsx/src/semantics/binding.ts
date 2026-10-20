@@ -1,7 +1,7 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { isAmbient, isDeclaredWithin, symbolOf } from './symbols';
-import { walk } from './walk';
+import { isAmbient, isDeclaredWithin, symbolOf } from './symbols.ts';
+import { walk } from './walk.ts';
 
 /**
  * Whether an identifier is the name a declaration binds rather than a reference to one: a variable,

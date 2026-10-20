@@ -1,6 +1,6 @@
-import { S3ListedObject } from './s3-listed-object.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
+import { S3ListedObject } from './s3-listed-object.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../parsing/xml/xml-element.decorator.ts';
 
 /**
  * One page of a bucket listing.

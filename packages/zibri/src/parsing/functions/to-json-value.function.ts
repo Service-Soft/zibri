@@ -1,5 +1,5 @@
-import { BigNumber } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { BigNumber } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * Converts a value into one json can carry, leaving what reads it back to the metadata.

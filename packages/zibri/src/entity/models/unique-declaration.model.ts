@@ -1,5 +1,5 @@
-import { Where } from '../../data-source/models/where/where-filter.model';
-import { BaseEntity } from '../base-entity.model';
+import { Where } from '../../data-source/models/where/where-filter.model.ts';
+import { BaseEntity } from '../base-entity.model.ts';
 
 /**
  * Marks a filter as one that named the entity it is for.

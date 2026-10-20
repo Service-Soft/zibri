@@ -1,5 +1,5 @@
-import { BulkWriteOptions } from './bulk-write-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
+import { BulkWriteOptions } from './bulk-write-options.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
 
 /**
  * Options for inserting several rows, or changing the ones that already hold their identities.

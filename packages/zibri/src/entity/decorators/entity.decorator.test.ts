@@ -1,11 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Entity, EntityMetadata } from './entity.decorator';
-import { Property } from './property.decorator';
-import { whereFor } from '../../data-source/models/where/where-for.function';
-import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BaseEntity } from '../base-entity.model';
+import { Entity, EntityMetadata } from './entity.decorator.ts';
+import { Property } from './property.decorator.ts';
+import { whereFor } from '../../data-source/models/where/where-for.function.ts';
+import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BaseEntity } from '../base-entity.model.ts';
+import { type Relation } from '../models/relation.type.ts';
 
 /**
  * The property names written on the decorator are checked against the class while compiling: every
@@ -53,7 +54,7 @@ class Item extends BaseEntity {
      * The shelf the item is on, when it is on one.
      */
     @Property.manyToOne({ target: () => Shelf, joinColumn: 'shelfId', inverseSide: 'items', required: false })
-    shelf?: Shelf;
+    shelf?: Relation<Shelf>;
 
     /**
      * The id of the shelf the item is on.

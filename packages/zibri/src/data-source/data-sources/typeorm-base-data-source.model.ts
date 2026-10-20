@@ -6,76 +6,75 @@ import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { ForeignKeyMetadata } from 'typeorm/metadata/ForeignKeyMetadata.js';
 import { RelationMetadata as TORelationMetadata } from 'typeorm/metadata/RelationMetadata.js';
 
-import { DataSourceInitializationError } from './data-source-initialization.error';
-import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from './data-source.interface';
-import { checkConstraintName } from '../check-constraint-name.function';
-import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
-import { TypeOrmRepositoryDriver } from '../driver/typeorm.repository-driver';
-import { ParameterizedSql } from './where-converter/parameterized-sql.model';
-import { TypeOrmWhereFilterConverter } from './where-converter/typeorm-where-filter.converter';
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { isChangeSetEntityNewable } from '../../change-sets/models/is-change-set-entity.function';
-import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
-import { AlsUtilities } from '../../context/als.utilities';
-import { OperationLimitUtilities } from '../../context/operation-limit.utilities';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
-import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { NumberFormat } from '../../entity/models/number-property-metadata.model';
-import { Relation } from '../../entity/models/relation.enum';
-import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { registerRepositoryProvidersFor } from '../entity-ownership.function';
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../hooks/hooks.default';
-import { indexName, trigramIndexName } from '../index-name.function';
-import { MigratedEntityUtilities } from '../migration/migrated-entity.utilities';
-import { MigrationEntity } from '../migration/migration-entity.model';
-import { Migration } from '../migration/migration.model';
-import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../migration/run-migrations.function';
-import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
-import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
-import { ColumnType } from '../models/column-type.model';
-import { CreateEntityInput } from '../models/create-entity-input.model';
-import { DataSourceOptions, ResolvedDataSourceOptions } from '../models/data-source-options.model';
-import { MergeEntityInput } from '../models/merge-entity-input.model';
-import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
-import { RefusedValue } from '../models/refused-value.model';
-import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
-import { RenameEntityInput } from '../models/rename-entity-input.model';
-import { ResolvedPropertyConversion } from '../models/resolved-property-conversion.model';
-import { SchemaManagement } from '../models/schema-management.model';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where, WhereFilter } from '../models/where/where-filter.model';
-import { Repository } from '../repository/repository';
-import { MistypedStoredValue } from '../stored-value-type-mismatch.error';
-import { Transaction } from '../transaction/transaction.model';
-import { TypeOrmTransaction } from '../transaction/typeorm-transaction.model';
-import { uniqueConstraintName } from '../unique-constraint-name.function';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
-import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
-import { ValueConversionUtilities } from '../value-conversion.utilities';
-import { keyWhereToSql } from '../where/key-where-to-sql.function';
-import { type WriteDataUtilities } from '../write-data.utilities';
+import { DataSourceInitializationError } from './data-source-initialization.error.ts';
+import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from './data-source.interface.ts';
+import { checkConstraintName } from '../check-constraint-name.function.ts';
+import { RepositoryDriverInterface } from '../driver/repository-driver.interface.ts';
+import { TypeOrmRepositoryDriver } from '../driver/typeorm.repository-driver.ts';
+import { ParameterizedSql } from './where-converter/parameterized-sql.model.ts';
+import { TypeOrmWhereFilterConverter } from './where-converter/typeorm-where-filter.converter.ts';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface.ts';
+import { ChangeSetRepository } from '../../change-sets/change-set-repository.ts';
+import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model.ts';
+import { ChangeSet } from '../../change-sets/models/change-set.model.ts';
+import { isChangeSetEntityNewable } from '../../change-sets/models/is-change-set-entity.function.ts';
+import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function.ts';
+import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model.ts';
+import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { OperationLimitUtilities } from '../../context/operation-limit.utilities.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator.ts';
+import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error.ts';
+import { NumberFormat } from '../../entity/models/number-property-metadata.model.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
+import { TypeOrmUtilities } from '../../utilities/typeorm.utilities.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { registerRepositoryProvidersFor } from '../entity-ownership.function.ts';
+import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../hooks/hooks.default.ts';
+import { indexName, trigramIndexName } from '../index-name.function.ts';
+import { MigratedEntityUtilities } from '../migration/migrated-entity.utilities.ts';
+import { MigrationEntity } from '../migration/migration-entity.model.ts';
+import { Migration } from '../migration/migration.model.ts';
+import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../migration/run-migrations.function.ts';
+import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model.ts';
+import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model.ts';
+import { ColumnType } from '../models/column-type.model.ts';
+import { CreateEntityInput } from '../models/create-entity-input.model.ts';
+import { DataSourceOptions, ResolvedDataSourceOptions } from '../models/data-source-options.model.ts';
+import { MergeEntityInput } from '../models/merge-entity-input.model.ts';
+import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model.ts';
+import { RefusedValue } from '../models/refused-value.model.ts';
+import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model.ts';
+import { RenameEntityInput } from '../models/rename-entity-input.model.ts';
+import { ResolvedPropertyConversion } from '../models/resolved-property-conversion.model.ts';
+import { SchemaManagement } from '../models/schema-management.model.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where, WhereFilter } from '../models/where/where-filter.model.ts';
+import { Repository } from '../repository/repository.ts';
+import { MistypedStoredValue } from '../stored-value-type-mismatch.error.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
+import { TypeOrmTransaction } from '../transaction/typeorm-transaction.model.ts';
+import { uniqueConstraintName } from '../unique-constraint-name.function.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
+import { UpsertIdentityUtilities } from '../upsert-identity.utilities.ts';
+import { ValueConversionUtilities } from '../value-conversion.utilities.ts';
+import { keyWhereToSql } from '../where/key-where-to-sql.function.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type ToColumnMappableTypes = ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'];
 
 /**
@@ -348,7 +347,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      */
     protected abstract readonly defaultOptions: ResolvedDataSourceOptions<Partial<OmitStrict<TOptions, 'type' | 'entities'>>>;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Combination of the default and user provided options.
      */
@@ -362,10 +361,10 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly migrationTimeoutInMs: number = 0;
 
     /**
@@ -383,7 +382,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      */
     protected abstract readonly defaultColumnTypeMapping: Record<ToColumnMappableTypes, ColumnType>;
 
-    // eslint-disable-next-line jsdoc/require-returns
+    // eslint-disable-next-line jsdoc-js/require-returns
     /**
      * Combination of the default and user provided column type mapping.
      */
@@ -531,7 +530,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         return this.whereFilterConverter.similarityExpression(path, similarTo);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async init(): Promise<void> {
         if (this.ds) {
             throw new InternalError('The data source has already been initialized.');
@@ -959,12 +958,12 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async shutDown(): Promise<void> {
         await this.ds?.destroy();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startTransaction(options?: StartTransactionOptions): Promise<Transaction> {
         if (!this.ds) {
             throw new DataSourceInitializationError();
@@ -1005,13 +1004,13 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async runMigrations(): Promise<void> {
         await this.createMigrationTableIfNotExists();
         await runMigrations(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revertMigrationsAfter(targetVersion: SemVerVersion): Promise<void> {
         await this.createMigrationTableIfNotExists();
         await revertMigrationsAfter(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger, targetVersion);
@@ -1029,7 +1028,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         return this.ds.createQueryRunner();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getRepository<T extends BaseEntity>(cls: Newable<T>): RepositoryTypeForEntity<T> {
         if (!this.ds) {
             throw new DataSourceInitializationError();
@@ -1041,7 +1040,6 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             ]);
         }
 
-        // eslint-disable-next-line stylistic/max-len
         const existingRepository: RepositoryTypeForEntity<T> | undefined = this.repositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
         if (existingRepository) {
             return existingRepository;
@@ -1094,7 +1092,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async addPropertyToEntity<T extends BaseEntity>({ entity, property, transaction }: AddPropertyToEntityInput<T>): Promise<void> {
         const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
         const tableName: string = MigratedEntityUtilities.resolveTableName(entity);
@@ -1108,7 +1106,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         await queryRunner.addColumn(tableName, new TableColumn({ ...column, isNullable: true }));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async changePropertyOfEntity<T extends BaseEntity, C extends MigrationPropertyMetadata, M extends MigrationPropertyMetadata>(
         input: ChangePropertyOfEntityInput<T, C, M>
     ): Promise<void> {
@@ -1171,7 +1169,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         await queryRunner.changeColumn(tableName, converted, changed);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async removePropertyFromEntity<T extends BaseEntity>(input: RemovePropertyFromEntityInput<T>): Promise<void> {
         await TypeOrmUtilities.toTypeOrmTransaction(input.transaction).queryRunner.dropColumn(
             TypeOrmUtilities.getEntityMetadata(input.entity, input.transaction).tableName,
@@ -1179,7 +1177,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async renameEntity<T extends BaseEntity>({ entity, currentTableName, transaction }: RenameEntityInput<T>): Promise<void> {
         const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
         const tableName: string = MigratedEntityUtilities.resolveTableName(entity);
@@ -1209,7 +1207,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         await this.renameDeclaredKeys(queryRunner, currentTableName, tableName);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async mergeEntity<T extends BaseEntity>({ entity, currentTableName, transaction }: MergeEntityInput<T>): Promise<void> {
         const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
         const tableName: string = MigratedEntityUtilities.resolveTableName(entity);
@@ -1367,7 +1365,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         return { currentName: joinTable.tableName, name: renamed.tableName, columns, entityColumns };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createEntity<T extends BaseEntity>({ entity, transaction, properties }: CreateEntityInput<T>): Promise<void> {
         const queryRunner: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
         if (properties !== 'resolveFromEntity') {
@@ -1618,11 +1616,11 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         const relations: Record<string, EntitySchemaRelationOptions> = {};
         for (const [key, m] of ObjectUtilities.entries(props)) {
             if (
-                m.type === Relation.MANY_TO_ONE
-                || m.type === Relation.ONE_TO_MANY
-                || m.type === Relation.HAS_ONE
-                || m.type === Relation.BELONGS_TO_ONE
-                || m.type === Relation.MANY_TO_MANY
+                m.type === RelationType.MANY_TO_ONE
+                || m.type === RelationType.ONE_TO_MANY
+                || m.type === RelationType.HAS_ONE
+                || m.type === RelationType.BELONGS_TO_ONE
+                || m.type === RelationType.MANY_TO_MANY
             ) {
                 relations[key] = this.propertyToRelationOptions(cls, key, m);
                 continue;
@@ -1740,7 +1738,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * @param metadata - The entity class metadata.
      * @param props - The properties of the entity class.
      */
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     protected validateEntityClassMetadata(metadata: EntityMetadata, props: Record<string, PropertyMetadata>): void {
         // do nothing by default.
     }
@@ -1749,7 +1747,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * Validates the data source options.
      * @param options - The full options to validate.
      */
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     protected validateOptions(options: OmitStrict<TOptions, 'type' | 'entities'>): void | Promise<void> {
         // do nothing by default.
     }

@@ -1,16 +1,16 @@
 import type { oas31 } from 'openapi3-ts';
 
-import { HttpStatus } from '../http/http-status.enum';
-import { JsonMimeType } from '../http/json-mime-type.type';
-import { MimeType } from '../http/mime-type.enum';
-import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { JsonMimeType } from '../http/json-mime-type.type.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { Newable } from '../types/newable.type.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 /**
  * Alias for the root OpenAPI 3.1 document object.
  */
 export type OpenApiDefinition = OmitStrict<oas31.OpenAPIObject, 'components'> & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     components?: OpenApiComponentsObject
 };
 
@@ -18,7 +18,7 @@ export type OpenApiDefinition = OmitStrict<oas31.OpenAPIObject, 'components'> & 
  * The reusable objects of an OpenAPI document.
  */
 export type OpenApiComponentsObject = OmitStrict<oas31.ComponentsObject, 'securitySchemes'> & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     securitySchemes?: Record<string, OpenApiSecuritySchemeObject | OpenApiReferenceObject>
 };
 
@@ -79,7 +79,7 @@ export type OpenApiSchemas = {
  * Security scheme definition object.
  */
 export type OpenApiSecuritySchemeObject = OmitStrict<oas31.SecuritySchemeObject, 'type'> & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     type: OpenApiSecuritySchemeType
 };
 

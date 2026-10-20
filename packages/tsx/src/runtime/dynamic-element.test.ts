@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { renderComponent, renderComponentResult, RenderResult, renderWithComponents } from '../__testing__/server-render.helper';
+import { renderComponent, renderComponentResult, RenderResult, renderWithComponents } from '../__testing__/server-render.helper.ts';
 
 // A capitalized identifier holding a tag name is valid tsx, and indistinguishable from a component
 // at compile time — the compiler lowers both to `$ssr.component`, so the runtime resolves the

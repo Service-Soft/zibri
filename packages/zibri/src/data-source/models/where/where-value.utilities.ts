@@ -1,10 +1,10 @@
-import { AnyNumber } from './number-where-filter.model';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
-import { Relation } from '../../../entity/models/relation.enum';
-import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { AnyNumber } from './number-where-filter.model.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { RelationType } from '../../../entity/models/relation-type.enum.ts';
+import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
 
 /**
  * Compares the values a where filter is written with the same way everywhere one is read.
@@ -103,7 +103,7 @@ export abstract class WhereValueUtilities {
      */
     static unwrapRelation(filterValue: unknown, metadata: PropertyMetadata | undefined): unknown {
         if (
-            (metadata?.type === Relation.MANY_TO_ONE || metadata?.type === Relation.BELONGS_TO_ONE)
+            (metadata?.type === RelationType.MANY_TO_ONE || metadata?.type === RelationType.BELONGS_TO_ONE)
             && typeof filterValue === 'object'
             && filterValue !== null
             && !Array.isArray(filterValue)
@@ -123,7 +123,7 @@ export abstract class WhereValueUtilities {
         if (metadata?.type !== 'array') {
             return undefined;
         }
-        return { ...metadata.items } as PropertyMetadata;
+        return { ...metadata.items };
     }
 
     private static deepEquals(value: Record<string, unknown>, filterValue: Record<string, unknown>): boolean {

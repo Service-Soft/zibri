@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteInvalidateReadAsideArgsOnlyCache } from './write-invalidate-read-aside-args-only.cache';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../../cache-service.interface';
-import { CacheService } from '../../cache.service';
-import { Cache } from '../../decorators/cache.decorator';
-import { CachedValue } from '../../store/cached-value.model';
-import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteInvalidateReadAsideArgsOnlyCache } from './write-invalidate-read-aside-args-only.cache.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../../cache-service.interface.ts';
+import { CacheService } from '../../cache.service.ts';
+import { Cache } from '../../decorators/cache.decorator.ts';
+import { CachedValue } from '../../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../../store/in-memory.cache-store.ts';
 
 @Cache()
 class MainCache extends WriteInvalidateReadAsideArgsOnlyCache<string, string, 'Write Invalidate Read Aside Args Only Main Cache'> {
@@ -72,9 +72,9 @@ describe('WriteInvalidateReadAsideArgsOnlyCache', () => {
         await mainCache.store.set('key:abc', createCachedValue('stale', ['own']));
         await affectedCache.store.set('a1', createCachedValue('affected', ['invalidate-me']));
 
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn((name: string): string => `written:${name}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn((name: string): string => `written:${name}`);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = mainCache.wrapWrite(fn, (name) => `key:${name}`, { invalidatesTags: ['invalidate-me'] });
 
         await expect(wrapped('abc')).resolves.toBe('written:abc');

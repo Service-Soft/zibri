@@ -1,23 +1,23 @@
 import { execFile } from 'node:child_process';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { ZibriApplication } from '../../application/application';
-import { ZibriApplicationOptions } from '../../application/application-options.model';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { DiContainer } from '../../di/di-container';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { inject } from '../../di/inject.function';
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
-import { GlobalRegistry } from '../../global/global-registry';
-import { HttpRequest } from '../../http/http-request.model';
-import { HttpResponse } from '../../http/http-response.model';
-import { ZibriPlugin } from '../../plugin/plugin.model';
-import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { JsonUtilities } from '../../utilities/json.utilities';
+import { ZibriApplication } from '../../application/application.ts';
+import { ZibriApplicationOptions } from '../../application/application-options.model.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { DiContainer } from '../../di/di-container.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { InjectionToken } from '../../di/models/injection-token.model.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { HttpRequest } from '../../http/http-request.model.ts';
+import { HttpResponse } from '../../http/http-response.model.ts';
+import { ZibriPlugin } from '../../plugin/plugin.model.ts';
+import { FsPath, FsUtilities } from '../../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
 
 /**
  * Executable form of evaluation/05-di-metadata-and-packaging.md and the tooling half of
@@ -32,6 +32,7 @@ import { JsonUtilities } from '../../utilities/json.utilities';
  */
 
 type PackageJson = {
+    type?: string,
     exports?: Record<string, unknown>,
     module?: string,
     files?: string[],
@@ -41,7 +42,7 @@ type PackageJson = {
     peerDependenciesMeta?: Record<string, { optional?: boolean }>
 };
 
-const packageDir: FsPath = FsUtilities.getPath(__dirname, '..', '..', '..');
+const packageDir: FsPath = FsUtilities.getPath(import.meta.dirname, '..', '..', '..');
 const repoRoot: FsPath = FsUtilities.getPath(packageDir, '..', '..');
 const zibriPackageJson: FsPath = FsUtilities.getPath(packageDir, 'package.json');
 const tsconfigBase: FsPath = FsUtilities.getPath(packageDir, 'tsconfig.base.json');
@@ -68,19 +69,23 @@ async function readPackageJson(): Promise<PackageJson> {
  * @returns True if `require('zibri')` still answers.
  */
 async function loadsWithout(names: string[]): Promise<boolean> {
+    // a resolve hook rather than Module._resolveFilename, which only ever sees `require`: the build is
+    // es modules, and what it imports at the top of a file never passes through there
     const script: string = `
-        import Module from 'node:module';
+        import { registerHooks } from 'node:module';
+        import { pathToFileURL } from 'node:url';
         const hidden = ${JsonUtilities.stringify(names)};
-        const ownFiles = process.cwd() + '/dist';
-        const resolve = Module._resolveFilename;
-        Module._resolveFilename = function (request, parent, ...rest) {
-            if (hidden.includes(request) && parent?.filename?.startsWith(ownFiles)) {
-                const error = new Error('Cannot find module ' + request);
-                error.code = 'MODULE_NOT_FOUND';
-                throw error;
+        const ownFiles = pathToFileURL(process.cwd() + '/dist/').href;
+        registerHooks({
+            resolve(specifier, context, nextResolve) {
+                if (hidden.includes(specifier) && context.parentURL?.startsWith(ownFiles)) {
+                    const error = new Error('Cannot find module ' + specifier);
+                    error.code = 'MODULE_NOT_FOUND';
+                    throw error;
+                }
+                return nextResolve(specifier, context);
             }
-            return resolve.call(this, request, parent, ...rest);
-        };
+        });
         const { createRequire } = await import('node:module');
         const require = createRequire(process.cwd() + '/index.cjs');
         const zibri = require('zibri');
@@ -373,13 +378,14 @@ describe('evaluation/05-di-metadata-and-packaging - the published artifact', () 
             // the esm half was three defects deep: the entry point named here was never emitted, the
             // output under `dist/esm` was CommonJS because `module: nodenext` reads the format off a
             // `"type"` field that did not exist, and real esm would then have failed because the
-            // source writes its relative imports without a file extension. There is one build now,
-            // and an esm consumer reaches it
-            // through node's interop - see ../../published-package.test.ts, which loads it both ways
-            // in a process of its own and checks they are the same module.
+            // source writes its relative imports without a file extension. There is one build now, of
+            // es modules, and a commonjs consumer reaches it through require(esm) - see
+            // ../../published-package.test.ts, which loads it both ways in a process of its own and
+            // checks they are the same module.
+            expect(pkg.type).toBe('module');
             expect(conditions['import']).toBeUndefined();
             expect(pkg.module).toBeUndefined();
-            expect(conditions['default']).toBe('./dist/cjs/index.js');
+            expect(conditions['default']).toBe('./dist/index.js');
         });
     });
 
@@ -410,8 +416,9 @@ describe('evaluation/05-di-metadata-and-packaging - the published artifact', () 
             // installs a peer unless the meta calls it optional, so `optional` is what keeps it out
             // of a production image, while listing it still tells a consumer who wants to hand the
             // framework TypeScript what to install. Removing it entirely would document nothing.
-            // ../../optional-peer-dependencies.test.ts holds the behavior behind this.
-            expect(pkg.peerDependenciesMeta?.['ts-node']?.optional).toBe(true);
+            // ../../optional-peer-dependencies.test.ts holds the behavior behind this. The compiler is
+            // oxc-transform since the framework loads TypeScript itself rather than through ts-node.
+            expect(pkg.peerDependenciesMeta?.['oxc-transform']?.optional).toBe(true);
         });
 
         it('can be loaded without any of the peers it calls optional', async () => {
@@ -542,7 +549,7 @@ describe('evaluation/06-tooling-ci-and-testing', () => {
         it('runs a suite that loads the built package the way a consumer does', async () => {
             // held by ../../published-package.test.ts rather than by a step in the workflow, so that
             // it also runs before a push rather than only after one. What matters is that it runs in
-            // CI at all: every other suite imports TypeScript through ts-jest and can therefore not
+            // CI at all: every other suite imports TypeScript through vitest's transform and can therefore not
             // see a single thing about what gets published.
             const ci: string = await FsUtilities.readFile(ciWorkflow);
 

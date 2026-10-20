@@ -1,25 +1,25 @@
-import { ScimErrorType } from './scim-error-type.enum';
-import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model';
-import { ScimSchema } from './scim-schema.enum';
-import { ScimError } from './scim.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
+import { ScimErrorType } from './scim-error-type.enum.ts';
+import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model.ts';
+import { ScimSchema } from './scim-schema.enum.ts';
+import { ScimError } from './scim.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * A piece of a filter's text.
  */
 type Token = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     kind: '(' | ')' | '[' | ']'
 } | {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     kind: 'string',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     value: string
 } | {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     kind: 'word',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     text: string
 };
 
@@ -27,9 +27,9 @@ type Token = {
  * Where reading a filter has got to.
  */
 type ParseState = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     tokens: Token[],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     position: number
 };
 

@@ -1,33 +1,33 @@
 import assert from 'node:assert';
 import { setTimeout } from 'node:timers/promises';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { TOTP } from 'otpauth';
 
-import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
-import { OtpCodeAlreadyUsedError } from './methods/otp/otp-code-already-used.error';
-import { OtpCredentials } from './methods/otp/otp-credentials.model';
-import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
-import { TwoFactorServiceInterface } from './two-factor-service.interface';
-import { TwoFactorThrottledError } from './two-factor-throttled.error';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { Newable } from '../../types/newable.type';
-import { BaseUserEntity } from '../models/base-user.model';
-import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
-import { OTP_PERIOD_IN_SECONDS } from './methods/otp/otp.utilities';
-import { Ms } from '../../utilities/ms';
+import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error.ts';
+import { OtpCodeAlreadyUsedError } from './methods/otp/otp-code-already-used.error.ts';
+import { OtpCredentials } from './methods/otp/otp-credentials.model.ts';
+import { TwoFactorFailureStreak } from './two-factor-failure-streak.model.ts';
+import { TwoFactorServiceInterface } from './two-factor-service.interface.ts';
+import { TwoFactorThrottledError } from './two-factor-throttled.error.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function.ts';
+import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseUserEntity } from '../models/base-user.model.ts';
+import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method.ts';
+import { OTP_PERIOD_IN_SECONDS } from './methods/otp/otp.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
 
 enum TestRole {
     USER = 'user'

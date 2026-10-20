@@ -1,8 +1,8 @@
-import { AlsUtilities, LeaseScopeResult } from '../context/als.utilities';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { Transaction } from './transaction/transaction.model';
+import { AlsUtilities, LeaseScopeResult } from '../context/als.utilities.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { Transaction } from './transaction/transaction.model.ts';
 
 /**
  * Runs the work held under a lease and warns when a write made inside it will only land after the

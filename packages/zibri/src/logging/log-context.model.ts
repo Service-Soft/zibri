@@ -1,9 +1,9 @@
-import { LoggedError } from './logged-error.model';
-import { CacheContext } from '../context/cache/cache.context';
-import { Property } from '../entity/decorators/property.decorator';
-import { HttpMethod } from '../http/http-method.enum';
-import { HttpStatus } from '../http/http-status.enum';
-import { OmitStrict } from '../types/omit-strict.type';
+import { LoggedError } from './logged-error.model.ts';
+import { CacheContext } from '../context/cache/cache.context.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { HttpMethod } from '../http/http-method.enum.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
 
 /**
  * Any custom additional metadata for the log context.

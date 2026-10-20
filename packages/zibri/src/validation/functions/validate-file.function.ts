@@ -1,14 +1,14 @@
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { FilePropertyMetadata, fileSizeToBytes } from '../../entity/models/file-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { File } from '../../parsing/form-data/file.model';
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem, MimeTypeMismatchValidationProblem } from '../validation-problem.model';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { FilePropertyMetadata, fileSizeToBytes } from '../../entity/models/file-property-metadata.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { File } from '../../parsing/form-data/file.model.ts';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { MaxFileSizeValidationProblem, IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem, MimeTypeMismatchValidationProblem } from '../validation-problem.model.ts';
 
 /**
  * Validates the given file property.

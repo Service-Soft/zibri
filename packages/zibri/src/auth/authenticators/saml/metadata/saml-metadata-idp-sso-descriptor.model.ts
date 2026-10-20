@@ -1,7 +1,7 @@
-import { SamlMetadataEndpoint } from './saml-metadata-endpoint.model';
-import { SamlMetadataKeyDescriptor } from './saml-metadata-key-descriptor.model';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../parsing/xml/xml-element.decorator';
+import { SamlMetadataEndpoint } from './saml-metadata-endpoint.model.ts';
+import { SamlMetadataKeyDescriptor } from './saml-metadata-key-descriptor.model.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../../parsing/xml/xml-element.decorator.ts';
 
 /**
  * What a SAML metadata document says about the identity provider it describes.

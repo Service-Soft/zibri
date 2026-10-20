@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SlidingWindowLogRateLimiter, SlidingWindowLogState } from './sliding-window-log.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Ms } from '../../utilities/ms';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { SlidingWindowLogRateLimiter, SlidingWindowLogState } from './sliding-window-log.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 const NOW: number = 1_700_000_000_000;
 const CAPACITY: number = 5;
@@ -34,13 +34,13 @@ describe('SlidingWindowLogRateLimiter', () => {
     });
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         limiter = new TestSlidingWindowLimiter();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     describe('consume – basic sliding window', () => {
@@ -58,7 +58,7 @@ describe('SlidingWindowLogRateLimiter', () => {
                 await limiter.consume('k', 1);
             }
             // Advance time past the window (1s)
-            jest.setSystemTime(NOW + 1001);
+            vi.setSystemTime(NOW + 1001);
             // Now all previous events are outside the window
             const result: RateLimitResult = await limiter.consume('k', 1);
             expect(result.allowed).toBe(true);
@@ -74,13 +74,13 @@ describe('SlidingWindowLogRateLimiter', () => {
             expect((await limiter.consume('k', 1)).remaining).toBe(1);
 
             // Advance 600ms – within the window, so no event expired yet.
-            jest.setSystemTime(NOW + 600);
+            vi.setSystemTime(NOW + 600);
             // Still 1 event consumed just now, so remaining should be 1 (4 total in window)
             // Actually we consumed 4 so far, last one at T=600, remaining = 1
             expect((await limiter.consume('k', 1)).remaining).toBe(0);
 
             // Advance to 1001ms after start – the first 3 events at T=0 are expired.
-            jest.setSystemTime(NOW + 1001);
+            vi.setSystemTime(NOW + 1001);
             const result: RateLimitResult = await limiter.consume('k', 1);
             // Events: one at T=0? actually we consumed 4 at T=0? let's recount:
             // At T=0: consumed 3, then another at T=0 (the check for remaining). So 4 at T=0, one at T=600.
@@ -92,7 +92,7 @@ describe('SlidingWindowLogRateLimiter', () => {
 
         it('resetsAtMs points to the time the oldest event expires', async () => {
             await limiter.consume('k', 1); // T=0
-            jest.setSystemTime(NOW + 200);
+            vi.setSystemTime(NOW + 200);
             await limiter.consume('k', 1); // T=200
             const result: RateLimitResult = await limiter.consume('k', 1); // T=200
             expect(result.resetsAtMs).toBe(NOW + INTERVAL); // oldest is at T=0, expires at T=1000
@@ -103,7 +103,7 @@ describe('SlidingWindowLogRateLimiter', () => {
             for (let i: number = 0; i < CAPACITY; i++) {
                 await limiter.consume('k', 1);
             }
-            jest.setSystemTime(NOW + 300); // no events expired
+            vi.setSystemTime(NOW + 300); // no events expired
             const denied: RateLimitResult = await limiter.consume('k', 1);
             // Need one slot to free: oldest timestamp is T=0, expires at T=1000.
             // So retryAtMs should be T=0 + 1000 = 1000.
@@ -158,7 +158,7 @@ describe('SlidingWindowLogRateLimiter', () => {
                 await limiter.consume('k', 1);
             }
             // Advance to 200ms, then try to reserve 1 slot.
-            jest.setSystemTime(NOW + 200);
+            vi.setSystemTime(NOW + 200);
             const res: RateLimitReservationResult = await limiter.reserve('k', 1);
             expect(res.allowed).toBe(true);
             assert(res.allowed);
@@ -186,7 +186,7 @@ describe('SlidingWindowLogRateLimiter', () => {
             expect(res.allowed).toBe(true);
             // Fast-forward past expiry (readyAtMs + grace period).
             // grace: max(5s, waitMs). waitMs = readyAtMs - now; now=0, readyAtMs=0, wait=0 -> grace 5000.
-            jest.setSystemTime(NOW + 6000); // after expiry
+            vi.setSystemTime(NOW + 6000); // after expiry
             // Run cleanup
             await limiter.cleanup();
             // Capacity should be fully restored.
@@ -208,7 +208,7 @@ describe('SlidingWindowLogRateLimiter', () => {
             // Several consumes spread out within the same window, all well
             // before the window's end.
             for (let i: number = 1; i <= 5; i++) {
-                jest.setSystemTime(NOW + (i * 100));
+                vi.setSystemTime(NOW + (i * 100));
                 await limiter.consume('k', 1);
             }
             const state: SlidingWindowLogState | undefined = await limiter.config.store.get('k');

@@ -1,4 +1,4 @@
-import { isJwtConfirmation, JwtConfirmation } from './jwt-confirmation.model';
+import { isJwtConfirmation, JwtConfirmation } from './jwt-confirmation.model.ts';
 
 /**
  * The payload of an access token a client was issued by the authorization server, with the claims

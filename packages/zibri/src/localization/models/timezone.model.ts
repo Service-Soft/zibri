@@ -1,5 +1,5 @@
-/* eslint-disable cspell/spellchecker */
-import { AnyEnum } from '../../types/any-enum.type';
+/* cspell:disable */
+import { AnyEnum } from '../../types/any-enum.type.ts';
 
 /**
  * IANA time zone names, plus the 'UTC' alias every runtime accepts.
@@ -8,7 +8,7 @@ import { AnyEnum } from '../../types/any-enum.type';
  * about time, so this is a list that ages - a name the tz database has since dropped keeps working,
  * because a runtime resolves a retired name to the zone that replaced it.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const timezones = [
     'UTC',
     'Africa/Abidjan',

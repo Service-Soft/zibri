@@ -1,8 +1,8 @@
 import { BaseEntity, DataSource, Newable } from 'zibri';
 
-import { InMemoryDataSource } from './in-memory-data-source.model';
-import { zibriFrameworkEntities } from '../framework-entities';
-import { RoundTripCounter } from '../round-trip-counter.model';
+import { InMemoryDataSource } from './in-memory-data-source.model.ts';
+import { zibriFrameworkEntities } from '../framework-entities.ts';
+import { RoundTripCounter } from '../round-trip-counter.model.ts';
 
 /**
  * What can be configured about a data source built by {@link createInMemoryDataSource}.

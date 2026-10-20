@@ -1,19 +1,19 @@
-import { booleanValueProblems } from './validate-boolean.function';
-import { dateValueProblems } from './validate-date.function';
-import { fileValueProblems } from './validate-file.function';
-import { numberValueProblems } from './validate-number.function';
-import { stringValueProblems } from './validate-string.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model';
-import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model';
-import { OneOfPropertyMetadata, OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model';
-import { Relation } from '../../entity/models/relation.enum';
-import { $ts } from '../../localization/translate.function';
-import { File } from '../../parsing/form-data/file.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BigNumber } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, UnknownShapeValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { booleanValueProblems } from './validate-boolean.function.ts';
+import { dateValueProblems } from './validate-date.function.ts';
+import { fileValueProblems } from './validate-file.function.ts';
+import { numberValueProblems } from './validate-number.function.ts';
+import { stringValueProblems } from './validate-string.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-metadata.model.ts';
+import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model.ts';
+import { OneOfPropertyMetadata, OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model.ts';
+import { RelationType } from '../../entity/models/relation-type.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { File } from '../../parsing/form-data/file.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, UnknownShapeValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 /**
  * The problems of a value as the given shape, judged by the value alone.
@@ -151,11 +151,11 @@ function objectShapeProblems(fullKey: string, value: unknown, metadata: ObjectPr
     for (const [key, property] of ObjectUtilities.entries(properties)) {
         const child: unknown = record[key];
         switch (property.type) {
-            case Relation.MANY_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.MANY_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.MANY_TO_MANY: {
                 if (child != undefined) {
                     res.push(new RelationsNotAllowedValidationProblem(joinKey(fullKey, key), property, key));
                 }
@@ -178,7 +178,7 @@ function objectShapeProblems(fullKey: string, value: unknown, metadata: ObjectPr
     return res;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function joinKey(parentKey: string, key: string): string {
     return parentKey ? `${parentKey}.${key}` : key;
 }

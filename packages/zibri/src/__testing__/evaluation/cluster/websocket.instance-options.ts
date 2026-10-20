@@ -1,35 +1,35 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
-import { PasswordAuthenticator } from '../../../auth/authenticators/password/password.authenticator';
-import { JwtAuthData } from '../../../auth/strategies/jwt/jwt-auth-data.model';
-import { JwtAuthStrategy } from '../../../auth/strategies/jwt/jwt.auth-strategy';
-import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
-import { DataSource } from '../../../data-source/decorators/data-source.decorator';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider } from '../../../di/models/di-provider.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Param } from '../../../routing/decorators/param.decorator';
-import { Post } from '../../../routing/decorators/post.decorator';
-import { Newable } from '../../../types/newable.type';
-import { Ms } from '../../../utilities/ms';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { SocketIOWebsocketConnection } from '../../../websocket/models/connection/socket-io-websocket-connection.model';
-import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model';
-import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
-import { JwtUser } from '../../mocks/entities/jwt-user.entity';
-import { Roles } from '../../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
-import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/membership-repository';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
+import { type AuthServiceInterface } from '../../../auth/auth-service.interface.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model.ts';
+import { PasswordAuthenticator } from '../../../auth/authenticators/password/password.authenticator.ts';
+import { JwtAuthData } from '../../../auth/strategies/jwt/jwt-auth-data.model.ts';
+import { JwtAuthStrategy } from '../../../auth/strategies/jwt/jwt.auth-strategy.ts';
+import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider } from '../../../di/models/di-provider.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Param } from '../../../routing/decorators/param.decorator.ts';
+import { Post } from '../../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { SocketIOWebsocketConnection } from '../../../websocket/models/connection/socket-io-websocket-connection.model.ts';
+import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model.ts';
+import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface.ts';
+import { JwtUser } from '../../mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../mocks/entities/roles.enum.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function.ts';
+import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function.ts';
+// eslint-disable-next-line import/no-unassigned-import
+import '../../test-server/membership-repository.ts';
+// eslint-disable-next-line import/no-unassigned-import
+import '../../test-server/user-repository.ts'; // this import is needed so that the DI system can pick up the user repository.
 
 /**
  * What every instance of the websocket cluster boots with.

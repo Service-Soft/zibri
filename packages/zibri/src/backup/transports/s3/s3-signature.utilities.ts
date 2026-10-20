@@ -1,6 +1,6 @@
 import { BinaryLike, createHash, createHmac } from 'node:crypto';
 
-import { S3SigningInput } from './s3-signing-input.model';
+import { S3SigningInput } from './s3-signing-input.model.ts';
 
 // the names signature version 4 gives its algorithm, its service and its scope. They are part of the
 // protocol every S3 compatible service speaks, and expected verbatim whoever runs the service - none

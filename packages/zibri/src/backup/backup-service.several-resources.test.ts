@@ -4,32 +4,32 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InMemoryDataSource, testMasterKey } from 'zibri-testing';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupResourceInterface } from './backup-resource.interface';
-import { BackupServiceInterface } from './backup-service.interface';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BackupTransport } from './decorators/backup-transport.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { AesGcmEncryptionStrategy } from '../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { Newable } from '../types/newable.type';
-import { FsPath, FsUtilities } from '../utilities/fs.utilities';
+import { BackupEntity } from './backup-entity.model.ts';
+import { BackupResourceEntity } from './backup-resource-entity.model.ts';
+import { BackupResourceInterface } from './backup-resource.interface.ts';
+import { BackupServiceInterface } from './backup-service.interface.ts';
+import { Backup } from './decorators/backup-resource.decorator.ts';
+import { BackupTransport } from './decorators/backup-transport.decorator.ts';
+import { BaseFsBackupTransport } from './transports/fs.backup-transport.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { AesGcmEncryptionStrategy } from '../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
+import { FsPath, FsUtilities } from '../utilities/fs.utilities.ts';
 
 const backupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups-several-resources');
 
@@ -132,7 +132,7 @@ describe('BackupService — a backup of several resources', () => {
     });
 
     afterEach(() => {
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
     });
 
     afterAll(async () => {
@@ -155,18 +155,17 @@ describe('BackupService — a backup of several resources', () => {
         // archive is checked would still pass whenever the small archive happened to be checked first
         let notesApplied!: () => void;
         const applied: Promise<void> = new Promise(resolve => notesApplied = resolve);
-        const restoreNotes: NotesDataSource['restoreBackup'] = NotesDataSource.prototype.restoreBackup;
-        jest.spyOn(NotesDataSource.prototype, 'restoreBackup').mockImplementation(async function(this: NotesDataSource, data) {
-            await restoreNotes.call(this, data);
+        // the spies sit on the subclass prototypes, so the parent's prototype still holds the real methods
+        vi.spyOn(NotesDataSource.prototype, 'restoreBackup').mockImplementation(async function(this: NotesDataSource, data) {
+            await InMemoryDataSource.prototype.restoreBackup.call(this, data);
             notesApplied();
         });
-        const retrieveData: SeveralResourcesFsBackupTransport['retrieveData'] = SeveralResourcesFsBackupTransport.prototype.retrieveData;
-        jest.spyOn(SeveralResourcesFsBackupTransport.prototype, 'retrieveData').mockImplementation(
+        vi.spyOn(SeveralResourcesFsBackupTransport.prototype, 'retrieveData').mockImplementation(
             async function(this: SeveralResourcesFsBackupTransport, b, resource) {
                 if (resource.name === SettingsStore.name) {
                     await Promise.race([applied, sleep(1000)]);
                 }
-                return await retrieveData.call(this, b, resource);
+                return await BaseFsBackupTransport.prototype.retrieveData.call(this, b, resource);
             }
         );
 

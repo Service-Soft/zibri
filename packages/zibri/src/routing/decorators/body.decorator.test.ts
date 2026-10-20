@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BodyMetadata } from './body-metadata.model';
-import { Body } from './body.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BodyMetadata } from './body-metadata.model.ts';
+import { Body } from './body.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * What the shapes of a body can be declared with.

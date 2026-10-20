@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { UUIDUtilities } from './uuid.utilities';
+import { UUIDUtilities } from './uuid.utilities.ts';
 
 const UUID_V4_REGEX: RegExp = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/i;
 

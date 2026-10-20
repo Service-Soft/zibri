@@ -1,6 +1,6 @@
 import type { Batch } from '@valkey/valkey-glide';
 
-import { type ValKeyBufferedWrite } from './val-key-transaction.model';
+import { type ValKeyBufferedWrite } from './val-key-transaction.model.ts';
 
 /**
  * Adds one write to a batch of commands, to be sent with the rest of the batch.
@@ -10,12 +10,12 @@ import { type ValKeyBufferedWrite } from './val-key-transaction.model';
 export function queueValKeyWrite(batch: Batch, write: ValKeyBufferedWrite): void {
     switch (write.type) {
         case 'hashSet': {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             batch.hset(write.key, write.values);
             return;
         }
         case 'hashDelete': {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             batch.hdel(write.key, write.fields);
             return;
         }
@@ -24,12 +24,12 @@ export function queueValKeyWrite(batch: Batch, write: ValKeyBufferedWrite): void
             return;
         }
         case 'setAdd': {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             batch.sadd(write.key, write.members);
             return;
         }
         case 'setRemove': {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             batch.srem(write.key, write.members);
             return;
         }

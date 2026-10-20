@@ -1,10 +1,10 @@
 import assert from 'node:assert';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Property, PropertyMetadata } from './property.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { type OneOf } from '../models/one-of.model';
+import { Property, PropertyMetadata } from './property.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { type OneOf } from '../models/one-of.model.ts';
 
 /**
  * What a change set is allowed to hold.

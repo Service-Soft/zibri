@@ -1,5 +1,5 @@
-import { getDependencyStackTrace } from '../di/errors/get-dependency-stack-trace.function';
-import { InternalError } from '../error-handling/internal-error.model';
+import { getDependencyStackTrace } from '../di/errors/get-dependency-stack-trace.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * An error to throw when a controller was encountered that does not have a base route.

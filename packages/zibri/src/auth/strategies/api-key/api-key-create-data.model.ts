@@ -1,4 +1,4 @@
-import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
+import { ApiKeyClientAuthentication } from './api-key-client-authentication.model.ts';
 
 /**
  * What a new api key is created with.

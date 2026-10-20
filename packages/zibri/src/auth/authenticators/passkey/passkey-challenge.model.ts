@@ -1,10 +1,10 @@
-import { PasskeyCeremony } from './passkey-ceremony.enum';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Entity } from '../../../entity/decorators/entity.decorator';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitClass } from '../../../entity/omit-class.model';
-import type { HashString } from '../../hash/hash.utilities';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { PasskeyCeremony } from './passkey-ceremony.enum.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Entity } from '../../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../../../entity/omit-class.model.ts';
+import type { HashString } from '../../hash/hash.utilities.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
 
 /**
  * A challenge a device was given to sign, and what for.

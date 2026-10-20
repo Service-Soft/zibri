@@ -1,7 +1,7 @@
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { toKebabCase } from '../../utilities/to-kebab-case.function';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { toKebabCase } from '../../utilities/to-kebab-case.function.ts';
 
 /**
  * The possible CSP sources/values for the CSP headers.

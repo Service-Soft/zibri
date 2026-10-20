@@ -1,7 +1,7 @@
-import { BaseRepositoryOptions } from './base-repository-options.model';
-import { WriteRelationsOptions } from './write-relations-options.model';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Where } from '../where/where-filter.model';
+import { BaseRepositoryOptions } from './base-repository-options.model.ts';
+import { WriteRelationsOptions } from './write-relations-options.model.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Where } from '../where/where-filter.model.ts';
 
 /**
  * Options for inserting a row or changing the one that already holds the identity.

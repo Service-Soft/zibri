@@ -4,9 +4,9 @@
 // refuses moving a row to another tenant, so what is recorded stays true for as long as the
 // transaction runs. Keyed by the transaction itself, so it goes when the transaction does; a finished
 // transaction refuses being used again.
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { Transaction } from '../transaction/transaction.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * The tenant of each row, by entity and id.

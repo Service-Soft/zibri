@@ -1,7 +1,7 @@
-import { InjectableOptions } from '../../di/decorators/injectable.decorator';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { BackupTransportInterface } from '../transports/backup-transport.interface';
+import { InjectableOptions } from '../../di/decorators/injectable.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { BackupTransportInterface } from '../transports/backup-transport.interface.ts';
 
 /**
  * The metadata for a resource marked with \@Backup.

@@ -1,6 +1,6 @@
-import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { getDependencyStackTrace } from './get-dependency-stack-trace.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
 
 /**
  * Get the message for a constructor parameter that cannot be resolved to a token.

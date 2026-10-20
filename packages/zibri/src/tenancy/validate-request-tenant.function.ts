@@ -1,6 +1,6 @@
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { $ts } from '../localization/translate.function';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 /**
  * Refuses the tenant a request names when it is not a uuid.

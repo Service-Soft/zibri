@@ -1,12 +1,12 @@
 
-import { getEntityFileName } from './get-entity-file-name.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model';
-import { addImportStatement } from '../../utilities/add-import-statement.function';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { toPascalCase } from '../../utilities/to-pascal-case.function';
-import { EntityTenant } from '../models/entity-tenant.model';
+import { getEntityFileName } from './get-entity-file-name.function.ts';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface.ts';
+import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model.ts';
+import { addImportStatement } from '../../utilities/add-import-statement.function.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { toPascalCase } from '../../utilities/to-pascal-case.function.ts';
+import { EntityTenant } from '../models/entity-tenant.model.ts';
 
 /**
  * The result for generating a single entity.
@@ -47,7 +47,7 @@ type ResolveTsTypeResult = {
  * @param schema - The open api schema of the entity.
  * @returns Any additional schemas found and the lines needed to generate the entity file.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function generateEntityFile(
     provider: EntityGenerationProvider,
     name: string,
@@ -59,7 +59,7 @@ export function generateEntityFile(
     const lines: string[] = [];
 
     const tenant: false | EntityTenant = provider.markAsEntities;
-    lines.push(`import { ${tenant === false ? '' : 'Entity, '}Property } from \'zibri\';`);
+    lines.push(`import { ${tenant === false ? '' : 'Entity, '}Property } from 'zibri';`);
     lines.push('');
     if (tenant !== false) {
         lines.push(`@Entity(${resolveTenantOption(tenant)})`);
@@ -118,7 +118,7 @@ export function generateEntityFile(
     return { foundSchemas, lines };
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function mapSchemaToTsType(
     schema: OpenApiSchemaObject | OpenApiReferenceObject,
     propName: string
@@ -172,7 +172,7 @@ function mapSchemaToTsType(
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+// eslint-disable-next-line jsdoc-js/require-jsdoc, sonarjs/cognitive-complexity
 function mapSchemaToDecoratorLines(
     schema: OpenApiSchemaObject | OpenApiReferenceObject,
     propName: string,
@@ -181,7 +181,7 @@ function mapSchemaToDecoratorLines(
     type: string
 ): string[] {
     if ('$ref' in schema) {
-        // eslint-disable-next-line sonar/no-duplicate-string
+        // eslint-disable-next-line sonarjs/no-duplicate-string
         return [`    @Property.object({ ${!isRequired ? 'required: false, ' : ''}cls: () => ${getEntityName(prefix, type)} })`];
     }
 
@@ -255,7 +255,7 @@ function resolveTenantOption(tenant: EntityTenant): string {
     return tenant.property === 'tenantId' ? '' : `{ tenant: { property: '${tenant.property}' } }`;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function getEntityName(prefix: string, name: string): string {
     return `${toPascalCase(prefix)}${toPascalCase(name)}`.replaceAll('{', '').replaceAll('}', '');
 }

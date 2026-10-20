@@ -1,7 +1,7 @@
-import { HasRoleFn } from './has-role.decorator';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { HasRoleMetadata } from '../models/has-role-metadata.model';
-import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { HasRoleFn } from './has-role.decorator.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { HasRoleMetadata } from '../models/has-role-metadata.model.ts';
+import { AuthStrategies } from '../strategies/auth-strategies.model.ts';
 
 /**
  * Marks an endpoint to be only reachable when the logged in user holds one of the provided roles of
@@ -14,7 +14,7 @@ export const hasPlatformRoleDecorator: HasRoleFn = (
         const fullMetadata: HasRoleMetadata = { allowedStrategies, allowedRoles };
 
         const decorator: MethodDecorator & ClassDecorator = (
-            target: Object,
+            target: object,
             propertyKey?: string | symbol
         ) => {
             if (propertyKey !== undefined) {
@@ -28,7 +28,7 @@ export const hasPlatformRoleDecorator: HasRoleFn = (
     }
 ) as HasRoleFn;
 hasPlatformRoleDecorator.skip = () => ((
-    target: Object,
+    target: object,
     propertyKey?: string | symbol
 ) => {
     if (propertyKey !== undefined) {
@@ -37,4 +37,4 @@ hasPlatformRoleDecorator.skip = () => ((
     else {
         MetadataUtilities.setControllerSkipHasPlatformRole(target as Function, {});
     }
-}) as MethodDecorator & ClassDecorator;
+});

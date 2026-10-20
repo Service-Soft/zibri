@@ -1,12 +1,12 @@
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model';
-import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
-import { BooleanParamMetadata } from '../../routing/models/boolean-param-metadata.model';
-import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model.ts';
+import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator.ts';
+import { BooleanParamMetadata } from '../../routing/models/boolean-param-metadata.model.ts';
+import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model.ts';
 
 /**
  * Validates the given boolean property.

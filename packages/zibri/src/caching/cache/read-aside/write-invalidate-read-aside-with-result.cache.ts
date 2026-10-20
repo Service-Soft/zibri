@@ -1,9 +1,9 @@
-import { AlsUtilities } from '../../../context/als.utilities';
-import { CacheContext } from '../../../context/cache/cache.context';
-import { CacheOperation } from '../cache-operation.enum';
-import { ResultCacheKeyProvider, CacheWrapWriteOptionsWithResult } from '../cache-options.model';
-import { CacheInterface } from '../cache.interface';
-import { ReadAsideCache } from './read-aside.cache';
+import { AlsUtilities } from '../../../context/als.utilities.ts';
+import { CacheContext } from '../../../context/cache/cache.context.ts';
+import { CacheOperation } from '../cache-operation.enum.ts';
+import { ResultCacheKeyProvider, CacheWrapWriteOptionsWithResult } from '../cache-options.model.ts';
+import { CacheInterface } from '../cache.interface.ts';
+import { ReadAsideCache } from './read-aside.cache.ts';
 
 /**
  * Write‑invalidate (key from result) read‑aside cache.
@@ -15,10 +15,10 @@ export abstract class WriteInvalidateReadAsideWithResultCache<K, V, N extends st
     extends ReadAsideCache<K, V, CacheTag, true, N>
     implements CacheInterface<K, V, CacheTag, true, N> {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly _writeResultAvailable: true = true;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     wrapWrite<TArgs extends unknown[]>(
         fn: (...args: TArgs) => V | Promise<V>,
         keyFn: ResultCacheKeyProvider<K, V, TArgs>,
@@ -67,7 +67,7 @@ export abstract class WriteInvalidateReadAsideWithResultCache<K, V, N extends st
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async setDirect(key: K): Promise<void> {
         try {
             const storeStart: number = performance.now();

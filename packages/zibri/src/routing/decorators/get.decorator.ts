@@ -1,7 +1,7 @@
-import { HttpMethod } from '../../http/http-method.enum';
-import { Route } from '../controller-route-configuration.model';
-import { createHttpDecorator } from './create-http-decorator.function';
-import { BaseHttpDecoratorInput } from './http-decorator-option-input.model';
+import { HttpMethod } from '../../http/http-method.enum.ts';
+import { Route } from '../controller-route-configuration.model.ts';
+import { createHttpDecorator } from './create-http-decorator.function.ts';
+import { BaseHttpDecoratorInput } from './http-decorator-option-input.model.ts';
 
 /**
  * Http GET endpoint.

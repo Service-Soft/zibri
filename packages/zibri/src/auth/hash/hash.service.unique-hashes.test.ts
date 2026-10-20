@@ -1,12 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
+import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * Which hashed properties a unique declaration can be about.

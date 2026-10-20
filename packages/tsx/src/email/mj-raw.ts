@@ -1,4 +1,4 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
 
 /**
  * A passthrough for trusted markup. Mirrors MJML's `mj-raw`: its content is emitted verbatim, with

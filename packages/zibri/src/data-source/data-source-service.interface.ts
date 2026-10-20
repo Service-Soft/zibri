@@ -1,5 +1,5 @@
-import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
-import { BeforeAppInit } from '../global/before-app-init.interface';
+import { AfterAppShutdown } from '../global/after-app-shutdown.interface.ts';
+import { BeforeAppInit } from '../global/before-app-init.interface.ts';
 
 /**
  * Interface for a data source service.

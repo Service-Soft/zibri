@@ -1,23 +1,23 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { UserRepositoryInterface } from './user-repository.interface';
-import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { Log } from '../../logging/log.model';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { PasswordCredentials } from '../authenticators/password/password-credentials.model';
-import { UserRepo } from '../decorators/user-repo.decorator';
+import { UserRepositoryInterface } from './user-repository.interface.ts';
+import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model.ts';
+import { Log } from '../../logging/log.model.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { PasswordCredentials } from '../authenticators/password/password-credentials.model.ts';
+import { UserRepo } from '../decorators/user-repo.decorator.ts';
 
 /**
  * What a login does while one of the places users are kept cannot be reached.

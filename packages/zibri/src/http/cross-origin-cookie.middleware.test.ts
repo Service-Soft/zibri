@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { CorsOrigin } from './cors.middleware';
-import { KnownHeader } from './known-header.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Auth } from '../auth/decorators/auth.decorator';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { BaseEntity } from '../entity/base-entity.model';
-import { AcceptCrossSitePosts } from '../routing/decorators/accept-cross-site-posts.decorator';
-import { Controller } from '../routing/decorators/controller.decorator';
-import { Get } from '../routing/decorators/get.decorator';
-import { Param } from '../routing/decorators/param.decorator';
-import { Post } from '../routing/decorators/post.decorator';
-import { Newable } from '../types/newable.type';
+import { CorsOrigin } from './cors.middleware.ts';
+import { KnownHeader } from './known-header.enum.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Auth } from '../auth/decorators/auth.decorator.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { AcceptCrossSitePosts } from '../routing/decorators/accept-cross-site-posts.decorator.ts';
+import { Controller } from '../routing/decorators/controller.decorator.ts';
+import { Get } from '../routing/decorators/get.decorator.ts';
+import { Param } from '../routing/decorators/param.decorator.ts';
+import { Post } from '../routing/decorators/post.decorator.ts';
+import { Newable } from '../types/newable.type.ts';
 
 const allowedOrigin: CorsOrigin = 'https://app.example.com';
 const foreignOrigin: CorsOrigin = 'https://evil.example.com';

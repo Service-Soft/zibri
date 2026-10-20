@@ -1,6 +1,6 @@
-import { defineEmailComponent, TsxComponent } from './define-email-component';
-import { EmailLayout, EmailLayoutContext } from './email-layout.context';
-import { withDefaults } from './with-defaults';
+import { defineEmailComponent, TsxComponent } from './define-email-component.ts';
+import { EmailLayout, EmailLayoutContext } from './email-layout.context.ts';
+import { withDefaults } from './with-defaults.ts';
 
 /**
  * Props for {@link MjButton}.

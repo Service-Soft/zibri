@@ -1,10 +1,10 @@
 import { InMemoryDataSource, StartTestServerOptions } from 'zibri-testing';
 
-import { defaultTestServerEntities } from './create-test-data-source.function';
-import { StartedTestServer, startTestServer } from './start-test-server.function';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
+import { defaultTestServerEntities } from './create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from './start-test-server.function.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Starts a test server whose data source declares every default entity except the given ones, and

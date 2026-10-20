@@ -1,19 +1,19 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteThroughReadThroughCache } from './write-through-read-through.cache';
-import { flushMicrotasks } from '../../../__testing__/constants';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { Ms } from '../../../utilities/ms';
-import { type CacheServiceInterface } from '../../cache-service.interface';
-import { CacheService } from '../../cache.service';
-import { Cache } from '../../decorators/cache.decorator';
-import { CachedValue } from '../../store/cached-value.model';
-import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteThroughReadThroughCache } from './write-through-read-through.cache.ts';
+import { flushMicrotasks } from '../../../__testing__/constants.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { type CacheServiceInterface } from '../../cache-service.interface.ts';
+import { CacheService } from '../../cache.service.ts';
+import { Cache } from '../../decorators/cache.decorator.ts';
+import { CachedValue } from '../../store/cached-value.model.ts';
+import { InMemoryCacheStore } from '../../store/in-memory.cache-store.ts';
 
 @Cache()
 class TestCache extends WriteThroughReadThroughCache<string, number, 'Test Cache'> {
@@ -187,9 +187,9 @@ describe('WriteThroughReadThroughCache', () => {
         const cache: WriteThroughReadThroughCache<string, number, string> = inject(TestCache);
         await cache.store.set('key:a', createCachedValue(123, ['tag-a'], new Date()));
 
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string): number => 999);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string): number => 999);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
         await expect(wrapped('a')).resolves.toBe(123);
@@ -204,11 +204,11 @@ describe('WriteThroughReadThroughCache', () => {
             createCachedValue(123, ['tag-a'], new Date('2025-01-01T00:00:00.000Z'), new Date('2025-01-01T00:00:01.000Z'))
         );
 
-        // eslint-disable-next-line typescript/typedef
-        const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2025-01-01T00:00:02.000Z').getTime());
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string): number => 999);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
+        const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(new Date('2025-01-01T00:00:02.000Z').getTime());
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string): number => 999);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
         await expect(wrapped('a')).resolves.toBe(999);
@@ -220,15 +220,15 @@ describe('WriteThroughReadThroughCache', () => {
     });
 
     it('wrap stores a miss with resolved tags and default ttl', async () => {
-        jest.useFakeTimers();
-        jest.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
         try {
             const cache: MinuteTtlIdTestCache = inject(MinuteTtlIdTestCache);
 
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrap(
                 fn,
                 (name) => `key:${name}`,
@@ -247,20 +247,20 @@ describe('WriteThroughReadThroughCache', () => {
             expect(cached?.expiresAt).toEqual(new Date('2025-01-01T00:01:00.000Z'));
         }
         finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
         }
     });
 
     it('wrap uses ttl from options over default ttl', async () => {
-        jest.useFakeTimers();
-        jest.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
         try {
             const cache: MinuteTtlTestCache = inject(MinuteTtlTestCache);
 
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const fn = (id: string): number => id.length;
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrap(
                 fn,
                 (id) => `key:${id}`,
@@ -275,7 +275,7 @@ describe('WriteThroughReadThroughCache', () => {
             expect(cached?.expiresAt).toEqual(new Date('2025-01-01T00:00:05.000Z'));
         }
         finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
         }
     });
 
@@ -289,9 +289,9 @@ describe('WriteThroughReadThroughCache', () => {
         await affectedCache.store.set('a1', createCachedValue('affected', ['invalidate-me'], new Date()));
         await unaffectedCache.store.set('b1', createCachedValue('safe', ['leave-me'], new Date()));
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = mainCache.wrapWrite(
             fn,
             (result, name) => `${result.id}:${name}`,
@@ -310,15 +310,15 @@ describe('WriteThroughReadThroughCache', () => {
     });
 
     it('wrapWrite uses ttl from options over default ttl', async () => {
-        jest.useFakeTimers();
-        jest.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
         try {
             const cache: MinuteTtlIdTestCache = inject(MinuteTtlIdTestCache);
 
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrapWrite(
                 fn,
                 (result, name) => `${result.id}:${name}`,
@@ -333,7 +333,7 @@ describe('WriteThroughReadThroughCache', () => {
             expect(cached?.expiresAt).toEqual(new Date('2025-01-01T00:00:10.000Z'));
         }
         finally {
-            jest.useRealTimers();
+            vi.useRealTimers();
         }
     });
 
@@ -348,9 +348,9 @@ describe('WriteThroughReadThroughCache', () => {
         await affectedCache.store.set('a1', createCachedValue('affected', ['invalidate-me'], new Date()));
         await unaffectedCache.store.set('b1', createCachedValue('safe', ['keep-me'], new Date()));
 
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string): undefined => undefined);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string): undefined => undefined);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrapDelete(
             fn,
             (id: string) => `key:${id}`,
@@ -375,9 +375,9 @@ describe('WriteThroughReadThroughCache', () => {
 
         await affectedCache.store.set('a1', createCachedValue('affected', ['invalidate-me'], new Date()));
 
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn((id: string): number => id.length);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn((id: string): number => id.length);
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrapInvalidate(fn, { invalidatesTags: ['invalidate-me'] });
 
         await expect(wrapped('abc')).resolves.toBe(3);
@@ -394,9 +394,9 @@ describe('WriteThroughReadThroughCache', () => {
 
         await affectedCache.store.set('a1', createCachedValue('affected', ['tag:abc'], new Date()));
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const fn = (id: string): number => id.length;
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrapInvalidate(fn, { invalidatesTags: (id: string) => [`tag:${id}`] });
 
         await expect(wrapped('abc')).resolves.toBe(3);
@@ -408,16 +408,16 @@ describe('WriteThroughReadThroughCache', () => {
         const cache: WriteThroughReadThroughCache<string, number, string> = inject(TestCache);
 
         let resolveFn!: (value: number) => void;
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string) => new Promise<number>(resolve => {
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string) => new Promise<number>(resolve => {
             resolveFn = resolve;
         }));
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const first = wrapped('a');
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const second = wrapped('a');
 
         await flushMicrotasks();
@@ -437,8 +437,8 @@ describe('WriteThroughReadThroughCache', () => {
         let resolveA!: (value: number) => void;
         let resolveB!: (value: number) => void;
 
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn((id: string) => new Promise<number>(resolve => {
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn((id: string) => new Promise<number>(resolve => {
             if (id === 'a') {
                 resolveA = resolve;
                 return;
@@ -447,11 +447,11 @@ describe('WriteThroughReadThroughCache', () => {
             resolveB = resolve;
         }));
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id: string) => `key:${id}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const first = wrapped('a');
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const second = wrapped('b');
 
         await flushMicrotasks();
@@ -471,12 +471,12 @@ describe('WriteThroughReadThroughCache', () => {
     it('clears the in-flight entry after a rejected wrap call', async () => {
         const cache: WriteThroughReadThroughCache<string, number, string> = inject(TestCache);
 
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string): number => {
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string): number => {
             throw new Error('boom');
         });
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
 
         await expect(wrapped('a')).rejects.toThrow('boom');
@@ -489,16 +489,16 @@ describe('WriteThroughReadThroughCache', () => {
         const cache: WriteThroughReadThroughCache<string, number, string> = inject(TestCache);
 
         let resolveFn!: (value: number) => void;
-        // eslint-disable-next-line typescript/typedef, unusedImports/no-unused-vars
-        const fn = jest.fn((_id: string) => new Promise<number>(resolve => {
+        // eslint-disable-next-line typescript-js/typedef, no-unused-vars
+        const fn = vi.fn((_id: string) => new Promise<number>(resolve => {
             resolveFn = resolve;
         }));
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrap(fn, (id) => `key:${id}`);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const first = wrapped('a');
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const second = wrapped('a');
 
         await flushMicrotasks();
@@ -508,7 +508,7 @@ describe('WriteThroughReadThroughCache', () => {
         await expect(first).resolves.toBe(123);
         await expect(second).resolves.toBe(123);
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const third = wrapped('a');
 
         await flushMicrotasks();

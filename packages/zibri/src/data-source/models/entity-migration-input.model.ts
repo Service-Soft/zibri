@@ -1,6 +1,6 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { Transaction } from '../transaction/transaction.model';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * What a migration says when it changes how a whole entity is stored.

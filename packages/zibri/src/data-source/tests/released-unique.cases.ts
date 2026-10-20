@@ -1,14 +1,14 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
-import { Transaction } from '../transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
 
 /**
  * The cases every data source that runs transactions side by side answers the same way about a

@@ -1,15 +1,15 @@
-/* eslint-disable sonar/no-duplicate-string */
-/* eslint-disable jsdoc/require-jsdoc */
-import { describe, expect, it } from '@jest/globals';
+/* eslint-disable sonarjs/no-duplicate-string */
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { type OneOf } from '../../entity/models/one-of.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Where } from '../models/where/where-filter.model';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type OneOf } from '../../entity/models/one-of.model.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about an entity that stores a value of several

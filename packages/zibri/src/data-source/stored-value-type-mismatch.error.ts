@@ -1,5 +1,5 @@
-import { InternalError } from '../error-handling/internal-error.model';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * What a filter found in a row that the property it belongs to does not describe.

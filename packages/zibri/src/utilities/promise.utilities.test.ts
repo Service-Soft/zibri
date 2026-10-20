@@ -1,11 +1,11 @@
 import { getEventListeners } from 'node:events';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { PromiseUtilities, TimeoutError } from './promise.utilities';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { PromiseUtilities, TimeoutError } from './promise.utilities.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
 
 // this repository's own fixtures rather than an empty store: importing the harness registers
 // JwtUser, and a data source that does not carry it is refused by name

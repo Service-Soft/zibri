@@ -1,29 +1,29 @@
 import { Server } from 'node:http';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { CronExpression } from '../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
-import { CronService } from '../../cron/cron.service';
-import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { SchemaManagement } from '../../data-source/models/schema-management.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { LogLevel } from '../../logging/log-level.enum';
-import { Log } from '../../logging/log.model';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { CronExpression } from '../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../cron/cron-job.model.ts';
+import { CronService } from '../../cron/cron.service.ts';
+import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../../data-source/models/schema-management.model.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { LogLevel } from '../../logging/log-level.enum.ts';
+import { Log } from '../../logging/log.model.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Every tick this job has run, so that "did scheduled work happen yet" is a question about

@@ -1,27 +1,27 @@
-import { AnyCache, isCache } from './cache/cache.interface';
-import { MultiTierCache } from './cache/multi-tier.cache';
-import { CacheExpiryCleanupCronJob } from './cache-expiry-cleanup.cron-job';
-import { CacheInvalidationCronJob } from './cache-invalidation.cron-job';
-import { CacheInvalidation, CreateCacheInvalidationData } from './cache-invalidation.model';
-import { CacheServiceInterface } from './cache-service.interface';
-import { matchesAnyTag } from './cache-tag-matchers';
-import { ZibriApplication } from '../application/application';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function';
-import { getDiTokenName } from '../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
-import { inject } from '../di/inject.function';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { type CounterInterface } from '../metrics/counter.interface';
-import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
+import { AnyCache, isCache } from './cache/cache.interface.ts';
+import { MultiTierCache } from './cache/multi-tier.cache.ts';
+import { CacheExpiryCleanupCronJob } from './cache-expiry-cleanup.cron-job.ts';
+import { CacheInvalidationCronJob } from './cache-invalidation.cron-job.ts';
+import { CacheInvalidation, CreateCacheInvalidationData } from './cache-invalidation.model.ts';
+import { CacheServiceInterface } from './cache-service.interface.ts';
+import { matchesAnyTag } from './cache-tag-matchers.ts';
+import { ZibriApplication } from '../application/application.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { getAllInstantiatedValues } from '../di/get-all-instantiated-values.function.ts';
+import { getDiTokenName } from '../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { type CounterInterface } from '../metrics/counter.interface.ts';
+import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function.ts';
 
 /**
  * An error to throw during cache service initialization.
@@ -39,7 +39,7 @@ class InitCacheServiceError extends InternalError {
  */
 @Injectable({ register: 'onUse' })
 export class CacheService implements CacheServiceInterface, OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly caches: AnyCache[] = [];
 
     /**
@@ -55,7 +55,7 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
         private readonly logger: LoggerInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         const cacheProviders: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.CACHE);
         if (cacheProviders.length) {
@@ -110,7 +110,7 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async invalidateTags(tags: string[]): Promise<void> {
         // every instance runs the same caches, so with none here there is nothing to clear and
         // nobody to tell - and the table is only asked for at startup when there are caches
@@ -124,7 +124,7 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
         await inject(repositoryTokenFor(CacheInvalidation)).create({ tags });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async applyPendingInvalidations(): Promise<void> {
         // for the same reason as invalidateTags
         if (!this.caches.length) {
@@ -160,7 +160,7 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
         await repository.deleteAll({ at: { before: new Date(Date.now() - retentionInMs) } });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async removeExpiredValues(): Promise<void> {
         const expired: CounterInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
             .getCounter('cache_expired_evictions_total', ['cache']);

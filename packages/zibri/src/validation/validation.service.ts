@@ -1,33 +1,33 @@
-import { IsRequiredValidationProblem, NoShapeFitsValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
-import { ValidationServiceInterface } from './validation-service.interface';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { BaseEntity } from '../entity/base-entity.model';
-import { namedShapeOf, NamedShape } from './functions/shape-problems.function';
-import { validateBoolean } from './functions/validate-boolean.function';
-import { validateDate } from './functions/validate-date.function';
-import { validateFile } from './functions/validate-file.function';
-import { validateNumber } from './functions/validate-number.function';
-import { validateString } from './functions/validate-string.function';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
-import { BasePropertyMetadata } from '../entity/models/base-property-metadata.model';
-import { AnyOfShapesMetadata } from '../entity/models/one-of-property-metadata.model';
-import { Relation } from '../entity/models/relation.enum';
-import { ValidationError } from '../error-handling/errors/validation.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { MimeType } from '../http/mime-type.enum';
-import { $ts } from '../localization/translate.function';
-import { chooseShape, ShapeChoice } from '../parsing/functions/parse-one-of.function';
-import { BodyMetadata, BodyShapeMetadata } from '../routing/decorators/body-metadata.model';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
-import { ExcludeStrict } from '../types/exclude-strict.type';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { IsRequiredValidationProblem, NoShapeFitsValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model.ts';
+import { ValidationServiceInterface } from './validation-service.interface.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { namedShapeOf, NamedShape } from './functions/shape-problems.function.ts';
+import { validateBoolean } from './functions/validate-boolean.function.ts';
+import { validateDate } from './functions/validate-date.function.ts';
+import { validateFile } from './functions/validate-file.function.ts';
+import { validateNumber } from './functions/validate-number.function.ts';
+import { validateString } from './functions/validate-string.function.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator.ts';
+import { BasePropertyMetadata } from '../entity/models/base-property-metadata.model.ts';
+import { AnyOfShapesMetadata } from '../entity/models/one-of-property-metadata.model.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { ValidationError } from '../error-handling/errors/validation.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { chooseShape, ShapeChoice } from '../parsing/functions/parse-one-of.function.ts';
+import { BodyMetadata, BodyShapeMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator.ts';
+import { ExcludeStrict } from '../types/exclude-strict.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 /**
  * Function for validating a path parameter.
@@ -104,7 +104,6 @@ export class ValidationService implements ValidationServiceInterface {
         oneOf: (param, meta, parentKey, entity) => this.validateAnyOfParam(param, meta, parentKey, entity)
     };
 
-    // eslint-disable-next-line stylistic/max-len
     private readonly propertyValidationFunctions: Record<ExcludeStrict<PropertyMetadata, RelationMetadata<BaseEntity>>['type'], PropertyValidationFunction> = {
         object: this.validateObjectProperty.bind(this),
         array: this.validateArrayProperty.bind(this),
@@ -117,7 +116,7 @@ export class ValidationService implements ValidationServiceInterface {
         oneOf: this.validateOneOfProperty.bind(this)
     };
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validateHeaderParam(param: unknown, meta: HeaderParamMetadata): Promise<void> {
         const validate: HeaderParamValidationFunction | undefined = this.headerParamValidationFunctions[meta.type];
         if (validate == undefined) {
@@ -129,7 +128,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validatePathParam(param: unknown, meta: PathParamMetadata): Promise<void> {
         const validate: PathParamValidationFunction | undefined = this.pathParamValidationFunctions[meta.type];
         if (validate == undefined) {
@@ -141,7 +140,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validateQueryParam(param: unknown, meta: QueryParamMetadata): Promise<void> {
         const validate: QueryParamValidationFunction | undefined = this.queryParamValidationFunctions[meta.type];
         if (validate == undefined) {
@@ -153,7 +152,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validateBody(body: unknown, meta: BodyMetadata): Promise<void> {
         const res: ValidationProblem[] = await this.getBodyValidationProblems(body, meta);
         if (res.length) {
@@ -161,7 +160,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async getBodyValidationProblems(body: unknown, meta: BodyMetadata): Promise<ValidationProblem[]> {
         if (body == undefined) {
             const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
@@ -208,7 +207,7 @@ export class ValidationService implements ValidationServiceInterface {
         return problems.map(problem => problem.key === '' ? { key: 'body', message: problem.message } : problem);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async validateWebsocketRequest(req: unknown): Promise<void> {
         const res: ValidationProblem[] = await this.validateModel(req, WebsocketRequest, undefined, false);
         if (res.length) {
@@ -254,11 +253,11 @@ export class ValidationService implements ValidationServiceInterface {
         const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
 
         if (
-            metadata.type === Relation.MANY_TO_ONE
-            || metadata.type === Relation.ONE_TO_MANY
-            || metadata.type === Relation.HAS_ONE
-            || metadata.type === Relation.BELONGS_TO_ONE
-            || metadata.type === Relation.MANY_TO_MANY
+            metadata.type === RelationType.MANY_TO_ONE
+            || metadata.type === RelationType.ONE_TO_MANY
+            || metadata.type === RelationType.HAS_ONE
+            || metadata.type === RelationType.BELONGS_TO_ONE
+            || metadata.type === RelationType.MANY_TO_MANY
         ) {
             return [new RelationsNotAllowedValidationProblem(fullKey, metadata, key)];
         }

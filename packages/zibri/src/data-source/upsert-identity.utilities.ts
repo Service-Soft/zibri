@@ -1,11 +1,11 @@
-import { BaseEntity } from '../entity/base-entity.model';
-import { coversEveryRow, UniqueGroup } from '../entity/models/unique-declaration.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { ModelRegistry } from '../global/model-registry/model.registry';
-import { DeepPartial } from '../types/deep-partial.type';
-import { Newable } from '../types/newable.type';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { Where } from './models/where/where-filter.model';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { coversEveryRow, UniqueGroup } from '../entity/models/unique-declaration.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { ModelRegistry } from '../global/model-registry/model.registry.ts';
+import { DeepPartial } from '../types/deep-partial.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { Where } from './models/where/where-filter.model.ts';
 
 // Shared by every store, because which row an upsert's identity refers to is part of the contract
 // rather than of any one implementation: a store that answered differently would make the same call

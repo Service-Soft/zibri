@@ -1,16 +1,16 @@
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { NewCommand } from './new.command';
-import { version } from '../../../package.json';
-import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
-import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
-import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
-import { quietly } from '../../__testing__/quietly.function';
-import { CPUtilities, FsUtilities, InquirerUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { NewCommand } from './new.command.ts';
+import packageJson from '../../../package.json' with { type: 'json' };
+import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function.ts';
+import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function.ts';
+import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function.ts';
+import { quietly } from '../../__testing__/quietly.function.ts';
+import { CPUtilities, FsUtilities, InquirerUtilities } from '../../encapsulation/index.ts';
+import { Path } from '../../utilities/index.ts';
 
 /**
  * A process the generated watch mode started, as a fake `spawn` records it.
@@ -39,17 +39,17 @@ function parseDotenv(content: string): Record<string, string> {
 
 describe('NewCommand', () => {
     let workDir: Path;
-    let execSpy: jest.SpiedFunction<typeof CPUtilities.exec>;
+    let execSpy: MockInstance<typeof CPUtilities.exec>;
 
     beforeEach(async () => {
         workDir = await emptyWorkDirectory('new-command');
         CPUtilities['cwd'] = workDir;
-        execSpy = jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
+        execSpy = vi.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
     });
 
     afterEach(async () => {
         CPUtilities['cwd'] = undefined;
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
         await FsUtilities.rm(workDir);
     });
 
@@ -113,7 +113,7 @@ describe('NewCommand', () => {
         // send them, so a project that never says is a project that never needs it.
         expect(execSpy).toHaveBeenNthCalledWith(
             2,
-            `cd ${appDir} && npm i zibri@${version} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
+            `cd ${appDir} && npm i zibri@${packageJson.version} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
             + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
             + ' @opentelemetry/sdk-trace-node@^2.11.0 re2@^1.27.0 nodemailer@^10.1.0'
             + ' prom-client@^15.1.3 @fastify/busboy@^3.2.3 systeminformation@^5.33.15'
@@ -192,7 +192,7 @@ describe('NewCommand', () => {
     });
 
     it('asks for the ci when the command line does not name one', async () => {
-        const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
+        const promptSpy: MockInstance<typeof InquirerUtilities.prompt> = vi.spyOn(InquirerUtilities, 'prompt')
             .mockResolvedValueOnce({ ci: 'github' })
             .mockResolvedValueOnce({ defaultAuth: 'requireLogin' });
 
@@ -211,7 +211,7 @@ describe('NewCommand', () => {
     });
 
     it('asks what an endpoint without @Auth requires, offering a login first, and answers nothing itself', async () => {
-        const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
+        const promptSpy: MockInstance<typeof InquirerUtilities.prompt> = vi.spyOn(InquirerUtilities, 'prompt')
             .mockResolvedValue({ defaultAuth: 'requireLogin' });
 
         await quietly(async () => new NewCommand().start(['n', 'api', 'none']));

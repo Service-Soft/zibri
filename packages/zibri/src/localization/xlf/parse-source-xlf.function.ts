@@ -1,6 +1,6 @@
-import { XliffDocument } from './models/xliff-document.model';
-import { ExtractedTranslationString } from './transform-source-translation-tokens.function';
-import { XmlUtilities } from '../../document/xml.utilities';
+import { XliffDocument } from './models/xliff-document.model.ts';
+import { ExtractedTranslationString } from './transform-source-translation-tokens.function.ts';
+import { XmlUtilities } from '../../document/xml.utilities.ts';
 
 /**
  * Parses a xlf source file back into ExtractedTranslationStrings.

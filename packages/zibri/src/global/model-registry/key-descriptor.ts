@@ -1,13 +1,13 @@
-import { WhereFilter } from '../../data-source/models/where/where-filter.model';
-import { whereFor } from '../../data-source/models/where/where-for.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityMetadata } from '../../entity/decorators/entity.decorator';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { type EntityTenant } from '../../entity/models/entity-tenant.model';
-import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, uniqueWhereOf } from '../../entity/models/unique-declaration.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { WhereFilter } from '../../data-source/models/where/where-filter.model.ts';
+import { whereFor } from '../../data-source/models/where/where-for.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityMetadata } from '../../entity/decorators/entity.decorator.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { type EntityTenant } from '../../entity/models/entity-tenant.model.ts';
+import { coversEveryRow, declaresUnique, KeyWhere, UniqueGroup, uniqueWhereOf } from '../../entity/models/unique-declaration.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * The column groups an entity declares, as both places that can declare them, merged.

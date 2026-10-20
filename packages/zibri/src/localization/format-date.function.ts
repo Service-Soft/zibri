@@ -1,8 +1,8 @@
-import { DateFormatString, DateFormatToken, dateFormatTokens } from './models/date-format.model';
-import { LocaleCode } from './models/locale-code.model';
-import { Month, monthLabels } from './models/month.enum';
-import { Timezone } from './models/timezone.model';
-import { Weekday, weekdayLabels } from './models/weekday.enum';
+import { DateFormatString, DateFormatToken, dateFormatTokens } from './models/date-format.model.ts';
+import { LocaleCode } from './models/locale-code.model.ts';
+import { Month, monthLabels } from './models/month.enum.ts';
+import { Timezone } from './models/timezone.model.ts';
+import { Weekday, weekdayLabels } from './models/weekday.enum.ts';
 
 /**
  * The calendar fields that an instant falls on inside one specific time zone.
@@ -79,7 +79,7 @@ export function getZonedDate(date: Date, timezone: Timezone): ZonedDate {
     }
 
     const year: number = Number(parts['year']);
-    const month: Month = Number(parts['month']) - 1 as Month;
+    const month: Month = Number(parts['month']) - 1;
     const day: number = Number(parts['day']);
 
     return {
@@ -87,7 +87,7 @@ export function getZonedDate(date: Date, timezone: Timezone): ZonedDate {
         month: month,
         day: day,
         // the weekday of the zoned calendar date, read back through UTC so that no second zone shifts it again
-        weekday: new Date(Date.UTC(year, month, day)).getUTCDay() as Weekday,
+        weekday: new Date(Date.UTC(year, month, day)).getUTCDay(),
         hours: Number(parts['hour']),
         minutes: Number(parts['minute']),
         seconds: Number(parts['second'])

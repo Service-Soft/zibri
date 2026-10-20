@@ -1,6 +1,6 @@
 import { defineProvider, DiProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { defaultTestProviders } from '../test-providers';
+import { defaultTestProviders } from '../test-providers.ts';
 
 /**
  * The DI providers a cluster instance boots with unless its options name their own.

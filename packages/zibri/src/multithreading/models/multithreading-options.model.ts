@@ -39,13 +39,13 @@ export type MultithreadingOptions = {
     /**
      * Whether a worker file may be TypeScript.
      *
-     * Compiling one as it is loaded needs the optional peer dependency **ts-node**, so this is also
-     * the declaration that it has to be installed: startup fails when this is true and it is not
+     * Compiling one as it is loaded needs the optional peer dependency **oxc-transform**, so this is
+     * also the declaration that it has to be installed: startup fails when this is true and it is not
      * there, rather than the first job to name a `.ts` file failing whenever that happens to be.
      *
      * Set it to false for a deployment that ships compiled worker files. Nothing then loads a
-     * TypeScript compiler, a `.ts` file is refused the moment it is queued, and neither **ts-node**
-     * nor the TypeScript compiler behind it has to be installed at all.
+     * TypeScript compiler, a `.ts` file is refused the moment it is queued, and **oxc-transform**
+     * does not have to be installed at all.
      * @default true
      */
     enableTsWorkerFiles: boolean

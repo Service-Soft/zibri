@@ -1,8 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { LogBuffer } from './log-buffer';
-import { LogLevel } from './log-level.enum';
-import { Log } from './log.model';
+import { LogBuffer } from './log-buffer.ts';
+import { LogLevel } from './log-level.enum.ts';
+import { Log } from './log.model.ts';
 
 /**
  * The drop policy, which is the whole point of the buffer.

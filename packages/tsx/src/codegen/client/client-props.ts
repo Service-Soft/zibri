@@ -1,10 +1,10 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor } from './handlers';
-import { SETUP_RUNTIME_PARAM } from './reattach';
-import { AccessShape } from '../../runtime/access-shape';
-import { ComponentFunction } from '../../semantics/component';
-import { childrenOf, unwrapTypeSyntax, walk } from '../../semantics/walk';
+import { attributeExpression, attributesOf, CapturedVariable, capturedVariables, isEventHandlerName, isPropPassThrough, JsxElementLike, PropScope, propScope, ScopeFrame, scopeFrameFor } from './handlers.ts';
+import { SETUP_RUNTIME_PARAM } from './reattach.ts';
+import { AccessShape } from '../../runtime/access-shape.ts';
+import { ComponentFunction } from '../../semantics/component.ts';
+import { childrenOf, unwrapTypeSyntax, walk } from '../../semantics/walk.ts';
 
 /**
  * A function passed as a plain (non event-handler) prop to a nested component, e.g.

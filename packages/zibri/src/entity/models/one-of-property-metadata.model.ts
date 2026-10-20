@@ -1,9 +1,9 @@
-import { type ArrayPropertyItemMetadata, type ArrayPropertyItemMetadataInput } from './array-property-metadata.model';
-import { BasePropertyMetadata } from './base-property-metadata.model';
-import { type FilePropertyMetadata } from './file-property-metadata.model';
-import { type StringPropertyMetadataInput } from './string-property-metadata.model';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { type ArrayPropertyItemMetadata, type ArrayPropertyItemMetadataInput } from './array-property-metadata.model.ts';
+import { BasePropertyMetadata } from './base-property-metadata.model.ts';
+import { type FilePropertyMetadata } from './file-property-metadata.model.ts';
+import { type StringPropertyMetadataInput } from './string-property-metadata.model.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Metadata for a property that holds one of several named shapes.
@@ -32,7 +32,7 @@ export type OneOfShapeMetadata = ExcludeStrict<ArrayPropertyItemMetadata, OneOfP
  */
 export type OneOfShapeMetadataInput<TStringInput = StringPropertyMetadataInput> = Exclude<
     ArrayPropertyItemMetadataInput<TStringInput>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     { type: 'oneOf' } | { type: 'file' }
 >;
 

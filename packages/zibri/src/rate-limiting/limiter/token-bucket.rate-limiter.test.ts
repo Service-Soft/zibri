@@ -1,21 +1,21 @@
 import assert from 'node:assert';
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, Mock, MockInstance } from 'vitest';
 
-import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { inject } from '../../di/inject.function';
-import { GlobalRegistry } from '../../global/global-registry';
-import { type LoggerInterface } from '../../logging/logger.interface';
-import { Ms } from '../../utilities/ms';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitCountProvider, RateLimitKeyProvider } from '../rate-limit-wrap-options.model';
-import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum';
-import { RateLimitReservationResult, SuccessRateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
-import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../stores/rate-limiter-store.interface';
+import { TokenBucketRateLimiter, TokenBucketState } from './token-bucket.rate-limiter.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { type LoggerInterface } from '../../logging/logger.interface.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitCountProvider, RateLimitKeyProvider } from '../rate-limit-wrap-options.model.ts';
+import { RateLimitReservationRejectionReason } from '../reservation/rate-limit-reservation-rejection-reason.enum.ts';
+import { RateLimitReservationResult, SuccessRateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
+import { BaseRateLimitState, RateLimiterStoreUpdateResult } from '../stores/rate-limiter-store.interface.ts';
 
 const NOW: number = 1_700_000_000_000;
 const MAX: number = 10;
@@ -52,19 +52,19 @@ describe('InMemoryRateLimiterStore', () => {
     });
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         store = new InMemoryRateLimiterStore<TestState>();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     // -------------------------------------------------------------------------
     describe('atomicUpdate', () => {
         it('passes undefined to the updater for a new key', () => {
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 1, reservations: [], expiresAtMs: NOW + 1000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 1, reservations: [], expiresAtMs: NOW + 1000 });
             store.atomicUpdate('new-key', updater);
             expect(updater).toHaveBeenCalledWith(undefined);
         });
@@ -72,7 +72,7 @@ describe('InMemoryRateLimiterStore', () => {
         it('passes existing state to the updater for a known key', () => {
             const initial: TestState = { value: 42, reservations: [], expiresAtMs: NOW + 1000 };
             store.atomicUpdate('key', () => initial);
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ ...initial, value: 43 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ ...initial, value: 43 });
             store.atomicUpdate('key', updater);
             expect(updater).toHaveBeenCalledWith(initial);
         });
@@ -82,7 +82,7 @@ describe('InMemoryRateLimiterStore', () => {
             store.atomicUpdate('key', () => state1);
             const state2: TestState = { value: 99, reservations: [], expiresAtMs: NOW + 1000 };
             store.atomicUpdate('key', () => state2);
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
             store.atomicUpdate('key', updater);
             expect(updater).toHaveBeenCalledWith(state2);
         });
@@ -99,8 +99,8 @@ describe('InMemoryRateLimiterStore', () => {
             store.atomicUpdate('key-a', () => stateA);
             store.atomicUpdate('key-b', () => stateB);
 
-            const updaterA: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
-            const updaterB: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
+            const updaterA: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
+            const updaterB: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
             store.atomicUpdate('key-a', updaterA);
             store.atomicUpdate('key-b', updaterB);
 
@@ -133,7 +133,7 @@ describe('InMemoryRateLimiterStore', () => {
             const expired: TestState = { value: 1, reservations: [], expiresAtMs: NOW - 100 };
             store.atomicUpdate('key', () => expired);
 
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
             store.atomicUpdate('key', updater);
             expect(updater).toHaveBeenCalledWith(undefined);
         });
@@ -142,7 +142,7 @@ describe('InMemoryRateLimiterStore', () => {
             const alive: TestState = { value: 1, reservations: [], expiresAtMs: NOW + 1000 };
             store.atomicUpdate('key', () => alive);
 
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 2, reservations: [], expiresAtMs: NOW + 2000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 2, reservations: [], expiresAtMs: NOW + 2000 });
             store.atomicUpdate('key', updater);
             expect(updater).toHaveBeenCalledWith(alive);
         });
@@ -151,14 +151,14 @@ describe('InMemoryRateLimiterStore', () => {
             const initial: TestState = { value: 1, reservations: [], expiresAtMs: NOW + 500 };
             store.atomicUpdate('key', () => initial);
 
-            jest.setSystemTime(NOW + 400);
+            vi.setSystemTime(NOW + 400);
             // Update extends expiry
             const updated: TestState = { value: 2, reservations: [], expiresAtMs: NOW + 2000 };
             store.atomicUpdate('key', () => updated);
 
-            jest.setSystemTime(NOW + 600);
+            vi.setSystemTime(NOW + 600);
             // Should still be alive because new expiry is NOW+2000
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 3, reservations: [], expiresAtMs: NOW + 3000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 3, reservations: [], expiresAtMs: NOW + 3000 });
             store.atomicUpdate('key', updater);
             expect(updater).toHaveBeenCalledWith(updated);
         });
@@ -171,7 +171,7 @@ describe('InMemoryRateLimiterStore', () => {
             store.atomicUpdate('key', () => state);
             store.delete('key');
 
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
             store.atomicUpdate('key', updater);
             expect(updater).toHaveBeenCalledWith(undefined);
         });
@@ -188,7 +188,7 @@ describe('InMemoryRateLimiterStore', () => {
             store.atomicUpdate('remove', () => removeState);
             store.delete('remove');
 
-            const updater: jest.Mock<TestUpdater> = jest.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
+            const updater: Mock<TestUpdater> = vi.fn<TestUpdater>().mockReturnValue({ value: 0, reservations: [], expiresAtMs: NOW + 1000 });
             store.atomicUpdate('keep', updater);
             expect(updater).toHaveBeenCalledWith(keepState);
         });
@@ -259,7 +259,7 @@ describe('InMemoryRateLimiterStore', () => {
     });
 
     describe('maxKeys', () => {
-        let error: jest.SpiedFunction<LoggerInterface['error']>;
+        let error: MockInstance<LoggerInterface['error']>;
         let small: InMemoryRateLimiterStore<TestState>;
 
         function state(value: number, expiresAtMs: number = NOW + 1000): TestState {
@@ -267,7 +267,7 @@ describe('InMemoryRateLimiterStore', () => {
         }
 
         beforeEach(() => {
-            error = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error').mockReturnValue();
+            error = vi.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error').mockReturnValue();
             small = new InMemoryRateLimiterStore<TestState>({ maxKeys: 2 });
             small.atomicUpdate('a', () => state(1));
             small.atomicUpdate('b', () => state(2));
@@ -305,7 +305,7 @@ describe('InMemoryRateLimiterStore', () => {
         });
 
         it('takes the slot of a key that has expired instead of refusing', () => {
-            jest.setSystemTime(NOW + 2000);
+            vi.setSystemTime(NOW + 2000);
 
             // both existing keys are past their expiry now, so the store is full of nothing
             const res: RateLimiterStoreUpdateResult<TestState> = small.atomicUpdate('c', () => state(3, NOW + 5000));
@@ -327,13 +327,13 @@ describe('TokenBucketRateLimiter', () => {
     let limiter: TokenBucketRateLimiter;
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         limiter = new TestRateLimiter();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     // -------------------------------------------------------------------------
@@ -405,7 +405,7 @@ describe('TokenBucketRateLimiter', () => {
 
         it('returns remaining as a non-negative floored integer', async () => {
             await drain(limiter, 'key', MAX);
-            jest.setSystemTime(NOW + 150);
+            vi.setSystemTime(NOW + 150);
             const result: RateLimitResult = await limiter.consume('key', 5); // denied
             expect(result.remaining).toBe(1);
             expect(Number.isInteger(result.remaining)).toBe(true);
@@ -480,21 +480,21 @@ describe('TokenBucketRateLimiter', () => {
     describe('consume — token refill', () => {
         it('refills tokens proportionally as time passes', async () => {
             await drain(limiter, 'key', MAX);
-            jest.setSystemTime(NOW + 300);
+            vi.setSystemTime(NOW + 300);
             const result: RateLimitResult = await limiter.consume('key', 3);
             expect(result.allowed).toBe(true);
             expect(result.remaining).toBe(0);
         });
 
         it('does not refill beyond the configured maximum', async () => {
-            jest.setSystemTime(NOW + Ms.DAY);
+            vi.setSystemTime(NOW + Ms.DAY);
             const result: RateLimitResult = await limiter.consume('key', 1);
             expect(result.remaining).toBe(MAX - 1);
         });
 
         it('partially refills when less than a full interval has passed', async () => {
             await drain(limiter, 'key', MAX);
-            jest.setSystemTime(NOW + 500);
+            vi.setSystemTime(NOW + 500);
             const result: RateLimitResult = await limiter.consume('key', 5);
             expect(result.allowed).toBe(true);
             expect(result.remaining).toBe(0);
@@ -502,7 +502,7 @@ describe('TokenBucketRateLimiter', () => {
 
         it('denies when the refill is not sufficient for the requested count', async () => {
             await drain(limiter, 'key', MAX);
-            jest.setSystemTime(NOW + 300);
+            vi.setSystemTime(NOW + 300);
             const result: RateLimitResult = await limiter.consume('key', 5);
             expect(result.allowed).toBe(false);
         });
@@ -511,13 +511,13 @@ describe('TokenBucketRateLimiter', () => {
             await drain(limiter, 'key', MAX);
             expect((await limiter.consume('key', 1)).allowed).toBe(false);
 
-            jest.setSystemTime(NOW + INTERVAL);
+            vi.setSystemTime(NOW + INTERVAL);
             expect((await limiter.consume('key', 1)).allowed).toBe(true);
         });
 
         it('treats an idle key as fresh after its TTL has elapsed', async () => {
             await drain(limiter, 'key', MAX);
-            jest.setSystemTime(NOW + INTERVAL + 1);
+            vi.setSystemTime(NOW + INTERVAL + 1);
             const result: RateLimitResult = await limiter.consume('key', 1);
             expect(result.allowed).toBe(true);
             expect(result.remaining).toBe(MAX - 1);
@@ -634,7 +634,7 @@ describe('TokenBucketRateLimiter', () => {
         // with a lower limit, but the base class rejects EXCEEDS_CAPACITY first.
         // So we create a custom limiter with a smaller maxReservationCount.
             const store: InMemoryRateLimiterStore<TokenBucketState> = new InMemoryRateLimiterStore<TokenBucketState>();
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const strictLimiter = new class extends TokenBucketRateLimiter {
                 constructor() {
                     super(INTERVAL, {
@@ -695,7 +695,7 @@ describe('TokenBucketRateLimiter', () => {
         // Drain all tokens
             await drain(limiter, 'k', MAX);
             // Reserve 2 tokens – need to wait for 2 tokens to refill
-            jest.setSystemTime(NOW + 100); // 1 token refilled
+            vi.setSystemTime(NOW + 100); // 1 token refilled
             const res: RateLimitReservationResult = await limiter.reserve('k', 2);
             expect(res.allowed).toBe(true);
             assert(res.allowed);
@@ -718,7 +718,7 @@ describe('TokenBucketRateLimiter', () => {
             // computeReadyAtMs might calculate from now, and the reservation queue is
             // considered. Let's create a stricter limiter with a tiny maxWait.
             const store: InMemoryRateLimiterStore<TokenBucketState> = new InMemoryRateLimiterStore<TokenBucketState>();
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const strictLimiter = new class extends TokenBucketRateLimiter {
                 constructor() {
                     super(INTERVAL, {
@@ -767,7 +767,7 @@ describe('TokenBucketRateLimiter', () => {
             expect(res.allowed).toBe(true);
             assert(res.allowed);
             // Advance time past expiry
-            jest.setSystemTime(res.reservation.expiresAtMs + 1);
+            vi.setSystemTime(res.reservation.expiresAtMs + 1);
             // Run cleanup
             await limiter.cleanup();
             // Full capacity should be restored
@@ -830,21 +830,21 @@ describe('TokenBucketRateLimiter', () => {
         type TestFn = (...args: any[]) => Promise<string>;
 
         let limiter: TokenBucketRateLimiter;
-        let fn: jest.Mock<TestFn>;
+        let fn: Mock<TestFn>;
 
         beforeEach(() => {
-            jest.useFakeTimers();
-            jest.setSystemTime(NOW);
+            vi.useFakeTimers();
+            vi.setSystemTime(NOW);
             limiter = new TestRateLimiter();
-            fn = jest.fn<TestFn>().mockResolvedValue('ok');
+            fn = vi.fn<TestFn>().mockResolvedValue('ok');
         });
 
         afterEach(() => {
-            jest.useRealTimers();
+            vi.useRealTimers();
         });
 
         it('calls the function and returns its result when consume allows', async () => {
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             expect(result).toBe('ok');
@@ -854,7 +854,7 @@ describe('TokenBucketRateLimiter', () => {
         it('throws TooManyRequestsError when consume denies and reserveIfUnavailable is not set', async () => {
             // exhaust capacity
             await drain(limiter, 'global', MAX);
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, {});
             await expect(wrapped()).rejects.toThrow('Rate limit was reached');
             expect(fn).not.toHaveBeenCalled();
@@ -863,7 +863,7 @@ describe('TokenBucketRateLimiter', () => {
         it('returns a reservation when consume denies and reserveIfUnavailable is true', async () => {
             // exhaust capacity
             await drain(limiter, 'global', MAX);
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             // Should be a successful reservation
@@ -880,7 +880,7 @@ describe('TokenBucketRateLimiter', () => {
             await drain(limiter, 'global', MAX);
             // Set a tiny maxReservationWaitMs so reservation gets rejected quickly
             const strictStore: InMemoryRateLimiterStore<TokenBucketState> = new InMemoryRateLimiterStore();
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const strictLimiter = new class extends TokenBucketRateLimiter {
                 constructor() {
                     super(Ms.SECOND, {
@@ -893,7 +893,7 @@ describe('TokenBucketRateLimiter', () => {
             }();
             // fill bucket
             await drain(strictLimiter, 'global', MAX);
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = strictLimiter.wrap(fn, { reserveIfUnavailable: true });
             // The reservation will be rejected because the wait would exceed 50ms
             await expect(wrapped()).rejects.toThrow('Rate limit was reached');
@@ -902,7 +902,7 @@ describe('TokenBucketRateLimiter', () => {
 
         it('does not call the function when reservation is returned', async () => {
             await drain(limiter, 'global', MAX);
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped();
             expect(result).toHaveProperty('allowed', true);
@@ -913,10 +913,10 @@ describe('TokenBucketRateLimiter', () => {
 
         it('works with custom key and count functions', async () => {
             // eslint-disable-next-line typescript/no-explicit-any
-            const keyFn: jest.Mock<RateLimitKeyProvider<any[]>> = jest.fn<RateLimitKeyProvider<any[]>>().mockReturnValue('custom-key');
+            const keyFn: Mock<RateLimitKeyProvider<any[]>> = vi.fn<RateLimitKeyProvider<any[]>>().mockReturnValue('custom-key');
             // eslint-disable-next-line typescript/no-explicit-any
-            const countFn: jest.Mock<RateLimitCountProvider<any[]>> = jest.fn<RateLimitCountProvider<any[]>>().mockReturnValue(2);
-            // eslint-disable-next-line typescript/typedef
+            const countFn: Mock<RateLimitCountProvider<any[]>> = vi.fn<RateLimitCountProvider<any[]>>().mockReturnValue(2);
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = limiter.wrap(fn, { keyFn, countFn, reserveIfUnavailable: true });
             const result: string | SuccessRateLimitReservationResult = await wrapped('arg1', 'arg2');
             expect(result).toBe('ok');

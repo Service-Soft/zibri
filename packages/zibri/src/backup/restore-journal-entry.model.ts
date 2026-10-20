@@ -1,4 +1,4 @@
-import { FsPath } from '../utilities/fs.utilities';
+import { FsPath } from '../utilities/fs.utilities.ts';
 
 /**
  * A resource a restore started applying, and where what it held before is kept.

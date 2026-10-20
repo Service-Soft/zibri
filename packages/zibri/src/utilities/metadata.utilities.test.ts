@@ -1,13 +1,13 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { MetadataUtilities } from './metadata.utilities';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { Property, PropertyMetadata } from '../entity/decorators/property.decorator';
-import { PartialClass } from '../entity/partial-class.model';
-import { MimeType } from '../http/mime-type.enum';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { Newable } from '../types/newable.type';
+import { MetadataUtilities } from './metadata.utilities.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { Property, PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { PartialClass } from '../entity/partial-class.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * A project's own decorator, built on one of the framework's.
@@ -22,7 +22,7 @@ describe('MetadataUtilities — the file a class is declared in', () => {
         @Injectable({ register: 'onUse' })
         class Service {}
 
-        expect(MetadataUtilities.getFilePath(Service)).toBe(__filename);
+        expect(MetadataUtilities.getFilePath(Service)).toBe(import.meta.filename);
     });
 
     it('records the file of a class decorated through a project\'s own decorator', () => {
@@ -30,7 +30,7 @@ describe('MetadataUtilities — the file a class is declared in', () => {
         @TenantDataSource()
         class TenantDb {}
 
-        expect(MetadataUtilities.getFilePath(TenantDb)).toBe(__filename);
+        expect(MetadataUtilities.getFilePath(TenantDb)).toBe(import.meta.filename);
     });
 
     it('records the file of a class declared inside a function', () => {
@@ -42,7 +42,7 @@ describe('MetadataUtilities — the file a class is declared in', () => {
             return Declared;
         };
 
-        expect(MetadataUtilities.getFilePath(declare())).toBe(__filename);
+        expect(MetadataUtilities.getFilePath(declare())).toBe(import.meta.filename);
     });
 
     it('answers unknown when it was not called from a decorator', () => {

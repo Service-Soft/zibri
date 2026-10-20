@@ -1,26 +1,26 @@
-import { InternalError } from '../error-handling/internal-error.model';
-import { Weekday } from '../localization/models/weekday.enum';
-import { IntRange } from '../types/percentage.type';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { Weekday } from '../localization/models/weekday.enum.ts';
+import { IntRange } from '../types/percentage.type.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type CronUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday'
     | 'Thursday' | 'Friday' | 'Saturday';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type MonthName = | 'January' | 'February' | 'March' | 'April'
     | 'May' | 'June' | 'July' | 'August'
     | 'September' | 'October' | 'November' | 'December';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type CronExpressionString = string & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     __brand: 'CronExpression'
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type CronFields = [
     second: string,
     minute: string,
@@ -30,7 +30,7 @@ type CronFields = [
     weekday: string
 ];
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type RangeForCronUnit<T extends CronUnit> = T extends 'seconds'
     ? IntRange<0, 60>
     : T extends 'minutes'
@@ -78,7 +78,7 @@ const MONTH_VALUES: Record<MonthName, number> = {
     December: 12
 };
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function withField(
     fields: CronFields,
     index: number,

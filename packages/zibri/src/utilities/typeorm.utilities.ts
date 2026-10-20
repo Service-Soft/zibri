@@ -1,14 +1,14 @@
 import { DataSource, EntityTarget, EntityMetadata as TOEntityMetadata } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
-import { ApplyValueTransformers } from 'typeorm/util/ApplyValueTransformers';
+import { ApplyValueTransformers } from 'typeorm/util/ApplyValueTransformers.js';
 
-import { DataSourceInitializationError } from '../data-source/data-sources/data-source-initialization.error';
-import { ColumnType } from '../data-source/models/column-type.model';
-import { Transaction } from '../data-source/transaction/transaction.model';
-import { TypeOrmTransaction } from '../data-source/transaction/typeorm-transaction.model';
-import { BaseEntity } from '../entity/base-entity.model';
-import { InternalError } from '../error-handling/internal-error.model';
-import { Newable } from '../types/newable.type';
+import { DataSourceInitializationError } from '../data-source/data-sources/data-source-initialization.error.ts';
+import { ColumnType } from '../data-source/models/column-type.model.ts';
+import { Transaction } from '../data-source/transaction/transaction.model.ts';
+import { TypeOrmTransaction } from '../data-source/transaction/typeorm-transaction.model.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { Newable } from '../types/newable.type.ts';
 
 /**
  * Utilities for dealing with typeorm.
@@ -143,17 +143,18 @@ export abstract class TypeOrmUtilities {
      * @throws When no dataSource has been provided.
      */
     static normalizeColumnType(
+        // oxlint-disable-next-line jsdoc/require-param
         dataSource: DataSource | undefined,
         column: {
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             type?: ColumnType | string & {},
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             length?: number | string,
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             precision?: number | null,
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             scale?: number,
-            // eslint-disable-next-line jsdoc/require-jsdoc
+            // eslint-disable-next-line jsdoc-js/require-jsdoc
             isArray?: boolean
         }
     ): string {

@@ -1,9 +1,9 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi } from 'vitest';
 
-import { HttpRequestContext } from './http-request.context';
-import { RequestContextToken } from './request-context-token.model';
-import { WebsocketRequestContext } from './websocket-request.context';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
+import { HttpRequestContext } from './http-request.context.ts';
+import { RequestContextToken } from './request-context-token.model.ts';
+import { WebsocketRequestContext } from './websocket-request.context.ts';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model.ts';
 
 function makeContext(): WebsocketRequestContext {
     return new WebsocketRequestContext(new WebsocketRequest(), undefined, undefined, undefined);
@@ -20,8 +20,8 @@ describe('WebsocketRequestContext', () => {
     });
 
     it('get() memoizes the resolved value instead of calling fn again', () => {
-        // eslint-disable-next-line typescript/typedef
-        const fn = jest.fn(() => ({}));
+        // eslint-disable-next-line typescript-js/typedef
+        const fn = vi.fn(() => ({}));
         const token: RequestContextToken<object> = new RequestContextToken('ws-ctx-memo-test', fn);
         const ctx: WebsocketRequestContext = makeContext();
 
@@ -33,7 +33,7 @@ describe('WebsocketRequestContext', () => {
     });
 
     it('get() passes the context itself to the token resolver', () => {
-        const fn: (ctx: WebsocketRequestContext | HttpRequestContext) => string = jest.fn(() => 'x');
+        const fn: (ctx: WebsocketRequestContext | HttpRequestContext) => string = vi.fn(() => 'x');
         const token: RequestContextToken<string> = new RequestContextToken('ws-ctx-passes-self', fn);
         const ctx: WebsocketRequestContext = makeContext();
 

@@ -1,8 +1,8 @@
-import { FederatedSignInAction } from './federated-sign-in-action.type';
-import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { $ts } from '../../../localization/translate.function';
-import { AuditAction } from '../../../logging/audit-event.model';
+import { FederatedSignInAction } from './federated-sign-in-action.type.ts';
+import { FederatedSignInFailure } from './federated-sign-in-failure.enum.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { AuditAction } from '../../../logging/audit-event.model.ts';
 
 /**
  * The options of a FederatedSignInError.

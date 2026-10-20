@@ -1,4 +1,4 @@
-import { InvoicingOptions } from './invoicing-options.model';
+import { InvoicingOptions } from './invoicing-options.model.ts';
 
 /**
  * Input for creating invoicing options.

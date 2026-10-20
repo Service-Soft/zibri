@@ -1,57 +1,57 @@
-import { type AccessTokenRevocation } from './access-token-revocation.type';
-import { EncodedJwt } from './encoded-jwt-access-token.model';
-import { isJwtAccessTokenPayload, JwtAccessTokenPayload } from './jwt-access-token-payload.model';
-import { JwtAuthData } from './jwt-auth-data.model';
-import { type JwtAuthOptions } from './jwt-auth-options.model';
-import { JwtKey } from './jwt-key.model';
-import { JwtRefreshLoginData, JwtRefreshLoginDto } from './jwt-refresh-login-data.model';
-import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
-import { isJwtRefreshTokenPayload, JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model';
-import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model';
-import { type JwtServiceInterface } from './jwt-service.interface';
-import { JwtUtilities } from './jwt.utilities';
-import { MissingJwtSecretError } from './missing-jwt-secret.error';
-import { VerifiedJwt } from './verified-jwt.model';
-import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error';
-import { NotFoundError } from '../../../error-handling/errors/not-found.error';
-import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { $ts } from '../../../localization/translate.function';
-import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { Ms } from '../../../utilities/ms';
-import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
-import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
-import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
-import { FederatedSession } from '../../authenticators/federated/federated-session.model';
-import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
-import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
-import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum';
-import { OAuth2Error } from '../../authorization-server/oauth2.error';
-import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
-import { type HashServiceInterface } from '../../hash/hash-service.interface';
-import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
-import { Authentication } from '../../models/authentication.model';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
-import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
-import { AuthorizationToken } from '../authorization-token.model';
-import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
+import { type AccessTokenRevocation } from './access-token-revocation.type.ts';
+import { EncodedJwt } from './encoded-jwt-access-token.model.ts';
+import { isJwtAccessTokenPayload, JwtAccessTokenPayload } from './jwt-access-token-payload.model.ts';
+import { JwtAuthData } from './jwt-auth-data.model.ts';
+import { type JwtAuthOptions } from './jwt-auth-options.model.ts';
+import { JwtKey } from './jwt-key.model.ts';
+import { JwtRefreshLoginData, JwtRefreshLoginDto } from './jwt-refresh-login-data.model.ts';
+import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job.ts';
+import { isJwtRefreshTokenPayload, JwtRefreshTokenPayload } from './jwt-refresh-token-payload.model.ts';
+import { JwtRefreshToken, JwtRefreshTokenCreateDto } from './jwt-refresh-token.model.ts';
+import { type JwtServiceInterface } from './jwt-service.interface.ts';
+import { JwtUtilities } from './jwt.utilities.ts';
+import { MissingJwtSecretError } from './missing-jwt-secret.error.ts';
+import { VerifiedJwt } from './verified-jwt.model.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { IsolationLevel } from '../../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { CredentialReusedError } from '../../../error-handling/errors/credential-reused.error.ts';
+import { NotFoundError } from '../../../error-handling/errors/not-found.error.ts';
+import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities.ts';
+import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function.ts';
+import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model.ts';
+import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface.ts';
+import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model.ts';
+import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model.ts';
+import { FederatedSession } from '../../authenticators/federated/federated-session.model.ts';
+import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities.ts';
+import { IntrospectionResponse } from '../../authorization-server/introspection-response.model.ts';
+import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum.ts';
+import { OAuth2Error } from '../../authorization-server/oauth2.error.ts';
+import { type DpopServiceInterface } from '../../dpop/dpop-service.interface.ts';
+import { type HashServiceInterface } from '../../hash/hash-service.interface.ts';
+import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy.ts';
+import { Authentication } from '../../models/authentication.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface.ts';
+import { AuthorizationHeaderUtilities } from '../authorization-header.utilities.ts';
+import { AuthorizationToken } from '../authorization-token.model.ts';
+import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface.ts';
 
 /**
  * What a verified access token of a login says.
@@ -103,23 +103,23 @@ implements AuthControllerStrategyInterface<
     JwtRefreshLoginData,
     OmitStrict<JwtRefreshLoginData, 'transaction'>
 >, TokenIntrospectingAuthStrategyInterface<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'jwt';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly authDataModel: Newable<JwtAuthData<RoleType>> = JwtAuthData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly refreshLoginModel: Newable<JwtRefreshLoginDto> = JwtRefreshLoginDto;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly logoutModel: Newable<JwtRefreshLoginDto> = JwtRefreshLoginDto;
 
     // the tokens are the body of the response, which a redirect has none of
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly logsInWithResponse: boolean = false;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {
         type: 'http',
         scheme: 'bearer',
@@ -207,7 +207,7 @@ implements AuthControllerStrategyInterface<
         ]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         // first, since the cleanup job below needs it as well
         validateEntitiesRegistered(JwtAuthStrategy.name, app, JwtRefreshToken);
@@ -216,12 +216,12 @@ implements AuthControllerStrategyInterface<
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startTransaction(): Promise<Transaction> {
         return await this.refreshTokenRepository.dataSource.startTransaction({ isolationLevel: IsolationLevel.READ_COMMITTED });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<JwtAuthData<RoleType>> {
         const { user, authenticatedAt, federatedSession } = authentication;
         // every token of this login carries the time from here on, refreshes included, and so does
@@ -261,14 +261,14 @@ implements AuthControllerStrategyInterface<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
         // the refresh tokens only: an access token is signed rather than stored, so it stays valid
         // until it expires - unless access tokens are revoked at once, which finds their family gone
         await this.refreshTokenRepository.deleteAll({ userId }, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
         // every token of a family carries the session, so this ends whole families. The access tokens
         // stay valid as with endLogins
@@ -279,7 +279,7 @@ implements AuthControllerStrategyInterface<
         await this.websocketService.disconnectEndedLogins([...new Set(ended.map(token => token.userId))], transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async logout(data: OmitStrict<JwtRefreshLoginData, 'transaction'>): Promise<FederatedSession | undefined> {
         try {
             // hashed to be searched for, because that is how it is stored. Has to name the same
@@ -320,7 +320,7 @@ implements AuthControllerStrategyInterface<
         return await this.refreshTokenRepository.create(data, { transaction });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async refreshLogin(data: JwtRefreshLoginData): Promise<JwtAuthData<RoleType>> {
         const rotated: RotatedRefreshToken<UserType> = await this.verifyAndResolveRefreshToken(data.refreshToken, data.transaction);
         const user: UserType = rotated.user;
@@ -461,7 +461,7 @@ implements AuthControllerStrategyInterface<
         return context == undefined ? undefined : await this.dpopService.resolveProofThumbprint(context, undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
         // a bearer token shaped like a jwt being present, not a valid one. Whether it verifies is what
         // resolving it decides - answering false for a bad token would make a request carrying a bad
@@ -473,7 +473,7 @@ implements AuthControllerStrategyInterface<
         return AuthorizationHeaderUtilities.findJwtKind(context, this.jwtService.issuer) === 'login';
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
         if (token == undefined) {
@@ -489,7 +489,7 @@ implements AuthControllerStrategyInterface<
         return live ? user : undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveClaimedUser(context: HttpRequestContext | WebsocketRequestContext): Promise<BaseUser<RoleType> | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
         if (token == undefined) {
@@ -501,19 +501,19 @@ implements AuthControllerStrategyInterface<
         return { id: token.payload.id, email: token.payload.email, roles: token.payload.roles };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
         return token == undefined ? undefined : new Date(token.payload.auth_time * Ms.SECOND);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
         return token == undefined ? undefined : new Date(token.verified.expiresAt * Ms.SECOND);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async introspectToken(token: string): Promise<IntrospectionResponse> {
         // whoever the token is for: a service asking about it is not the application
         const accessToken: LoginAccessToken<string> | undefined = await this.findLoginAccessToken(token, undefined);
@@ -551,7 +551,7 @@ implements AuthControllerStrategyInterface<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeToken(token: string): Promise<void> {
         const accessToken: LoginAccessToken<string> | undefined = await this.findLoginAccessToken(token, undefined);
         if (accessToken != undefined) {

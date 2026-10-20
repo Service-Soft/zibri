@@ -4,21 +4,21 @@ import { createHash, createPrivateKey, createPublicKey, createSecretKey, JsonWeb
 // loaded through optionalPeer where a token is signed or verified
 import type { JWK, JWTPayload, JWTVerifyResult } from 'jose';
 
-import { EncodedJwt } from './encoded-jwt-access-token.model';
-import { Jwk } from './jwk.model';
-import { JwtAssertionVerifyOptions } from './jwt-assertion-verify-options.model';
-import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type';
-import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
-import { JwtKey } from './jwt-key.model';
-import { JwtProviderTokenVerifyOptions } from './jwt-provider-token-verify-options.model';
-import { JwtRemoteKeySet } from './jwt-remote-key-set.type';
-import { JwtSignOptions } from './jwt-sign-options.model';
-import { JwtVerifyOptions } from './jwt-verify-options.model';
-import { VerifiedDpopProof } from './verified-dpop-proof.model';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { Ms } from '../../../utilities/ms';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
+import { EncodedJwt } from './encoded-jwt-access-token.model.ts';
+import { Jwk } from './jwk.model.ts';
+import { JwtAssertionVerifyOptions } from './jwt-assertion-verify-options.model.ts';
+import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type.ts';
+import { JwtAsymmetricKey } from './jwt-asymmetric-key.model.ts';
+import { JwtKey } from './jwt-key.model.ts';
+import { JwtProviderTokenVerifyOptions } from './jwt-provider-token-verify-options.model.ts';
+import { JwtRemoteKeySet } from './jwt-remote-key-set.type.ts';
+import { JwtSignOptions } from './jwt-sign-options.model.ts';
+import { JwtVerifyOptions } from './jwt-verify-options.model.ts';
+import { VerifiedDpopProof } from './verified-dpop-proof.model.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
 
 /**
  * The exports of the `jose` package.

@@ -1,11 +1,11 @@
-import { CiiHeaderTradeAgreement } from './cii-header-trade-agreement.model';
-import { CiiHeaderTradeDelivery } from './cii-header-trade-delivery.model';
-import { CiiHeaderTradeSettlement } from './cii-header-trade-settlement.model';
-import { CiiNamespace } from './cii-namespace.enum';
-import { CiiTradeLineItem } from './cii-trade-line-item.model';
-import { Property } from '../../../../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator';
-import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator';
+import { CiiHeaderTradeAgreement } from './cii-header-trade-agreement.model.ts';
+import { CiiHeaderTradeDelivery } from './cii-header-trade-delivery.model.ts';
+import { CiiHeaderTradeSettlement } from './cii-header-trade-settlement.model.ts';
+import { CiiNamespace } from './cii-namespace.enum.ts';
+import { CiiTradeLineItem } from './cii-trade-line-item.model.ts';
+import { Property } from '../../../../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../../../../parsing/xml/xml-element.decorator.ts';
+import { XmlNamespace } from '../../../../../../parsing/xml/xml-namespace.decorator.ts';
 
 /**
  * The trade the invoice is for: its lines, who it is between, the delivery and how it is settled.

@@ -1,5 +1,5 @@
-import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Metadata for date properties.

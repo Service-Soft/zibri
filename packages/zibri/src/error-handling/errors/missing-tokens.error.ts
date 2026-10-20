@@ -1,6 +1,6 @@
-import { DiToken } from '../../di/models/di-token.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
-import { InternalError } from '../internal-error.model';
+import { DiToken } from '../../di/models/di-token.model.ts';
+import { InjectionToken } from '../../di/models/injection-token.model.ts';
+import { InternalError } from '../internal-error.model.ts';
 
 /**
  * An error to throw when there are tokens that are not injectable.

@@ -1,14 +1,14 @@
-import { JwtRefreshToken } from './jwt-refresh-token.model';
-import { CronExpression } from '../../../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model';
-import { Repository } from '../../../data-source/repository/repository';
-import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
+import { JwtRefreshToken } from './jwt-refresh-token.model.ts';
+import { CronExpression } from '../../../cron/cron-expression.utilities.ts';
+import { CronJob, InitialCronConfig } from '../../../cron/cron-job.model.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { InjectRepository } from '../../../di/decorators/inject-repository.decorator.ts';
 
 /**
  * A cron job to cleanup expired jwt refresh tokens.
  */
 export class JwtRefreshTokenCleanupCronJob extends CronJob {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'Cleanup jwt refresh tokens',
         cron: CronExpression.daily().build(),
@@ -22,7 +22,7 @@ export class JwtRefreshTokenCleanupCronJob extends CronJob {
         super();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onTick(): Promise<void> {
         // blacklisted tokens need to stay, to find out
         // if someone tries to use them a second time.

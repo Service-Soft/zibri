@@ -1,14 +1,14 @@
 import { defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
-import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../../../data-source/decorators/data-source.decorator';
-import { Migration } from '../../../data-source/migration/migration.model';
-import { SchemaManagement } from '../../../data-source/models/schema-management.model';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { Newable } from '../../../types/newable.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
+import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../../../data-source/decorators/data-source.decorator.ts';
+import { Migration } from '../../../data-source/migration/migration.model.ts';
+import { SchemaManagement } from '../../../data-source/models/schema-management.model.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { SemVerVersion } from '../../../versioning/sem-ver.utilities.ts';
 
 /**
  * What every instance of the migration cluster boots with.

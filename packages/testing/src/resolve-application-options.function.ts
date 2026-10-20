@@ -1,6 +1,6 @@
 import { DataSourceInterface, DiProvider, Newable, ZibriApplicationOptions } from 'zibri';
 
-import { StartTestServerOptions } from './start-test-server-options.model';
+import { StartTestServerOptions } from './start-test-server-options.model.ts';
 
 /**
  * What a harness falls back to for whatever neither the call nor the application named.

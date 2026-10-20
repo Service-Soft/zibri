@@ -1,6 +1,6 @@
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { OmitClass } from '../../../entity/omit-class.model';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { OmitClass } from '../../../entity/omit-class.model.ts';
 
 /**
  * Data for logging a user out with the cookie auth strategy. The login that ends is the one whose

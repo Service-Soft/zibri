@@ -1,4 +1,4 @@
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export function parseBoolean(rawValue: unknown): unknown {
     if (typeof rawValue === 'boolean') {
         return rawValue;

@@ -1,5 +1,5 @@
-/* eslint-disable cspell/spellchecker */
-import { HtmlAttributes } from './jsx.model';
+/* cspell:disable */
+import { HtmlAttributes } from './jsx.model.ts';
 
 /**
  * Presentational attributes that are obsolete in html5 but still required by email clients.

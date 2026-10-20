@@ -6,8 +6,8 @@
 // takes them from there: source is TypeScript, and reaching it would need the very thing this is
 // checking for.
 const { sep } = require('node:path');
-const { reportCompletion } = require('../../../dist/cjs/multithreading/services/worker/helpers.js');
+const { reportCompletion } = require('../../../dist/multithreading/services/worker/helpers.js');
 
-// the package folder rather than the string: the framework's own register-ts-node.function.js is in
-// this cache too, and its name is not the compiler being loaded.
-reportCompletion(Object.keys(require.cache).some(p => p.includes(`node_modules${sep}ts-node${sep}`)));
+// the compiler's native binding rather than the compiler's own module: `oxc-transform` is an es
+// module, and what it loads through `require` is the binding, under the same scope on every platform
+reportCompletion(Object.keys(require.cache).some(p => p.includes(`${sep}@oxc-transform${sep}`)));

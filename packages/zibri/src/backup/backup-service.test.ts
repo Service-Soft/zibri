@@ -1,30 +1,30 @@
 import assert from 'node:assert';
 
-import { beforeAll, afterAll, describe, it, expect, jest } from '@jest/globals';
+import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 
-import { BackupEntity } from './backup-entity.model';
-import { BackupResourceEntity } from './backup-resource-entity.model';
-import { BackupService } from './backup.service';
-import { testFileFolder } from '../__testing__/constants';
-import { Backup } from './decorators/backup-resource.decorator';
-import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../data-source/decorators/data-source.decorator';
-import { SchemaManagement } from '../data-source/models/schema-management.model';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { Entity } from '../entity/decorators/entity.decorator';
-import { Property } from '../entity/decorators/property.decorator';
-import { LoggerInterface } from '../logging/logger.interface';
-import { Newable } from '../types/newable.type';
-import { OmitStrict } from '../types/omit-strict.type';
-import { FsUtilities, FsPath } from '../utilities/fs.utilities';
-import { BackupTransport } from './decorators/backup-transport.decorator';
+import { BackupEntity } from './backup-entity.model.ts';
+import { BackupResourceEntity } from './backup-resource-entity.model.ts';
+import { BackupService } from './backup.service.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
+import { Backup } from './decorators/backup-resource.decorator.ts';
+import { BaseFsBackupTransport } from './transports/fs.backup-transport.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../data-source/decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../data-source/models/schema-management.model.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { Entity } from '../entity/decorators/entity.decorator.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { Newable } from '../types/newable.type.ts';
+import { OmitStrict } from '../types/omit-strict.type.ts';
+import { FsUtilities, FsPath } from '../utilities/fs.utilities.ts';
+import { BackupTransport } from './decorators/backup-transport.decorator.ts';
 
 const backupFsFolder: FsPath = FsUtilities.getPath(testFileFolder, 'backups');
 
@@ -140,8 +140,8 @@ describe('Create and restore postgres backup', () => {
         await FsUtilities.mkdir(FsUtilities.getPath(backupFsFolder, orphanBackupName));
 
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        // eslint-disable-next-line typescript/typedef
-        const warnSpy = jest.spyOn(logger, 'warn');
+        // eslint-disable-next-line typescript-js/typedef
+        const warnSpy = vi.spyOn(logger, 'warn');
 
         await backupService.syncBackupEntities();
 

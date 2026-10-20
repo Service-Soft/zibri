@@ -1,16 +1,16 @@
-import { RouteParamMetadata } from './route-param-metadata.model';
-import { BaseUser } from '../auth/models/base-user.model';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { InternalError } from '../error-handling/internal-error.model';
-import { KnownHeader } from '../http/known-header.enum';
-import { ParserInterface } from '../parsing/parser.interface';
-import { ValidationServiceInterface } from '../validation/validation-service.interface';
+import { RouteParamMetadata } from './route-param-metadata.model.ts';
+import { BaseUser } from '../auth/models/base-user.model.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { ParserInterface } from '../parsing/parser.interface.ts';
+import { ValidationServiceInterface } from '../validation/validation-service.interface.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export async function resolveRouteParams(
     metadata: RouteParamMetadata,
     totalParamCount: number,
@@ -31,7 +31,7 @@ export async function resolveRouteParams(
     return params;
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function parseRouteParams(
     metadata: RouteParamMetadata,
     totalParamCount: number,
@@ -39,7 +39,7 @@ async function parseRouteParams(
 ): Promise<unknown[]> {
     const parser: ParserInterface = inject(ZIBRI_DI_TOKENS.PARSER);
 
-    const params: unknown[] = new Array(totalParamCount).fill(undefined);
+    const params: unknown[] = Array.from({length: totalParamCount}).fill(undefined);
 
     // 1) Path decorators
     for (const { index, metadata: pathParam } of metadata.pathParams) {
@@ -90,7 +90,6 @@ async function parseRouteParams(
 
     if (metadata.declaredParamCount < totalParamCount) {
         throw new InternalError(
-            // eslint-disable-next-line stylistic/max-len
             `Error when calling ${metadata.controllerClass.name}.${metadata.controllerMethod}: Could only resolve ${metadata.declaredParamCount} out of ${totalParamCount} parameters. Did you forget to decorate one of the parameters?`
         );
     }

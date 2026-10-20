@@ -1,4 +1,4 @@
-import { WhereFilterProperty } from './where-filter.model';
+import { WhereFilterProperty } from './where-filter.model.ts';
 
 /**
  * A value that names which of several shapes it is, as the filter types see it.
@@ -21,7 +21,7 @@ export type NamedShapeValue = {
 // the name is inferred rather than read as `T['shape']`: a filter of a generic entity is compared
 // against another instantiation of this type, which needs the right side of each `extends` to be the
 // same type in both - and `T['shape']` is a different one per instantiation
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type IsOneOf<T> = [T] extends [{ shape: infer Name, value: unknown } | null | undefined]
     ? [string] extends [Name] ? false : true
     : false;
@@ -33,6 +33,6 @@ export type IsOneOf<T> = [T] extends [{ shape: infer Name, value: unknown } | nu
  * it names. `false` matches no value of that shape, and an empty filter every one.
  */
 export type OneOfWhereFilter<T extends NamedShapeValue> = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     [Name in T['shape'] as `when${Capitalize<Name>}`]: WhereFilterProperty<Extract<T, { shape: Name }>['value']> | false
 };

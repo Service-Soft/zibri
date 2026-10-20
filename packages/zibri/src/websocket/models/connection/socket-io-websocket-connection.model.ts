@@ -1,17 +1,17 @@
 import { Socket } from 'socket.io';
 
-import { BaseWebsocketConnection } from './base-websocket-connection.model';
-import { KnownHeader } from '../../../http/known-header.enum';
-import { Version } from '../../../versioning/version.model';
-import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum';
-import { WebsocketMessage } from '../websocket-message.model';
-import { WebsocketRequest } from '../websocket-request.model';
+import { BaseWebsocketConnection } from './base-websocket-connection.model.ts';
+import { KnownHeader } from '../../../http/known-header.enum.ts';
+import { Version } from '../../../versioning/version.model.ts';
+import { LooseWebsocketEvent, WebsocketEvent } from '../websocket-event.enum.ts';
+import { WebsocketMessage } from '../websocket-message.model.ts';
+import { WebsocketRequest } from '../websocket-request.model.ts';
 
 /**
  * A socket.io websocket connection.
  */
 export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly id: string;
     /**
      * Whether the connection state was recovered after a temporary disconnection.
@@ -19,7 +19,7 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
      */
     readonly recovered: boolean;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get offset(): number | undefined {
         // anything but a number was refused at the handshake, so this is a client that sent none
         const offset: unknown = this.socket.handshake.auth['offset'];
@@ -107,7 +107,7 @@ export class SocketIOWebsocketConnection implements BaseWebsocketConnection {
             return;
         }
 
-        await Promise.all(channels.map(c => this.socket.leave(c)));
+        await Promise.all(channels.map(async c => await this.socket.leave(c)));
     }
 
     /**

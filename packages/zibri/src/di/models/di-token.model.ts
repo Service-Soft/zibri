@@ -1,14 +1,14 @@
-import { DiProvider, DiProviderWithoutToken } from './di-provider.model';
-import { InjectionToken } from './injection-token.model';
-import { Newable } from '../../types/newable.type';
-import { ObjectUtilities } from '../../utilities/object.utilities';
+import { DiProvider, DiProviderWithoutToken } from './di-provider.model.ts';
+import { InjectionToken } from './injection-token.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
 
 /**
  * A token where DI values can be registered under.
  */
 export type DiToken<T> = Newable<T> | InjectionToken<T>;
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type UnwrapDiToken<T>
     = T extends InjectionToken<infer U> ? U
         // eslint-disable-next-line typescript/no-explicit-any

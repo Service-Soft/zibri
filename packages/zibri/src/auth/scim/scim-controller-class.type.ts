@@ -1,4 +1,4 @@
-import { ScimProvisionerClass } from './scim-provisioner-class.type';
+import { ScimProvisionerClass } from './scim-provisioner-class.type.ts';
 
 /**
  * A controller class `ScimController` defined.

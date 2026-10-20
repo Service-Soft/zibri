@@ -1,9 +1,9 @@
-import { EmailAttachment } from './email-attachment.model';
-import { EmailPriority } from './email-priority.enum';
-import { EmailStatus } from './email-status.enum';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
+import { EmailAttachment } from './email-attachment.model.ts';
+import { EmailPriority } from './email-priority.enum.ts';
+import { EmailStatus } from './email-status.enum.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * Definition of a Email.

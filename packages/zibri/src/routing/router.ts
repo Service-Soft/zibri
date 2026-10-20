@@ -4,73 +4,73 @@ import { Readable } from 'stream';
 import { NextFunction, Request, RequestHandler, Response, Router as ExpressRouter } from 'express';
 import { match } from 'path-to-regexp';
 
-import { ControllerRouteConfiguration } from './controller-route-configuration.model';
-import { AcceptCrossSitePostsOptions } from './decorators/accept-cross-site-posts-options.model';
-import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator';
-import { MissingBaseRouteError } from './missing-base-route.error';
-import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers';
-import { resolveBodyMetadata } from './resolve-body-metadata.function';
-import { resolveRouteParams } from './resolve-route-params.function';
-import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
-import { RouterInterface } from './router.interface';
-import { UndeclaredResultError } from './undeclared-result.error';
-import { ZibriApplication } from '../application/application';
-import type { AuthServiceInterface } from '../auth/auth-service.interface';
-import { AlsUtilities } from '../context/als.utilities';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
-import { type WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { Inject } from '../di/decorators/inject.decorator';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { getDiTokenName } from '../di/get-di-token-name.function';
-import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function';
-import { inject } from '../di/inject.function';
-import { ControllerData } from './decorators/controller.decorator';
-import { DiProvider } from '../di/models/di-provider.model';
-import { DiVariants } from '../di/models/di-variant.model';
-import { XmlWriterUtilities } from '../document/xml-writer.utilities';
-import { MethodNotAllowedError } from '../error-handling/errors/method-not-allowed.error';
-import { NotAcceptableError } from '../error-handling/errors/not-acceptable.error';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppStart } from '../global/on-app-start.interface';
-import { RouteRegistry, RouteRegistryData } from '../global/route-registry/route.registry';
-import { HandlerTimeout } from '../http/handler-timeout.type';
-import { HttpMethod, httpMethodKey } from '../http/http-method.enum';
-import { HttpRequest } from '../http/http-request.model';
-import { HttpResponse } from '../http/http-response.model';
-import { HttpStatus } from '../http/http-status.enum';
-import { JsonMimeType } from '../http/json-mime-type.type';
-import { isJsonResponse } from '../http/json-response.model';
-import { KnownHeader } from '../http/known-header.enum';
-import { MiddlewarePhase } from '../http/middleware-phase.enum';
-import { MimeType } from '../http/mime-type.enum';
-import { isRedirectResponse } from '../http/redirect-response.model';
-import { RequestDeadlineUtilities } from '../http/request-deadline.utilities';
-import { $ts } from '../localization/translate.function';
-import { type LoggerInterface } from '../logging/logger.interface';
-import { EmptyOpenApiResponse, JsonOpenApiResponse, OpenApiResponse } from '../open-api/open-api.model';
-import { resolveResponseClass } from '../open-api/resolve-response-class.function';
-import { FileResponse, isFileResponse } from '../parsing/form-data/file-response.model';
-import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model';
-import { HtmlResponse, isHtmlResponse } from '../parsing/html/html-response.model';
-import type { ParserInterface } from '../parsing/parser.interface';
-import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
-import { validateRequestTenant } from '../tenancy/validate-request-tenant.function';
-import { isNewable, Newable } from '../types/newable.type';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import type { ValidationServiceInterface } from '../validation/validation-service.interface';
-import { RouteWithVersionData } from '../versioning/route-with-version-data.model';
-import { SemVerVersion } from '../versioning/sem-ver.utilities';
-import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
-import { Version } from '../versioning/version.model';
-import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
-import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model';
+import { ControllerRouteConfiguration } from './controller-route-configuration.model.ts';
+import { AcceptCrossSitePostsOptions } from './decorators/accept-cross-site-posts-options.model.ts';
+import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata, PathParamMetadataInput, QueryParamMetadataInput, HeaderParamMetadataInput } from './decorators/param.decorator.ts';
+import { MissingBaseRouteError } from './missing-base-route.error.ts';
+import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from './param-metdata.helpers.ts';
+import { resolveBodyMetadata } from './resolve-body-metadata.function.ts';
+import { resolveRouteParams } from './resolve-route-params.function.ts';
+import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model.ts';
+import { RouterInterface } from './router.interface.ts';
+import { UndeclaredResultError } from './undeclared-result.error.ts';
+import { ZibriApplication } from '../application/application.ts';
+import type { AuthServiceInterface } from '../auth/auth-service.interface.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model.ts';
+import { type WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { Inject } from '../di/decorators/inject.decorator.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { getDiTokenName } from '../di/get-di-token-name.function.ts';
+import { getRegisteredProvidersOfVariant } from '../di/get-registered-providers-of-variant.function.ts';
+import { inject } from '../di/inject.function.ts';
+import { ControllerData } from './decorators/controller.decorator.ts';
+import { DiProvider } from '../di/models/di-provider.model.ts';
+import { DiVariants } from '../di/models/di-variant.model.ts';
+import { XmlWriterUtilities } from '../document/xml-writer.utilities.ts';
+import { MethodNotAllowedError } from '../error-handling/errors/method-not-allowed.error.ts';
+import { NotAcceptableError } from '../error-handling/errors/not-acceptable.error.ts';
+import { NotFoundError } from '../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { OnAppInit } from '../global/on-app-init.interface.ts';
+import { OnAppStart } from '../global/on-app-start.interface.ts';
+import { RouteRegistry, RouteRegistryData } from '../global/route-registry/route.registry.ts';
+import { HandlerTimeout } from '../http/handler-timeout.type.ts';
+import { HttpMethod, httpMethodKey } from '../http/http-method.enum.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { HttpResponse } from '../http/http-response.model.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { JsonMimeType } from '../http/json-mime-type.type.ts';
+import { isJsonResponse } from '../http/json-response.model.ts';
+import { KnownHeader } from '../http/known-header.enum.ts';
+import { MiddlewarePhase } from '../http/middleware-phase.enum.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { isRedirectResponse } from '../http/redirect-response.model.ts';
+import { RequestDeadlineUtilities } from '../http/request-deadline.utilities.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { type LoggerInterface } from '../logging/logger.interface.ts';
+import { EmptyOpenApiResponse, JsonOpenApiResponse, OpenApiResponse } from '../open-api/open-api.model.ts';
+import { resolveResponseClass } from '../open-api/resolve-response-class.function.ts';
+import { FileResponse, isFileResponse } from '../parsing/form-data/file-response.model.ts';
+import { buildCspHeaders, CspOptions, CspSource } from '../parsing/html/csp-options.model.ts';
+import { HtmlResponse, isHtmlResponse } from '../parsing/html/html-response.model.ts';
+import type { ParserInterface } from '../parsing/parser.interface.ts';
+import { type TenantServiceInterface } from '../tenancy/tenant-service.interface.ts';
+import { validateRequestTenant } from '../tenancy/validate-request-tenant.function.ts';
+import { isNewable, Newable } from '../types/newable.type.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import type { ValidationServiceInterface } from '../validation/validation-service.interface.ts';
+import { RouteWithVersionData } from '../versioning/route-with-version-data.model.ts';
+import { SemVerVersion } from '../versioning/sem-ver.utilities.ts';
+import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model.ts';
+import { Version } from '../versioning/version.model.ts';
+import { type VersioningServiceInterface } from '../versioning/versioning-service.interface.ts';
+import { BodyMetadata, DeclaredBodyInput } from './decorators/body-metadata.model.ts';
 
 /**
  * A declared response whose format is negotiated.
@@ -133,7 +133,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     private readonly allBaseRoutes: RouteWithVersionData[] = [];
     private readonly allFinalRoutes: RouteWithVersionData[] = [];
     private initComplete: boolean = false;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly manuallyRegisteredRoutes: RouteConfiguration<
         BodyMetadata,
         Record<string, PathParamMetadata>,
@@ -141,13 +141,13 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         Record<string, HeaderParamMetadata>
     >[] = [];
     private readonly pendingRouteGroups: Map<string, {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         httpMethod: HttpMethod,
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         finalRoute: string,
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[],
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         acceptCrossSitePosts: (AcceptCrossSitePostsOptions | undefined)[]
     }> = new Map();
 
@@ -181,7 +181,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         private readonly authService: AuthServiceInterface
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         this.logger.info(`registers ${app.options.controllers.length} controllers:`);
         for (const controller of app.options.controllers) {
@@ -203,7 +203,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         this.initComplete = true;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAcceptedCrossSiteOrigins(request: Request, response: Response): Promise<string[]> {
         return await new Promise<string[]>((resolve, reject) => {
             this.crossSitePostRouter(request, response, (error?: unknown) => {
@@ -217,7 +217,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findMethods(path: string): HttpMethod[] {
         // matched the way express matches a request, whose router is built on the same library
         const matching: HttpMethod[] = [...this.pendingRouteGroups.values()]
@@ -277,7 +277,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         )));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     onAppStart(app: ZibriApplication): void {
         app.use(this.expressRouter, MiddlewarePhase.ROUTING);
         // after the routes themselves, so it is only reached by a request none of them answered. It
@@ -497,7 +497,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     registerRoute<
         BodyMetaInputObject extends DeclaredBodyInput,
         PathMetaInputObject extends Record<string, PathParamMetadataInput>,
@@ -523,9 +523,9 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             if (overlappingVersions === 'all') {
                 throw new InitRouterError([
                     `The route "${key}"`,
-                    // eslint-disable-next-line sonar/no-duplicate-string
+                    // eslint-disable-next-line sonarjs/no-duplicate-string
                     'has been defined more than once.',
-                    // eslint-disable-next-line sonar/no-duplicate-string
+                    // eslint-disable-next-line sonarjs/no-duplicate-string
                     '(versions: \'all\' has been used)'
                 ].join(' '));
             }
@@ -579,7 +579,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         );
 
         const innerHandler: ControllerInnerHandler = this.createManualRouteInnerHandler(route);
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const existing = this.pendingRouteGroups.get(key);
         // a route registered here takes no decorators, so it accepts nothing from other origins
         if (existing) {
@@ -597,7 +597,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
 
         // If init has already completed, mount immediately since the deferred loop has already run
         if (this.initComplete) {
-            // eslint-disable-next-line typescript/typedef, typescript/no-non-null-assertion
+            // eslint-disable-next-line typescript-js/typedef, typescript/no-non-null-assertion
             const group = this.pendingRouteGroups.get(key)!;
             this.expressRouter[httpMethodKey(input.httpMethod)](input.route, this.createDispatchHandler(group.entries));
             this.answerAllowFor(input.route);
@@ -695,7 +695,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, sonar/cognitive-complexity
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, sonarjs/cognitive-complexity
     registerController(controllerClass: Newable<unknown>): void {
         const controllerData: ControllerData | undefined = MetadataUtilities.getControllerData(controllerClass);
         if (controllerData == undefined) {
@@ -772,7 +772,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                 // declaring `'none'` has said something
                 route.timeoutInMs ?? controllerData.timeoutInMs
             );
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const existing = this.pendingRouteGroups.get(key);
             const acceptCrossSitePosts: AcceptCrossSitePostsOptions | undefined = MetadataUtilities
                 .getRouteAcceptCrossSitePosts(controllerClass, route.controllerMethod);
@@ -792,7 +792,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
     }
 
     private createDispatchHandler(
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         entries: { versions: SupportedVersionsOptions, innerHandler: ControllerInnerHandler }[]
     ): RequestHandler {
         return (async (request: HttpRequest, res, next) => {
@@ -839,7 +839,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
                     const tenantId: string | undefined = named ?? await this.authService.resolveCredentialTenant(context);
                     const dispatch: () => Promise<void> = async () => {
                         const version: Version = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_VERSION);
-                        // eslint-disable-next-line typescript/typedef
+                        // eslint-disable-next-line typescript-js/typedef
                         const match = entries.find(e => this.versioningService.matchesVersion(e.versions, version));
                         if (!match) {
                             throw new NotFoundError($ts`Could not find route "${request.url}" for version "${version.value}"`);
@@ -1053,7 +1053,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
             res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'DENY');
         }
         else if (ancestor === '\'self\'') {
-            // eslint-disable-next-line cspell/spellchecker
+            // cspell:disable-next-line
             res.setHeader(KnownHeader.X_FRAME_OPTIONS, 'SAMEORIGIN');
         }
     }

@@ -1,32 +1,32 @@
 import assert from 'node:assert';
 import { createPublicKey, createSecretKey, generateKeyPairSync, JsonWebKeyInput, KeyObject } from 'node:crypto';
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { decodeProtectedHeader, jwtVerify, ProtectedHeaderParameters, SignJWT } from 'jose';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
-import { JwksController } from './jwks.controller';
-import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
-import { JwtAuthOptionsInput } from './jwt-auth-options.model';
-import { JwtAuthStrategy } from './jwt.auth-strategy';
-import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
-import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Repository } from '../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { defineProvider, DiProvider } from '../../../di/models/di-provider.model';
-import { GlobalRegistry } from '../../../global/global-registry';
-import { Controller } from '../../../routing/decorators/controller.decorator';
-import { Get } from '../../../routing/decorators/get.decorator';
-import { Newable } from '../../../types/newable.type';
-import { JsonUtilities } from '../../../utilities/json.utilities';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model';
-import { Auth } from '../../decorators/auth.decorator';
+import { JwksController } from './jwks.controller.ts';
+import { JwtAsymmetricKey } from './jwt-asymmetric-key.model.ts';
+import { JwtAuthOptionsInput } from './jwt-auth-options.model.ts';
+import { JwtAuthStrategy } from './jwt.auth-strategy.ts';
+import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller.ts';
+import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../../__testing__/mocks/entities/roles.enum.ts';
+import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../../../di/models/di-provider.model.ts';
+import { GlobalRegistry } from '../../../global/global-registry.ts';
+import { Controller } from '../../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { JsonUtilities } from '../../../utilities/json.utilities.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../../authenticators/password/password-credentials.model.ts';
+import { Auth } from '../../decorators/auth.decorator.ts';
 
 /**
  * Something to present an access token to. Allowed to go undeclared, because the applications that

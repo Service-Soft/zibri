@@ -1,10 +1,10 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { KeyWhere } from '../../entity/models/unique-declaration.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { literalToSql } from '../literal-to-sql.function';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { KeyWhere } from '../../entity/models/unique-declaration.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { literalToSql } from '../literal-to-sql.function.ts';
 
 /**
  * The values a key's filter may compare against.

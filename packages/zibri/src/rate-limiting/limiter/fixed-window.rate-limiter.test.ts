@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FixedWindowRateLimiter, FixedWindowState } from './fixed-window.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Ms } from '../../utilities/ms';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { FixedWindowRateLimiter, FixedWindowState } from './fixed-window.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 const NOW: number = 1_700_000_000_000;
 const CAPACITY: number = 5;
@@ -32,13 +32,13 @@ describe('FixedWindowRateLimiter', () => {
     beforeAll(() => initDiContainer());
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         limiter = new TestFixedWindowLimiter();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     describe('consume', () => {
@@ -51,7 +51,7 @@ describe('FixedWindowRateLimiter', () => {
 
         it('resets count after window expires', async () => {
             await limiter.consume('k', CAPACITY);
-            jest.setSystemTime(NOW + INTERVAL); // new window
+            vi.setSystemTime(NOW + INTERVAL); // new window
             const res: RateLimitResult = await limiter.consume('k', 1);
             expect(res.allowed).toBe(true);
             expect(res.remaining).toBe(CAPACITY - 1);
@@ -87,7 +87,7 @@ describe('FixedWindowRateLimiter', () => {
             await limiter.consume('k', 1);
 
             // Use a limiter with no max wait so that infinity is allowed.
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const unlimitedLimiter = new class extends FixedWindowRateLimiter {
                 constructor() {
                     super(INTERVAL, {
@@ -146,7 +146,7 @@ describe('FixedWindowRateLimiter', () => {
         it('expired reservation cleaned up, capacity refunded', async () => {
             const res: RateLimitReservationResult = await limiter.reserve('k', 3);
             assert(res.allowed);
-            jest.setSystemTime(res.reservation.expiresAtMs + 1);
+            vi.setSystemTime(res.reservation.expiresAtMs + 1);
             await limiter.cleanup();
             for (let i: number = 0; i < CAPACITY; i++) {
                 expect((await limiter.consume('k', 1)).allowed).toBe(true);
@@ -159,7 +159,7 @@ describe('FixedWindowRateLimiter', () => {
             await limiter.consume('k', 1);
             // Far beyond any reasonable idle horizon, with no further
             // activity and no pending reservations for this key.
-            jest.setSystemTime(NOW + Ms.YEAR);
+            vi.setSystemTime(NOW + Ms.YEAR);
             await limiter.cleanup();
             expect(await limiter.config.store.get('k')).toBeUndefined();
         });

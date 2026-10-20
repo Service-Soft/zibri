@@ -1,8 +1,8 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 
-import { JsonUtilities } from '../utilities/json.utilities';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
 
 /**
  * An order as the local PayPal holds it.

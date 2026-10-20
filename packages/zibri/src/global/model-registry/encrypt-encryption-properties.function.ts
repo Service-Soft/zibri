@@ -1,17 +1,17 @@
-import { EncryptionDescriptor } from './encryption-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueUtilities } from './string-value.utilities';
-import { EncryptionServiceInterface, EncryptOptions } from '../../auth/encryption/encryption-service.interface';
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding } from '../../auth/encryption/strategies/encryption-strategy.interface';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AnyObject } from '../../entity/any-object.model';
-import { EncryptAndDecryptOptions, EncryptionPropertyValue } from '../../entity/models/string-property-metadata.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
+import { EncryptionDescriptor } from './encryption-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { StringValueUtilities } from './string-value.utilities.ts';
+import { EncryptionServiceInterface, EncryptOptions } from '../../auth/encryption/encryption-service.interface.ts';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding } from '../../auth/encryption/strategies/encryption-strategy.interface.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { EncryptAndDecryptOptions, EncryptionPropertyValue } from '../../entity/models/string-property-metadata.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
 
 /**
  * Encrypts all properties defined with the encryption flag based on a pre-built EncryptionDescriptor.
@@ -43,7 +43,7 @@ export async function encryptEncryptionProperties<Data, EntityClass>(
     );
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function encryptEncryptionPropertiesRecursive<Data, EntityClass>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,
@@ -121,7 +121,7 @@ export async function boundEncryptionProperties<Data, EntityClass>(
     return await boundEncryptionPropertiesRecursive(context, data, descriptor, '', new Set());
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function boundEncryptionPropertiesRecursive<Data, EntityClass>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,

@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
 /**
  * The options every emitted piece of code is transpiled with: ES2022, which Node and every current

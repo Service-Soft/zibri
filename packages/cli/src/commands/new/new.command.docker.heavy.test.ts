@@ -1,14 +1,14 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { NewCommand } from './new.command';
-import { version } from '../../../package.json';
-import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
-import { quietly } from '../../__testing__/quietly.function';
-import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { NewCommand } from './new.command.ts';
+import packageJson from '../../../package.json' with { type: 'json' };
+import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function.ts';
+import { quietly } from '../../__testing__/quietly.function.ts';
+import { CPUtilities, FsUtilities } from '../../encapsulation/index.ts';
+import { Path } from '../../utilities/index.ts';
 
 /**
  * Whether the Dockerfile "zi new" writes produces an image that actually serves the application.
@@ -21,7 +21,7 @@ import { Path } from '../../utilities';
  * getting one wrong is a container that restarts forever rather than a file that looks wrong.
  */
 
-const REPOSITORY_ROOT: string = path.join(__dirname, '..', '..', '..', '..', '..');
+const REPOSITORY_ROOT: string = path.join(import.meta.dirname, '..', '..', '..', '..', '..');
 
 /**
  * The image the generated Dockerfile builds on, named here as well so that the lock this test hands
@@ -54,7 +54,7 @@ const REGISTRY_FROM_NETWORK: string = `http://${REGISTRY_CONTAINER}:${REGISTRY_P
 /**
  * The version every workspace package carries, which is the one the generator asks the registry for.
  */
-const WORKSPACE_VERSION: string = version;
+const WORKSPACE_VERSION: string = packageJson.version;
 
 /**
  * Where the container is published on the host.
@@ -130,7 +130,7 @@ function outputOf(error: unknown): string {
  */
 function containerDiagnostics(container: string): string {
     const state: string = run(`docker inspect -f '{{.State.Status}} (exit code {{.State.ExitCode}})' ${container}`).trim();
-    // eslint-disable-next-line sonar/no-nested-template-literals
+    // eslint-disable-next-line sonarjs/no-nested-template-literals
     return `"${container}" is ${state} and wrote:\n${run(`docker logs ${container} 2>&1`)}`;
 }
 
@@ -307,7 +307,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // suite started through "npm" or "npx" inherits that npm's own config in the environment and
         // there is no arranging to win from outside. A flag is the one place nothing else outranks.
         // eslint-disable-next-line typescript/require-await
-        jest.spyOn(CPUtilities, 'exec').mockImplementation(async (command: string) => {
+        vi.spyOn(CPUtilities, 'exec').mockImplementation(async (command: string) => {
             const pointedAtTheRegistry: string = command.replace(
                 /\bnpm i\b/,
                 `npm i --registry ${REGISTRY_FROM_HOST} --userconfig "${npmrcPath()}"`
@@ -423,7 +423,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
     afterAll(() => {
         CPUtilities['cwd'] = undefined;
         delete process.env['npm_config_registry'];
-        jest.restoreAllMocks();
+        vi.restoreAllMocks();
 
         runQuietly(`docker rm -f ${APPLICATION_CONTAINER}`);
         runQuietly(`docker rm -f ${DATABASE_CONTAINER}`);

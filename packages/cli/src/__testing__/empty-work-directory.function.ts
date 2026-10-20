@@ -1,6 +1,6 @@
-import { testFileFolder } from './constants';
-import { FsUtilities } from '../encapsulation';
-import { getPath, Path } from '../utilities';
+import { testFileFolder } from './constants.ts';
+import { FsUtilities } from '../encapsulation/index.ts';
+import { getPath, Path } from '../utilities/index.ts';
 
 /**
  * An empty directory for a suite to generate into, whatever the run before it left behind.

@@ -1,18 +1,18 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { PaymentMethod } from './models/payment-method.model';
-import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model';
-import { PaymentPluginOptions } from './models/payment-plugin-options.model';
-import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
-import { PaymentServiceInterface } from './services/payment-service.interface';
-import { TokenRecord } from '../../di/models/di-token.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { PaymentMethod } from './models/payment-method.model.ts';
+import { PaymentPluginOptionsInput } from './models/payment-plugin-options-input.model.ts';
+import { PaymentPluginOptions } from './models/payment-plugin-options.model.ts';
+import { AnyPaymentProviderInterface } from './providers/payment-provider.interface.ts';
+import { PaymentServiceInterface } from './services/payment-service.interface.ts';
+import { TokenRecord } from '../../di/models/di-token.model.ts';
+import { InjectionToken } from '../../di/models/injection-token.model.ts';
 
 export type DefaultPaymentProviderArray = readonly AnyPaymentProviderInterface[];
 
 /**
  * The dependency injection tokens used by the ZibriPaymentPlugin.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const ZIBRI_PAYMENT_PLUGIN_DI_TOKENS = {
     OPTIONS_INPUT: paymentToken<PaymentPluginOptionsInput<PaymentMethod[], DefaultPaymentProviderArray>>('zi.payment.options_input'),
     OPTIONS: paymentToken<PaymentPluginOptions<PaymentMethod[], DefaultPaymentProviderArray>>('zi.payment.options'),

@@ -1,12 +1,12 @@
 
 import os from 'node:os';
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { FsPath, FsUtilities } from './fs.utilities';
-import { JsonUtilities } from './json.utilities';
-import { resolveZibriRoot } from './resolve-zibri-root.function';
-import { testFileFolder } from '../__testing__/constants';
+import { FsPath, FsUtilities } from './fs.utilities.ts';
+import { JsonUtilities } from './json.utilities.ts';
+import { resolveZibriRoot } from './resolve-zibri-root.function.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
 
 /**
  * Always fails, forcing resolveZibriRoot into its fallback directory walk.
@@ -22,7 +22,7 @@ function blockedResolve(): string {
 
 describe('resolveZibriRoot', () => {
     it('resolves the real zibri package root via require.resolve when running unbundled', () => {
-        expect(resolveZibriRoot()).toBe(FsUtilities.getPath(__dirname, '..', '..'));
+        expect(resolveZibriRoot()).toBe(FsUtilities.getPath(import.meta.dirname, '..', '..'));
     });
 
     describe('fallback directory walk (reached when require.resolve cannot find the package, eg. in bundled runtimes)', () => {

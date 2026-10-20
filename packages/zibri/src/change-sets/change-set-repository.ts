@@ -1,42 +1,42 @@
 import { isDeepStrictEqual } from 'node:util';
 
-import { AuthServiceInterface } from '../auth/auth-service.interface';
-import { ChangeSetEntity } from './models/change-set-entity.model';
-import { ChangeSetType } from './models/change-set-type.enum';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { NewChange } from './models/change.model';
-import { BaseUser } from '../auth/models/base-user.model';
-import { AlsUtilities } from '../context/als.utilities';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
-import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { RepositoryDriverInterface } from '../data-source/driver/repository-driver.interface';
-import { BeforeReturnHook } from '../data-source/hooks/before-return';
-import { BeforeSaveHook } from '../data-source/hooks/before-save';
-import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
-import { CreateAllOptions } from '../data-source/models/options/create-all-options.model';
-import { CreateOptions } from '../data-source/models/options/create-options.model';
-import { UpdateAllOptions } from '../data-source/models/options/update-all-options.model';
-import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model';
-import { Where } from '../data-source/models/where/where-filter.model';
-import { Repository, WrittenUpdate } from '../data-source/repository/repository';
-import { ScopedWhere } from '../data-source/scopes/scope-where.utilities';
-import { TenantUtilities } from '../data-source/tenancy/tenant.utilities';
-import { WriteDataUtilities } from '../data-source/write-data.utilities';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function';
-import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function';
-import { $ts } from '../localization/translate.function';
-import { LoggerInterface } from '../logging/logger.interface';
-import { DeepPartial } from '../types/deep-partial.type';
-import { Newable } from '../types/newable.type';
-import { JsonUtilities } from '../utilities/json.utilities';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { nowInNs } from '../utilities/now-in-ns.function';
-import { ObjectUtilities } from '../utilities/object.utilities';
-import { PromiseUtilities } from '../utilities/promise.utilities';
+import { AuthServiceInterface } from '../auth/auth-service.interface.ts';
+import { ChangeSetEntity } from './models/change-set-entity.model.ts';
+import { ChangeSetType } from './models/change-set-type.enum.ts';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model.ts';
+import { NewChange } from './models/change.model.ts';
+import { BaseUser } from '../auth/models/base-user.model.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { HttpRequestContext } from '../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context.ts';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface.ts';
+import { RepositoryDriverInterface } from '../data-source/driver/repository-driver.interface.ts';
+import { BeforeReturnHook } from '../data-source/hooks/before-return.ts';
+import { BeforeSaveHook } from '../data-source/hooks/before-save.ts';
+import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model.ts';
+import { CreateAllOptions } from '../data-source/models/options/create-all-options.model.ts';
+import { CreateOptions } from '../data-source/models/options/create-options.model.ts';
+import { UpdateAllOptions } from '../data-source/models/options/update-all-options.model.ts';
+import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model.ts';
+import { Where } from '../data-source/models/where/where-filter.model.ts';
+import { Repository, WrittenUpdate } from '../data-source/repository/repository.ts';
+import { ScopedWhere } from '../data-source/scopes/scope-where.utilities.ts';
+import { TenantUtilities } from '../data-source/tenancy/tenant.utilities.ts';
+import { WriteDataUtilities } from '../data-source/write-data.utilities.ts';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { removeExcludeProperties } from '../global/model-registry/remove-exclude-properties.function.ts';
+import { restoreExcludeProperties } from '../global/model-registry/restore-exclude-properties.function.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { DeepPartial } from '../types/deep-partial.type.ts';
+import { Newable } from '../types/newable.type.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { nowInNs } from '../utilities/now-in-ns.function.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
+import { PromiseUtilities } from '../utilities/promise.utilities.ts';
 
 /**
  * The result for resetting a change set on an entity.
@@ -276,10 +276,11 @@ export class ChangeSetRepository<
             }
             const data: DeepPartial<T> = {} as DeepPartial<T>;
             for (const change of changeSet.changes) {
-                const key: keyof DeepPartial<T> = change.key as keyof DeepPartial<T>;
-                data[key] = preserveCreateChangeSet && changeSet.type === ChangeSetType.CREATE
-                    ? change.newValue as DeepPartial<T>[keyof DeepPartial<T>]
-                    : change.previousValue as DeepPartial<T>[keyof DeepPartial<T>];
+                // a key the change set recorded, so only known at runtime: indexing the partial with it
+                // asks for a value of every property's type at once
+                Reflect.set(data, change.key, preserveCreateChangeSet && changeSet.type === ChangeSetType.CREATE
+                    ? change.newValue
+                    : change.previousValue);
             }
             // `saveUpdate` rather than `updateByIdWithoutChangeSet`, for the written change: a reset
             // is a write like any other, so the hooks add to it, and the change set recording the

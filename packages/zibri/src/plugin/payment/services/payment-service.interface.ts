@@ -1,10 +1,10 @@
-import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types';
-import { PaymentMethod } from '../models/payment-method.model';
-import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface';
+import { PaymentDataForMethod, ValidatedPaymentDataForMethod, PaymentForMethod, AllowedReservationMethods, PaymentReservationForMethod, AllowedCancellationMethods, AllowedRefundMethods } from './payment-service.types.ts';
+import { PaymentMethod } from '../models/payment-method.model.ts';
+import { AnyPaymentProviderInterface } from '../providers/payment-provider.interface.ts';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type MethodsCoveredByProviders<P extends readonly AnyPaymentProviderInterface[]>
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     = P[number] extends { __supportedMethods: infer SM }
         ? SM extends readonly (infer S)[] ? S : never
         : never;
@@ -15,9 +15,8 @@ type MethodsCoveredByProviders<P extends readonly AnyPaymentProviderInterface[]>
 export interface PaymentServiceInterface<
     Methods extends readonly PaymentMethod[],
     P extends readonly AnyPaymentProviderInterface[],
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     _Check extends (Methods[number] extends MethodsCoveredByProviders<P>
-        // eslint-disable-next-line stylistic/max-len
         ? unknown : 'Error: not all payment methods are covered by the provided providers') = Methods[number] extends MethodsCoveredByProviders<P>
         ? unknown : 'Error: not all payment methods are covered by the provided providers'
 > {

@@ -1,16 +1,18 @@
-import { execFileSync } from 'node:child_process';
+import assert from 'node:assert';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { beforeAll, describe, expect, it } from '@jest/globals';
 import { transformSync as swcTransform } from '@swc/core';
+import ts from '@typescript/typescript6';
 import { transformSync as esbuildTransform } from 'esbuild';
-import ts from 'typescript';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 // type only on purpose: loading the fixture here would declare its entity and its injectables into
 // this process's registries, which is the one thing running each build in a child avoids
-import type { ProbeResult } from '../__testing__/build-toolchains/consumer-application.fixture';
-import { JsonUtilities } from '../utilities/json.utilities';
+import type { ProbeResult } from '../__testing__/build-toolchains/consumer-application.fixture.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * Which toolchains an application can be built with, checked by building one with each of them.
@@ -23,7 +25,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
  * esbuild does not implement it at all, which is what made this a lock-in rather than a preference.
  *
  * So the promise is two styles rather than one toolchain, and this file is what makes it a promise:
- * the same application compiled four ways, asserted to behave identically apart from the two things
+ * the same application compiled every way below, asserted to behave identically apart from the two things
  * that depend on the metadata. A claim about somebody else's compiler is worth nothing written down
  * in a document, because the day it stops being true nothing says so.
  *
@@ -31,7 +33,7 @@ import { JsonUtilities } from '../utilities/json.utilities';
  * fixture imports the framework by name, the way a consumer does, so it loads the built package.
  */
 
-const packageDir: string = path.resolve(__dirname, '..', '..');
+const packageDir: string = path.resolve(import.meta.dirname, '..', '..');
 const fixturePath: string = path.join(packageDir, 'src', '__testing__', 'build-toolchains', 'consumer-application.fixture.ts');
 const outputDir: string = path.join(packageDir, 'src', '__testing__', 'file-output', 'build-toolchains');
 
@@ -44,9 +46,14 @@ type Toolchain = {
      */
     name: string,
     /**
-     * Turns the fixture's source into CommonJS.
+     * Turns the fixture into JavaScript, in the module format `extension` says.
      */
-    compile: (source: string) => string,
+    compile: (fixture: string) => string,
+    /**
+     * `.cjs` for CommonJS, `.mjs` for an es module, which node 24 also loads through `require`, and
+     * `.ts` for TypeScript left to the framework's own loader to compile as it is loaded.
+     */
+    extension: '.cjs' | '.mjs' | '.ts',
     /**
      * Whether this build writes down the type of a constructor parameter and of a property.
      */
@@ -55,12 +62,12 @@ type Toolchain = {
 
 /**
  * Compiles the fixture with TypeScript's own compiler.
- * @param source - The fixture's source.
+ * @param fixture - The fixture's path.
  * @param emitDecoratorMetadata - Whether to write the types down.
  * @returns The CommonJS output.
  */
-function withTsc(source: string, emitDecoratorMetadata: boolean): string {
-    return ts.transpileModule(source, {
+function withTsc(fixture: string, emitDecoratorMetadata: boolean): string {
+    return ts.transpileModule(readFileSync(fixture, 'utf8'), {
         compilerOptions: {
             module: ts.ModuleKind.CommonJS,
             target: ts.ScriptTarget.ES2022,
@@ -71,22 +78,94 @@ function withTsc(source: string, emitDecoratorMetadata: boolean): string {
     }).outputText;
 }
 
+/**
+ * Compiles the fixture with TypeScript 7, the native compiler.
+ *
+ * Through its binary, because 7.0 ships no api. The fixture's import of the framework does not resolve
+ * from the folder it is compiled in, so the run reports a type error and emits regardless - the same
+ * single file view `transpileModule` gives the row of TypeScript 6.
+ * @param fixture - The fixture's path.
+ * @returns The CommonJS output.
+ */
+function withTsc7(fixture: string): string {
+    const outDir: string = path.join(outputDir, 'tsc-7');
+    // checked rather than assumed: the row passing under this name while compiling with an older TypeScript
+    // would prove nothing about the one it names
+    const typescriptPackage: string = createRequire(import.meta.url).resolve('typescript/package.json');
+    const { version }: { version: string } = JsonUtilities.parse(readFileSync(typescriptPackage, 'utf8'));
+    assert(version.startsWith('7.'), `TypeScript 7 was expected, found ${version}`);
+    const tsc7: string = path.join(path.dirname(typescriptPackage), 'bin', 'tsc');
+    const options: string[] = [
+        '--ignoreConfig',
+        '--outDir',
+        outDir,
+        '--module',
+        'commonjs',
+        '--target',
+        'es2022',
+        '--experimentalDecorators',
+        '--emitDecoratorMetadata',
+        '--esModuleInterop',
+        '--skipLibCheck'
+    ];
+    spawnSync(process.execPath, [tsc7, fixture, ...options], { encoding: 'utf8', timeout: 60_000 });
+    return readFileSync(path.join(outDir, `${path.basename(fixture, '.ts')}.js`), 'utf8');
+}
+
+/**
+ * Builds the fixture the way a generated application is built: with Vite, whose Oxc transform compiles
+ * the decorators.
+ *
+ * In a process of its own, so the build runs on Vite as an application has it rather than inside the test
+ * runner's own. A build rather than a transform, because what Oxc emits imports helpers that only exist
+ * inside the build.
+ * @param fixture - The fixture's path.
+ * @returns The es module output.
+ */
+function withVite(fixture: string): string {
+    const script: string = [
+        'const { build } = await import(\'vite\');',
+        'const result = await build({',
+        '    configFile: false,',
+        '    logLevel: \'silent\',',
+        '    oxc: { decorator: { legacy: true, emitDecoratorMetadata: true } },',
+        // the framework stays the published package the fixture imports, as it does for an application
+        '    ssr: { external: [\'zibri\'] },',
+        `    build: { ssr: ${JsonUtilities.stringify(fixture)}, write: false, target: 'node24' }`,
+        '});',
+        'process.stdout.write((Array.isArray(result) ? result[0] : result).output[0].code);'
+    ].join('\n');
+    return execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+        cwd: packageDir,
+        encoding: 'utf8',
+        timeout: 60_000
+    });
+}
+
 const TOOLCHAINS: Toolchain[] = [
     {
         // the control: what a consumer following the generated tsconfig gets today
         name: 'tsc',
-        compile: source => withTsc(source, true),
+        compile: fixture => withTsc(fixture, true),
+        extension: '.cjs',
         carriesTypeMetadata: true
     },
     {
         name: 'tsc without emitDecoratorMetadata',
-        compile: source => withTsc(source, false),
+        compile: fixture => withTsc(fixture, false),
+        extension: '.cjs',
         carriesTypeMetadata: false
+    },
+    {
+        name: 'tsc 7',
+        compile: fixture => withTsc7(fixture),
+        extension: '.cjs',
+        carriesTypeMetadata: true
     },
     {
         // behind flags rather than on by default, which is the whole of what it asks for
         name: 'swc',
-        compile: source => swcTransform(source, {
+        compile: fixture => swcTransform(readFileSync(fixture, 'utf8'), {
             filename: 'consumer-application.fixture.ts',
             jsc: {
                 parser: { syntax: 'typescript', decorators: true },
@@ -95,21 +174,39 @@ const TOOLCHAINS: Toolchain[] = [
             },
             module: { type: 'commonjs' }
         }).code,
+        extension: '.cjs',
         carriesTypeMetadata: true
     },
     {
         // there is no flag to turn on here - esbuild implements the decorators and not the metadata,
         // so this row is the one the whole promise exists for
         name: 'esbuild',
-        compile: source => esbuildTransform(source, {
+        compile: fixture => esbuildTransform(readFileSync(fixture, 'utf8'), {
             loader: 'ts',
             format: 'cjs',
             target: 'es2022',
             tsconfigRaw: { compilerOptions: { experimentalDecorators: true, target: 'ES2022' } }
         }).code,
+        extension: '.cjs',
         carriesTypeMetadata: false
+    },
+    {
+        name: 'vite 8',
+        compile: fixture => withVite(fixture),
+        extension: '.mjs',
+        carriesTypeMetadata: true
+    },
+    {
+        // what a TypeScript worker file and a test cluster instance are compiled with: Oxc like the
+        // row above, but with the decorator helpers the loader serves itself rather than Oxc's own
+        name: 'the TypeScript loader',
+        compile: fixture => readFileSync(fixture, 'utf8'),
+        extension: '.ts',
+        carriesTypeMetadata: true
     }
 ];
+
+const builtLoader: string = path.join(packageDir, 'dist', 'utilities', 'typescript-loader', 'typescript-loader.utilities.js');
 
 const probes: Map<string, ProbeResult> = new Map();
 
@@ -128,19 +225,22 @@ function probeOf(toolchain: Toolchain): ProbeResult {
         return known;
     }
 
-    const compiledPath: string = path.join(outputDir, `${toolchain.name.replaceAll(' ', '-')}.js`);
-    writeFileSync(compiledPath, toolchain.compile(readFileSync(fixturePath, 'utf8')), 'utf8');
+    const compiledPath: string = path.join(outputDir, `${toolchain.name.replaceAll(' ', '-')}${toolchain.extension}`);
+    writeFileSync(compiledPath, toolchain.compile(fixturePath), 'utf8');
 
+    const registering: string = toolchain.extension === '.ts'
+        ? `require(${JsonUtilities.stringify(builtLoader)}).TypeScriptLoaderUtilities.register('The fixture');`
+        : '';
     const output: string = execFileSync(
         process.execPath,
-        ['-e', `console.log(JSON.stringify(require(${JsonUtilities.stringify(compiledPath)}).probe()));`],
+        ['-e', `${registering}console.log(JSON.stringify(require(${JsonUtilities.stringify(compiledPath)}).probe()));`],
         {
             // the package, so that `zibri` resolves the way it does for anything else in the repo
             cwd: packageDir,
             encoding: 'utf8',
             stdio: ['ignore', 'pipe', 'pipe'],
-            // jest cannot interrupt a synchronous child, so one that never settles would hang the
-            // whole run rather than fail this test
+            // the test runner cannot interrupt a synchronous child, so one that never settles would
+            // hang the whole run rather than fail this test
             timeout: 60_000
         }
     );
@@ -172,6 +272,7 @@ describe('build toolchains', () => {
         expect(result.tagged).toBe('hello');
         expect(result.entityProperties).toContain('reference');
         expect(result.entityProperties).toContain('total');
+        expect(result.entityProperties).toContain('lastStatus');
         expect(result.routes).toEqual(['GET /:reference']);
         expect(result.handler).toEqual({ reference: 'inv-1', greeting: 'hello' });
     });
@@ -183,8 +284,25 @@ describe('build toolchains', () => {
         // the two metadata-dependent answers are what the styles differ over, and everything else is
         // what the promise is about - so this compares the rest as a whole rather than property by
         // property, which is what catches the thing nobody thought to assert
-        expect({ ...result, untagged: undefined, ownEmptyConstructor: undefined, contradictedFormat: undefined })
-            .toEqual({ ...control, untagged: undefined, ownEmptyConstructor: undefined, contradictedFormat: undefined });
+        // the enum parameter's message names what was recorded, which is what the toolchains differ over;
+        // that each of them refuses it is asserted below
+        const unlike: Partial<ProbeResult> = {
+            untagged: undefined,
+            ownEmptyConstructor: undefined,
+            contradictedFormat: undefined,
+            enumParameter: undefined
+        };
+        expect({ ...result, ...unlike }).toEqual({ ...control, ...unlike });
+    });
+
+    it.each(TOOLCHAINS)('refuses a parameter typed as an enum from another module with $name', toolchain => {
+        // nothing can inject an enum value, whatever the compiler recorded for it - Number, nothing, or
+        // the enum object - so each of them is refused with the remedy rather than looked up as a token
+        const result: ProbeResult = probeOf(toolchain);
+
+        expect(result.enumParameter.name).toBe('UninjectableParameterError');
+        expect(result.enumParameter.message).toContain('EnumParameterService');
+        expect(result.enumParameter.message).toContain('@Inject');
     });
 
     it.each(TOOLCHAINS)('builds a class with the constructor it inherits with $name', toolchain => {

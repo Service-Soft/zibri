@@ -1,38 +1,38 @@
 import { Readable } from 'node:stream';
 
 import { EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsRelations, FindOptionsSelect, FindOptionsWhere, InsertResult, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
-import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
-import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity.js';
 
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
-import { AlsUtilities } from '../../context/als.utilities';
-import { OperationLimit } from '../../context/operation-limit.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PropertyMetadata } from '../../entity/decorators/property.decorator';
-import { EntityOrderUtilities, OrderKey } from '../../entity/models/entity-order.utilities';
-import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
-import { KeyWhere } from '../../entity/models/unique-declaration.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
-import { CheckConstraintViolationError } from '../check-constraint-violation.error';
-import { IsolationLevel } from '../data-sources/data-source.interface';
-import { cancelsStatements, StatementCancellingDataSource } from '../data-sources/statement-cancelling-data-source.model';
-import { limitsStatements, OPERATION_LIMIT_DATA_KEY, StatementLimitingDataSource } from '../data-sources/statement-limiting-data-source.model';
-import { type TypeOrmBaseDataSource } from '../data-sources/typeorm-base-data-source.model';
-import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model';
-import { DataSourceOptions } from '../models/data-source-options.model';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where } from '../models/where/where-filter.model';
-import { QueryFailedError } from '../query-failed.error';
-import { MistypedStoredValue, StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error';
-import { Transaction } from '../transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
-import { WriteDataUtilities } from '../write-data.utilities';
+import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { OperationLimit } from '../../context/operation-limit.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator.ts';
+import { EntityOrderUtilities, OrderKey } from '../../entity/models/entity-order.utilities.ts';
+import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function.ts';
+import { KeyWhere } from '../../entity/models/unique-declaration.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
+import { TypeOrmUtilities } from '../../utilities/typeorm.utilities.ts';
+import { CheckConstraintViolationError } from '../check-constraint-violation.error.ts';
+import { IsolationLevel } from '../data-sources/data-source.interface.ts';
+import { cancelsStatements, StatementCancellingDataSource } from '../data-sources/statement-cancelling-data-source.model.ts';
+import { limitsStatements, OPERATION_LIMIT_DATA_KEY, StatementLimitingDataSource } from '../data-sources/statement-limiting-data-source.model.ts';
+import { type TypeOrmBaseDataSource } from '../data-sources/typeorm-base-data-source.model.ts';
+import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model.ts';
+import { DataSourceOptions } from '../models/data-source-options.model.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { QueryFailedError } from '../query-failed.error.ts';
+import { MistypedStoredValue, StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../unique-constraint-violation.error.ts';
+import { WriteDataUtilities } from '../write-data.utilities.ts';
 
 /**
  * How many streamed ids are read back as entities at once.
@@ -46,7 +46,7 @@ const STREAM_BATCH_SIZE: number = 500;
 /**
  * One sort the orm placed from find options: a direction, or a direction and where nulls go.
  */
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type PlacedSort = 'ASC' | 'DESC' | { order: 'ASC' | 'DESC', nulls?: 'NULLS FIRST' | 'NULLS LAST' };
 
 /**
@@ -77,7 +77,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         this.properties = MetadataUtilities.getModelProperties(entityClass);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         // the orm inserts a batch as one statement binding a value per column per row, and reads the
         // rows it is about to write by id first. Past what one statement binds, both are cut into
@@ -89,7 +89,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         )));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         if (!data.length) {
             return [];
@@ -157,7 +157,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return Math.max(1, Math.floor(this.maxBoundValuesPerStatement / valuesPerRow));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         const findOptions: FindManyOptions<T> = {
             where: this.resolveWhere(options),
@@ -171,7 +171,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             : await manager.find(this.entityClass, findOptions)));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         const findOptions: FindManyOptions<T> = {
             // an empty filter rather than none: the orm's findOne refuses a read without one, where
@@ -289,7 +289,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async count(options: DriverFindOptions<T>): Promise<number> {
         return await this.run(async () => await this.onConnection(options.transaction, async manager => await manager.count(
             this.entityClass,
@@ -297,7 +297,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         )));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         if (options.transaction != undefined) {
             // the caller's transaction already decides what both halves see, and starting a second
@@ -337,7 +337,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         // the cursor carries ids and nothing else, and the rows are read back in batches through the
         // same `find` every other read uses. Two reasons, both of which cost more than they look:
@@ -393,7 +393,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return ids.map(id => byId.get(id)).filter((entity): entity is T => entity != undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         if (!ids.length) {
             return;
@@ -410,7 +410,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             .execute()));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         const findOptions: FindManyOptions<T> = {
             where: this.resolveWhere(options),
@@ -430,7 +430,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return found.map(e => e.id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateAll<R extends boolean = false>(
         options: DriverUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
@@ -576,7 +576,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return locked.map(l => l.id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
         if (!rows.length) {
             return [];
@@ -686,7 +686,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             const builder: UpdateQueryBuilder<T> = manager
                 .createQueryBuilder()
                 .update<T>(this.entityClass)
-                .set(set as QueryDeepPartialEntity<T>);
+                .set(set);
             if (resolved != undefined) {
                 builder.where(resolved);
             }
@@ -701,7 +701,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return TypeOrmUtilities.toEntities(this.entityClass, this.declaredColumns, res.raw);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
@@ -948,7 +948,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     ): Promise<R> {
         // kept so that whoever owns the connection waits for the cancel before doing anything else
         // with it
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         const cancelling: { pending: Promise<void> | undefined } = { pending: undefined };
         const onAbort: () => void = () => {
             cancelling.pending = store.cancelStatementOn(runner);

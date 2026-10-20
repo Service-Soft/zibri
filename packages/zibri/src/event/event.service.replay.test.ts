@@ -1,23 +1,23 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface';
-import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
-import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
-import { Event, EventStatus } from './event.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { waitUntil } from '../__testing__/wait-until.function';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
+import { type EventServiceInterface, EventSubscriptionInterface } from './event-service.interface.ts';
+import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model.ts';
+import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model.ts';
+import { Event, EventStatus } from './event.model.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { waitUntil } from '../__testing__/wait-until.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
 
-declare module './event-service.interface' {
+declare module './event-service.interface.ts' {
     /**
      * What this suite emits, one type per scenario.
      */

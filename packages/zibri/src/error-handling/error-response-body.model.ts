@@ -1,8 +1,8 @@
-import { Property } from '../entity/decorators/property.decorator';
-import { HttpStatus } from '../http/http-status.enum';
-import { TranslatedString } from '../localization/models/translated-string.model';
-import { XmlElement } from '../parsing/xml/xml-element.decorator';
-import { XmlRoot } from '../parsing/xml/xml-root.decorator';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { HttpStatus } from '../http/http-status.enum.ts';
+import { TranslatedString } from '../localization/models/translated-string.model.ts';
+import { XmlElement } from '../parsing/xml/xml-element.decorator.ts';
+import { XmlRoot } from '../parsing/xml/xml-root.decorator.ts';
 
 /**
  * What a refused or failed request answers with, when it answers in json or in xml.

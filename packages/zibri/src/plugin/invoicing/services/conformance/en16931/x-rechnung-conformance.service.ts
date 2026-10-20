@@ -1,6 +1,6 @@
-import { Injectable } from '../../../../../di/decorators/injectable.decorator';
-import { InvoiceConformance } from '../invoice-conformance-service.interface';
-import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-conformance.service';
+import { Injectable } from '../../../../../di/decorators/injectable.decorator.ts';
+import { InvoiceConformance } from '../invoice-conformance-service.interface.ts';
+import { EN16931ConformanceService, EN16931DocumentContextId } from './en16931-conformance.service.ts';
 
 /**
  * Handles conforming to the X-Rechnung standard.

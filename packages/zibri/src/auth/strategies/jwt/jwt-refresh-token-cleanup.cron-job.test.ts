@@ -1,18 +1,18 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { describe, expect, it, vi, Mock } from 'vitest';
 
-import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job';
-import { JwtRefreshToken } from './jwt-refresh-token.model';
-import { Repository } from '../../../data-source/repository/repository';
+import { JwtRefreshTokenCleanupCronJob } from './jwt-refresh-token-cleanup.cron-job.ts';
+import { JwtRefreshToken } from './jwt-refresh-token.model.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
 
-function fakeRefreshTokenRepository(): Repository<JwtRefreshToken> & { deleteAll: jest.Mock<Repository<JwtRefreshToken>['deleteAll']> } {
+function fakeRefreshTokenRepository(): Repository<JwtRefreshToken> & { deleteAll: Mock<Repository<JwtRefreshToken>['deleteAll']> } {
     return {
-        deleteAll: jest.fn<Repository<JwtRefreshToken>['deleteAll']>().mockResolvedValue([])
-    } as unknown as Repository<JwtRefreshToken> & { deleteAll: jest.Mock<Repository<JwtRefreshToken>['deleteAll']> };
+        deleteAll: vi.fn<Repository<JwtRefreshToken>['deleteAll']>().mockResolvedValue([])
+    } as unknown as Repository<JwtRefreshToken> & { deleteAll: Mock<Repository<JwtRefreshToken>['deleteAll']> };
 }
 
 describe('JwtRefreshTokenCleanupCronJob', () => {
     it('deletes refresh tokens whose expirationDate has passed', async () => {
-        const repo: Repository<JwtRefreshToken> & { deleteAll: jest.Mock<Repository<JwtRefreshToken>['deleteAll']> } = fakeRefreshTokenRepository();
+        const repo: Repository<JwtRefreshToken> & { deleteAll: Mock<Repository<JwtRefreshToken>['deleteAll']> } = fakeRefreshTokenRepository();
         const cronJob: JwtRefreshTokenCleanupCronJob = new JwtRefreshTokenCleanupCronJob(repo);
 
         const before: Date = new Date();
@@ -26,7 +26,7 @@ describe('JwtRefreshTokenCleanupCronJob', () => {
     });
 
     it('does not filter by blacklisted status, so an unexpired blacklisted token survives cleanup', async () => {
-        const repo: Repository<JwtRefreshToken> & { deleteAll: jest.Mock<Repository<JwtRefreshToken>['deleteAll']> } = fakeRefreshTokenRepository();
+        const repo: Repository<JwtRefreshToken> & { deleteAll: Mock<Repository<JwtRefreshToken>['deleteAll']> } = fakeRefreshTokenRepository();
         const cronJob: JwtRefreshTokenCleanupCronJob = new JwtRefreshTokenCleanupCronJob(repo);
 
         await cronJob.onTick();

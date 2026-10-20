@@ -1,8 +1,8 @@
-import { HttpRequest } from '../http/http-request.model';
-import { MimeType } from '../http/mime-type.enum';
-import { HttpClientResponse } from '../http-client/http-client-response.model';
-import { BodyMetadata, BodyMetadataForType } from '../routing/decorators/body-metadata.model';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { HttpClientResponse } from '../http-client/http-client-response.model.ts';
+import { BodyMetadata, BodyMetadataForType } from '../routing/decorators/body-metadata.model.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 /**
  * The body metadata a parser for the given content type receives.

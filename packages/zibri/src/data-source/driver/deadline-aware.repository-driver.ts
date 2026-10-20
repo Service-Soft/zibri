@@ -1,11 +1,11 @@
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
-import { AlsUtilities } from '../../context/als.utilities';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where } from '../models/where/where-filter.model';
-import { Transaction } from '../transaction/transaction.model';
+import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * Refuses a store operation whose request is already over, or whose work has run out of the time it
@@ -25,67 +25,67 @@ import { Transaction } from '../transaction/transaction.model';
 export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements RepositoryDriverInterface<T> {
     constructor(private readonly inner: RepositoryDriverInterface<T>) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         this.validateStillWanted();
         return await this.inner.save(data, transaction, reload);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         this.validateStillWanted();
         return await this.inner.insert(data, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
         this.validateStillWanted();
         return await this.inner.updateEach(rows, where, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         this.validateStillWanted();
         return await this.inner.find(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         this.validateStillWanted();
         return await this.inner.findOne(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async count(options: DriverFindOptions<T>): Promise<number> {
         this.validateStillWanted();
         return await this.inner.count(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         this.validateStillWanted();
         return await this.inner.findAndCount(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         this.validateStillWanted();
         await this.inner.remove(ids, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         this.validateStillWanted();
         return await this.inner.findIds(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
         this.validateStillWanted();
         return await this.inner.updateAll(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async upsert(
         identity: string[],
         rows: UpsertRow<T>[],

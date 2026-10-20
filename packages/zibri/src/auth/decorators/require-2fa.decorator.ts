@@ -1,5 +1,5 @@
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { Require2faMetadata } from '../models/require-2fa-metadata.model';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { Require2faMetadata } from '../models/require-2fa-metadata.model.ts';
 
 /**
  * The type of the require 2fa decorator.
@@ -27,7 +27,7 @@ export const require2faDecorator: Require2faFn
         const fullMetadata: Require2faMetadata = { allowedMethods: options?.allowedMethods, reauth: options?.reauth };
 
         const decorator: MethodDecorator & ClassDecorator = (
-            target: Object,
+            target: object,
             propertyKey?: string | symbol
         ) => {
             if (propertyKey !== undefined) {
@@ -41,7 +41,7 @@ export const require2faDecorator: Require2faFn
     };
 
 require2faDecorator.skip = () => (
-    target: Object,
+    target: object,
     propertyKey?: string | symbol
 ) => {
     if (propertyKey !== undefined) {

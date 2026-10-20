@@ -1,5 +1,5 @@
-import { InternalError } from '../error-handling/internal-error.model';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 /**
  * Writes a value into a statement as a literal, for the statements that cannot take a parameter - a

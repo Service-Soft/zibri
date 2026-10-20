@@ -2,13 +2,13 @@ import { Dirent } from 'node:fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 
-import { BackupTransportInterface } from './backup-transport.interface';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { LoggerInterface } from '../../logging/logger.interface';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { BackupEntity } from '../backup-entity.model';
-import { BackupResourceEntity } from '../backup-resource-entity.model';
+import { BackupTransportInterface } from './backup-transport.interface.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { LoggerInterface } from '../../logging/logger.interface.ts';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities.ts';
+import { BackupEntity } from '../backup-entity.model.ts';
+import { BackupResourceEntity } from '../backup-resource-entity.model.ts';
 
 const METADATA_FILENAME: string = 'metadata.json';
 
@@ -23,7 +23,7 @@ export abstract class BaseFsBackupTransport implements BackupTransportInterface 
         return inject(ZIBRI_DI_TOKENS.LOGGER);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveBackups(existingNames: string[]): Promise<string[]> {
         if (!await FsUtilities.exists(this.backupBasePath)) {
             return [];
@@ -47,7 +47,7 @@ export abstract class BaseFsBackupTransport implements BackupTransportInterface 
         return res.filter(b => b != undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async storeData(data: Readable, backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: FsPath = this.getResourcePath(backup, resource);
         await FsUtilities.mkdir(this.getBackupPath(backup));
@@ -58,19 +58,19 @@ export abstract class BaseFsBackupTransport implements BackupTransportInterface 
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async storeMetadata(backup: BackupEntity, document: string): Promise<void> {
         await FsUtilities.mkdir(this.getBackupPath(backup));
         await FsUtilities.createFile(this.getBackupMetadataPath(backup), document);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     retrieveData(backup: BackupEntity, resource: BackupResourceEntity): Readable | Promise<Readable> {
         const p: FsPath = this.getResourcePath(backup, resource);
         return FsUtilities.createReadStream(p);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteData(backup: BackupEntity, resource: BackupResourceEntity): Promise<void> {
         const p: FsPath = this.getResourcePath(backup, resource);
         await FsUtilities.rm(p);
@@ -79,7 +79,7 @@ export abstract class BaseFsBackupTransport implements BackupTransportInterface 
         await FsUtilities.rmIfEmpty(this.getBackupPath(backup));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteMetadata(backup: BackupEntity): Promise<void> {
         await FsUtilities.rm(this.getBackupMetadataPath(backup));
     }

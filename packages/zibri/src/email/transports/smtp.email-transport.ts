@@ -2,9 +2,9 @@ import type { Transporter } from 'nodemailer';
 import type SMTPPool from 'nodemailer/lib/smtp-pool';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
-import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
-import { optionalPeer } from '../../utilities/optional-peer.function';
-import { Email } from '../models/email.model';
+import { EmailSendResult, EmailTransportInterface } from './email-transport.interface.ts';
+import { optionalPeer } from '../../utilities/optional-peer.function.ts';
+import { Email } from '../models/email.model.ts';
 
 /**
  * How to reach an SMTP server.
@@ -56,7 +56,7 @@ export type SmtpEmailTransportOptions = {
  */
 export class SmtpEmailTransport implements EmailTransportInterface {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'SmtpEmailTransport';
 
     // a union rather than one type, because nodemailer builds a different transport for a pooled
@@ -70,7 +70,7 @@ export class SmtpEmailTransport implements EmailTransportInterface {
      * @param options - How to reach the server.
      */
     constructor(options: SmtpEmailTransportOptions) {
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const createTransport = optionalPeer<typeof import('nodemailer')>('nodemailer', 'The smtp email transport').createTransport;
 
         const transportOptions: SMTPTransport.Options = {
@@ -84,7 +84,7 @@ export class SmtpEmailTransport implements EmailTransportInterface {
             : createTransport(transportOptions);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async send(email: Email): Promise<EmailSendResult> {
         const res: SMTPTransport.SentMessageInfo | SMTPPool.SentMessageInfo = await this.transporter.sendMail({
             html: email.html,
@@ -112,7 +112,7 @@ export class SmtpEmailTransport implements EmailTransportInterface {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     close(): void {
         this.transporter.close();
     }

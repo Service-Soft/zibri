@@ -1,7 +1,7 @@
-import { CronExpressionString } from './cron-expression.utilities';
-import { CronJob } from './cron-job.model';
-import { CronUpdateData } from './cron.service';
-import { ShouldRunExecution } from './should-run-execution.type';
+import { CronExpressionString } from './cron-expression.utilities.ts';
+import { CronJob } from './cron-job.model.ts';
+import { CronUpdateData } from './cron.service.ts';
+import { ShouldRunExecution } from './should-run-execution.type.ts';
 
 /**
  * Interface for a cron service.

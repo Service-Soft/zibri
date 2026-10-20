@@ -1,15 +1,15 @@
-import { RequestContextToken } from './request-context-token.model';
-import { Newable } from '../../types/newable.type';
-import { BaseWebsocketConnection } from '../../websocket/models/connection/base-websocket-connection.model';
-import { WebsocketRequest } from '../../websocket/models/websocket-request.model';
-import { BaseContext } from '../base-context';
+import { RequestContextToken } from './request-context-token.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseWebsocketConnection } from '../../websocket/models/connection/base-websocket-connection.model.ts';
+import { WebsocketRequest } from '../../websocket/models/websocket-request.model.ts';
+import { BaseContext } from '../base-context.ts';
 
 /**
  * The context of an incoming websocket request.
  */
 export class WebsocketRequestContext extends BaseContext<'websocket-request'> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly type: 'websocket-request' = 'websocket-request';
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
+    readonly type: 'websocket-request' = 'websocket-request' as const;
 
     /**
      * Whether the client this message came from has gone.

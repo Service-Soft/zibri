@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_MIN_SIMILARITY, parseFuzzyLikeFilter } from './fuzzy-like.model';
+import { DEFAULT_MIN_SIMILARITY, parseFuzzyLikeFilter } from './fuzzy-like.model.ts';
 
 describe('parseFuzzyLikeFilter', () => {
     it('reads the search value', () => {

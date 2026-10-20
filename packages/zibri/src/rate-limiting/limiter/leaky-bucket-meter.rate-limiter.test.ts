@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 
-import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LeakyBucketMeterRateLimiter, LeakyBucketMeterState } from './leaky-bucket-meter.rate-limiter';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { Ms } from '../../utilities/ms';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { LeakyBucketMeterRateLimiter, LeakyBucketMeterState } from './leaky-bucket-meter.rate-limiter.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { RateLimitReservationResult } from '../reservation/rate-limit-reservation-result.model.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 const NOW: number = 1_700_000_000_000;
 const CAPACITY: number = 10; // max water
@@ -32,13 +32,13 @@ describe('LeakyBucketMeterRateLimiter', () => {
     beforeAll(() => initDiContainer());
 
     beforeEach(() => {
-        jest.useFakeTimers();
-        jest.setSystemTime(NOW);
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
         limiter = new TestLeakyMeterLimiter();
     });
 
     afterEach(() => {
-        jest.useRealTimers();
+        vi.useRealTimers();
     });
 
     describe('consume', () => {
@@ -56,7 +56,7 @@ describe('LeakyBucketMeterRateLimiter', () => {
 
         it('water leaks over time, freeing capacity', async () => {
             await limiter.consume('k', CAPACITY); // water = 10
-            jest.setSystemTime(NOW + 500); // half leaked → water = 5
+            vi.setSystemTime(NOW + 500); // half leaked → water = 5
             const res: RateLimitResult = await limiter.consume('k', 5);
             expect(res.allowed).toBe(true);
             expect(res.remaining).toBe(0);
@@ -100,7 +100,7 @@ describe('LeakyBucketMeterRateLimiter', () => {
         it('readyAtMs reflects time to leak enough water', async () => {
             // fill water to capacity
             await limiter.consume('k', CAPACITY);
-            jest.setSystemTime(NOW + 200); // 2 units leaked → water = 8
+            vi.setSystemTime(NOW + 200); // 2 units leaked → water = 8
             // reserve 5 units → total virtual = 8 + 5 = 13, excess = 3, leak rate = 0.01 units/ms → wait 300ms
             const res: RateLimitReservationResult = await limiter.reserve('k', 5);
             expect(res.allowed).toBe(true);
@@ -112,7 +112,7 @@ describe('LeakyBucketMeterRateLimiter', () => {
         it('expired reservations are cleaned up and capacity refunded', async () => {
             const res: RateLimitReservationResult = await limiter.reserve('k', 3);
             assert(res.allowed);
-            jest.setSystemTime(res.reservation.expiresAtMs + 1);
+            vi.setSystemTime(res.reservation.expiresAtMs + 1);
             await limiter.cleanup();
             // capacity fully restored
             for (let i: number = 0; i < CAPACITY; i++) {
@@ -126,7 +126,7 @@ describe('LeakyBucketMeterRateLimiter', () => {
             await limiter.consume('k', 1);
             // Far beyond any reasonable idle horizon, with no further
             // activity and no pending reservations for this key.
-            jest.setSystemTime(NOW + Ms.YEAR);
+            vi.setSystemTime(NOW + Ms.YEAR);
             await limiter.cleanup();
             expect(await limiter.config.store.get('k')).toBeUndefined();
         });

@@ -1,6 +1,6 @@
-import { AlsUtilities } from './als.utilities';
-import { OperationLimit } from './operation-limit.model';
-import { InternalError } from '../error-handling/internal-error.model';
+import { AlsUtilities } from './als.utilities.ts';
+import { OperationLimit } from './operation-limit.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * A limit that has been started, and the way to stop its clock.

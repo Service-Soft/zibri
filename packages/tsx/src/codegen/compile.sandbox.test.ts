@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { compile, CompileResult } from './compile';
-import { collectTsxFiles } from '../__testing__/sandbox.helper';
-import { collectClientGlobalAliasesFromSource } from '../semantics/client-packages';
-import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
+import { compile, CompileResult } from './compile.ts';
+import { collectTsxFiles } from '../__testing__/sandbox.helper.ts';
+import { collectClientGlobalAliasesFromSource } from '../semantics/client-packages.ts';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols.ts';
 
-const templatesDir: string = join(__dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
+const templatesDir: string = join(import.meta.dirname, '..', '..', '..', 'sandbox', 'src', 'templates');
 
 describe('compile against real sandbox templates', () => {
     const files: string[] = collectTsxFiles(templatesDir);

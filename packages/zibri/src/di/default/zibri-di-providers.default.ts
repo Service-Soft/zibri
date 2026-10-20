@@ -1,71 +1,71 @@
-/* eslint-disable jsdoc/require-jsdoc */
+/* eslint-disable jsdoc-js/require-jsdoc */
 import os from 'node:os';
 
-import { inject } from '../inject.function';
-import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
-import { AssetService } from '../../assets/asset.service';
-import { TwoFactorService } from '../../auth/2fa/two-factor.service';
-import { AuthRateLimiter } from '../../auth/auth.rate-limiter';
-import { AuthService } from '../../auth/auth.service';
-import { FidoMetadataService } from '../../auth/authenticators/passkey/fido-metadata.service';
-import { PasskeyService } from '../../auth/authenticators/passkey/passkey.service';
-import { AuthorizationServerService } from '../../auth/authorization-server/authorization-server.service';
-import { DpopService } from '../../auth/dpop/dpop.service';
-import { EncryptionKeyCache } from '../../auth/encryption/encryption-key.cache';
-import { EncryptionService } from '../../auth/encryption/encryption.service';
-import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
-import { HashService } from '../../auth/hash/hash.service';
-import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
-import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
-import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
-import { ScimService } from '../../auth/scim/scim.service';
-import { ApiKeyService } from '../../auth/strategies/api-key/api-key.service';
-import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
-import { JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.model';
-import { JwtService } from '../../auth/strategies/jwt/jwt.service';
-import { UserService } from '../../auth/user/user.service';
-import { BackupService } from '../../backup/backup.service';
-import { CacheService } from '../../caching/cache.service';
-import { AlsUtilities } from '../../context/als.utilities';
-import { CronService } from '../../cron/cron.service';
-import { DataSourceService } from '../../data-source/data-source.service';
-import { EmailRateLimiter } from '../../email/email.rate-limiter';
-import { EmailService } from '../../email/email.service';
-import { errorHandler } from '../../error-handling/error-handler';
-import { EventService } from '../../event/event.service';
-import { CompressionOptions } from '../../http/compression.middleware';
-import { HttpServerLimits } from '../../http/http-server-limits.model';
-import { KnownHeader } from '../../http/known-header.enum';
-import { HttpClient } from '../../http-client/http-client';
-import { HttpClientOptionsInput } from '../../http-client/http-client-options.model';
-import { LeaseService } from '../../leases/lease.service';
-import { defineDateFormat } from '../../localization/define-date-format.function';
-import { LocalizeService } from '../../localization/localize.service';
-import { LocalizeOptionsInput } from '../../localization/models/localize-options.model';
-import { LogLevel } from '../../logging/log-level.enum';
-import { Logger } from '../../logging/logger';
-import { LoggerTransport } from '../../logging/transport/logger-transport.model';
-import { PrometheusMetricsService } from '../../metrics/metrics.service';
-import { MultithreadingService } from '../../multithreading/services/multithreading.service';
-import { OpenApiService } from '../../open-api/open-api.service';
-import { CspOptionsInput } from '../../parsing/html/csp-options.model';
-import { Parser } from '../../parsing/parser';
-import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
-import { Router } from '../../routing/router';
-import { MembershipService } from '../../tenancy/membership/membership.service';
-import { TenantService } from '../../tenancy/tenant.service';
-import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
-import { OpenTelemetryTracer } from '../../tracing/open-telemetry/open-telemetry.tracer';
-import { FsUtilities } from '../../utilities/fs.utilities';
-import { Ms } from '../../utilities/ms';
-import { resolveAppRoot } from '../../utilities/resolve-app-root.function';
-import { resolveZibriRoot } from '../../utilities/resolve-zibri-root.function';
-import { ValidationService } from '../../validation/validation.service';
-import { VersioningService } from '../../versioning/versioning.service';
-import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
-import { WebsocketService } from '../../websocket/services/websocket.service';
-import { DiTokenProviderRecord } from '../models/di-token.model';
-import { DiVariants } from '../models/di-variant.model';
+import { inject } from '../inject.function.ts';
+import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default.ts';
+import { AssetService } from '../../assets/asset.service.ts';
+import { TwoFactorService } from '../../auth/2fa/two-factor.service.ts';
+import { AuthRateLimiter } from '../../auth/auth.rate-limiter.ts';
+import { AuthService } from '../../auth/auth.service.ts';
+import { FidoMetadataService } from '../../auth/authenticators/passkey/fido-metadata.service.ts';
+import { PasskeyService } from '../../auth/authenticators/passkey/passkey.service.ts';
+import { AuthorizationServerService } from '../../auth/authorization-server/authorization-server.service.ts';
+import { DpopService } from '../../auth/dpop/dpop.service.ts';
+import { EncryptionKeyCache } from '../../auth/encryption/encryption-key.cache.ts';
+import { EncryptionService } from '../../auth/encryption/encryption.service.ts';
+import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy.ts';
+import { HashService } from '../../auth/hash/hash.service.ts';
+import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy.ts';
+import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy.ts';
+import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model.ts';
+import { ScimService } from '../../auth/scim/scim.service.ts';
+import { ApiKeyService } from '../../auth/strategies/api-key/api-key.service.ts';
+import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type.ts';
+import { JwtAuthOptionsInput } from '../../auth/strategies/jwt/jwt-auth-options.model.ts';
+import { JwtService } from '../../auth/strategies/jwt/jwt.service.ts';
+import { UserService } from '../../auth/user/user.service.ts';
+import { BackupService } from '../../backup/backup.service.ts';
+import { CacheService } from '../../caching/cache.service.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { CronService } from '../../cron/cron.service.ts';
+import { DataSourceService } from '../../data-source/data-source.service.ts';
+import { EmailRateLimiter } from '../../email/email.rate-limiter.ts';
+import { EmailService } from '../../email/email.service.ts';
+import { errorHandler } from '../../error-handling/error-handler.ts';
+import { EventService } from '../../event/event.service.ts';
+import { CompressionOptions } from '../../http/compression.middleware.ts';
+import { HttpServerLimits } from '../../http/http-server-limits.model.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { HttpClient } from '../../http-client/http-client.ts';
+import { HttpClientOptionsInput } from '../../http-client/http-client-options.model.ts';
+import { LeaseService } from '../../leases/lease.service.ts';
+import { defineDateFormat } from '../../localization/define-date-format.function.ts';
+import { LocalizeService } from '../../localization/localize.service.ts';
+import { LocalizeOptionsInput } from '../../localization/models/localize-options.model.ts';
+import { LogLevel } from '../../logging/log-level.enum.ts';
+import { Logger } from '../../logging/logger.ts';
+import { LoggerTransport } from '../../logging/transport/logger-transport.model.ts';
+import { PrometheusMetricsService } from '../../metrics/metrics.service.ts';
+import { MultithreadingService } from '../../multithreading/services/multithreading.service.ts';
+import { OpenApiService } from '../../open-api/open-api.service.ts';
+import { CspOptionsInput } from '../../parsing/html/csp-options.model.ts';
+import { Parser } from '../../parsing/parser.ts';
+import { RateLimitingService } from '../../rate-limiting/rate-limiting.service.ts';
+import { Router } from '../../routing/router.ts';
+import { MembershipService } from '../../tenancy/membership/membership.service.ts';
+import { TenantService } from '../../tenancy/tenant.service.ts';
+import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer.ts';
+import { OpenTelemetryTracer } from '../../tracing/open-telemetry/open-telemetry.tracer.ts';
+import { FsUtilities } from '../../utilities/fs.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { resolveAppRoot } from '../../utilities/resolve-app-root.function.ts';
+import { resolveZibriRoot } from '../../utilities/resolve-zibri-root.function.ts';
+import { ValidationService } from '../../validation/validation.service.ts';
+import { VersioningService } from '../../versioning/versioning.service.ts';
+import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model.ts';
+import { WebsocketService } from '../../websocket/services/websocket.service.ts';
+import { DiTokenProviderRecord } from '../models/di-token.model.ts';
+import { DiVariants } from '../models/di-variant.model.ts';
 
 const allThreads: number = os.availableParallelism();
 
@@ -238,12 +238,12 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // beside the bundle rather than at the application's root, which is where a build copies them
     // to. The two differ on purpose: a version file is written at runtime and read by the next
     // deployment, while a translation is built once and shipped with what reads it.
-    TRANSLATIONS_PATH: { useFactory: () => FsUtilities.getPath(__dirname, 'translations') },
+    TRANSLATIONS_PATH: { useFactory: () => FsUtilities.getPath(import.meta.dirname, 'translations') },
     // beside the bundle for the same reason as the translations: a build copies them there and
     // nothing writes to them at runtime. A token rather than a field of the asset service, because an
     // application that does not bundle resolves this file inside the installed framework, and the
     // service derives its public and template folders from it while it is built.
-    ASSETS_PATH: { useFactory: () => FsUtilities.getPath(__dirname, 'assets') },
+    ASSETS_PATH: { useFactory: () => FsUtilities.getPath(import.meta.dirname, 'assets') },
     FORM_DATA_LIMITS: { useFactory: () => ({ maxFiles: 20, maxParts: 1000, maxFields: 500 }) },
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: { useFactory: () => 300000 },
     CONFIRM_PASSWORD_RESET_URL: { useFactory: () => undefined },

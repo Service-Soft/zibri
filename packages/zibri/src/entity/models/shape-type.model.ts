@@ -1,14 +1,14 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { type ArrayPropertyItemMetadata, type ArrayPropertyMetadata } from './array-property-metadata.model';
-import { type NumberFormat, type NumberPropertyMetadata } from './number-property-metadata.model';
-import { type ObjectPropertyMetadata } from './object-property-metadata.model';
-import { type AnyOfShapesMetadata, type OneOfPropertyMetadata } from './one-of-property-metadata.model';
-import { type OneOf } from './one-of.model';
-import { type File } from '../../parsing/form-data/file.model';
-import { type DeclaredBodyInput } from '../../routing/decorators/body-metadata.model';
-import { type Newable } from '../../types/newable.type';
-import { type OmitStrict } from '../../types/omit-strict.type';
-import { type BigNumber } from '../../utilities/number.utilities';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { type ArrayPropertyItemMetadata, type ArrayPropertyMetadata } from './array-property-metadata.model.ts';
+import { type NumberFormat, type NumberPropertyMetadata } from './number-property-metadata.model.ts';
+import { type ObjectPropertyMetadata } from './object-property-metadata.model.ts';
+import { type AnyOfShapesMetadata, type OneOfPropertyMetadata } from './one-of-property-metadata.model.ts';
+import { type OneOf } from './one-of.model.ts';
+import { type File } from '../../parsing/form-data/file.model.ts';
+import { type DeclaredBodyInput } from '../../routing/decorators/body-metadata.model.ts';
+import { type Newable } from '../../types/newable.type.ts';
+import { type OmitStrict } from '../../types/omit-strict.type.ts';
+import { type BigNumber } from '../../utilities/number.utilities.ts';
 
 /**
  * The TypeScript type of a value of the given shape.

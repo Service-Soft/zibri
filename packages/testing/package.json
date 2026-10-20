@@ -1,6 +1,7 @@
 {
     "name": "zibri-testing",
     "version": "3.0.0",
+    "type": "module",
     "license": "MIT",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
@@ -34,14 +35,15 @@
         "build": "npm run build:clean && tsc -p tsconfig.build.json",
         "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "typecheck": "tsc -p tsconfig.json --noEmit",
-        "lint": "eslint . --max-warnings=0",
-        "lint:fix": "eslint . --max-warnings=0 --fix",
+        "lint": "oxlint -c ../../.oxlintrc.json --max-warnings=0 && oxfmt -c ../../.oxfmtrc.json --check && cspell lint --no-progress \"**/*.{ts,tsx,mts,cts,js,mjs,cjs,json,html,hbs,handlebars}\"",
+        "lint:fix": "oxlint -c ../../.oxlintrc.json --fix && oxfmt -c ../../.oxfmtrc.json",
         "prepublishOnly": "npm run build"
     },
     "peerDependencies": {
         "@peculiar/x509": "^2.1.0",
         "@testcontainers/postgresql": "^12.0.0",
         "ldapts": "^9.2.0",
+        "oxc-transform": "^0.155.0",
         "testcontainers": "^12.0.0",
         "xml-crypto": "^6.3.3",
         "xml-encryption": "^3.1.0",
@@ -49,6 +51,9 @@
     },
     "peerDependenciesMeta": {
         "@peculiar/x509": {
+            "optional": true
+        },
+        "oxc-transform": {
             "optional": true
         },
         "@testcontainers/postgresql": {
@@ -71,11 +76,9 @@
         "@peculiar/x509": "^2.1.0",
         "@testcontainers/postgresql": "^12.0.0",
         "@types/node": "^24.0.0",
-        "eslint": "^9.36.0",
-        "eslint-config-service-soft": "^2.1.6",
         "ldapts": "^9.2.0",
         "testcontainers": "^12.0.0",
-        "typescript": "^5.9.2",
+        "typescript": "^7.0.2",
         "xml-crypto": "^6.3.3",
         "xml-encryption": "^3.1.0"
     }

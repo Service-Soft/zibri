@@ -1,26 +1,25 @@
 import { Readable } from 'node:stream';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
-import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model';
-import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { RateLimitStateEntity } from '../../rate-limiting/stores/rate-limit-state-entity.model';
-import { BaseRateLimitState } from '../../rate-limiting/stores/rate-limiter-store.interface';
-import { RepositoryRateLimiterStore } from '../../rate-limiting/stores/repository.rate-limiter-store';
-import { Newable } from '../../types/newable.type';
-import { createTestDataSource } from '../test-server/create-test-data-source.function';
-import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
+import { ValKeyDataSource } from '../../data-source/data-sources/val-key/val-key-data-source.model.ts';
+import { MigrationEntity } from '../../data-source/migration/migration-entity.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { RateLimitStateEntity } from '../../rate-limiting/stores/rate-limit-state-entity.model.ts';
+import { BaseRateLimitState } from '../../rate-limiting/stores/rate-limiter-store.interface.ts';
+import { RepositoryRateLimiterStore } from '../../rate-limiting/stores/repository.rate-limiter-store.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { createTestDataSource } from '../test-server/create-test-data-source.function.ts';
+import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/01-data-layer.md M16, M17 and M22.
@@ -119,7 +118,7 @@ async function backupLines(): Promise<string[]> {
 beforeAll(async () => {
     server = await startTestServer({
         // the postgres data source keeps the framework entities working, valkey is the one under test
-        dataSources: [postgresDataSourceClass as Newable<PostgresDataSource>, valKeyDataSourceClass]
+        dataSources: [postgresDataSourceClass, valKeyDataSourceClass]
     });
     dataSource = inject(valKeyDataSourceClass);
     docRepository = inject(repositoryTokenFor(ValKeyDoc));
@@ -313,7 +312,7 @@ describe('evaluation/01-data-layer M22 - a unique declaration means the same on 
             ...current,
             expiresAtMs,
             reservations: [],
-            count: ((current as BaseRateLimitState & { count?: number } | undefined)?.count ?? 0) + 1
+            count: ((current)?.count ?? 0) + 1
         } as BaseRateLimitState))));
 
         // two rows for one key means the limit is counted twice and enforced once, so a caller that

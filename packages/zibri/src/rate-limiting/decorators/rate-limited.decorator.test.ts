@@ -1,14 +1,14 @@
-import { beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 
-import { RateLimited } from './rate-limited.decorator';
-import { RateLimiter } from './rate-limiter.decorator';
-import { initDiContainer } from '../../di/init-di-container.function';
-import { inject } from '../../di/inject.function';
-import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error';
-import { GlobalRegistry } from '../../global/global-registry';
-import { Ms } from '../../utilities/ms';
-import { TokenBucketRateLimiter, TokenBucketState } from '../limiter/token-bucket.rate-limiter';
-import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store';
+import { RateLimited } from './rate-limited.decorator.ts';
+import { RateLimiter } from './rate-limiter.decorator.ts';
+import { initDiContainer } from '../../di/init-di-container.function.ts';
+import { inject } from '../../di/inject.function.ts';
+import { TooManyRequestsError } from '../../error-handling/errors/too-many-requests.error.ts';
+import { GlobalRegistry } from '../../global/global-registry.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { TokenBucketRateLimiter, TokenBucketState } from '../limiter/token-bucket.rate-limiter.ts';
+import { InMemoryRateLimiterStore } from '../stores/in-memory.rate-limiter-store.ts';
 
 @RateLimiter()
 class GenerousDecoratorTestLimiter extends TokenBucketRateLimiter {
@@ -76,7 +76,7 @@ describe('RateLimited decorator', () => {
 
     it('reuses the same wrapped function across repeated calls on the same instance', async () => {
         const limiter: GenerousDecoratorTestLimiter = inject(GenerousDecoratorTestLimiter);
-        const wrapSpy: jest.Spied<typeof limiter.wrap> = jest.spyOn(limiter, 'wrap');
+        const wrapSpy: MockInstance<typeof limiter.wrap> = vi.spyOn(limiter, 'wrap');
         wrapSpy.mockClear();
 
         const controller: GenerousController = new GenerousController();
@@ -90,7 +90,7 @@ describe('RateLimited decorator', () => {
 
     it('creates an independent wrapped function per instance', async () => {
         const limiter: GenerousDecoratorTestLimiter = inject(GenerousDecoratorTestLimiter);
-        const wrapSpy: jest.Spied<typeof limiter.wrap> = jest.spyOn(limiter, 'wrap');
+        const wrapSpy: MockInstance<typeof limiter.wrap> = vi.spyOn(limiter, 'wrap');
         wrapSpy.mockClear();
 
         const a: GenerousController = new GenerousController();

@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Bytes } from './bytes';
+import { Bytes } from './bytes.ts';
 
 describe('Bytes', () => {
     it('defines each unit as the correct multiple of bytes', () => {

@@ -1,5 +1,5 @@
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { AuthStrategies } from '../strategies/auth-strategies.model.ts';
 
 /**
  * Metadata of the \@CurrentUser decorator.

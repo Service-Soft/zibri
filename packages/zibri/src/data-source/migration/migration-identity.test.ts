@@ -1,20 +1,20 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { MigrationEntity } from './migration-entity.model';
-import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
-import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
-import { DataSource } from '../decorators/data-source.decorator';
-import { SchemaManagement } from '../models/schema-management.model';
-import { Repository } from '../repository/repository';
+import { MigrationEntity } from './migration-entity.model.ts';
+import { Migration } from './migration.model.ts';
+import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities.ts';
+import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model.ts';
+import { DataSource } from '../decorators/data-source.decorator.ts';
+import { SchemaManagement } from '../models/schema-management.model.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The version both migrations below belong to, because they ship in the same release.
@@ -34,24 +34,6 @@ const releaseVersion: SemVerVersion = '0.1.0';
  * that a database with no tables yet has nothing for a migration to migrate.
  */
 const journal: string[] = [];
-
-// declared before the migrations it lists, so that they can name it back: a class referring forward
-// to another class is resolved when one of them is constructed, which is long after this module has
-// finished evaluating
-@DataSource()
-class MigrationIdentityDataSource extends PostgresDataSource {
-    override options: OmitStrict<PostgresOptions, 'type'> = {
-        host: 'localhost',
-        username: 'postgres',
-        password: 'password',
-        database: 'db',
-        ssl: false
-    };
-    entities: Newable<BaseEntity>[] = defaultTestServerEntities;
-    override migrations: Newable<Migration>[] = [FirstChangeOfTheRelease, SecondChangeOfTheRelease];
-    // the framework entities still need their tables; the two migrations below are what this asserts
-    schemaManagement: SchemaManagement = 'synchronize';
-}
 
 @Injectable()
 class FirstChangeOfTheRelease extends Migration {
@@ -89,6 +71,24 @@ class SecondChangeOfTheRelease extends Migration {
     override async down(): Promise<void> {
         journal.push('second down');
     }
+}
+
+// declared before the migrations it lists, so that they can name it back: a class referring forward
+// to another class is resolved when one of them is constructed, which is long after this module has
+// finished evaluating
+@DataSource()
+class MigrationIdentityDataSource extends PostgresDataSource {
+    override options: OmitStrict<PostgresOptions, 'type'> = {
+        host: 'localhost',
+        username: 'postgres',
+        password: 'password',
+        database: 'db',
+        ssl: false
+    };
+    entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+    override migrations: Newable<Migration>[] = [FirstChangeOfTheRelease, SecondChangeOfTheRelease];
+    // the framework entities still need their tables; the two migrations below are what this asserts
+    schemaManagement: SchemaManagement = 'synchronize';
 }
 
 describe('two migrations shipping in one release', () => {

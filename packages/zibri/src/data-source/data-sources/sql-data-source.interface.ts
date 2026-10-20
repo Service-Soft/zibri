@@ -1,9 +1,9 @@
 import { QueryBuilder as ToQueryBuilder } from 'typeorm';
 
-import { DataSourceInterface } from './data-source.interface';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { Transaction } from '../transaction/transaction.model';
+import { DataSourceInterface } from './data-source.interface.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * Definition of a sql query builder.

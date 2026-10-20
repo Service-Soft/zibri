@@ -1,11 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { FindAllOptions } from '../models/options/find-all-options.model';
-import { Repository } from '../repository/repository';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { type Relation } from '../../entity/models/relation.type.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { FindAllOptions } from '../models/options/find-all-options.model.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about a relation of a relation - both reading one
@@ -65,7 +66,7 @@ export class Album extends BaseEntity {
      * The artist it belongs to, which is the second level of every nested case.
      */
     @Property.manyToOne({ target: () => Artist, joinColumn: 'artistId', inverseSide: 'albums', required: false })
-    artist?: Artist;
+    artist?: Relation<Artist>;
 
     /**
      * The key that relation is stored as.
@@ -101,7 +102,7 @@ export class Track extends BaseEntity {
      * The album it is on, which is the first level of every nested case.
      */
     @Property.manyToOne({ target: () => Album, joinColumn: 'albumId', inverseSide: 'tracks', required: false })
-    album?: Album;
+    album?: Relation<Album>;
 
     /**
      * The key that relation is stored as.

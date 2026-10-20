@@ -1,5 +1,5 @@
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlElement } from '../../../parsing/xml/xml-element.decorator';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlElement } from '../../../parsing/xml/xml-element.decorator.ts';
 
 /**
  * What an S3 compatible service answers a completed multipart upload with.

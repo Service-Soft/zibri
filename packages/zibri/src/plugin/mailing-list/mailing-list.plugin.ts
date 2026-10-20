@@ -1,18 +1,18 @@
-import { ZibriApplication } from '../../application/application';
-import { CronJob } from '../../cron/cron-job.model';
-import { DiProvider } from '../../di/models/di-provider.model';
-import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
-import { Newable } from '../../types/newable.type';
-import { Ms } from '../../utilities/ms';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
-import { ZibriPlugin } from '../plugin.model';
-import { MailingListConfirmationTokenCleanupCronJob } from './mailing-list-confirmation-token-cleanup.cron-job';
-import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens';
-import { MailingListSubscriber } from './models/mailing-list-subscriber.model';
-import { MailingListSubscriptionConfirmationToken } from './models/mailing-list-subscription-confirmation-token.model';
-import { MailingList } from './models/mailing-list.model';
-import { MailingListService } from './services/mailing-list.service';
+import { ZibriApplication } from '../../application/application.ts';
+import { CronJob } from '../../cron/cron-job.model.ts';
+import { DiProvider } from '../../di/models/di-provider.model.ts';
+import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
+import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function.ts';
+import { ZibriPlugin } from '../plugin.model.ts';
+import { MailingListConfirmationTokenCleanupCronJob } from './mailing-list-confirmation-token-cleanup.cron-job.ts';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from './mailing-list.tokens.ts';
+import { MailingListSubscriber } from './models/mailing-list-subscriber.model.ts';
+import { MailingListSubscriptionConfirmationToken } from './models/mailing-list-subscription-confirmation-token.model.ts';
+import { MailingList } from './models/mailing-list.model.ts';
+import { MailingListService } from './services/mailing-list.service.ts';
 
 /**
  * Plugin that includes everything for handling mailing lists.
@@ -33,7 +33,6 @@ export class ZibriMailingListPlugin extends ZibriPlugin {
     override cronJobs: Newable<CronJob>[] = [MailingListConfirmationTokenCleanupCronJob];
 
     override validate(app: ZibriApplication): void {
-        // eslint-disable-next-line stylistic/max-len
         validateEntitiesRegistered(this.constructor.name, app, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken);
         validateTokensRegistered(this.constructor.name, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS);
     }

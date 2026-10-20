@@ -1,10 +1,10 @@
-import { NumberUtilities } from '../../utilities/number.utilities';
-import { RateLimitResult } from '../rate-limit-result.model';
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { NumberUtilities } from '../../utilities/number.utilities.ts';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * The persisted state for a single GCRA (Generic Cell Rate Algorithm) limiter.
@@ -47,7 +47,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): GcraState {
         return {
             theoreticalArrivalTimeMs: now,
@@ -57,12 +57,12 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: GcraState, count: number): GcraState {
         return { ...state, reservedCount: state.reservedCount + count };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: GcraState, count: number): GcraState {
         return { ...state, reservedCount: Math.max(0, state.reservedCount - count) };
     }
@@ -82,7 +82,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         return this.rawTokens(state, now) - state.reservedCount; // can be negative
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: GcraState,
         _reservations: RateLimitReservation[],
@@ -102,7 +102,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         return now + waitMs;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: GcraState, now: number): GcraState {
         const baseTokens: number = this.rawTokens(state, now); // ignore reservedCount here
         let cumulativeReserved: number = 0;
@@ -175,7 +175,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
         const burstMs: number = this.intervalInMs;

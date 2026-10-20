@@ -1,4 +1,4 @@
-import { SelfDescribing } from '../../types/self-describing.type';
+import { SelfDescribing } from '../../types/self-describing.type.ts';
 
 /**
  * A class named for the declarations on it rather than for building one.

@@ -1,7 +1,7 @@
-import { CastablePropertyType } from './castable-property-type.type';
-import { MigrationPropertyMetadata } from './migration-property-metadata.model';
-import { MigrationPropertyValue } from './migration-property-value.model';
-import { ValueConversion } from './value-conversion.enum';
+import { CastablePropertyType } from './castable-property-type.type.ts';
+import { MigrationPropertyMetadata } from './migration-property-metadata.model.ts';
+import { MigrationPropertyValue } from './migration-property-value.model.ts';
+import { ValueConversion } from './value-conversion.enum.ts';
 
 /**
  * What happens to the values of a property whose storage a migration changes.

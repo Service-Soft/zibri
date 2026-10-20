@@ -1,4 +1,4 @@
-import { UnauthorizedError } from './unauthorized.error';
+import { UnauthorizedError } from './unauthorized.error.ts';
 
 /**
  * An error to throw when a one-time credential is presented after it has already been spent.

@@ -1,14 +1,14 @@
-import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
-import { ThreadJobStatus } from './thread-job-status.enum';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { LoggedError } from '../../logging/logged-error.model';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { type Percentage } from '../../types/percentage.type';
-import { ThreadJob } from '../services/thread-job';
+import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model.ts';
+import { ThreadJobStatus } from './thread-job-status.enum.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { LoggedError } from '../../logging/logged-error.model.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { type Percentage } from '../../types/percentage.type.ts';
+import { ThreadJob } from '../services/thread-job.ts';
 
-// eslint-disable-next-line unusedImports/no-unused-vars
+// eslint-disable-next-line no-unused-vars
 const omitValues: (keyof ThreadJob<BaseThreadJobWorkerData, unknown>)[] = [
     'onCancel',
     'onComplete',
@@ -17,7 +17,7 @@ const omitValues: (keyof ThreadJob<BaseThreadJobWorkerData, unknown>)[] = [
     'completedSubject'
 ];
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 type OmitValues = typeof omitValues[number];
 
 /**
@@ -47,35 +47,35 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     @Property.string({ required: false })
     tracestate?: string | null;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.number({ format: 'integer' })
     queuedAtMs!: number;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.number({ format: 'integer', required: false })
     startedAtMs?: number | null;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.number({ format: 'integer', required: false })
     stoppedAtMs?: number | null;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.string({ enum: ThreadJobStatus })
     status!: ThreadJobStatus;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.number({ format: 'integer', required: false })
     threadId?: number | null;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.number({ format: 'integer' })
     progress!: Percentage;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.boolean()
     priority!: boolean;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.number()
     timeout!: number;
 
@@ -89,11 +89,11 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     @Property.unknown({ required: false })
     error?: LoggedError | null;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.unknown()
     workerData!: WorkerData;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     @Property.unknown({ required: false })
     result?: ResultType | null;
 }

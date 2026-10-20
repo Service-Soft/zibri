@@ -1,6 +1,6 @@
-import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
-import { ExcludeStrict } from '../../../types/exclude-strict.type';
-import { OmitStrict } from '../../../types/omit-strict.type';
+import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model.ts';
+import { ExcludeStrict } from '../../../types/exclude-strict.type.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
 
 /**
  * A filter for a boolean where property.

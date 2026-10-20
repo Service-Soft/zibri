@@ -1,6 +1,6 @@
-import { XliffBody } from './xliff-body.model';
-import { Property } from '../../../entity/decorators/property.decorator';
-import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator';
+import { XliffBody } from './xliff-body.model.ts';
+import { Property } from '../../../entity/decorators/property.decorator.ts';
+import { XmlAttribute } from '../../../parsing/xml/xml-attribute.decorator.ts';
 
 /**
  * The translation strings of one origin in one language.

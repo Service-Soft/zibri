@@ -1,7 +1,7 @@
-import { HttpError } from './http.error';
-import { HttpStatus } from '../../http/http-status.enum';
-import { KnownHeader } from '../../http/known-header.enum';
-import { $ts } from '../../localization/translate.function';
+import { HttpError } from './http.error.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { KnownHeader } from '../../http/known-header.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
 
 /**
  * A http error to throw when the incoming request has an unsupported content type (eg. Formdata when the endpoint only supports application/json).

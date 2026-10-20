@@ -1,18 +1,18 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, vi, MockInstance } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CronExpression, CronExpressionString } from './cron-expression.utilities';
-import { CronJobEntity } from './cron-job-entity.model';
-import { CronJob, InitialCronConfig } from './cron-job.model';
-import { CronService } from './cron.service';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
-import { LoggerInterface } from '../logging/logger.interface';
-import { Ms } from '../utilities/ms';
+import { CronExpression, CronExpressionString } from './cron-expression.utilities.ts';
+import { CronJobEntity } from './cron-job-entity.model.ts';
+import { CronJob, InitialCronConfig } from './cron-job.model.ts';
+import { CronService } from './cron.service.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
+import { LoggerInterface } from '../logging/logger.interface.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * Every five seconds, so a slot comes up while the case runs and the next one is far enough away to
@@ -64,7 +64,7 @@ describe('A cron job reaching a slot late inside a running process', () => {
     let server: StartedTestServer;
     let catchingUp: CatchingUpCronJob;
     let notCatchingUp: NotCatchingUpCronJob;
-    let warn: jest.SpiedFunction<LoggerInterface['warn']>;
+    let warn: MockInstance<LoggerInterface['warn']>;
 
     beforeAll(async () => {
         server = await startTestServer({
@@ -78,7 +78,7 @@ describe('A cron job reaching a slot late inside a running process', () => {
         await server.start();
         catchingUp = inject(CatchingUpCronJob);
         notCatchingUp = inject(NotCatchingUpCronJob);
-        warn = jest.spyOn(inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER), 'warn');
+        warn = vi.spyOn(inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER), 'warn');
 
         // half a second before a slot, then blocked until well past it, the way a long synchronous
         // computation would block it

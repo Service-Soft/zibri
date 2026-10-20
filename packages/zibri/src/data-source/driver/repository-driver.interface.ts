@@ -1,14 +1,12 @@
-import { BaseEntity } from '../../entity/base-entity.model';
-import { type RelationTree } from '../../entity/models/entity-relations.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { OmitStrict } from '../../types/omit-strict.type';
-import { FindAllOptions } from '../models/options/find-all-options.model';
-import { type StreamOptions } from '../models/options/stream-options.model';
-import { UpsertRow } from '../models/upsert-row.model';
-import { Where } from '../models/where/where-filter.model';
-import { Transaction } from '../transaction/transaction.model';
-import { type WriteDataUtilities } from '../write-data.utilities';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { type RelationTree } from '../../entity/models/entity-relations.model.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { OmitStrict } from '../../types/omit-strict.type.ts';
+import { FindAllOptions } from '../models/options/find-all-options.model.ts';
+import { UpsertRow } from '../models/upsert-row.model.ts';
+import { Where } from '../models/where/where-filter.model.ts';
+import { Transaction } from '../transaction/transaction.model.ts';
 
 /**
  * The resolved options that a repository driver receives for reading entities.

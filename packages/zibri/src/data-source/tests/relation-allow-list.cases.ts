@@ -1,12 +1,13 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { describe, expect, it } from '@jest/globals';
-import { type Relation } from 'typeorm';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { describe, expect, it } from 'vitest';
 
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Entity } from '../../entity/decorators/entity.decorator';
-import { Property } from '../../entity/decorators/property.decorator';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { Repository } from '../repository/repository';
+import { type Relation } from '../../entity/models/relation.type.ts';
+
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Entity } from '../../entity/decorators/entity.decorator.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
+import { Repository } from '../repository/repository.ts';
 
 /**
  * The cases every data source answers the same way about filtering by the items of an array or the

@@ -1,19 +1,19 @@
-import { CrudControllerOptions } from './crud-controller-options.model';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { inject } from '../../di/inject.function';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { HttpStatus } from '../../http/http-status.enum';
-import { Response } from '../../open-api/decorators/response.decorator';
-import { PaginationResult } from '../../open-api/pagination-result.model';
-import { DeepPartial } from '../../types/deep-partial.type';
-import { Newable } from '../../types/newable.type';
-import { Body } from '../decorators/body.decorator';
-import { Delete } from '../decorators/delete.decorator';
-import { Get } from '../decorators/get.decorator';
-import { Param } from '../decorators/param.decorator';
-import { Patch } from '../decorators/patch.decorator';
-import { Post } from '../decorators/post.decorator';
+import { CrudControllerOptions } from './crud-controller-options.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../di/inject.function.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { Response } from '../../open-api/decorators/response.decorator.ts';
+import { PaginationResult } from '../../open-api/pagination-result.model.ts';
+import { DeepPartial } from '../../types/deep-partial.type.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { Body } from '../decorators/body.decorator.ts';
+import { Delete } from '../decorators/delete.decorator.ts';
+import { Get } from '../decorators/get.decorator.ts';
+import { Param } from '../decorators/param.decorator.ts';
+import { Patch } from '../decorators/patch.decorator.ts';
+import { Post } from '../decorators/post.decorator.ts';
 
 /**
  * The largest page a CRUD controller reads, when it was given no `maxLimit`.
@@ -50,7 +50,7 @@ export interface CrudControllerInterface<
     deleteById: (id: T['id']) => Promise<void>
 }
 
-// eslint-disable-next-line jsdoc/require-param, jsdoc/require-returns
+// oxlint-disable-next-line jsdoc-js/require-returns
 /**
  * Defines a CRUD controller for the specified entity.
  */
@@ -59,6 +59,7 @@ export function CrudController<
     CreateData extends DeepPartial<T> = DeepPartial<T>,
     UpdateData extends DeepPartial<T> = DeepPartial<T>
 >(
+    // oxlint-disable-next-line jsdoc/require-param
     entityClass: Newable<T>,
     createDataClass: Newable<CreateData>,
     updateDataClass: Newable<UpdateData>,
@@ -67,16 +68,16 @@ export function CrudController<
     // the page size comes from whoever sends the request, so it is bounded here: the repository takes
     // a limit named in code as meant, however large (01 §M41)
     const maxLimit: number = options.maxLimit ?? DEFAULT_MAX_LIMIT;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     class Temp implements CrudControllerInterface<T, CreateData, UpdateData> {
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         protected readonly repo: Repository<T, CreateData, UpdateData>;
 
         constructor() {
             this.repo = inject(repositoryTokenFor(entityClass));
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.object(entityClass)
         @Post()
         async create(
@@ -86,7 +87,7 @@ export function CrudController<
             return await this.repo.create(data);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.paginated(entityClass)
         @Get()
         async findAll(
@@ -98,7 +99,7 @@ export function CrudController<
             return await this.repo.findAllPaginated(page, limit);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.error(HttpStatus.NOT_FOUND)
         @Response.object(entityClass)
         @Get('/:id')
@@ -109,7 +110,7 @@ export function CrudController<
             return await this.repo.findById(id);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.error(HttpStatus.NOT_FOUND)
         @Response.object(entityClass)
         @Patch('/:id')
@@ -122,7 +123,7 @@ export function CrudController<
             return await this.repo.updateById(id, data);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Response.error(HttpStatus.NOT_FOUND)
         @Response.empty()
         @Delete('/:id')

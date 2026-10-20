@@ -1,22 +1,22 @@
-import { XmlElementNode } from './xml-element-node.model';
-import { XmlGenerateOptions } from './xml-generate-options.model';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { PropertyMetadata } from '../entity/decorators/property.decorator';
-import { Relation } from '../entity/models/relation.enum';
-import { ValidationError } from '../error-handling/errors/validation.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { MimeType } from '../http/mime-type.enum';
-import { isNamedValue } from '../parsing/functions/parse-one-of.function';
-import { XmlMixedProperty, XmlMixedShapes, XmlModelUtilities } from '../parsing/xml/xml-model.utilities';
-import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
-import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
-import { BigNumber } from '../utilities/number.utilities';
-import { ObjectUtilities } from '../utilities/object.utilities';
+import { XmlElementNode } from './xml-element-node.model.ts';
+import { XmlGenerateOptions } from './xml-generate-options.model.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { PropertyMetadata } from '../entity/decorators/property.decorator.ts';
+import { RelationType } from '../entity/models/relation-type.enum.ts';
+import { ValidationError } from '../error-handling/errors/validation.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { isNamedValue } from '../parsing/functions/parse-one-of.function.ts';
+import { XmlMixedProperty, XmlMixedShapes, XmlModelUtilities } from '../parsing/xml/xml-model.utilities.ts';
+import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model.ts';
+import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
+import { BigNumber } from '../utilities/number.utilities.ts';
+import { ObjectUtilities } from '../utilities/object.utilities.ts';
 
 // what text cannot hold as it is: the markup characters, and a carriage return, which a reader
 // would turn into a line feed
@@ -24,8 +24,12 @@ const TEXT_SPECIAL_CHARACTERS: RegExp = /[\r&<>]/g;
 // an attribute value additionally ends at its quote, and a reader turns tabs and line breaks in it
 // into spaces
 const ATTRIBUTE_SPECIAL_CHARACTERS: RegExp = /[\t\n\r"&<]/g;
-// the characters xml 1.0 has no form for at all, not even as a reference
-const INVALID_CHARACTER: RegExp = /[^\t\n\r -퟿-�\u{10000}-\u{10FFFF}]/u;
+// the characters xml 1.0 has no form for at all, not even as a reference: the control characters but
+// tab and the line breaks, the surrogates, and the two noncharacters at the end of the basic plane.
+// Listed rather than written as the complement of what xml allows, which ends a range at � -
+// TypeScript 7 takes that character for a malformed escape and refuses the expression
+// oxlint-disable-next-line no-control-regex
+const INVALID_CHARACTER: RegExp = /[\0-\x08\x0B\x0C\x0E-\x1F\uD800-\uDFFF￾￿]/u;
 // a letter or underscore, then letters, digits, marks, underscores, dots and hyphens. Narrower than
 // what xml allows, and without the colon: a prefix is written from the namespace, never named
 const NAME: RegExp = /^[\p{L}_][\p{L}\p{N}\p{M}_.-]*$/u;
@@ -259,11 +263,11 @@ export abstract class XmlWriterUtilities {
                 return XmlWriterUtilities.resolveUntypedElements(name, namespace, value);
             }
             case 'file':
-            case Relation.HAS_ONE:
-            case Relation.BELONGS_TO_ONE:
-            case Relation.ONE_TO_MANY:
-            case Relation.MANY_TO_ONE:
-            case Relation.MANY_TO_MANY: {
+            case RelationType.HAS_ONE:
+            case RelationType.BELONGS_TO_ONE:
+            case RelationType.ONE_TO_MANY:
+            case RelationType.MANY_TO_ONE:
+            case RelationType.MANY_TO_MANY: {
                 throw new InternalError(`"${name}" is a ${metadata.type} property, which has no xml form.`);
             }
         }

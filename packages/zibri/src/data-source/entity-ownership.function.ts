@@ -1,12 +1,12 @@
-import { DataSourceInterface } from './data-sources/data-source.interface';
-import { getAmbiguousRepositoryDataSources, repositoryTokenFor, setAmbiguousRepositoryTokens } from '../di/decorators/inject-repository.decorator';
-import { register } from '../di/register.function';
-import { BaseEntity } from '../entity/base-entity.model';
-import { EntityMetadata } from '../entity/decorators/entity.decorator';
-import { EntityMetadataMissingError } from '../entity/entity-metadata-missing.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { Newable } from '../types/newable.type';
-import { MetadataUtilities } from '../utilities/metadata.utilities';
+import { DataSourceInterface } from './data-sources/data-source.interface.ts';
+import { getAmbiguousRepositoryDataSources, repositoryTokenFor, setAmbiguousRepositoryTokens } from '../di/decorators/inject-repository.decorator.ts';
+import { register } from '../di/register.function.ts';
+import { BaseEntity } from '../entity/base-entity.model.ts';
+import { EntityMetadata } from '../entity/decorators/entity.decorator.ts';
+import { EntityMetadataMissingError } from '../entity/entity-metadata-missing.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { Newable } from '../types/newable.type.ts';
+import { MetadataUtilities } from '../utilities/metadata.utilities.ts';
 
 /**
  * A data source together with the class it was registered with.
@@ -31,7 +31,7 @@ export type RegisteredDataSource = {
  * @param dataSources - All data sources of the app.
  * @throws When an entity is part of multiple data sources without allowing it.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function resolveEntityOwnership(dataSources: RegisteredDataSource[]): void {
     const owners: Map<Newable<BaseEntity>, Newable<DataSourceInterface>[]> = new Map();
 

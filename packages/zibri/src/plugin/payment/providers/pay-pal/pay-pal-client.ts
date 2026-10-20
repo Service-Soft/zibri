@@ -1,10 +1,10 @@
-import { PayPalPaymentProviderOptions } from './pay-pal.payment-provider';
-import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../../di/inject.function';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { KnownHeader } from '../../../../http/known-header.enum';
-import { MimeType } from '../../../../http/mime-type.enum';
-import { HttpClientInterface } from '../../../../http-client/http-client.interface';
+import { PayPalPaymentProviderOptions } from './pay-pal.payment-provider.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { KnownHeader } from '../../../../http/known-header.enum.ts';
+import { MimeType } from '../../../../http/mime-type.enum.ts';
+import { HttpClientInterface } from '../../../../http-client/http-client.interface.ts';
 
 /**
  * The intent of the new payment.

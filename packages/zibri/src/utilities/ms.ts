@@ -1,5 +1,5 @@
-/* eslint-disable typescript/typedef */
-// eslint-disable-next-line jsdoc/require-jsdoc
+/* eslint-disable typescript-js/typedef */
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export abstract class Ms {
     /**
      * The amount of ms in a second.

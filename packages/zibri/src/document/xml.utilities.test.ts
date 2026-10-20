@@ -1,27 +1,27 @@
 import assert from 'assert';
 
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { XmlUtilities } from './xml.utilities';
-import { initDiContainer } from '../di/init-di-container.function';
-import { Property } from '../entity/decorators/property.decorator';
-import { OneOf } from '../entity/models/one-of.model';
-import { ValidationError } from '../error-handling/errors/validation.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { GlobalRegistry } from '../global/global-registry';
-import { MimeType } from '../http/mime-type.enum';
-import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
-import { XmlElement } from '../parsing/xml/xml-element.decorator';
-import { XmlMixed } from '../parsing/xml/xml-mixed.decorator';
-import { XmlNamespace } from '../parsing/xml/xml-namespace.decorator';
-import { XmlRoot } from '../parsing/xml/xml-root.decorator';
-import { XmlText } from '../parsing/xml/xml-text.decorator';
-import { XmlBodyParser } from '../parsing/xml/xml.body-parser';
-import { BodyMetadata } from '../routing/decorators/body-metadata.model';
-import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function';
-import { Newable } from '../types/newable.type';
-import { BigNumber } from '../utilities/number.utilities';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { XmlUtilities } from './xml.utilities.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
+import { Property } from '../entity/decorators/property.decorator.ts';
+import { OneOf } from '../entity/models/one-of.model.ts';
+import { ValidationError } from '../error-handling/errors/validation.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { GlobalRegistry } from '../global/global-registry.ts';
+import { MimeType } from '../http/mime-type.enum.ts';
+import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator.ts';
+import { XmlElement } from '../parsing/xml/xml-element.decorator.ts';
+import { XmlMixed } from '../parsing/xml/xml-mixed.decorator.ts';
+import { XmlNamespace } from '../parsing/xml/xml-namespace.decorator.ts';
+import { XmlRoot } from '../parsing/xml/xml-root.decorator.ts';
+import { XmlText } from '../parsing/xml/xml-text.decorator.ts';
+import { XmlBodyParser } from '../parsing/xml/xml.body-parser.ts';
+import { BodyMetadata } from '../routing/decorators/body-metadata.model.ts';
+import { resolveBodyMetadata } from '../routing/resolve-body-metadata.function.ts';
+import { Newable } from '../types/newable.type.ts';
+import { BigNumber } from '../utilities/number.utilities.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 class CompletedPart {
     @Property.number({ format: 'integer' })
@@ -207,6 +207,20 @@ describe('XmlUtilities.generateFrom', () => {
 
     it('refuses text with a character xml cannot hold', async () => {
         await expect(XmlUtilities.generateFrom(InvoiceLine, { ...line, note: 'bell \u0007' })).rejects.toThrow(InternalError);
+    });
+
+    it('writes every character xml can hold, up to the edges of each range', async () => {
+        // a fullwidth letter, as japanese text uses them, between the edges of the range above the
+        // surrogates, and one character beyond the basic plane
+        const note: string = '퟿  Ａ � \u{10000} \u{10FFFF}';
+
+        expect(await XmlUtilities.generateFrom(InvoiceLine, { ...line, note })).toContain(`<Note>${note}</Note>`);
+    });
+
+    it('refuses a lone surrogate and the noncharacters at the end of the basic plane', async () => {
+        for (const note of ['half \uD800 of a pair', '￾', '￿', 'form feed \f']) {
+            await expect(XmlUtilities.generateFrom(InvoiceLine, { ...line, note })).rejects.toThrow(InternalError);
+        }
     });
 
     it('takes the data as the type of the model', async () => {

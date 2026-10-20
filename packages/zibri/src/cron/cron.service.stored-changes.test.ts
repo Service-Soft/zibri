@@ -1,19 +1,19 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { CronExpression, CronExpressionString } from './cron-expression.utilities';
-import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model';
-import { CronJob, InitialCronConfig } from './cron-job.model';
-import { CronSyncCronJob } from './cron-sync.cron-job';
-import { CronService } from './cron.service';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { Repository } from '../data-source/repository/repository';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
+import { CronExpression, CronExpressionString } from './cron-expression.utilities.ts';
+import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model.ts';
+import { CronJob, InitialCronConfig } from './cron-job.model.ts';
+import { CronSyncCronJob } from './cron-sync.cron-job.ts';
+import { CronService } from './cron.service.ts';
+import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { Repository } from '../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { defineProvider } from '../di/models/di-provider.model.ts';
 
 /**
  * Once a year, so no tick of its own fires while the cases run.

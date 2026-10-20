@@ -38,8 +38,8 @@ import { AnchorAttributes,
     TextareaAttributes,
     TimeAttributes,
     TrackAttributes,
-    VideoAttributes } from './jsx-element-attributes.model';
-import { HtmlAttributes } from './jsx.model';
+    VideoAttributes } from './jsx-element-attributes.model.ts';
+import { HtmlAttributes } from './jsx.model.ts';
 
 /**
  * Every html tag that carries no attributes beyond the global ones. Listing them explicitly is what

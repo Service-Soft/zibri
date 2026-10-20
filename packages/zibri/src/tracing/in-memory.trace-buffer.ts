@@ -1,6 +1,6 @@
-import { TraceBufferInterface } from './trace-buffer.interface';
-import { TraceSpanRecord } from './trace-span-record.model';
-import { InternalError } from '../error-handling/internal-error.model';
+import { TraceBufferInterface } from './trace-buffer.interface.ts';
+import { TraceSpanRecord } from './trace-span-record.model.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
 
 /**
  * How many spans are kept when nothing says otherwise.
@@ -40,13 +40,13 @@ export class InMemoryTraceBuffer implements TraceBufferInterface {
         this.spans = Array.from({ length: size });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     record(span: TraceSpanRecord): void {
         this.spans[this.next] = span;
         this.next = (this.next + 1) % this.size;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findRecentSpans(limit: number = this.size): TraceSpanRecord[] {
         const found: TraceSpanRecord[] = [];
         // backwards from the most recently written slot, so reading stops as soon as enough has been
@@ -60,13 +60,13 @@ export class InMemoryTraceBuffer implements TraceBufferInterface {
         return found;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     findSpansOfTrace(traceId: string): TraceSpanRecord[] {
         return this.findRecentSpans().filter(span => span.traceId === traceId)
             .reverse();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     clear(): void {
         this.spans.fill(undefined);
         this.next = 0;

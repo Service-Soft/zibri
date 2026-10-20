@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WriteBehindReadAsideCache } from './write-behind-read-aside.cache';
-import { flushMicrotasks } from '../../../__testing__/constants';
-import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { type LoggerInterface } from '../../../logging/logger.interface';
-import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface';
-import { type CacheServiceInterface } from '../../cache-service.interface';
-import { CacheService } from '../../cache.service';
-import { Cache } from '../../decorators/cache.decorator';
-import { InMemoryCacheStore } from '../../store/in-memory.cache-store';
+import { WriteBehindReadAsideCache } from './write-behind-read-aside.cache.ts';
+import { flushMicrotasks } from '../../../__testing__/constants.ts';
+import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { type LoggerInterface } from '../../../logging/logger.interface.ts';
+import { type MetricsServiceInterface } from '../../../metrics/metrics-service.interface.ts';
+import { type CacheServiceInterface } from '../../cache-service.interface.ts';
+import { CacheService } from '../../cache.service.ts';
+import { Cache } from '../../decorators/cache.decorator.ts';
+import { InMemoryCacheStore } from '../../store/in-memory.cache-store.ts';
 
 @Cache()
 class MainCache extends WriteBehindReadAsideCache<string, { id: string }, 'Write Behind Read Aside Main Cache'> {
@@ -48,9 +48,9 @@ describe('WriteBehindReadAsideCache', () => {
     it('wrapWrite returns the result immediately, then writes it to the cache in the background', async () => {
         const cache: MainCache = inject(MainCache);
 
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-        // eslint-disable-next-line typescript/typedef
+        // eslint-disable-next-line typescript-js/typedef
         const wrapped = cache.wrapWrite(fn, (result) => result.id);
 
         await expect(wrapped('abc')).resolves.toEqual({ id: 'id:abc' });
@@ -63,15 +63,15 @@ describe('WriteBehindReadAsideCache', () => {
 
     it('wrapWrite still resolves even if the background cache write fails', async () => {
         const cache: MainCache = inject(MainCache);
-        // eslint-disable-next-line typescript/typedef
-        const setSpy = jest.spyOn(cache.store, 'set').mockImplementation(() => {
+        // eslint-disable-next-line typescript-js/typedef
+        const setSpy = vi.spyOn(cache.store, 'set').mockImplementation(() => {
             throw new Error('store unavailable');
         });
 
         try {
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const fn = (name: string): { id: string } => ({ id: `id:${name}` });
-            // eslint-disable-next-line typescript/typedef
+            // eslint-disable-next-line typescript-js/typedef
             const wrapped = cache.wrapWrite(fn, (result) => result.id);
 
             await expect(wrapped('abc')).resolves.toEqual({ id: 'id:abc' });

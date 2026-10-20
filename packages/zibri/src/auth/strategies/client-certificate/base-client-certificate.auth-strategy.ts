@@ -3,18 +3,18 @@ import { BlockList, isIP } from 'node:net';
 
 import type { ExtendedKeyUsageExtension, KeyUsagesExtension, X509Certificate as ParsedCertificate } from '@peculiar/x509';
 
-import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
-import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities';
-import { ClientCertificateUtilities } from './client-certificate.utilities';
-import { PeculiarX509 } from './peculiar-x509.type';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { optionalPeer } from '../../../utilities/optional-peer.function';
-import { BaseUser } from '../../models/base-user.model';
-import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
-import { ClientCertificateAuthStrategyInterface } from '../client-certificate-auth-strategy.interface';
+import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type.ts';
+import { ClientCertificateHeaderUtilities } from './client-certificate-header.utilities.ts';
+import { ClientCertificateUtilities } from './client-certificate.utilities.ts';
+import { PeculiarX509 } from './peculiar-x509.type.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model.ts';
+import { optionalPeer } from '../../../utilities/optional-peer.function.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { AuthorizationHeaderUtilities } from '../authorization-header.utilities.ts';
+import { ClientCertificateAuthStrategyInterface } from '../client-certificate-auth-strategy.interface.ts';
 
 /**
  * The extended key usage of TLS client authentication.
@@ -35,10 +35,10 @@ export abstract class BaseClientCertificateAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > implements ClientCertificateAuthStrategyInterface<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'client-certificate';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {
         type: 'mutualTLS',
         description: 'A client certificate, shown to the proxy in front of the api'
@@ -86,7 +86,7 @@ export abstract class BaseClientCertificateAuthStrategy<
      */
     abstract resolveUserByCertificate(certificate: X509Certificate): Promise<UserType | undefined>;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(): void {
         if (!this.header.trim()) {
             throw new InternalError(`${this.constructor.name} names no header the proxy forwards the certificate in.`);
@@ -117,7 +117,7 @@ export abstract class BaseClientCertificateAuthStrategy<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
         // a certificate being forwarded, not a good one, for the reason the jwt strategy gives. Beside
         // a bearer token bound to a certificate, the certificate is what proves the token is held by
@@ -126,7 +126,7 @@ export abstract class BaseClientCertificateAuthStrategy<
         return this.findEncodedCertificate(context) != undefined && !AuthorizationHeaderUtilities.hasCertificateBoundToken(context);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const certificate: X509Certificate | undefined = this.findClientCertificate(context);
         if (certificate == undefined || !this.isTrusted(certificate)) {
@@ -161,13 +161,13 @@ export abstract class BaseClientCertificateAuthStrategy<
         return this.authorities.some(authority => certificate.checkIssued(authority) && certificate.verify(authority.publicKey));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAuthenticatedAt(): Promise<Date | undefined> {
         // a certificate is never logged in with, and when the proxy's handshake was is not forwarded
         return await Promise.resolve<Date | undefined>(undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         return await Promise.resolve(this.findClientCertificate(context)?.validToDate);
     }

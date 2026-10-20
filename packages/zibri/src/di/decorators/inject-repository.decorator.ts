@@ -1,10 +1,10 @@
-import { DataSourceInterface, RepositoryTypeForEntity } from '../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { DiToken } from '../models/di-token.model';
-import { InjectionToken } from '../models/injection-token.model';
+import { DataSourceInterface, RepositoryTypeForEntity } from '../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { DiToken } from '../models/di-token.model.ts';
+import { InjectionToken } from '../models/injection-token.model.ts';
 
 const allRepositoryTokens: Record<string, DiToken<Repository<BaseEntity>>> = {};
 

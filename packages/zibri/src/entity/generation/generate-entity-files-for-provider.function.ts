@@ -1,14 +1,14 @@
 
-import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function';
-import { getEntityFileName } from './get-entity-file-name.function';
-import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { ErrorUtilities } from '../../error-handling/error.utilities';
-import { warn } from '../../logging/logger.helpers';
-import { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
-import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { toKebabCase } from '../../utilities/to-kebab-case.function';
-import { toPascalCase } from '../../utilities/to-pascal-case.function';
+import { generateEntityFile, GenerateEntityFileResult } from './generate-entity-file.function.ts';
+import { getEntityFileName } from './get-entity-file-name.function.ts';
+import { EntityGenerationProvider } from './providers/entity-generation-provider.interface.ts';
+import { ErrorUtilities } from '../../error-handling/error.utilities.ts';
+import { warn } from '../../logging/logger.helpers.ts';
+import { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model.ts';
+import { FsUtilities, FsPath } from '../../utilities/fs.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { toKebabCase } from '../../utilities/to-kebab-case.function.ts';
+import { toPascalCase } from '../../utilities/to-pascal-case.function.ts';
 
 /**
  * All data needed to generate a file.
@@ -38,7 +38,7 @@ export type GenerateEntityFilesForProviderResult = {
     indexLines: string[]
 };
 
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 const OP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] as const;
 
 /**
@@ -47,7 +47,7 @@ const OP_METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 
  * @param cwd - The current working directory.
  * @returns The files to generate and the lines to add to the index.ts.
  */
-// eslint-disable-next-line sonar/cognitive-complexity
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export async function generateEntityFilesForProvider(
     provider: EntityGenerationProvider,
     cwd: string
@@ -124,7 +124,7 @@ export async function generateEntityFilesForProvider(
                 }
                 const fileName: string = getEntityFileName(provider.prefix, key);
 
-                // eslint-disable-next-line sonar/no-duplicate-string
+                // eslint-disable-next-line sonarjs/no-duplicate-string
                 const filePath: FsPath = FsUtilities.getPath(cwd, 'src/models/generated', toKebabCase(provider.prefix), fileName);
                 if (await FsUtilities.exists(filePath)) {
                     processedSchemas.add(key);
@@ -182,7 +182,7 @@ export async function generateEntityFilesForProvider(
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function collectSchemaCandidate(
     schema: OpenApiSchemaObject | OpenApiReferenceObject,
     nameHint: string,

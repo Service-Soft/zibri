@@ -166,7 +166,7 @@ function alignDependency(
     }
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 function withDependenciesLast(packageJson: PackageJsonLike): PackageJsonLike {
     // rest carries every key this function does not name - "name", "scripts", ... - in the order the
     // file declares them. That order is the author's and stays as it is; only the two blocks npm

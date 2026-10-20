@@ -1,33 +1,33 @@
-import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model';
-import { CiiDateTime } from './cii/cii-date-time.model';
-import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model';
-import { CiiSchemedId } from './cii/cii-schemed-id.model';
-import { CiiTaxRegistration } from './cii/cii-tax-registration.model';
-import { CiiTradeLineItem } from './cii/cii-trade-line-item.model';
-import { CiiTradeParty } from './cii/cii-trade-party.model';
-import { CiiTradeTax } from './cii/cii-trade-tax.model';
-import { Inject } from '../../../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default';
-import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities';
-import { XmlString } from '../../../../../document/xml-string.type';
-import { XmlUtilities } from '../../../../../document/xml.utilities';
-import { InternalError } from '../../../../../error-handling/internal-error.model';
-import { MimeType } from '../../../../../http/mime-type.enum';
-import { getZonedDate, ZonedDate } from '../../../../../localization/format-date.function';
-import { type LocalizeServiceInterface } from '../../../../../localization/localize-service.interface';
-import { type Timezone } from '../../../../../localization/models/timezone.model';
-import { BigNumber, NumberUtilities } from '../../../../../utilities/number.utilities';
-import { optionalPeer } from '../../../../../utilities/optional-peer.function';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens';
-import { CompanyInfo } from '../../../models/company-info.model';
-import { ElectronicAddress } from '../../../models/electronic-address.model';
-import { Invoice } from '../../../models/invoice.model';
-import { type InvoicingOptions } from '../../../models/invoicing-options.model';
-import { Vat } from '../../../models/vat.model';
-import { type CompanyInfoServiceInterface } from '../../company-info-service.interface';
-import { type InvoiceCalcServiceInterface } from '../../invoice-calc-service.interface';
-import { validateInvoiceTotal } from '../../validate-invoice-total.function';
-import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoice-conformance-service.interface';
+import { CiiCrossIndustryInvoice } from './cii/cii-cross-industry-invoice.model.ts';
+import { CiiDateTime } from './cii/cii-date-time.model.ts';
+import { CiiHeaderTradeSettlement } from './cii/cii-header-trade-settlement.model.ts';
+import { CiiSchemedId } from './cii/cii-schemed-id.model.ts';
+import { CiiTaxRegistration } from './cii/cii-tax-registration.model.ts';
+import { CiiTradeLineItem } from './cii/cii-trade-line-item.model.ts';
+import { CiiTradeParty } from './cii/cii-trade-party.model.ts';
+import { CiiTradeTax } from './cii/cii-trade-tax.model.ts';
+import { Inject } from '../../../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../../../di/default/zibri-di-tokens.default.ts';
+import { PdfDocumentDefinition, PdfAttachmentDefinition, PdfDocument } from '../../../../../document/pdf.utilities.ts';
+import { XmlString } from '../../../../../document/xml-string.type.ts';
+import { XmlUtilities } from '../../../../../document/xml.utilities.ts';
+import { InternalError } from '../../../../../error-handling/internal-error.model.ts';
+import { MimeType } from '../../../../../http/mime-type.enum.ts';
+import { getZonedDate, ZonedDate } from '../../../../../localization/format-date.function.ts';
+import { type LocalizeServiceInterface } from '../../../../../localization/localize-service.interface.ts';
+import { type Timezone } from '../../../../../localization/models/timezone.model.ts';
+import { BigNumber, NumberUtilities } from '../../../../../utilities/number.utilities.ts';
+import { optionalPeer } from '../../../../../utilities/optional-peer.function.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../../invoicing.tokens.ts';
+import { CompanyInfo } from '../../../models/company-info.model.ts';
+import { ElectronicAddress } from '../../../models/electronic-address.model.ts';
+import { Invoice } from '../../../models/invoice.model.ts';
+import { type InvoicingOptions } from '../../../models/invoicing-options.model.ts';
+import { Vat } from '../../../models/vat.model.ts';
+import { type CompanyInfoServiceInterface } from '../../company-info-service.interface.ts';
+import { type InvoiceCalcServiceInterface } from '../../invoice-calc-service.interface.ts';
+import { validateInvoiceTotal } from '../../validate-invoice-total.function.ts';
+import { InvoiceConformance, InvoiceConformanceServiceInterface } from '../invoice-conformance-service.interface.ts';
 
 /**
  * The different possible document context ids.
@@ -59,7 +59,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         optionalPeer('saxes', 'Invoices conforming to EN16931');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async updateDocumentDefinition(invoice: Invoice, definition: PdfDocumentDefinition, timezone: Timezone): Promise<void> {
         const now: Date = new Date();
         const xml: XmlString = await this.generateXml(invoice, timezone);
@@ -75,7 +75,7 @@ export abstract class EN16931ConformanceService implements InvoiceConformanceSer
         definition.attachments.push(attachment);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, unusedImports/no-unused-vars
+    // eslint-disable-next-line jsdoc-js/require-jsdoc, no-unused-vars
     updateDocument(_doc: PdfDocument): void {
         // do nothing.
     }

@@ -1,9 +1,9 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Property, PropertyMetadata } from './property.decorator';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { type OneOf } from '../models/one-of.model';
+import { Property, PropertyMetadata } from './property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { type OneOf } from '../models/one-of.model.ts';
 
 class EmailChannel {
     @Property.string()
@@ -237,7 +237,7 @@ describe('a value of one of several shapes', () => {
 
     it('checks the name and the value together', () => {
         // @ts-expect-error - an sms channel under the name of the email one
-        // eslint-disable-next-line unicorn/no-unused-properties
+        // eslint-disable-next-line unicorn-js/no-unused-properties
         const wrong: OneOf<{ Email: EmailChannel, Sms: SmsChannel }> = { shape: 'Email', value: { number: '+49123' } };
 
         expect(wrong.shape).toBe('Email');

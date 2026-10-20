@@ -1,17 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { EmailServiceInterface } from '../../email/email-service.interface';
-import { EmailConfigInput } from '../../email/models/email-config.model';
-import { EmailStatus } from '../../email/models/email-status.enum';
-import { Email } from '../../email/models/email.model';
-import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { EmailServiceInterface } from '../../email/email-service.interface.ts';
+import { EmailConfigInput } from '../../email/models/email-config.model.ts';
+import { EmailStatus } from '../../email/models/email-status.enum.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md 5.2 - no swap-in path for real

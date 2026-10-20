@@ -1,6 +1,6 @@
 import { QueryRunner } from 'typeorm';
 
-import { Transaction } from './transaction.model';
+import { Transaction } from './transaction.model.ts';
 
 /**
  * A type orm transaction.
@@ -15,12 +15,12 @@ export class TypeOrmTransaction implements Transaction {
 
     constructor(readonly queryRunner: QueryRunner) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     get isFinished(): boolean {
         return this.finished;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async commit(): Promise<void> {
         let committed: boolean = false;
         try {
@@ -35,17 +35,17 @@ export class TypeOrmTransaction implements Transaction {
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterCommit(work: () => Promise<void>): void {
         this.committedWork.push(work);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     afterFinish(work: (committed: boolean) => Promise<void>): void {
         this.finishedWork.push(work);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async rollback(): Promise<void> {
         this.committedWork.length = 0;
         try {

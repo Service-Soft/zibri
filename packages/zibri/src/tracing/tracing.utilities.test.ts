@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-import { TraceContextUtilities } from './trace-context.utilities';
-import { TraceSpanContext } from './trace-span-context.model';
-import { TraceSpanKind } from './trace-span-kind.enum';
-import { TraceSpanStatus } from './trace-span-status.enum';
-import { TraceSpanInterface } from './trace-span.interface';
-import { TracingUtilities } from './tracing.utilities';
-import { DiContainer } from '../di/di-container';
-import { initDiContainer } from '../di/init-di-container.function';
+import { TraceContextUtilities } from './trace-context.utilities.ts';
+import { TraceSpanContext } from './trace-span-context.model.ts';
+import { TraceSpanKind } from './trace-span-kind.enum.ts';
+import { TraceSpanStatus } from './trace-span-status.enum.ts';
+import { TraceSpanInterface } from './trace-span.interface.ts';
+import { TracingUtilities } from './tracing.utilities.ts';
+import { DiContainer } from '../di/di-container.ts';
+import { initDiContainer } from '../di/init-di-container.function.ts';
 
 describe('TracingUtilities', () => {
 

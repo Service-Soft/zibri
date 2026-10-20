@@ -1,10 +1,10 @@
-import { getDependencyStackTrace } from './get-dependency-stack-trace.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
-import { getAmbiguousRepositoryDataSources } from '../decorators/inject-repository.decorator';
-import { DiToken } from '../models/di-token.model';
-import { InjectionToken } from '../models/injection-token.model';
+import { getDependencyStackTrace } from './get-dependency-stack-trace.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { ObjectUtilities } from '../../utilities/object.utilities.ts';
+import { getAmbiguousRepositoryDataSources } from '../decorators/inject-repository.decorator.ts';
+import { DiToken } from '../models/di-token.model.ts';
+import { InjectionToken } from '../models/injection-token.model.ts';
 
 /**
  * Get the no providers error message from the provided token and stack.

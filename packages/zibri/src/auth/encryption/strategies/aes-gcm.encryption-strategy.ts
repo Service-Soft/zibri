@@ -1,8 +1,8 @@
 import { CipherGCM, CipherGCMTypes, createCipheriv, createDecipheriv, DecipherGCM, randomBytes } from 'node:crypto';
 
-import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../encryption.utilities';
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding, EncryptionStrategyInterface } from './encryption-strategy.interface';
-import { InternalError } from '../../../error-handling/internal-error.model';
+import { EncryptionContent, EncryptionString, EncryptionUtilities } from '../encryption.utilities.ts';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionBinding, EncryptionStrategyInterface } from './encryption-strategy.interface.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
 
 /**
  * A stored aes-gcm value, split into its parts.
@@ -86,16 +86,16 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
     AesGcmEncryptOptions,
     AesGcmDecryptOptions
 > {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: CipherGCMTypes = 'aes-256-gcm';
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly version: string = 'v1';
     // node's own cipher, with keys from the data source and the master key from the configuration -
     // nothing it needs waits for the application to start
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly usableInMigrations: boolean = true;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     encrypt(value: string, options: AesGcmEncryptOptions): EncryptionString {
         const marker: AesGcmValueBinding | undefined = this.markerFor(options.binding);
         const iv: Buffer = randomBytes(12);
@@ -128,7 +128,7 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     decrypt(value: EncryptionString, options: AesGcmDecryptOptions): string {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         const { marker, ivB64, tagB64, contentB64 }: ParsedAesGcmValue = this.parse(content.encryptedValue);
@@ -154,7 +154,7 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
         return decrypted.toString('utf8');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     isBoundToRow(value: EncryptionString): boolean {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         return this.parse(content.encryptedValue).marker === AesGcmValueBinding.ROW;
@@ -232,17 +232,17 @@ export class AesGcmEncryptionStrategy implements EncryptionStrategyInterface<
         return { marker, ivB64: second, tagB64: third, contentB64 };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     generateRandomKey(): Buffer {
         return randomBytes(32);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     serializeKey(key: Buffer): Buffer {
         return key;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     deserializeKey(raw: Buffer): Buffer {
         return raw;
     }

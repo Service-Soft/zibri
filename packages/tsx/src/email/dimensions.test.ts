@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { horizontalPadding, resolvePadding } from './dimensions';
+import { horizontalPadding, resolvePadding } from './dimensions.ts';
 
 describe('resolvePadding', () => {
     it('returns the shorthand unchanged when nothing is overridden', () => {

@@ -1,12 +1,12 @@
-import { TenantServiceInterface } from './tenant-service.interface';
-import { AlsUtilities } from '../context/als.utilities';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { BadRequestError } from '../error-handling/errors/bad-request.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { HttpRequest } from '../http/http-request.model';
-import { $ts } from '../localization/translate.function';
-import { UUIDUtilities } from '../utilities/uuid.utilities';
-import { WebsocketRequest } from '../websocket/models/websocket-request.model';
+import { TenantServiceInterface } from './tenant-service.interface.ts';
+import { AlsUtilities } from '../context/als.utilities.ts';
+import { Injectable } from '../di/decorators/injectable.decorator.ts';
+import { BadRequestError } from '../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../error-handling/internal-error.model.ts';
+import { HttpRequest } from '../http/http-request.model.ts';
+import { $ts } from '../localization/translate.function.ts';
+import { UUIDUtilities } from '../utilities/uuid.utilities.ts';
+import { WebsocketRequest } from '../websocket/models/websocket-request.model.ts';
 
 // named like the header in the query too, so that it cannot be taken for a `tenantId` parameter a
 // route of the application reads for a purpose of its own
@@ -20,7 +20,7 @@ const TENANT_PARAMETER: string = 'x-tenant-id';
 @Injectable({ register: 'onUse' })
 export class TenantService implements TenantServiceInterface {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async runAs<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
         if (!UUIDUtilities.isUuid(tenantId)) {
             throw new InternalError(`The tenant "${tenantId}" is not a uuid. Every tenant id is one.`);
@@ -31,13 +31,13 @@ export class TenantService implements TenantServiceInterface {
         return await AlsUtilities.runInTenant(tenantId.toLowerCase(), fn);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getActiveTenantId(): string | undefined {
         return AlsUtilities.getCurrentTenant();
     }
 
     // as wide as the interface, so that an application overriding it may look the tenant up
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveTenant(request: HttpRequest | WebsocketRequest): string | undefined | Promise<string | undefined> {
         const header: string | undefined = this.findSingleValue(request.headers?.[TENANT_PARAMETER]);
         const query: string | undefined = this.findSingleValue(request.query?.[TENANT_PARAMETER]);
@@ -48,7 +48,7 @@ export class TenantService implements TenantServiceInterface {
     }
 
     // as wide as the interface, for the reason resolveTenant is
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     resolveTenantUrl(url: string, tenantId: string): string | Promise<string> {
         const link: URL = new URL(url);
         link.searchParams.set(TENANT_PARAMETER, tenantId);

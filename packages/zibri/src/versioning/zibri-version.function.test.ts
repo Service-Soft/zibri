@@ -1,14 +1,14 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { SemVerUtilities } from './sem-ver.utilities';
-import { zibriVersion } from './zibri-version.function';
-import { FsUtilities } from '../utilities/fs.utilities';
-import { JsonUtilities } from '../utilities/json.utilities';
+import { SemVerUtilities } from './sem-ver.utilities.ts';
+import { zibriVersion } from './zibri-version.function.ts';
+import { FsUtilities } from '../utilities/fs.utilities.ts';
+import { JsonUtilities } from '../utilities/json.utilities.ts';
 
 describe('zibriVersion', () => {
     it('reads the version off the package that is running', () => {
         const { version } = JsonUtilities.parse<{ version: string }>(
-            FsUtilities.readFileSync(FsUtilities.getPath(__dirname, '..', '..', 'package.json'))
+            FsUtilities.readFileSync(FsUtilities.getPath(import.meta.dirname, '..', '..', 'package.json'))
         );
 
         // not just "some semver": the one npm publishes, since a version read from anywhere else is

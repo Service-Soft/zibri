@@ -1,6 +1,6 @@
-import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { ObjectUtilities } from '../../../utilities/object.utilities.ts';
 
 /**
  * Reads the filter of a value of several named shapes the same way for every data source.

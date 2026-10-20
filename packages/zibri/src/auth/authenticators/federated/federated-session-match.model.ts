@@ -1,4 +1,4 @@
-import { FederatedSession } from './federated-session.model';
+import { FederatedSession } from './federated-session.model.ts';
 
 /**
  * Which logins a logout at a provider ends: those of the person, or of one session of theirs when

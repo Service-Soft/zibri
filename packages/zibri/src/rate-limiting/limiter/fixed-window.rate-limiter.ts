@@ -1,9 +1,9 @@
-import { RateLimitResult } from '../rate-limit-result.model';
-import { BaseRateLimiter } from './base-rate-limiter.model';
-import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model';
-import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error';
-import { RateLimitReservation } from '../reservation/rate-limit-reservation.model';
-import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
+import { RateLimitResult } from '../rate-limit-result.model.ts';
+import { BaseRateLimiter } from './base-rate-limiter.model.ts';
+import { RateLimiterConfigInput, RateLimitStoreFailurePolicy } from './rate-limiter-config.model.ts';
+import { RateLimitReservationNotFoundError } from '../reservation/rate-limit-reservation-not-found.error.ts';
+import { RateLimitReservation } from '../reservation/rate-limit-reservation.model.ts';
+import { BaseRateLimitState } from '../stores/rate-limiter-store.interface.ts';
 
 /**
  * The persisted state for a single fixed window.
@@ -42,7 +42,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected initialAlgoState(now: number): FixedWindowState {
         return {
             count: 0,
@@ -53,17 +53,17 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected debitCapacity(state: FixedWindowState, count: number): FixedWindowState {
         return { ...state, reservedCount: state.reservedCount + count };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected creditCapacity(state: FixedWindowState, count: number): FixedWindowState {
         return { ...state, reservedCount: Math.max(0, state.reservedCount - count) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected computeReadyAtMs(
         state: FixedWindowState,
         _reservations: RateLimitReservation[],
@@ -94,7 +94,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         return Number.MAX_SAFE_INTEGER;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     protected recomputeReadyTimes(state: FixedWindowState, now: number): FixedWindowState {
         const updatedReservations: RateLimitReservation[] = state.reservations.map(r => ({
             ...r,
@@ -154,7 +154,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         this.recordReservationClosed();
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async consume(key: string, count: number): Promise<RateLimitResult> {
         const now: number = Date.now();
 

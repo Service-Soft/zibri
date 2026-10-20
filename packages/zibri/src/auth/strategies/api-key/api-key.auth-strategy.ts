@@ -1,19 +1,19 @@
-import { type ApiKeyServiceInterface } from './api-key-service.interface';
-import { ApiKey } from './api-key.model';
-import { API_KEY_PREFIX } from './api-key.service';
-import { ZibriApplication } from '../../../application/application';
-import { HttpRequestContext } from '../../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
-import { inject } from '../../../di/inject.function';
-import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
-import { Ms } from '../../../utilities/ms';
-import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
-import { BaseUser } from '../../models/base-user.model';
-import { type UserServiceInterface } from '../../user/user-service.interface';
-import { CredentialLimits } from '../credential-limits.model';
-import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
+import { type ApiKeyServiceInterface } from './api-key-service.interface.ts';
+import { ApiKey } from './api-key.model.ts';
+import { API_KEY_PREFIX } from './api-key.service.ts';
+import { ZibriApplication } from '../../../application/application.ts';
+import { HttpRequestContext } from '../../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../../context/request/websocket-request.context.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model.ts';
+import { Ms } from '../../../utilities/ms.ts';
+import { IntrospectionResponse } from '../../authorization-server/introspection-response.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
+import { type UserServiceInterface } from '../../user/user-service.interface.ts';
+import { CredentialLimits } from '../credential-limits.model.ts';
+import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface.ts';
 
 /**
  * Api key auth strategy implementation of Zibri.
@@ -26,10 +26,10 @@ export class ApiKeyAuthStrategy<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > implements TokenIntrospectingAuthStrategyInterface<RoleType, UserType> {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly name: string = 'api-key';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject;
 
     /**
@@ -50,18 +50,18 @@ export class ApiKeyAuthStrategy<
         this.securityScheme = { type: 'apiKey', in: 'header', name: header, description: 'An api key of a user' };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     init(app: ZibriApplication): void {
         this.apiKeyService.registerReader(app, ApiKeyAuthStrategy.name);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     hasCredential(context: HttpRequestContext | WebsocketRequestContext): boolean {
         // the header being there, not a key that is any good, for the reason the jwt strategy gives
         return context.request.headers?.[this.header] != undefined || this.findBearerKey(context) != undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<UserType | undefined> {
         const apiKey: ApiKey | undefined = await this.findRequestKey(context);
         if (apiKey == undefined) {
@@ -77,25 +77,25 @@ export class ApiKeyAuthStrategy<
         return { ...user, roles: user.roles.filter(role => apiKey.roles.includes(role)) };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveCredentialLimits(context: HttpRequestContext | WebsocketRequestContext): Promise<CredentialLimits | undefined> {
         const apiKey: ApiKey | undefined = await this.findRequestKey(context);
         return apiKey == undefined ? undefined : { roles: apiKey.roles, tenantId: apiKey.tenantId ?? undefined };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveAuthenticatedAt(): Promise<Date | undefined> {
         // a key is never logged in with, so there is no time to give
         return await Promise.resolve<Date | undefined>(undefined);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         const apiKey: ApiKey | undefined = await this.findRequestKey(context);
         return apiKey?.expiresAt ?? undefined;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async introspectToken(token: string): Promise<IntrospectionResponse> {
         const apiKey: ApiKey | undefined = token.startsWith(API_KEY_PREFIX) ? await this.apiKeyService.findActiveByKey(token) : undefined;
         const user: UserType | undefined = apiKey == undefined
@@ -117,7 +117,7 @@ export class ApiKeyAuthStrategy<
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async revokeToken(token: string): Promise<void> {
         const apiKey: ApiKey | undefined = await this.apiKeyService.findActiveByKey(token);
         if (apiKey != undefined) {

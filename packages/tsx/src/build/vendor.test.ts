@@ -1,14 +1,14 @@
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from 'vitest';
 
-import { generateVendorBundles, VendorBundle, VendorBundleOptions } from './vendor';
-import { testFileFolder } from '../__testing__/constants';
+import { generateVendorBundles, VendorBundle, VendorBundleOptions } from './vendor.ts';
+import { testFileFolder } from '../__testing__/constants.ts';
 
 // Resolution is anchored at the sandbox app, which depends on the browser-shipping packages the
 // templates import with `?client`.
-const appRoot: string = path.join(__dirname, '..', '..', '..', 'sandbox');
+const appRoot: string = path.join(import.meta.dirname, '..', '..', '..', 'sandbox');
 
 const tempDirs: string[] = [];
 

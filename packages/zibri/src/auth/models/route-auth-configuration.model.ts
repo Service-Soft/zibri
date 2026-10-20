@@ -1,4 +1,4 @@
-import { ResolvedAuthMetadata } from './resolved-auth-metadata.model';
+import { ResolvedAuthMetadata } from './resolved-auth-metadata.model.ts';
 
 /**
  * What a manually registered route says about who may reach it.

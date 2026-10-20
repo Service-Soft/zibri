@@ -1,14 +1,14 @@
-import { Where, WhereFilter } from './where-filter.model';
-import { WhereValueUtilities } from './where-value.utilities';
-import { BaseEntity } from '../../../entity/base-entity.model';
-import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
-import { EntityOrder } from '../../../entity/models/entity-order.model';
-import { EntityOrderUtilities } from '../../../entity/models/entity-order.utilities';
-import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
-import { InternalError } from '../../../error-handling/internal-error.model';
-import { Newable } from '../../../types/newable.type';
-import { MetadataUtilities } from '../../../utilities/metadata.utilities';
-import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
+import { Where, WhereFilter } from './where-filter.model.ts';
+import { WhereValueUtilities } from './where-value.utilities.ts';
+import { BaseEntity } from '../../../entity/base-entity.model.ts';
+import { PropertyMetadata } from '../../../entity/decorators/property.decorator.ts';
+import { EntityOrder } from '../../../entity/models/entity-order.model.ts';
+import { EntityOrderUtilities } from '../../../entity/models/entity-order.utilities.ts';
+import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function.ts';
+import { InternalError } from '../../../error-handling/internal-error.model.ts';
+import { Newable } from '../../../types/newable.type.ts';
+import { MetadataUtilities } from '../../../utilities/metadata.utilities.ts';
+import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities.ts';
 
 /**
  * Decides which properties a similarity can be asked of, and holds every filter to that.

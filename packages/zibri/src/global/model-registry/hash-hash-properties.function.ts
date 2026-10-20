@@ -1,13 +1,13 @@
-import { HashDescriptor, HashSettings } from './hash-descriptor';
-import { ModelRegistry } from './model.registry';
-import { StringValueUtilities } from './string-value.utilities';
-import { HashOptions, HashServiceInterface } from '../../auth/hash/hash-service.interface';
-import { AlsUtilities } from '../../context/als.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { AnyObject } from '../../entity/any-object.model';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Newable } from '../../types/newable.type';
+import { HashDescriptor, HashSettings } from './hash-descriptor.ts';
+import { ModelRegistry } from './model.registry.ts';
+import { StringValueUtilities } from './string-value.utilities.ts';
+import { HashOptions, HashServiceInterface } from '../../auth/hash/hash-service.interface.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Newable } from '../../types/newable.type.ts';
 
 /**
  * Hashes all properties defined with the hash flag based on a pre-built HashDescriptor.
@@ -29,7 +29,7 @@ export async function hashHashProperties<Data, EntityClass>(
     await hashHashPropertiesRecursive(context, data, descriptor, hashService, new Set());
 }
 
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 async function hashHashPropertiesRecursive<Data, EntityClass>(
     context: HttpRequestContext | WebsocketRequestContext | undefined,
     data: Data,

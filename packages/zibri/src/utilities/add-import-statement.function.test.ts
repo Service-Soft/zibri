@@ -1,6 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { addImportStatement } from './add-import-statement.function';
+import { addImportStatement } from './add-import-statement.function.ts';
 
 describe('addImportStatement', () => {
     it('adds a new named import at the top when no import for that path exists yet', () => {

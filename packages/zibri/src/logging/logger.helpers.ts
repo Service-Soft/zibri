@@ -1,4 +1,4 @@
-/* eslint-disable jsdoc/require-jsdoc */
+/* eslint-disable jsdoc-js/require-jsdoc */
 
 export const reset: string = '\x1B[0m';
 export const blue: string = '\x1B[34m';

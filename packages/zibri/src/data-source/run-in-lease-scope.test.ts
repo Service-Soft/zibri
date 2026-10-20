@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { Repository } from './repository/repository';
-import { Transaction } from './transaction/transaction.model';
-import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
-import { LeaseServiceInterface } from '../leases/lease-service.interface';
-import { LogLevel } from '../logging/log-level.enum';
-import { Log } from '../logging/log.model';
-import { Ms } from '../utilities/ms';
+import { Repository } from './repository/repository.ts';
+import { Transaction } from './transaction/transaction.model.ts';
+import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function.ts';
+import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../di/inject.function.ts';
+import { LeaseServiceInterface } from '../leases/lease-service.interface.ts';
+import { LogLevel } from '../logging/log-level.enum.ts';
+import { Log } from '../logging/log.model.ts';
+import { Ms } from '../utilities/ms.ts';
 
 /**
  * The guard that reports a transaction outliving the grant it was written under.

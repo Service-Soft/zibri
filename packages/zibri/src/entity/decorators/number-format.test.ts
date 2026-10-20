@@ -1,10 +1,10 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Property } from './property.decorator';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { BigNumber } from '../../utilities/number.utilities';
-import { NumberPropertyMetadata } from '../models/number-property-metadata.model';
+import { Property } from './property.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { BigNumber } from '../../utilities/number.utilities.ts';
+import { NumberPropertyMetadata } from '../models/number-property-metadata.model.ts';
 
 /**
  * Reads the format off a property, the way everything that stores or validates one does.

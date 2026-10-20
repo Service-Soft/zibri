@@ -1,0 +1,31 @@
+{
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "tabWidth": 4,
+    "singleQuote": true,
+    "printWidth": 140,
+    "trailingComma": "none",
+    "arrowParens": "avoid",
+    "sortImports": {
+        "groups": ["builtin", "external", "internal", ["parent", "sibling", "index"], "unknown"],
+        "newlinesBetween": true,
+        "ignoreCase": true
+    },
+    "ignorePatterns": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/coverage/**",
+        "**/__testing__/file-output/**",
+        "**/package-lock.json",
+        "**/*.md",
+        "**/*.{hbs,handlebars,html,yml,yaml,css}",
+        ".zibri/**",
+        "evaluation/**",
+        "packages/zibri/docs/**",
+        "packages/zibri/src/di/default/temp/**",
+        "packages/cli/assets/**",
+        "packages/cli/sandbox/**",
+        "packages/cli/templates/**",
+        "packages/cli/src/__testing__/recorded-sandbox-diffs.json",
+        "packages/sandbox/**"
+    ]
+}

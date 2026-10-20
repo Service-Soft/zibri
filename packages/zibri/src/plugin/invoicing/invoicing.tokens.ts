@@ -1,18 +1,18 @@
-/* eslint-disable jsdoc/require-jsdoc */
-import { InvoicingOptionsInput } from './models/invoicing-options-input.model';
-import { InvoicingOptions } from './models/invoicing-options.model';
-import { CompanyInfoServiceInterface } from './services/company-info-service.interface';
-import { InvoiceConformanceServiceInterface } from './services/conformance/invoice-conformance-service.interface';
-import { InvoiceCalcServiceInterface } from './services/invoice-calc-service.interface';
-import { InvoiceNumberServiceInterface } from './services/invoice-number-service.interface';
-import { InvoicePdfServiceInterface } from './services/invoice-pdf-service.interface';
-import { TokenRecord } from '../../di/models/di-token.model';
-import { InjectionToken } from '../../di/models/injection-token.model';
+/* eslint-disable jsdoc-js/require-jsdoc */
+import { InvoicingOptionsInput } from './models/invoicing-options-input.model.ts';
+import { InvoicingOptions } from './models/invoicing-options.model.ts';
+import { CompanyInfoServiceInterface } from './services/company-info-service.interface.ts';
+import { InvoiceConformanceServiceInterface } from './services/conformance/invoice-conformance-service.interface.ts';
+import { InvoiceCalcServiceInterface } from './services/invoice-calc-service.interface.ts';
+import { InvoiceNumberServiceInterface } from './services/invoice-number-service.interface.ts';
+import { InvoicePdfServiceInterface } from './services/invoice-pdf-service.interface.ts';
+import { TokenRecord } from '../../di/models/di-token.model.ts';
+import { InjectionToken } from '../../di/models/injection-token.model.ts';
 
 /**
  * The dependency injection tokens used by the ZibriInvoicingPlugin.
  */
-// eslint-disable-next-line typescript/typedef
+// eslint-disable-next-line typescript-js/typedef
 export const ZIBRI_INVOICING_PLUGIN_DI_TOKENS = {
     // eslint-disable-next-line typescript/no-explicit-any
     INVOICE_NUMBER_SERVICE: invoicingToken<InvoiceNumberServiceInterface<any>>('zi.invoicing.invoice_number_service'),

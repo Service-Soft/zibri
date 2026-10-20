@@ -1,9 +1,9 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { printNode, SSR, StampSites } from './print';
-import { ComponentInfo } from '../../semantics/component';
-import { collectClientPropSites } from '../client/client-props';
-import { collectHandlerSites } from '../client/handlers';
+import { printNode, SSR, StampSites } from './print.ts';
+import { ComponentInfo } from '../../semantics/component.ts';
+import { collectClientPropSites } from '../client/client-props.ts';
+import { collectHandlerSites } from '../client/handlers.ts';
 
 /**
  * The generated server render of a component: a function `(props) => Raw` (the component itself)

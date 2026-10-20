@@ -1,20 +1,20 @@
-import { InvoiceNumberServiceInterface } from './invoice-number-service.interface';
-import { Repository } from '../../../data-source/repository/repository';
-import { Transaction } from '../../../data-source/transaction/transaction.model';
-import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
-import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../../di/decorators/inject.decorator';
-import { Injectable } from '../../../di/decorators/injectable.decorator';
-import { inject } from '../../../di/inject.function';
-import { ConflictError } from '../../../error-handling/errors/conflict.error';
-import { $ts } from '../../../localization/translate.function';
-import { OmitStrict } from '../../../types/omit-strict.type';
-import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
-import { InvoiceAddress } from '../models/invoice-address.model';
-import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model';
-import { Invoice } from '../models/invoice.model';
-import { type InvoicingOptions } from '../models/invoicing-options.model';
-import { NumberInvoices } from '../models/number-invoices.model';
+import { InvoiceNumberServiceInterface } from './invoice-number-service.interface.ts';
+import { Repository } from '../../../data-source/repository/repository.ts';
+import { Transaction } from '../../../data-source/transaction/transaction.model.ts';
+import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error.ts';
+import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../../di/decorators/injectable.decorator.ts';
+import { inject } from '../../../di/inject.function.ts';
+import { ConflictError } from '../../../error-handling/errors/conflict.error.ts';
+import { $ts } from '../../../localization/translate.function.ts';
+import { OmitStrict } from '../../../types/omit-strict.type.ts';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens.ts';
+import { InvoiceAddress } from '../models/invoice-address.model.ts';
+import { InvoiceRecipientAbbreviation } from '../models/invoice-recipient-abbreviation.model.ts';
+import { Invoice } from '../models/invoice.model.ts';
+import { type InvoicingOptions } from '../models/invoicing-options.model.ts';
+import { NumberInvoices } from '../models/number-invoices.model.ts';
 
 /**
  * Default implementation of the invoice number service.
@@ -45,7 +45,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         protected readonly options: InvoicingOptions
     ) {}
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async generateInvoiceNumber(
         recipientId: string,
         invoiceAddress: InvoiceAddress,
@@ -62,13 +62,12 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
             transaction
         );
         const consecutiveNumber: string = await this.getConsecutiveNumber(recipientId, transaction);
-        // eslint-disable-next-line stylistic/max-len
         const result: string = `${currentYear}${this.options.separator}${customerNameAbbreviation}${this.options.separator}${consecutiveNumber}`;
         await this.validateInvoiceNumber(result);
         return result;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async generateTemporaryInvoiceNumber(recipientId: string, invoiceAddress: InvoiceAddress, nameAbbreviation?: string): Promise<string> {
         const currentYear: string = `${new Date().getFullYear()}`;
         // read rather than claimed: a temporary number draws nothing, and the number it is replaced
@@ -81,7 +80,6 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
             ?? this.getSuggestedNameAbbreviation(invoiceAddress);
         const consecutiveNumber: string = await this.getTemporaryConsecutiveNumber(recipientId);
 
-        // eslint-disable-next-line stylistic/max-len
         const result: string = `TEMP${this.options.separator}${currentYear}${this.options.separator}${customerNameAbbreviation}${this.options.separator}${consecutiveNumber}`;
         if (!await this.invoiceRepository.findOne({ where: { number: result }, required: false })) {
             return result;
@@ -196,7 +194,7 @@ export class InvoiceNumberService implements InvoiceNumberServiceInterface<Invoi
         return claimed;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     getSuggestedNameAbbreviation(invoiceAddress: InvoiceAddress): string {
         if (invoiceAddress.company && invoiceAddress.companyName) {
             return this.getCompanyNameAbbreviation(invoiceAddress.companyName);

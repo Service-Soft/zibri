@@ -1,47 +1,47 @@
-import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model';
-import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model';
-import { EncryptionRotationFailure } from './encryption-rotation-failure.model';
-import { EncryptionRotationProgress } from './encryption-rotation-progress.model';
-import { EncryptionRotationCronJob } from './encryption-rotation.cron-job';
-import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface';
-import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities';
-import { KeysInUse } from './keys-in-use.model';
-import { MasterKeyReference } from './master-key-reference.model';
-import { resolveEncryptedEntities } from './resolve-encrypted-entities.function';
-import { RetiredKeyUsage, RetiredMasterUsage } from './retired-key-usage.model';
-import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model';
-import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface';
-import { ZibriApplication } from '../../application/application';
-import { BackupEntity } from '../../backup/backup-entity.model';
-import { CacheDelete } from '../../caching/decorators/cache-delete.decorator';
-import { CacheWrite } from '../../caching/decorators/cache-write.decorator';
-import { Cached } from '../../caching/decorators/cached.decorator';
-import { AlsUtilities } from '../../context/als.utilities';
-import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
-import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
-import { Where } from '../../data-source/models/where/where-filter.model';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { Inject } from '../../di/decorators/inject.decorator';
-import { Injectable } from '../../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { NoProviderError } from '../../di/errors/no-provider.error';
-import { inject } from '../../di/inject.function';
-import { register } from '../../di/register.function';
-import { AnyObject } from '../../entity/any-object.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function';
-import { OnAppInit } from '../../global/on-app-init.interface';
-import { $ts } from '../../localization/translate.function';
-import { KeysetPage } from '../../open-api/pagination-result.model';
-import { type DeepPartial } from '../../types/deep-partial.type';
-import { type Newable } from '../../types/newable.type';
-import { type OmitStrict } from '../../types/omit-strict.type';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
-import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
+import { EncryptionKeyCreateData, EncryptionKeyStatus, EncryptionKey } from './encryption-key.model.ts';
+import { type EncryptionMasterOptions, EncryptionMasterKey } from './encryption-master-options.model.ts';
+import { EncryptionRotationFailure } from './encryption-rotation-failure.model.ts';
+import { EncryptionRotationProgress } from './encryption-rotation-progress.model.ts';
+import { EncryptionRotationCronJob } from './encryption-rotation.cron-job.ts';
+import { type DeleteEncryptionKeyOptions, EncryptionServiceInterface, EncryptOptions } from './encryption-service.interface.ts';
+import { EncryptionContent, type EncryptionString, EncryptionUtilities } from './encryption.utilities.ts';
+import { KeysInUse } from './keys-in-use.model.ts';
+import { MasterKeyReference } from './master-key-reference.model.ts';
+import { resolveEncryptedEntities } from './resolve-encrypted-entities.function.ts';
+import { RetiredKeyUsage, RetiredMasterUsage } from './retired-key-usage.model.ts';
+import { EncryptionStrategyEntity, type EncryptionStrategyEntityCreateData, EncryptionStrategyStatus } from './strategies/encryption-strategy-entity.model.ts';
+import { BaseDecryptOptions, BaseEncryptOptions, EncryptionStrategyInterface } from './strategies/encryption-strategy.interface.ts';
+import { ZibriApplication } from '../../application/application.ts';
+import { BackupEntity } from '../../backup/backup-entity.model.ts';
+import { CacheDelete } from '../../caching/decorators/cache-delete.decorator.ts';
+import { CacheWrite } from '../../caching/decorators/cache-write.decorator.ts';
+import { Cached } from '../../caching/decorators/cached.decorator.ts';
+import { AlsUtilities } from '../../context/als.utilities.ts';
+import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface.ts';
+import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model.ts';
+import { Where } from '../../data-source/models/where/where-filter.model.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { Inject } from '../../di/decorators/inject.decorator.ts';
+import { Injectable } from '../../di/decorators/injectable.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { NoProviderError } from '../../di/errors/no-provider.error.ts';
+import { inject } from '../../di/inject.function.ts';
+import { register } from '../../di/register.function.ts';
+import { AnyObject } from '../../entity/any-object.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { NotFoundError } from '../../error-handling/errors/not-found.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function.ts';
+import { OnAppInit } from '../../global/on-app-init.interface.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { KeysetPage } from '../../open-api/pagination-result.model.ts';
+import { type DeepPartial } from '../../types/deep-partial.type.ts';
+import { type Newable } from '../../types/newable.type.ts';
+import { type OmitStrict } from '../../types/omit-strict.type.ts';
+import { PromiseUtilities } from '../../utilities/promise.utilities.ts';
+import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function.ts';
 
 /**
  * How many rows are read at a time while counting what is still encrypted under a retired key.
@@ -145,7 +145,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         this.options = options;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async onAppInit(app: ZibriApplication): Promise<void> {
         // at every boot that uses this implementation, since its lifecycle hooks make every boot build
         // it. A declared entity whose table is missing refuses the boot as well, on the reads below
@@ -237,7 +237,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         ]);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async encrypt<TKey, TEncryptOptions extends BaseEncryptOptions<TKey>>(
         value: string,
         options?: EncryptOptions<TKey, TEncryptOptions>
@@ -415,7 +415,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return this.strategyEntities.find(s => s.name === strategy.name && s.version === strategy.version);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async decrypt<TDecryptOptions extends AnyObject>(
         value: EncryptionString,
         options?: TDecryptOptions
@@ -424,10 +424,10 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(value);
         const strategy: EncryptionStrategyInterface<unknown> = this.findStrategy(content.strategyName, content.version);
         const key: unknown = await this.findKey(content.keyId, undefined);
-        return await strategy.decrypt(value, { key, keyId: content.keyId, ...options ?? {} });
+        return await strategy.decrypt(value, { key, keyId: content.keyId, ...options });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async createKey<TKey>(
         strategyClass: Newable<EncryptionStrategyInterface<TKey>>,
         data: OmitStrict<EncryptionKeyCreateData, 'strategy' | 'value'>,
@@ -449,7 +449,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return await this.createKeyEntity(encryptedKey, entity, data, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteKey(
         keyId: string,
         options?: DeleteEncryptionKeyOptions
@@ -462,7 +462,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         await this.deleteKeyEntityById(keyId, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteAllKeys(where: Where<EncryptionKey>, options: DeleteEncryptionKeyOptions = {}): Promise<void> {
         const keys: EncryptionKey[] = await this.keyRepository.findAll({ where });
 
@@ -488,7 +488,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async markKeyAsDefaultForStrategy<TKey>(
         keyId: string,
         strategyClass: Newable<EncryptionStrategyInterface<TKey>>,
@@ -532,7 +532,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
 
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async decryptKey<TKey, TEncryptOptions extends BaseEncryptOptions<TKey>>(
         strategy: Newable<EncryptionStrategyInterface<TKey, TEncryptOptions>>,
         encryptedKey: EncryptionString
@@ -542,7 +542,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return await inject(strategy).deserializeKey(keyBuffer);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deprecateKey(keyId: string, options?: BaseRepositoryOptions): Promise<void> {
         const key: EncryptionKey = await this.findKeyEntityById(keyId, options);
         if (key.status === EncryptionKeyStatus.DEFAULT) {
@@ -556,7 +556,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         await this.updateKeyEntityById(keyId, { status: EncryptionKeyStatus.DEPRECATED }, options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async needsReEncryption(encrypted: EncryptionString, shouldBeBoundToRow: boolean = false): Promise<boolean> {
         await this.loadStrategies();
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
@@ -577,13 +577,13 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return strategyEntity.status === EncryptionStrategyStatus.DEPRECATED || key.status === EncryptionKeyStatus.DEPRECATED;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async findRetiredKeyIds(): Promise<string[]> {
         const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
         return keys.filter(k => this.isRetired(k)).map(k => k.id);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveRetiredKeyUsage(): Promise<RetiredKeyUsage> {
         await this.loadStrategies();
         const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
@@ -628,7 +628,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         };
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async resolveKeysInUse(): Promise<KeysInUse> {
         const current: MasterKeyReference = {
             keyId: this.options.currentMasterKey.id,
@@ -774,7 +774,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return key;
     }
 
-    // eslint-disable-next-line unusedImports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     @CacheDelete(ZIBRI_DI_TOKENS.ENCRYPTION_KEY_CACHE, (keyId, _) => keyId)
     private async deleteKeyEntityById(id: string, options: BaseRepositoryOptions | undefined): Promise<void> {
         const strategy: EncryptionStrategyEntity | undefined = this.strategyEntities.find(s => s.keys.some(k => k.id === id));
@@ -823,7 +823,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return res;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async masterEncrypt(keyBase64: string): Promise<EncryptionString> {
         this.validateUsableNow(this.options.currentMasterStrategy);
         const encrypted: EncryptionString = await this.options.currentMasterStrategy.encrypt(
@@ -841,7 +841,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
         return encrypted;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async masterDecrypt(encrypted: EncryptionString): Promise<string> {
         const content: EncryptionContent = EncryptionUtilities.encryptionStringToContent(encrypted);
         const masterKey: EncryptionMasterKey<unknown> | undefined = [

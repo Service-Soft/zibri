@@ -1,63 +1,63 @@
-import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
-import { AuthControllerClass } from './auth-controller-class.type';
-import { AuthControllerOptions } from './auth-controller-options.model';
-import { FEDERATED_ROUTE } from './auth-controller-routes.model';
-import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
-import { AuthControllerUtilities } from './auth-controller.utilities';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { IsolationLevel } from '../../data-source/data-sources/data-source.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { Transaction } from '../../data-source/transaction/transaction.model';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { copyClassProperties } from '../../entity/utilities/copy-class-properties.function';
-import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { MimeType } from '../../http/mime-type.enum';
-import { RedirectResponse } from '../../http/redirect-response.model';
-import { $ts } from '../../localization/translate.function';
-import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
-import { auditReasonFor } from '../../logging/audit-reason-for.function';
-import { Response } from '../../open-api/decorators/response.decorator';
-import { FileResponse } from '../../parsing/form-data/file-response.model';
-import { HtmlResponse } from '../../parsing/html/html-response.model';
-import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator';
-import { AcceptCrossSitePosts } from '../../routing/decorators/accept-cross-site-posts.decorator';
-import { Body } from '../../routing/decorators/body.decorator';
-import { Delete } from '../../routing/decorators/delete.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Param } from '../../routing/decorators/param.decorator';
-import { Post } from '../../routing/decorators/post.decorator';
-import { Newable } from '../../types/newable.type';
-import { TwoFactorMethod } from '../2fa/methods/two-factor-method.interface';
-import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
-import { type TwoFactorServiceInterface } from '../2fa/two-factor-service.interface';
-import { type AuthServiceInterface } from '../auth-service.interface';
-import { ConnectingAuthenticatorInterface, isConnectingAuthenticator } from '../authenticators/connecting-authenticator.interface';
-import { ConnectionCompletingAuthenticatorInterface, isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface';
-import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
-import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
-import { FederatedProviderLogoutMessage } from '../authenticators/federated/federated-provider-logout-message.model';
-import { FederatedRouteUtilities } from '../authenticators/federated/federated-route.utilities';
-import { FederatedSignInResult } from '../authenticators/federated/federated-sign-in-result.model';
-import { LinkedIdentity } from '../authenticators/linked-identity.model';
-import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
-import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
-import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
-import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
-import { isSignInOptionsAuthenticator, SignInOptionsAuthenticatorInterface } from '../authenticators/sign-in-options-authenticator.interface';
-import { isSignUpAuthenticator, SignUpAuthenticatorInterface } from '../authenticators/sign-up-authenticator.interface';
-import { Auth } from '../decorators/auth.decorator';
-import { CurrentUser } from '../decorators/current-user.decorator';
-import { type BaseUser } from '../models/base-user.model';
-import { LogoutResult } from '../models/logout-result.model';
-import { PasswordResetToken } from '../models/password-reset-token.model';
-import { isAuthStrategy } from '../strategies/auth-strategy.interface';
-import { CsrfTokenAuthStrategyInterface, isCsrfTokenAuthStrategy } from '../strategies/csrf-token-auth-strategy.interface';
-import { CsrfToken } from '../strategies/csrf-token.model';
+import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type.ts';
+import { AuthControllerClass } from './auth-controller-class.type.ts';
+import { AuthControllerOptions } from './auth-controller-options.model.ts';
+import { FEDERATED_ROUTE } from './auth-controller-routes.model.ts';
+import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type.ts';
+import { AuthControllerUtilities } from './auth-controller.utilities.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { IsolationLevel } from '../../data-source/data-sources/data-source.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { Transaction } from '../../data-source/transaction/transaction.model.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { copyClassProperties } from '../../entity/utilities/copy-class-properties.function.ts';
+import { BadRequestError } from '../../error-handling/errors/bad-request.error.ts';
+import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { MimeType } from '../../http/mime-type.enum.ts';
+import { RedirectResponse } from '../../http/redirect-response.model.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model.ts';
+import { auditReasonFor } from '../../logging/audit-reason-for.function.ts';
+import { Response } from '../../open-api/decorators/response.decorator.ts';
+import { FileResponse } from '../../parsing/form-data/file-response.model.ts';
+import { HtmlResponse } from '../../parsing/html/html-response.model.ts';
+import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator.ts';
+import { AcceptCrossSitePosts } from '../../routing/decorators/accept-cross-site-posts.decorator.ts';
+import { Body } from '../../routing/decorators/body.decorator.ts';
+import { Delete } from '../../routing/decorators/delete.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Param } from '../../routing/decorators/param.decorator.ts';
+import { Post } from '../../routing/decorators/post.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { TwoFactorMethod } from '../2fa/methods/two-factor-method.interface.ts';
+import { TwoFactorMethods } from '../2fa/two-factor-methods.model.ts';
+import { type TwoFactorServiceInterface } from '../2fa/two-factor-service.interface.ts';
+import { type AuthServiceInterface } from '../auth-service.interface.ts';
+import { ConnectingAuthenticatorInterface, isConnectingAuthenticator } from '../authenticators/connecting-authenticator.interface.ts';
+import { ConnectionCompletingAuthenticatorInterface, isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface.ts';
+import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface.ts';
+import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model.ts';
+import { FederatedProviderLogoutMessage } from '../authenticators/federated/federated-provider-logout-message.model.ts';
+import { FederatedRouteUtilities } from '../authenticators/federated/federated-route.utilities.ts';
+import { FederatedSignInResult } from '../authenticators/federated/federated-sign-in-result.model.ts';
+import { LinkedIdentity } from '../authenticators/linked-identity.model.ts';
+import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model.ts';
+import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model.ts';
+import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model.ts';
+import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model.ts';
+import { isSignInOptionsAuthenticator, SignInOptionsAuthenticatorInterface } from '../authenticators/sign-in-options-authenticator.interface.ts';
+import { isSignUpAuthenticator, SignUpAuthenticatorInterface } from '../authenticators/sign-up-authenticator.interface.ts';
+import { Auth } from '../decorators/auth.decorator.ts';
+import { CurrentUser } from '../decorators/current-user.decorator.ts';
+import { type BaseUser } from '../models/base-user.model.ts';
+import { LogoutResult } from '../models/logout-result.model.ts';
+import { PasswordResetToken } from '../models/password-reset-token.model.ts';
+import { isAuthStrategy } from '../strategies/auth-strategy.interface.ts';
+import { CsrfTokenAuthStrategyInterface, isCsrfTokenAuthStrategy } from '../strategies/csrf-token-auth-strategy.interface.ts';
+import { CsrfToken } from '../strategies/csrf-token.model.ts';
 
 /**
  * A model, as a function answering it once the application has started.
@@ -124,7 +124,7 @@ type RouteGroup = {
     present: boolean
 };
 
-// eslint-disable-next-line jsdoc/require-returns, jsdoc/require-throws
+// eslint-disable-next-line jsdoc-js/require-returns, jsdoc-js/require-throws
 /**
  * Defines the auth routes of the given strategies, authenticators and two factor methods, below the
  * path of the controller that extends it: logging in, refreshing a login and logging out, and the
@@ -159,7 +159,7 @@ export function AuthController<
     const completing: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'completeConnection');
     const linking: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'findIdentities');
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     class Temp {
         /**
          * What the routes were built from, which also marks the class as the auth controller.
@@ -186,7 +186,7 @@ export function AuthController<
         //
         // They share one budget per caller: a password is the one secret short enough to guess, and
         // checking one costs a deliberately slow hash
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @respondsWith(strategies.map(s => () => inject(s).authDataModel))
@@ -212,7 +212,7 @@ export function AuthController<
             );
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @respondsWith(strategies.map(s => () => inject(s).authDataModel))
         @Post('/refresh-login')
@@ -232,7 +232,7 @@ export function AuthController<
         }
 
         // answers where to log out at the provider the login was started at, if any
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.object(LogoutResult)
         @Post('/logout')
@@ -254,7 +254,7 @@ export function AuthController<
         // login that ended in a redirect rather than a response body. A GET, so the csrf check does not
         // apply, and what keeps another origin from reading the answer is CORS - the same thing that
         // keeps it from reading the login response
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.object(CsrfToken)
         @Get('/csrf-token')
@@ -276,7 +276,7 @@ export function AuthController<
             return { csrfToken };
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.empty()
@@ -324,7 +324,7 @@ export function AuthController<
             }
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.object(PasswordResetTokenValidity)
@@ -336,7 +336,7 @@ export function AuthController<
             return { isValid: await this.authService.isPasswordResetTokenValid(input.resetToken) };
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.empty()
@@ -358,7 +358,7 @@ export function AuthController<
         }
 
         // every route anyone may call that stores a challenge shares the login's budget
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @respondsWith(challenging.map(a => () => resolveInstance(a, isSignInOptionsAuthenticator)?.signInOptionsModel))
@@ -372,7 +372,7 @@ export function AuthController<
             return await inject(authenticatorClass).resolveSignInOptions();
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @respondsWith(signingUp.map(a => () => resolveInstance(a, isSignUpAuthenticator)?.signUpOptionsModel))
@@ -390,7 +390,7 @@ export function AuthController<
         }
 
         // answers with the ticket the application's own sign-up route creates the user with
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @respondsWith(signingUp.map(a => () => resolveInstance(a, isSignUpAuthenticator)?.ticketModel))
@@ -419,7 +419,7 @@ export function AuthController<
         // body a frontend could read tokens from, and tokens in the url end up in history, logs and
         // Referer headers. A sign-in for any other strategy is refused here, before the user signs in
         // at the provider for nothing
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
@@ -452,7 +452,7 @@ export function AuthController<
 
         // where a provider sends the browser back to. Tokens never travel in a url, so a login that is
         // handed over goes on to the frontend as the one-time code, which it exchanges at the login route
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
@@ -466,7 +466,7 @@ export function AuthController<
 
         // where a provider that answers with a form post has the browser post its answer. Another site's
         // page sends it, so it is let through with cookies - from that provider's sign-in page only
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @AcceptCrossSitePosts({ acceptedOrigins: async params => await FederatedRouteUtilities.resolveFormPostOrigins(params) })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
@@ -483,7 +483,7 @@ export function AuthController<
 
         // where the frontend sends the browser to connect a provider to an account, with the url the
         // connect route answered with. The browser is tied to the connection here and goes on to the provider
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
@@ -499,7 +499,7 @@ export function AuthController<
 
         // where a provider sends the browser to say the user logged out there, or that it ended its
         // session after a logout here
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
@@ -514,7 +514,7 @@ export function AuthController<
 
         // the same, for a provider whose page posts it. Another site's page sends it, so it is let
         // through with cookies - from that provider's pages only
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @AcceptCrossSitePosts({ acceptedOrigins: async params => await FederatedRouteUtilities.resolveFormPostOrigins(params) })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
@@ -532,7 +532,7 @@ export function AuthController<
         }
 
         // where a provider sends a logout request server to server, without a browser
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.file()
@@ -547,7 +547,7 @@ export function AuthController<
         }
 
         // the document the provider is set up with, for a provider whose protocol publishes one
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.file()
         @Get(`${FEDERATED_ROUTE}/:provider/metadata`)
@@ -559,7 +559,7 @@ export function AuthController<
         }
 
         // guarded the way changing a password is: an identity is a way into the account
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.require2fa({ reauth: true })
         @respondsWith(connecting.map(a => () => resolveInstance(a, isConnectingAuthenticator)?.connectionStartModel))
         @Post('/connect')
@@ -576,7 +576,7 @@ export function AuthController<
         }
 
         // finishes a connection the connect route started, for the same user
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.isLoggedIn()
         @Response.empty()
         @Post('/connect/complete')
@@ -592,7 +592,7 @@ export function AuthController<
             await this.authService.completeConnection(authenticatorClass, answer);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.isLoggedIn()
         @Response.array(LinkedIdentity)
         @Get('/identities')
@@ -603,7 +603,7 @@ export function AuthController<
             return await this.authService.findIdentities(user.id, undefined);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.require2fa({ reauth: true })
         @Response.empty()
         @Delete('/identities/:identityId')
@@ -619,7 +619,7 @@ export function AuthController<
         // a password must not be enough to add a factor of the attacker's own to an account that has one,
         // so a user who holds one presents it. A user without one could otherwise never enrol their
         // first, and logs in again instead
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.require2fa({ reauth: 'onlyAsFallback' })
         @Response.empty({ mimeTypes: [MimeType.JSON] })
         @respondsWith(twoFactorMethods.map(m => () => inject(m).registrationModel))
@@ -638,7 +638,7 @@ export function AuthController<
             return await this.twoFactorService.requestRegisterTwoFactorMethodForUser(user, instance, data);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.isLoggedIn()
         @Response.empty()
         @Post('/2fa/confirm')
@@ -656,7 +656,7 @@ export function AuthController<
         }
 
         // with the factor itself rather than a recent login: a password alone must not take it away
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.require2fa()
         @Response.empty()
         @Delete('/2fa/:method')
@@ -670,7 +670,7 @@ export function AuthController<
             await this.twoFactorService.unregisterTwoFactorMethodForUser(user, instance);
         }
 
-        // eslint-disable-next-line jsdoc/require-jsdoc
+        // eslint-disable-next-line jsdoc-js/require-jsdoc
         @Auth.isLoggedIn()
         @Response.empty({ mimeTypes: [MimeType.JSON] })
         @respondsWith(twoFactorMethods.map(m => () => inject(m).secondFactorStartModel))
@@ -758,7 +758,7 @@ export function AuthController<
         .flatMap(g => g.routes)
         .filter((key): key is keyof Temp => key in Temp.prototype);
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     class AuthControllerRoutes {}
     copyClassProperties(AuthControllerRoutes, Temp, omitted);
     // put together at runtime from the groups the classes call for, which the type works out from their
@@ -823,7 +823,6 @@ function resolveRedirectStrategy(strategies: AuthControllerStrategyClass[], name
         : undefined;
     if (strategy == undefined || !inject(strategy).logsInWithResponse) {
         throw new BadRequestError(
-            // eslint-disable-next-line stylistic/max-len
             $ts`Without a codeChallenge the sign-in logs in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.`
         );
     }

@@ -1,19 +1,19 @@
-import * as ts from 'typescript';
+import * as ts from '@typescript/typescript6';
 
-import { ClientScript, compileClientScript } from './client/client-codegen';
-import { CLIENT_HOOK_SOURCES } from './client/hooks';
-import { unavailableNamesIn } from './client/script-names';
-import { emitModuleCode, eraseTypes } from './erase-types';
-import { printNode, SERVER_INLINED_HOOKS } from './server/print';
-import { compileServerRender, ServerRenderCode } from './server/render-codegen';
-import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model';
-import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages';
-import { ComponentInfo, findComponents } from '../semantics/component';
-import { readImports, TemplateImport, TemplateImportSpecifier } from '../semantics/imports';
-import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols';
-import { namesAvailableInBrowser, validate, validateClientImports, validateClientModuleLoading, validateClientNames, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate';
-import { validateEmailNesting, validateNoClientInEmail } from '../semantics/validate-email';
-import { UnhandledSyntaxError } from '../semantics/walk';
+import { ClientScript, compileClientScript } from './client/client-codegen.ts';
+import { CLIENT_HOOK_SOURCES } from './client/hooks.ts';
+import { unavailableNamesIn } from './client/script-names.ts';
+import { emitModuleCode, eraseTypes } from './erase-types.ts';
+import { printNode, SERVER_INLINED_HOOKS } from './server/print.ts';
+import { compileServerRender, ServerRenderCode } from './server/render-codegen.ts';
+import { Diagnostic, DiagnosticSeverity } from '../diagnostics/diagnostic.model.ts';
+import { collectClientGlobalAliases, collectClientPackages } from '../semantics/client-packages.ts';
+import { ComponentInfo, findComponents } from '../semantics/component.ts';
+import { readImports, TemplateImport, TemplateImportSpecifier } from '../semantics/imports.ts';
+import { parseTemplate, syntaxErrorsOf } from '../semantics/symbols.ts';
+import { namesAvailableInBrowser, validate, validateClientImports, validateClientModuleLoading, validateClientNames, validateRenderSyntaxOutsideComponents, ValidationCode } from '../semantics/validate.ts';
+import { validateEmailNesting, validateNoClientInEmail } from '../semantics/validate-email.ts';
+import { UnhandledSyntaxError } from '../semantics/walk.ts';
 
 /**
  * The name an anonymous default-exported component is declared under in the emitted module.

@@ -1,15 +1,15 @@
 import { setTimeout } from 'node:timers/promises';
 
-import { RateLimitStateEntity } from './rate-limit-state-entity.model';
-import { RateLimiterLockInterface } from './rate-limiter-lock.interface';
-import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface';
-import { Repository } from '../../data-source/repository/repository';
-import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { DiContainer } from '../../di/di-container';
-import { inject } from '../../di/inject.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { Ms } from '../../utilities/ms';
+import { RateLimitStateEntity } from './rate-limit-state-entity.model.ts';
+import { RateLimiterLockInterface } from './rate-limiter-lock.interface.ts';
+import { BaseRateLimitState, RateLimiterStoreInterface, RateLimiterStoreUpdateResult } from './rate-limiter-store.interface.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { DiContainer } from '../../di/di-container.ts';
+import { inject } from '../../di/inject.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { Ms } from '../../utilities/ms.ts';
 
 /**
  * How often a write that lost its compare and set is retried before giving up.
@@ -136,7 +136,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
         namespacesByContainer.set(container, taken);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async atomicUpdate(key: string, updater: (current: TState | undefined) => TState): Promise<RateLimiterStoreUpdateResult<TState>> {
         for (let attempt: number = 0; attempt < maxWriteAttempts; attempt++) {
             const res: RateLimiterStoreUpdateResult<TState> | undefined = await this.lock.withLock(
@@ -155,22 +155,22 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
         );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async get(key: string): Promise<TState | undefined> {
         return this.toState(await this.repository.findOne({ where: { namespace: this.namespace, key }, required: false }));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async delete(key: string): Promise<void> {
         await this.repository.deleteAll({ namespace: this.namespace, key });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async deleteExpired(now: number): Promise<void> {
         await this.repository.deleteAll({ namespace: this.namespace, expiresAtMs: { lesserThanEquals: now } });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async keysWithExpiredReservations(now: number): Promise<string[]> {
         const rows: RateLimitStateEntity[] = await this.repository.findAll({
             // every key with something expired on it - the ones left out would keep their expired
@@ -185,17 +185,17 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
         return rows.map(r => r.key);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async getAll(): Promise<TState[]> {
         return (await this.readUnexpired()).map(e => e.state as TState);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async keys(): Promise<string[]> {
         return (await this.readUnexpired()).map(e => e.key);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async size(): Promise<number> {
         return (await this.readUnexpired()).length;
     }

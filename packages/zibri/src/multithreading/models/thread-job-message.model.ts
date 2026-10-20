@@ -1,6 +1,6 @@
-import { ThreadJobStatus } from './thread-job-status.enum';
-import { LoggedError } from '../../logging/logged-error.model';
-import { Percentage } from '../../types/percentage.type';
+import { ThreadJobStatus } from './thread-job-status.enum.ts';
+import { LoggedError } from '../../logging/logged-error.model.ts';
+import { Percentage } from '../../types/percentage.type.ts';
 
 /**
  * The internal thread job message types.

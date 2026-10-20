@@ -1,4 +1,4 @@
-import { CompanyInfo } from '../models/company-info.model';
+import { CompanyInfo } from '../models/company-info.model.ts';
 
 /**
  * Interface for the service that says which company issues the invoices of a tenant.

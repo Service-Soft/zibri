@@ -1,26 +1,26 @@
-import { ScimErrorType } from './scim-error-type.enum';
-import { ScimFilterMatch } from './scim-filter-match.model';
-import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model';
-import { ScimFilterUtilities } from './scim-filter.utilities';
-import { ScimGroup } from './scim-group.model';
-import { ScimIndexedFilter } from './scim-indexed-filter.model';
-import { ScimSchema } from './scim-schema.enum';
-import { ScimUserValue } from './scim-user-value.model';
-import { ScimUser } from './scim-user.model';
-import { ScimValueSort } from './scim-value-sort.model';
-import { ScimError } from './scim.error';
-import { BooleanWhereFilter } from '../../data-source/models/where/boolean-where-filter.model';
-import { DateWhereFilter } from '../../data-source/models/where/date-where-filter.model';
-import { StringWhereFilter } from '../../data-source/models/where/string-where-filter.model';
-import { WhereFilter } from '../../data-source/models/where/where-filter.model';
-import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { EntityOrder, OrderDirection } from '../../entity/models/entity-order.model';
-import { HttpStatus } from '../../http/http-status.enum';
-import { $ts } from '../../localization/translate.function';
-import { Newable } from '../../types/newable.type';
-import { MetadataUtilities } from '../../utilities/metadata.utilities';
-import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ScimErrorType } from './scim-error-type.enum.ts';
+import { ScimFilterMatch } from './scim-filter-match.model.ts';
+import { ScimAttributePath, ScimComparisonOperator, ScimFilter, ScimFilterValue } from './scim-filter.model.ts';
+import { ScimFilterUtilities } from './scim-filter.utilities.ts';
+import { ScimGroup } from './scim-group.model.ts';
+import { ScimIndexedFilter } from './scim-indexed-filter.model.ts';
+import { ScimSchema } from './scim-schema.enum.ts';
+import { ScimUserValue } from './scim-user-value.model.ts';
+import { ScimUser } from './scim-user.model.ts';
+import { ScimValueSort } from './scim-value-sort.model.ts';
+import { ScimError } from './scim.error.ts';
+import { BooleanWhereFilter } from '../../data-source/models/where/boolean-where-filter.model.ts';
+import { DateWhereFilter } from '../../data-source/models/where/date-where-filter.model.ts';
+import { StringWhereFilter } from '../../data-source/models/where/string-where-filter.model.ts';
+import { WhereFilter } from '../../data-source/models/where/where-filter.model.ts';
+import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { EntityOrder, OrderDirection } from '../../entity/models/entity-order.model.ts';
+import { HttpStatus } from '../../http/http-status.enum.ts';
+import { $ts } from '../../localization/translate.function.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { MetadataUtilities } from '../../utilities/metadata.utilities.ts';
+import { UUIDUtilities } from '../../utilities/uuid.utilities.ts';
 
 /**
  * The most alternatives a filter may stand for once its `or`s are multiplied out.
@@ -37,32 +37,32 @@ type ScimColumn<T extends BaseEntity> = {
      * as it is (`caseExactText`), or the id of a resource, compared for equality alone (`id`).
      */
     kind: 'text' | 'caseExactText' | 'id',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     nullable: boolean,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     where: (condition: StringWhereFilter) => WhereFilter<T>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     order: (direction: OrderDirection) => EntityOrder<T>
 } | {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     kind: 'boolean',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     where: (condition: BooleanWhereFilter) => WhereFilter<T>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     order: (direction: OrderDirection) => EntityOrder<T>
 } | {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     kind: 'date',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     where: (condition: DateWhereFilter) => WhereFilter<T>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     order: (direction: OrderDirection) => EntityOrder<T>
 } | {
     /**
      * A member of a group, which the groups that have it stand in for: the condition is on their ids.
      */
     kind: 'member',
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     where: (condition: StringWhereFilter) => WhereFilter<T>
 };
 
@@ -105,9 +105,9 @@ const GROUP_ATTRIBUTES_OF_USER: Record<string, string> = { groups: 'id', 'groups
  * What a filter is read with, beside the filter itself.
  */
 type FilterContext<T extends BaseEntity> = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     columns: Record<string, ScimColumn<T>>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     entityClass: Newable<T>,
     /**
      * The ids of the groups each member named by the filter is a direct member of.

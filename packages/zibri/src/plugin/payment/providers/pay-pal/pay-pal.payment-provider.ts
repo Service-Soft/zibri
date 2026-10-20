@@ -1,19 +1,19 @@
-import { PaymentProviderInterface } from '../payment-provider.interface';
-import { AuthorizationCaptureResp, CaptureOrderResp, CreateOrderResp, GetOrderResp, PayPalAuthorization, PayPalCapture, PayPalClient, PayPalPaymentIntent, RefundCaptureResp } from './pay-pal-client';
-import { Repository } from '../../../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
-import { inject } from '../../../../di/inject.function';
-import { Property } from '../../../../entity/decorators/property.decorator';
-import { BadRequestError } from '../../../../error-handling/errors/bad-request.error';
-import { InternalError } from '../../../../error-handling/internal-error.model';
-import { currencyCodeEnum, type CurrencyCode } from '../../../../localization/models/currency-code.model';
-import { $ts } from '../../../../localization/translate.function';
-import { errorToLoggedError } from '../../../../logging/error-to-logged-error.function';
-import { LoggedError } from '../../../../logging/logged-error.model';
-import { BigNumber } from '../../../../utilities/number.utilities';
-import { KnownPaymentMethod } from '../../models/payment-method.model';
-import { PaymentStatus } from '../../models/payment-status.enum';
-import { Payment } from '../../models/payment.model';
+import { PaymentProviderInterface } from '../payment-provider.interface.ts';
+import { AuthorizationCaptureResp, CaptureOrderResp, CreateOrderResp, GetOrderResp, PayPalAuthorization, PayPalCapture, PayPalClient, PayPalPaymentIntent, RefundCaptureResp } from './pay-pal-client.ts';
+import { Repository } from '../../../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator.ts';
+import { inject } from '../../../../di/inject.function.ts';
+import { Property } from '../../../../entity/decorators/property.decorator.ts';
+import { BadRequestError } from '../../../../error-handling/errors/bad-request.error.ts';
+import { InternalError } from '../../../../error-handling/internal-error.model.ts';
+import { currencyCodeEnum, type CurrencyCode } from '../../../../localization/models/currency-code.model.ts';
+import { $ts } from '../../../../localization/translate.function.ts';
+import { errorToLoggedError } from '../../../../logging/error-to-logged-error.function.ts';
+import { LoggedError } from '../../../../logging/logged-error.model.ts';
+import { BigNumber } from '../../../../utilities/number.utilities.ts';
+import { KnownPaymentMethod } from '../../models/payment-method.model.ts';
+import { PaymentStatus } from '../../models/payment-status.enum.ts';
+import { Payment } from '../../models/payment.model.ts';
 
 /**
  * The environment of the pay-pal client.
@@ -197,21 +197,21 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
     RefundSupport,
     ReservationSupport
 > {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __supportedMethods: SupportedMethods;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __paymentDataMap: PaymentDataMap;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __validatedDataMap: ValidatedPaymentDataMap;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __providerPaymentDataMap: ProviderPaymentDataMap;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __providerReservationPaymentDataMap: ProviderReservationPaymentDataMap;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __cancellationSupportMap: CancellationSupport;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __refundSupportMap: RefundSupport;
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     declare readonly __reservationSupportMap: ReservationSupport;
 
     /**
@@ -245,12 +245,12 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         return inject(repositoryTokenFor(Payment)) as unknown as Repository<Payment<M, Data>>;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     validatePaymentData<M extends SupportedMethods[number]>(
         method: M,
         data: PaymentDataMap[M]
     ): ValidatedPaymentDataMap[M] {
-        // eslint-disable-next-line sonar/no-small-switch
+        // eslint-disable-next-line sonarjs/no-small-switch
         switch (method) {
             case KnownPaymentMethod.PAY_PAL: {
                 if (!data.amount.isGreaterThan(0)) {
@@ -268,12 +268,13 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
                 return data;
             }
             default: {
+                // oxlint-disable-next-line typescript/restrict-template-expressions
                 throw new InternalError(`unsupported payment method ${method}`);
             }
         }
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startPayment<M extends SupportedMethods[number]>(
         method: M,
         data: ValidatedPaymentDataMap[M]
@@ -331,7 +332,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         return await repository.updateById(payment.id, { data: { orderId: order.id, approvalUrl } });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async startPaymentReservation<
         M extends {
             [K in SupportedMethods[number]]: ReservationSupport[K] extends true ? K : never
@@ -343,7 +344,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         return await this.startOrder(method, data, 'AUTHORIZE');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmPaymentReservation<
         M extends {
             [K in SupportedMethods[number]]: ReservationSupport[K] extends true ? K : never
@@ -376,7 +377,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         await this.write(payment, { status: PaymentStatus.RESERVED, data: { ...payment.data, authorizationId: authorization.id } });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async confirmPayment<M extends SupportedMethods[number]>(
         payment: Payment<M, ProviderPaymentDataMap[M]>
     ): Promise<void> {
@@ -409,7 +410,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async collectPaymentFromReservation<
         M extends {
             [K in SupportedMethods[number]]: ReservationSupport[K] extends true ? K : never
@@ -460,7 +461,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async cancelPayment<M extends KnownPaymentMethod.PAY_PAL>(
         payment: Payment<M, ProviderPaymentDataMap[M]> | Payment<M, ProviderReservationPaymentDataMap[M]>
     ): Promise<void> {
@@ -499,7 +500,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
         await this.write(payment, { status: PaymentStatus.CANCELLED, data: payment.data });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
+    // eslint-disable-next-line jsdoc-js/require-jsdoc
     async refundPayment<
         M extends {
             [K in SupportedMethods[number]]: RefundSupport[K] extends true ? K : never

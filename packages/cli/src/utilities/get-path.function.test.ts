@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { getPath } from './get-path.function';
-import { CPUtilities } from '../encapsulation';
+import { getPath } from './get-path.function.ts';
+import { CPUtilities } from '../encapsulation/index.ts';
 
 describe('getPath', () => {
     afterEach(() => {

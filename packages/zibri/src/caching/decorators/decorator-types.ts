@@ -1,5 +1,5 @@
-import { CacheInterface } from '../cache/cache.interface';
-import { MultiTierCache } from '../cache/multi-tier.cache';
+import { CacheInterface } from '../cache/cache.interface.ts';
+import { MultiTierCache } from '../cache/multi-tier.cache.ts';
 
 /**
  * Extracts the key type `K` from a cache-like type.
@@ -14,7 +14,7 @@ export type ExtractCacheKey<C>
             : never;
 
 /** Extract the WriteResultAvailable flag from a cache-like type. */
-// eslint-disable-next-line jsdoc/require-jsdoc
+// eslint-disable-next-line jsdoc-js/require-jsdoc
 export type ExtractCacheWriteResultAvailable<C> = C extends { _writeResultAvailable: infer WR }
     ? (WR extends boolean ? WR : never)
     : never;

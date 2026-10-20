@@ -1,12 +1,12 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
-import { Entity } from './entity.decorator';
-import { Property } from './property.decorator';
-import { whereFor } from '../../data-source/models/where/where-for.function';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
-import { Newable } from '../../types/newable.type';
-import { BaseEntity } from '../base-entity.model';
+import { Entity } from './entity.decorator.ts';
+import { Property } from './property.decorator.ts';
+import { whereFor } from '../../data-source/models/where/where-for.function.ts';
+import { InternalError } from '../../error-handling/internal-error.model.ts';
+import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { BaseEntity } from '../base-entity.model.ts';
 
 /**
  * What a key may be declared as, and where.

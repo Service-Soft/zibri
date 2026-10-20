@@ -1,4 +1,4 @@
-import { FederatedProfile } from './federated-profile.model';
+import { FederatedProfile } from './federated-profile.model.ts';
 
 /**
  * Who signed in at a provider, as its answer to a sign-in proves.

@@ -1,6 +1,6 @@
-import { MailingListSubscriber } from './mailing-list-subscriber.model';
-import { MailingList } from './mailing-list.model';
-import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model';
+import { MailingListSubscriber } from './mailing-list-subscriber.model.ts';
+import { MailingList } from './mailing-list.model.ts';
+import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model.ts';
 
 /**
  * Data about the mailing list that this email belongs to.

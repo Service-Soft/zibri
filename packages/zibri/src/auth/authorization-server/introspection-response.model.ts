@@ -1,5 +1,5 @@
-import { IntrospectedConfirmation } from './introspected-confirmation.model';
-import { Property } from '../../entity/decorators/property.decorator';
+import { IntrospectedConfirmation } from './introspected-confirmation.model.ts';
+import { Property } from '../../entity/decorators/property.decorator.ts';
 
 /**
  * Whether a token is active, and what it says when it is (RFC 7662, 2.2).

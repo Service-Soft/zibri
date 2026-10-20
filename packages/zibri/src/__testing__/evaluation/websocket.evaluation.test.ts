@@ -1,21 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { Ms } from '../../utilities/ms';
-import { WebsocketController } from '../../websocket/decorators/websocket-controller.decorator';
-import { WebsocketRoute } from '../../websocket/decorators/websocket-route.decorator';
-import { SocketIOWebsocketConnection } from '../../websocket/models/connection/socket-io-websocket-connection.model';
-import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
-import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
-import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../test-server/providers';
-import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider, DiProvider } from '../../di/models/di-provider.model.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { Ms } from '../../utilities/ms.ts';
+import { WebsocketController } from '../../websocket/decorators/websocket-controller.decorator.ts';
+import { WebsocketRoute } from '../../websocket/decorators/websocket-route.decorator.ts';
+import { SocketIOWebsocketConnection } from '../../websocket/models/connection/socket-io-websocket-connection.model.ts';
+import { WebsocketMessage } from '../../websocket/models/websocket-message.model.ts';
+import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model.ts';
+import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface.ts';
+import { defaultTestServerEntities } from '../test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function.ts';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 3.11.

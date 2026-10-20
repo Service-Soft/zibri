@@ -1,8 +1,8 @@
-import { type CacheTagMatcher } from '../cache-tag-matchers';
-import { CacheKeyProvider, CacheSetDirectOptions, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheWrapOptions, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, OnInvalidationFailure, ResultCacheKeyProvider } from './cache-options.model';
-import { MultiTierCache } from './multi-tier.cache';
-import { ExcludeStrict } from '../../types/exclude-strict.type';
-import { type CacheStoreInterface } from '../store/cache-store.interface';
+import { type CacheTagMatcher } from '../cache-tag-matchers.ts';
+import { CacheKeyProvider, CacheSetDirectOptions, CacheWrapDeleteOptions, CacheWrapInvalidateOptions, CacheWrapOptions, CacheWrapWriteOptionsArgsOnly, CacheWrapWriteOptionsWithResult, OnInvalidationFailure, ResultCacheKeyProvider } from './cache-options.model.ts';
+import { MultiTierCache } from './multi-tier.cache.ts';
+import { ExcludeStrict } from '../../types/exclude-strict.type.ts';
+import { type CacheStoreInterface } from '../store/cache-store.interface.ts';
 
 /**
  * Definition for a cache.
@@ -93,7 +93,7 @@ export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvaila
 /**
  * The type for any unspecified cache.
  */
-// eslint-disable-next-line typescript/no-explicit-any, stylistic/max-len
+// eslint-disable-next-line typescript/no-explicit-any
 export type AnyCache = MultiTierCache<any, any, any> | CacheInterface<any, any, string, true, string> | CacheInterface<any, any, string, false, string>;
 
 /**

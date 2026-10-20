@@ -1,5 +1,5 @@
-import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model';
-import { BaseUser } from '../../models/base-user.model';
+import { TsxEmailComponent } from '../../../tsx/tsx-email-component.model.ts';
+import { BaseUser } from '../../models/base-user.model.ts';
 
 /**
  * Properties of a password reset email.

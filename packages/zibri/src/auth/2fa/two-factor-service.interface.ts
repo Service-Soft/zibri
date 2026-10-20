@@ -1,9 +1,9 @@
-import { TwoFactorMethod } from './methods/two-factor-method.interface';
-import { TwoFactorLock } from './two-factor-failure-limit.model';
-import { TwoFactorMethods } from './two-factor-methods.model';
-import { HttpRequestContext } from '../../context/request/http-request.context';
-import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { BaseUser } from '../models/base-user.model';
+import { TwoFactorMethod } from './methods/two-factor-method.interface.ts';
+import { TwoFactorLock } from './two-factor-failure-limit.model.ts';
+import { TwoFactorMethods } from './two-factor-methods.model.ts';
+import { HttpRequestContext } from '../../context/request/http-request.context.ts';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context.ts';
+import { BaseUser } from '../models/base-user.model.ts';
 
 /**
  * Interface for a two factor service.

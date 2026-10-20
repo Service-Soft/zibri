@@ -1,33 +1,33 @@
 import assert from 'node:assert';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryDataSource } from 'zibri-testing';
 
-import { CookieTestAuthController } from '../../__testing__/mocks/controllers/cookie-test-auth.controller';
-import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
-import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
-import { DataSource } from '../../data-source/decorators/data-source.decorator';
-import { Repository } from '../../data-source/repository/repository';
-import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
-import { inject } from '../../di/inject.function';
-import { defineProvider } from '../../di/models/di-provider.model';
-import { Email } from '../../email/models/email.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Controller } from '../../routing/decorators/controller.decorator';
-import { Get } from '../../routing/decorators/get.decorator';
-import { Newable } from '../../types/newable.type';
-import { JsonUtilities } from '../../utilities/json.utilities';
-import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model';
-import { Auth } from '../decorators/auth.decorator';
-import { PASSWORD_MAX_LENGTH } from '../hash/hash.utilities';
-import { PasswordResetToken } from '../models/password-reset-token.model';
-import { CookieAuthRefreshSession } from '../strategies/cookie/cookie-auth-refresh-session.model';
-import { CookieAuthSession } from '../strategies/cookie/cookie-auth-session.model';
-import { CookieAuthSessionOptionsInput, CookieAuthStrategy } from '../strategies/cookie/cookie-auth.auth-strategy';
+import { CookieTestAuthController } from '../../__testing__/mocks/controllers/cookie-test-auth.controller.ts';
+import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity.ts';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum.ts';
+import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function.ts';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers.ts';
+import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function.ts';
+import { DataSource } from '../../data-source/decorators/data-source.decorator.ts';
+import { Repository } from '../../data-source/repository/repository.ts';
+import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator.ts';
+import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default.ts';
+import { inject } from '../../di/inject.function.ts';
+import { defineProvider } from '../../di/models/di-provider.model.ts';
+import { Email } from '../../email/models/email.model.ts';
+import { BaseEntity } from '../../entity/base-entity.model.ts';
+import { Controller } from '../../routing/decorators/controller.decorator.ts';
+import { Get } from '../../routing/decorators/get.decorator.ts';
+import { Newable } from '../../types/newable.type.ts';
+import { JsonUtilities } from '../../utilities/json.utilities.ts';
+import { PasswordCredentials, PasswordCredentialsCreateData } from '../authenticators/password/password-credentials.model.ts';
+import { Auth } from '../decorators/auth.decorator.ts';
+import { PASSWORD_MAX_LENGTH } from '../hash/hash.utilities.ts';
+import { PasswordResetToken } from '../models/password-reset-token.model.ts';
+import { CookieAuthRefreshSession } from '../strategies/cookie/cookie-auth-refresh-session.model.ts';
+import { CookieAuthSession } from '../strategies/cookie/cookie-auth-session.model.ts';
+import { CookieAuthSessionOptionsInput, CookieAuthStrategy } from '../strategies/cookie/cookie-auth.auth-strategy.ts';
 
 @Controller('/cookie-test')
 class CookieProtectedController {
@@ -167,7 +167,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             body: JsonUtilities.stringify({ email, password })
         });
         const cookieHeader: string = extractCookieHeader(res);
-        // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+        // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
         const body = await res.json();
         // eslint-disable-next-line typescript/no-unsafe-assignment
         return { res, cookieHeader, body };
@@ -309,7 +309,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
                 body: '{}'
             });
             expect(res.status).toBe(200);
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const refreshed = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(refreshed.userId).toBe(body.userId);
@@ -330,7 +330,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
                 body: '{}'
             });
             expect(res.status).toBe(200);
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const rotated = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(rotated.userId).toBe(body.userId);
@@ -363,7 +363,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
                 body: '{}'
             });
             const rotatedCookies: string = extractCookieHeader(rotateRes);
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const rotated = await rotateRes.json();
 
             // rotating without retiring the old token would be bookkeeping rather than a fix
@@ -423,7 +423,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             // a page reload: the cookies survived, the token kept in memory did not
             const res: Response = await fetch(`${baseUrl}/auth/csrf-token`, { headers: { Cookie: cookieHeader } });
             expect(res.status).toBe(200);
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const answer = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(answer.csrfToken).toBe(body.csrfToken);
@@ -445,7 +445,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
 
             const res: Response = await fetch(`${baseUrl}/auth/csrf-token`, { headers: { Cookie: cookieHeader } });
             expect(res.status).toBe(200);
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const answer = await res.json();
             // the retired one would be refused by the very next unsafe request
             // eslint-disable-next-line typescript/no-unsafe-member-access
@@ -548,7 +548,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JsonUtilities.stringify({ resetToken })
             });
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const verifyBody = await verifyRes.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(verifyBody.isValid).toBe(true);
@@ -646,7 +646,7 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JsonUtilities.stringify({ resetToken: 'not-a-real-token' })
             });
-            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript/typedef
+            // eslint-disable-next-line typescript/no-unsafe-assignment, typescript-js/typedef
             const body = await res.json();
             // eslint-disable-next-line typescript/no-unsafe-member-access
             expect(body.isValid).toBe(false);
