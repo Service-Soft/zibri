@@ -36,7 +36,10 @@ export function eraseTypes(code: string): string {
  */
 export function emitModuleCode(code: string, module: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS): string {
     return ts.transpileModule(code, {
-        compilerOptions: { ...TRANSPILE_OPTIONS, module, esModuleInterop: true }
+        // not verbatim here: a binding a template only uses as a type - `TsxComponent` beside `$ts` in
+        // one import - is still a named import of the module, and an es module importing a name that
+        // its dependency does not export refuses to load. Elided as tsc elides it for the application
+        compilerOptions: { ...TRANSPILE_OPTIONS, module, esModuleInterop: true, verbatimModuleSyntax: false }
     }).outputText.trimEnd();
 }
 

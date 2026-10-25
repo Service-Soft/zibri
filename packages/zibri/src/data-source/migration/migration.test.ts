@@ -7,7 +7,7 @@ import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -26,6 +26,7 @@ import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/po
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
+import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
 
 @Entity({ tenant: 'shared', tableName: 'item' })
@@ -44,6 +45,7 @@ class LegacyDbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, LegacyItem];
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     // stands in for the database as it was before the migration, so it is created from the classes
     schemaManagement: SchemaManagement = 'synchronize';
 }
@@ -67,6 +69,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item];
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     override migrations: Newable<Migration>[] = [AddTestValueMigration];
     // the framework entities still need their tables, and the migration is what this asserts about
     schemaManagement: SchemaManagement = 'synchronize';

@@ -31,6 +31,25 @@
         },
         "./package.json": "./package.json"
     },
+    "typesVersions": {
+        "*": {
+            "compiler": [
+                "./dist/compiler.d.ts"
+            ],
+            "webpack": [
+                "./dist/webpack/index.d.ts"
+            ],
+            "jest": [
+                "./dist/jest/index.d.ts"
+            ],
+            "email": [
+                "./dist/email/index.d.ts"
+            ],
+            "jsx-runtime": [
+                "./dist/jsx-runtime.d.ts"
+            ]
+        }
+    },
     "repository": {
         "url": "https://github.com/Service-Soft/zibri",
         "directory": "packages/tsx"
@@ -57,11 +76,11 @@
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --max-warnings=0 --fix",
         "prepublishOnly": "npm run build",
-        "test": "jest",
+        "test": "jest && jest --config jest.typescript-6.config.mjs",
         "test:coverage": "jest --coverage"
     },
     "peerDependencies": {
-        "typescript": "^5.9.2"
+        "typescript": "^5.9.2 || ^6.0.0"
     },
     "devDependencies": {
         "@jest/globals": "^30.4.1",
@@ -71,6 +90,7 @@
         "jest": "^30.4.2",
         "mjml": "^5.4.0",
         "ts-jest": "^29.4.11",
-        "typescript": "^5.9.2"
+        "typescript": "^5.9.2",
+        "typescript-6": "npm:typescript@^6.0.2"
     }
 }

@@ -1,6 +1,7 @@
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { entities } from './entities';
+import { repositories } from './repositories';
 import { requireBooleanEnv, requireEnv } from '../../env';
 
 @DataSource()
@@ -22,4 +23,5 @@ export class DbDataSource extends PostgresDataSource {
         ssl: requireBooleanEnv('DB_SSL')
     };
     entities: Newable<BaseEntity>[] = entities;
+    repositories: RepositoryClass[] = repositories;
 }

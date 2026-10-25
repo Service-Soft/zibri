@@ -510,6 +510,8 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         const versions: SupportedVersionsOptions = input.versions ?? ['^latest'];
         const currentLatest: SemVerVersion | undefined = GlobalRegistry.getAppData('version');
         assert(currentLatest);
+        // while registering, where a controller route's declaration is refused as well
+        this.authService.validateRouteAuth(input.auth, key);
 
         const overlappingRoute: RouteWithVersionData | undefined = this.allFinalRoutes.find(
             r => r.key === key && this.versioningService.hasOverlappingVersions(r.versions, versions, currentLatest)

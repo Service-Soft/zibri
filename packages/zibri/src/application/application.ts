@@ -1,5 +1,6 @@
-import { createServer, Server } from 'node:http';
+import { createServer, IncomingMessage, Server } from 'node:http';
 import { AddressInfo } from 'node:net';
+import { Duplex } from 'node:stream';
 
 import express, { ErrorRequestHandler, RequestHandler } from 'express';
 
@@ -73,6 +74,11 @@ const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 
 const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
 
+/**
+ * How long the log is given to write what it holds before the process ends.
+ */
+const LOG_FLUSH_TIMEOUT_IN_MS: number = Ms.SECOND * 5;
+
 const defaultHstsOptions: HstsOptions = {
     maxAgeSeconds: NumberUtilities.multiply(Ms.YEAR, 2).dividedBy(1000)
         .toNumber(),
@@ -141,6 +147,11 @@ export class ZibriApplication {
     // created while initializing rather than here: the header size it accepts is only given to the
     // constructor, and the limits are a di token, which there is nothing to read from before then
     private httpServer: Server | undefined = undefined;
+
+    /**
+     * The connections the http server handed over to another protocol, which it no longer ends.
+     */
+    private readonly upgradedSockets: Set<Duplex> = new Set();
 
     // eslint-disable-next-line jsdoc/require-returns
     /**
@@ -347,6 +358,7 @@ export class ZibriApplication {
         this.registerAdditionalLifecycleServices();
 
         const tokens: DiToken<unknown>[] = this.providersWorthBuildingBeforeUse()
+            .sort((a, b) => this.resolveSweepRank(a) - this.resolveSweepRank(b))
             .map(provider => provider.token);
         await this.beforeAppInit(tokens);
 
@@ -456,6 +468,13 @@ export class ZibriApplication {
         server.requestTimeout = limits.requestInMs;
         server.headersTimeout = limits.headersInMs;
         server.keepAliveTimeout = limits.keepAliveInMs;
+        // an upgraded connection - a websocket - leaves the list the server closes connections by,
+        // while `close` keeps waiting for it. Kept here so that a shutdown can end it, since it never
+        // ends on its own
+        server.on('upgrade', (req: IncomingMessage, socket: Duplex) => {
+            this.upgradedSockets.add(socket);
+            socket.once('close', () => this.upgradedSockets.delete(socket));
+        });
         return server;
     }
 
@@ -526,8 +545,12 @@ export class ZibriApplication {
                 const injectables: unknown[] = getAllInstantiatedValues();
                 await this.beforeAppShutdown(injectables, signal);
                 await this.onAppShutdown(injectables, signal);
+                // what the hooks so far logged, written while the data sources are still open: the
+                // next phase closes them. After the phase rather than by a hook of the logger's own
+                // in it, which ran beside the other hooks and so before what they logged
+                await this.flushLogs();
                 await this.afterAppShutdown(injectables, signal);
-                this.releaseProcess();
+                await this.releaseProcess();
 
                 if (signal != undefined) {
                     process.exit(this.shutdownFailed ? 1 : 0);
@@ -550,8 +573,12 @@ export class ZibriApplication {
                 const injectables: unknown[] = getAllInstantiatedValues();
                 await this.beforeAppShutdown(injectables, signal);
                 await this.onAppShutdown(injectables, signal);
+                // what the hooks so far logged, written while the data sources are still open: the
+                // next phase closes them. After the phase rather than by a hook of the logger's own
+                // in it, which ran beside the other hooks and so before what they logged
+                await this.flushLogs();
                 await this.afterAppShutdown(injectables, signal);
-                this.releaseProcess();
+                await this.releaseProcess();
 
                 if (signal != undefined) {
                     process.exit(this.shutdownFailed ? 1 : 0);
@@ -572,9 +599,30 @@ export class ZibriApplication {
      *
      * What the decorators registered is untouched; see `GlobalRegistry.markAppAsOffline`.
      */
-    private releaseProcess(): void {
-        DiContainer.reset();
+    private async releaseProcess(): Promise<void> {
+        // offline before the last flush: a transport writing to a data source has nowhere to write
+        // now, and the logger passes such a transport over once the application is offline. What the
+        // last phase logged - a data source that failed to close - still reaches the others
         GlobalRegistry.markAppAsOffline();
+        await this.flushLogs();
+        DiContainer.reset();
+    }
+
+    /**
+     * Writes what the log holds, within a bound.
+     *
+     * Bounded because the process is about to end, and a transport that cannot write is not a reason
+     * to keep it alive. What could not be written is reported on the console, the one place that
+     * cannot fail the same way.
+     */
+    private async flushLogs(): Promise<void> {
+        try {
+            await PromiseUtilities.withTimeout(() => this.logger.flush(), LOG_FLUSH_TIMEOUT_IN_MS);
+        }
+        catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('The log could not be written before the process ends', error);
+        }
     }
 
     /**
@@ -691,19 +739,28 @@ export class ZibriApplication {
         }
     }
 
-    private async beforeAppInit(tokens: DiToken<unknown>[]): Promise<void> {
-        const sortedTokens: DiToken<unknown>[] = tokens.sort((a, b) => {
-            if ('key' in a && a.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
-                return -1;
-            }
-            if ('key' in b && b.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
-                return 1;
-            }
+    /**
+     * Where in the initialization sweep the given provider is resolved: the data sources first, then
+     * every asynchronous provider, then the rest in registration order.
+     *
+     * The data sources first because they are what registers the repositories, which an
+     * asynchronous factory may name in its `deps`. Every asynchronous provider before the rest
+     * because a `beforeAppInit` body is the one place an awaited value can be reached for that the
+     * container never sees - it is not building anything there - and an application's providers
+     * are registered after its classes.
+     * @param provider - The provider to place.
+     * @returns Its rank, lower first.
+     */
+    private resolveSweepRank(provider: DiProvider<unknown>): number {
+        if ('key' in provider.token && provider.token.key === ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE.key) {
             return 0;
-        });
+        }
+        return provider.useAsyncFactory == undefined ? 2 : 1;
+    }
 
+    private async beforeAppInit(tokens: DiToken<unknown>[]): Promise<void> {
         const reached: Set<unknown> = new Set();
-        for (const token of sortedTokens) {
+        for (const token of tokens) {
             // the first pass that touches every token, and the only one that can wait: a
             // `useAsyncFactory` is awaited here, so every later sweep - and every request - finds
             // its value already built and has nothing left to wait for
@@ -885,20 +942,38 @@ export class ZibriApplication {
             });
         });
 
+        // a websocket is ended as the drain begins rather than waited for: there is no request on it
+        // that could finish, and its client reconnects to a replica that is staying. Ended rather
+        // than destroyed, so the client is told
+        for (const socket of this.upgradedSockets) {
+            socket.end();
+        }
+
+        const drainTimeoutInMs: number = inject(ZIBRI_DI_TOKENS.HTTP_DRAIN_TIMEOUT_IN_MS);
         try {
             // bounded, because server.close waits for every open connection and this runs before any
             // shutdown hook. A long poll or a streaming response would otherwise hold up everything
             // that comes after it - including handing back the leases that in flight work is holding,
             // which is the difference between the next replica taking over in seconds or waiting out
             // a full lease.
-            await PromiseUtilities.withTimeout(() => closed, inject(ZIBRI_DI_TOKENS.HTTP_DRAIN_TIMEOUT_IN_MS));
+            await PromiseUtilities.withTimeout(() => closed, drainTimeoutInMs);
         }
         catch {
             this.logger.warn('requests were still running when the drain timed out, ending them');
             // stops the wait above from being unbounded rather than merely long: close on its own
-            // never gives up on an open connection.
+            // never gives up on an open connection. The upgraded ones are not in the list it walks
             server.closeAllConnections();
-            await closed;
+            for (const socket of this.upgradedSockets) {
+                socket.destroy();
+            }
+            try {
+                // bounded a second time: a connection that outlives being destroyed is one the server
+                // will never see the end of, and the shutdown has to carry on without it
+                await PromiseUtilities.withTimeout(() => closed, drainTimeoutInMs);
+            }
+            catch {
+                this.logger.warn('connections were still open after being ended, carrying on without them');
+            }
         }
     }
 
@@ -916,6 +991,8 @@ export class ZibriApplication {
             if (isAuthStrategy(element)) {
                 throw new InvalidClassMarkedWithInjectableError(element.constructor.name, 'authStrategy');
             }
+            // refused at boot: a data source the application meant to use but did not list connects
+            // to nothing, and the first query against it would otherwise be where that shows
             if (isDataSource(element) && this.isOrphanedDataSource(element)) {
                 const dataSourceClass: Function = element.constructor;
                 throw new InternalError([
@@ -1002,6 +1079,7 @@ export class ZibriApplication {
             // present and undefined takes the default away again
             additionalLifecycleServices: this.providedOptions.additionalLifecycleServices ?? [],
             twoFactorFailureLimit: this.providedOptions.twoFactorFailureLimit ?? false,
+            passwordFailureLimit: this.providedOptions.passwordFailureLimit ?? false,
             security: {
                 headers: {
                     [KnownHeader.STRICT_TRANSPORT_SECURITY]: typeof hsts === 'boolean'
@@ -1085,8 +1163,14 @@ export class ZibriApplication {
 
     private readonly exceptionHandler: (error: Error) => void = (error: Error) => {
         this.logger.error(new InternalError('Uncaught exception', { cause: error }));
-        // removed first, or this same handler catches whatever the rethrow produces and loops
+        // removed first, or this same handler catches whatever the flush raises and loops
         process.off('uncaughtException', this.exceptionHandler);
-        throw error;
+        // the entry is queued, and a process ending on a rethrow ends with it unwritten - the one
+        // line saying why an instance died. So it is written first, and the process then ends the
+        // way node ends it, since what it holds after an uncaught exception cannot be trusted
+        void (async () => {
+            await this.flushLogs();
+            process.exit(1);
+        })();
     };
 }

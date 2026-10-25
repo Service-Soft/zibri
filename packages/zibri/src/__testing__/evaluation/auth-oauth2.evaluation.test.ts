@@ -23,8 +23,9 @@ import { Controller } from '../../routing/decorators/controller.decorator';
 import { Newable } from '../../types/newable.type';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -34,7 +35,7 @@ const REDIRECT_TO: string = 'https://app.example.com/signed-in';
 
 let provider: FakeOAuthProvider;
 
-class PlainOAuth2Authenticator extends BaseOAuth2Authenticator<Roles, JwtUser> {
+class PlainOAuth2Authenticator extends BaseOAuth2Authenticator<string, JwtUser> {
     readonly name: string = 'plain';
 
     readonly clientId: string = CLIENT_ID;
@@ -95,6 +96,7 @@ describe('evaluation/03-auth-and-security H15 - a provider that speaks plain OAu
                 FederatedRegistrationTicket,
                 FederatedConnectionCode
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -118,12 +120,12 @@ describe('evaluation/03-auth-and-security H15 - a provider that speaks plain OAu
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await provider?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs a linked user in, though the provider issues no ID token', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'oauth2@example.com', roles: [Roles.USER] });

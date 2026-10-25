@@ -155,19 +155,8 @@ explaining a decision is the most valuable line on the screen.
 
 # The documentation
 
-`packages/zibri/docs/` is for people using the framework, and it has its own rules.
-
-**Say what is.** Not what changed, not what something used to do, not what a feature is *not*, not
-why a rule exists, not what happens underneath.
-
-**Only name concrete implementations as examples.** Describe for example how transaction can be created, never how Postgres or ValKey implement it internally. If
-it is ever relevant which store is underneath, the abstraction is leaking and that is the bug.
-
-**Plain, short, second person.** Match the intro paragraphs of the
-existing pages rather than writing an essay.
-
-**One topic per page.** When two pages start carrying content belonging to a third, write the third
-and link to it. A table listing an API is complete or it is wrong.
+`packages/zibri/docs/` is for people using the framework, and it has its own rules: read
+[DOCS_STYLE.md](./DOCS_STYLE.md) before you write or change a page.
 
 Anything worth documenting is documented in the same change, or written down as a TODO.
 
@@ -190,10 +179,12 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | Script | Covers |
 |---|---|
 | `test:normal` | Everything except the below |
-| `test:evaluation` | `*.evaluation.test.ts`, red by design while their findings are open |
+| `test:evaluation` | `*.evaluation.test.ts`, red while their findings are open |
 | `test:cluster` | `*.cluster.test.ts`, in band |
 | `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against `src/__testing__/benchmark/baseline.json`, never failing |
 | `test:heavy` | Long-running suites, in band |
+
+CI runs every one of them: `test:ci` runs all but `test:benchmark`, which has a job of its own.
 
 **Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through
 testcontainers, so they need Docker or Podman running.

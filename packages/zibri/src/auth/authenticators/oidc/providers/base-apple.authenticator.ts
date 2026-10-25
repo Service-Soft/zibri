@@ -8,6 +8,7 @@ import { FederatedProfile } from '../../federated/federated-profile.model';
 import { OAuthClientAuthentication } from '../../oauth/oauth-client-authentication.model';
 import { OAuthResponseMode } from '../../oauth/oauth-response-mode.type';
 import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
  * The name Apple posts next to the code, on the first sign-in only.
@@ -44,6 +45,9 @@ export abstract class BaseAppleAuthenticator<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly issuer: string = 'https://appleid.apple.com';
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly scopes: string[] = ['openid', 'email', 'name'];
 

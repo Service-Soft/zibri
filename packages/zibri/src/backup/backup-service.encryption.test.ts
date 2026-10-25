@@ -11,14 +11,15 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { EncryptionMasterKey, EncryptionMasterOptions } from '../auth/encryption/encryption-master-options.model';
 import { AesGcmEncryptionStrategy } from '../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { Repository } from '../data-source/repository/repository';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -70,6 +71,7 @@ class Note {
 @Backup({ transports: [EncryptedFsBackupTransport], encrypt: true })
 class EncryptedDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note, BackupEntity, BackupResourceEntity];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 /**
@@ -130,7 +132,7 @@ describe('BackupService — encrypted backups', () => {
             Array.from({ length: NOTE_COUNT }, (_, i) => ({ text: `${MARKER}-${i}-${'a'.repeat(5000)}` }))
         );
         backup = await createBackup('encrypted');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

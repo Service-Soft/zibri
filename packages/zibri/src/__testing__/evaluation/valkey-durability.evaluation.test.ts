@@ -20,6 +20,7 @@ import { RepositoryRateLimiterStore } from '../../rate-limiting/stores/repositor
 import { Newable } from '../../types/newable.type';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -126,12 +127,12 @@ beforeAll(async () => {
     accountRepository = inject(repositoryTokenFor(ValKeyAccount));
     projectRepository = inject(repositoryTokenFor(ValKeyProject));
     rateLimitRepository = inject(repositoryTokenFor(RateLimitStateEntity, valKeyDataSourceClass));
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 beforeEach(async () => {
     await docRepository.deleteAll({});

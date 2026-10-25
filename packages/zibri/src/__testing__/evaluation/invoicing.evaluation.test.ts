@@ -19,9 +19,10 @@ import { InvoiceNumberService } from '../../plugin/invoicing/services/invoice-nu
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { companyInfoProvider } from '../mocks/company-info-provider.function';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from '../test-server/plugins';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -137,7 +138,7 @@ let numberInvoicesRepository: Repository<NumberInvoices>;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
         plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
         providers: [
             ...defaultTestServerProviders,
@@ -147,12 +148,12 @@ beforeAll(async () => {
     });
     invoiceNumberService = inject(InvoiceNumberService);
     numberInvoicesRepository = inject(repositoryTokenFor(NumberInvoices));
-}, 15000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('evaluation/04-infrastructure-subsystems 1.11 - invoice numbering', () => {
 

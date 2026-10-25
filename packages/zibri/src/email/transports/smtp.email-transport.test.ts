@@ -27,10 +27,10 @@ beforeEach(() => {
 
 /**
  * A queued mail, as the email service hands it to the transport.
- * @param listUnsubscribeUrl - Where the recipient leaves the list the mail was sent to, if it was.
+ * @param data - What the mail holds beyond its defaults.
  * @returns The mail.
  */
-function queuedEmail(listUnsubscribeUrl: string | undefined): Email {
+function queuedEmail(data: Pick<Email, 'listUnsubscribeUrl' | 'attachments'>): Email {
     return {
         id: UUIDUtilities.generate(),
         createdAt: new Date(),
@@ -42,7 +42,7 @@ function queuedEmail(listUnsubscribeUrl: string | undefined): Email {
         status: EmailStatus.QUEUED,
         priority: EmailPriority.LOW,
         attempts: 0,
-        listUnsubscribeUrl
+        ...data
     };
 }
 
@@ -58,7 +58,7 @@ function headersOf(message: string | undefined): string[] {
 
 describe('SmtpEmailTransport', () => {
     it('writes the one-click unsubscribe headers of RFC 8058 for a mail sent to a list', async () => {
-        await transport.send(queuedEmail('https://example.com/unsubscribe?secret=abc'));
+        await transport.send(queuedEmail({ listUnsubscribeUrl: 'https://example.com/unsubscribe?secret=abc' }));
 
         const headers: string[] = headersOf(smtp.messages[0]);
         expect(headers).toContain('List-Unsubscribe: <https://example.com/unsubscribe?secret=abc>');
@@ -66,9 +66,19 @@ describe('SmtpEmailTransport', () => {
     });
 
     it('writes neither for a mail sent to no list', async () => {
-        await transport.send(queuedEmail(undefined));
+        await transport.send(queuedEmail({}));
 
         const headers: string[] = headersOf(smtp.messages[0]);
         expect(headers.some(h => h.toLowerCase().startsWith('list-unsubscribe'))).toBe(false);
+    });
+
+    it('sends an attachment with the content it was queued with', async () => {
+        const base64Content: string = Buffer.from('%PDF invoice 42').toString('base64');
+
+        await transport.send(queuedEmail({ attachments: [{ filename: 'invoice.pdf', base64Content }] }));
+
+        const message: string = smtp.messages[0] ?? '';
+        expect(message).toContain('filename=invoice.pdf');
+        expect(message).toContain(base64Content);
     });
 });

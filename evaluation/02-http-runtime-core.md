@@ -1162,7 +1162,11 @@ Separately, size-limit enforcement destroys the socket instead of responding —
 `src/parsing/json/json.body-parser.ts:81`. The client gets `ECONNRESET`, never the 413, and cannot
 distinguish "too large" from a network failure — so it retries.
 
-### M11. Missing baseline enterprise HTTP capabilities — ~~MAJOR~~ **PARTIALLY FIXED**
+### M11. Missing baseline enterprise HTTP capabilities — ~~MAJOR~~ **FIXED**
+
+> **Closed 2026-10-21: HTTP/2 decided against, the user's call**, for the reason in-process TLS was:
+> the proxy in front speaks HTTP/2 (or 3) to clients and http/1.1 to the application, and express has
+> no native `node:http2` support to build on. `docs/deployment.md` says so in its HTTPS section.
 
 > **Nine rows, four outcomes.** The table below is annotated in place. What is worth reading here is
 > that they did not all close the same way, and one of them was never open.
@@ -1360,7 +1364,7 @@ Verified absent across `src/` (excluding tests):
 |---|---|
 | ~~Response compression (gzip/brotli)~~ | **fixed** — `compressionMiddleware`, brotli preferred, from a kilobyte, by mime type |
 | ~~ETag / `If-None-Match`~~ | **fixed elsewhere** — express computes the validator and reads the header; the `304` was unreachable because the router lowercased `request.method`. See the MINOR entry on that |
-| HTTP/2 | absent — `src/application.ts:1` imports `node:http` only |
+| ~~HTTP/2~~ | **decided against** — terminated by the proxy, like TLS; `src/application.ts:1` imports `node:http` only |
 | HTTPS / in-process TLS | absent, and **left there**: the deployment terminates it |
 | ~~`requestTimeout` / `headersTimeout` / `keepAliveTimeout`~~ | **fixed** — `HTTP_SERVER_TIMEOUTS`, narrower than node's defaults, validated against each other |
 | ~~`maxHeadersCount`~~ | **fixed with §M23** — `maxHeaderCount` (100) and `maxHeaderSizeInBytes` in `HTTP_SERVER_LIMITS`, over either answered 431 |

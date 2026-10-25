@@ -13,6 +13,7 @@ import { LinkedIdentity } from '../../auth/authenticators/linked-identity.model'
 import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth-client-authentication.model';
 import { OAuthProviderTokens } from '../../auth/authenticators/oauth/oauth-provider-tokens.model';
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator';
 import { Auth } from '../../auth/decorators/auth.decorator';
@@ -33,8 +34,9 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -46,12 +48,14 @@ const CALENDAR_SCOPE: string = 'calendar.read';
 
 let provider: FakeOAuthProvider;
 
-class ProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class ProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'company';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly apiScopes: string[] = [CALENDAR_SCOPE];
 
@@ -85,7 +89,7 @@ class AccountController {
     @Get('/calendar')
     async calendar(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): Promise<unknown> {
         const linked: LinkedIdentity[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findIdentities(user.id, undefined, [ProviderAuthenticator]);
         const identityId: string | undefined = linked[0]?.identity.id;
@@ -122,6 +126,7 @@ describe('evaluation/03-auth-and-security H18 - connecting a provider for access
                 FederatedConnectionCode,
                 OAuthProviderTokens
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -145,12 +150,12 @@ describe('evaluation/03-auth-and-security H18 - connecting a provider for access
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await provider?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps the provider\'s tokens for the scopes an application asks for, refreshes them, and signs nobody in with them', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'calendar@example.com', roles: [Roles.USER] });

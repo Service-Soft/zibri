@@ -2,7 +2,8 @@ import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -32,11 +33,11 @@ class Badge extends BaseEntity {
 describe('a unique declaration on a hashed property', () => {
     it('refuses to start when the strategy hashing it is salted, the default one included', async () => {
         const start: Promise<unknown> = startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Badge], allowOrphan: true })]
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Badge], repositories: defaultTestServerRepositories, allowOrphan: true })]
         });
 
         await expect(start).rejects.toThrow('Error initializing hash service');
         await expect(start).rejects.toThrow('Badge.pin, hashed with "scrypt"');
         await expect(start).rejects.toThrow('Badge.secret, hashed with "scrypt"');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });

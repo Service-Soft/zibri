@@ -3,18 +3,22 @@ import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { ReflectUtilities } from './reflect.utilities';
 import { resolveCallSites } from './resolve-call-sites.function';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
-import { HasRoleMetadata, SkipHasRoleMetadata } from '../auth/models/has-role-metadata.model';
+import { HasPermissionMetadata, SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
 import { IsLoggedInMetadata, SkipIsLoggedInMetadata } from '../auth/models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata, SkipIsNotLoggedInMetadata } from '../auth/models/is-not-logged-in-metadata.model';
 import { Require2faMetadata, SkipRequire2faMetadata } from '../auth/models/require-2fa-metadata.model';
 import { SkipAuthMetadata } from '../auth/models/skip-auth-metadata.model';
+import { type Permission } from '../auth/roles/permission.type';
+import { type PlatformPermission } from '../auth/roles/platform-permission.type';
 import { BackupResourceInterface } from '../backup/backup-resource.interface';
 import { BackupResourceMetadata } from '../backup/decorators/backup-resource-metadata.model';
 import { DataSourceMetadata } from '../data-source/decorators/data-source.decorator';
+import { RepositoryForMetadata } from '../data-source/repository/repository-for-metadata.model';
 import { DiToken } from '../di/models/di-token.model';
 import { type BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
+import { type EntityCheck } from '../entity/models/entity-check.model';
 import { OpenApiResponse } from '../open-api/open-api.model';
 import { XmlPropertyMetadata } from '../parsing/xml/xml-property-metadata.model';
 import { XmlRootMetadata } from '../parsing/xml/xml-root-metadata.model';
@@ -24,6 +28,7 @@ import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { ControllerData } from '../routing/decorators/controller.decorator';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
 import { Newable } from '../types/newable.type';
+import { type CustomValidationRule } from '../validation/custom-validation.model';
 import { CurrentWebsocketConnectionMetadata } from '../websocket/decorators/current-websocket-connection.decorator';
 import { WebsocketControllerData } from '../websocket/decorators/websocket-controller.decorator';
 import { WebsocketControllerRouteConfiguration } from '../websocket/models/websocket-controller-route-configuration.model';
@@ -32,6 +37,25 @@ const modelPropertiesStore: WeakMap<Function, Record<string, PropertyMetadata>> 
 const xmlPropertiesStore: WeakMap<Function, Record<string, XmlPropertyMetadata>> = new WeakMap();
 const xmlRootStore: WeakMap<Function, XmlRootMetadata> = new WeakMap();
 const xmlNamespaceStore: WeakMap<Function, string> = new WeakMap();
+const modelChecksStore: WeakMap<Function, EntityCheck[]> = new WeakMap();
+const customValidationsStore: WeakMap<Function, CustomValidations> = new WeakMap();
+
+/**
+ * The custom rules a model class declares itself.
+ */
+type CustomValidations = {
+    /**
+     * The rules, in the order they were declared.
+     */
+    // any, because a rule takes its own model as its parameter: a rule of one model is no rule of
+    // `unknown`, and the store holds the rules of every model
+    // eslint-disable-next-line typescript/no-explicit-any
+    rules: CustomValidationRule<any>[],
+    /**
+     * Whether the rules of the class it extends apply to it as well.
+     */
+    inherits: boolean
+};
 
 /**
  * Utilities for handling Metadata.
@@ -362,86 +386,93 @@ export abstract class MetadataUtilities {
         return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_IS_LOGGED_IN, controller);
     }
 
-    // ---------- role metadata (method-level for routes) ----------
-    static setRouteHasRole(controller: Function, data: HasRoleMetadata, controllerMethod: string): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_ROLE, data, controller, controllerMethod);
+    // ---------- permission metadata (method-level for routes) ----------
+    static setRouteHasPermission(controller: Function, data: HasPermissionMetadata<Permission>, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_PERMISSION, data, controller, controllerMethod);
     }
 
-    static getRouteHasRole(controller: Function, controllerMethod: string): HasRoleMetadata | undefined {
-        return MetadataUtilities.ensureInheritedReflectMetadata<HasRoleMetadata>(
-            MetadataInjectionKeys.ROUTE_HAS_ROLE,
+    static getRouteHasPermission(controller: Function, controllerMethod: string): HasPermissionMetadata<Permission> | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<HasPermissionMetadata<Permission>>(
+            MetadataInjectionKeys.ROUTE_HAS_PERMISSION,
             controller,
             controllerMethod
         );
     }
 
-    static setRouteSkipHasRole(controller: Function, data: SkipHasRoleMetadata, controllerMethod: string): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_ROLE, data, controller, controllerMethod);
+    static setRouteSkipHasPermission(controller: Function, data: SkipHasPermissionMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_PERMISSION, data, controller, controllerMethod);
     }
 
-    static getRouteSkipHasRole(controller: Function, controllerMethod: string): SkipHasRoleMetadata | undefined {
-        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasRoleMetadata>(
-            MetadataInjectionKeys.ROUTE_SKIP_HAS_ROLE,
+    static getRouteSkipHasPermission(controller: Function, controllerMethod: string): SkipHasPermissionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasPermissionMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_HAS_PERMISSION,
             controller,
             controllerMethod
         );
     }
 
-    static setControllerHasRole(controller: Function, data: HasRoleMetadata): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ROLE, data, controller);
+    static setControllerHasPermission(controller: Function, data: HasPermissionMetadata<Permission>): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PERMISSION, data, controller);
     }
 
-    static getControllerHasRole(controller: Function): HasRoleMetadata | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_ROLE, controller);
+    static getControllerHasPermission(controller: Function): HasPermissionMetadata<Permission> | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PERMISSION, controller);
     }
 
-    static setControllerSkipHasRole(controller: Function, data: SkipHasRoleMetadata): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, data, controller);
+    static setControllerSkipHasPermission(controller: Function, data: SkipHasPermissionMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PERMISSION, data, controller);
     }
 
-    static getControllerSkipHasRole(controller: Function): SkipHasRoleMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_ROLE, controller);
+    static getControllerSkipHasPermission(controller: Function): SkipHasPermissionMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PERMISSION, controller);
     }
 
-    // ---------- platform role metadata (method-level for routes) ----------
-    static setRouteHasPlatformRole(controller: Function, data: HasRoleMetadata, controllerMethod: string): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_PLATFORM_ROLE, data, controller, controllerMethod);
+    // ---------- platform permission metadata (method-level for routes) ----------
+    static setRouteHasPlatformPermission(
+        controller: Function,
+        data: HasPermissionMetadata<PlatformPermission>,
+        controllerMethod: string
+    ): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_PLATFORM_PERMISSION, data, controller, controllerMethod);
     }
 
-    static getRouteHasPlatformRole(controller: Function, controllerMethod: string): HasRoleMetadata | undefined {
-        return MetadataUtilities.ensureInheritedReflectMetadata<HasRoleMetadata>(
-            MetadataInjectionKeys.ROUTE_HAS_PLATFORM_ROLE,
+    static getRouteHasPlatformPermission(
+        controller: Function,
+        controllerMethod: string
+    ): HasPermissionMetadata<PlatformPermission> | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<HasPermissionMetadata<PlatformPermission>>(
+            MetadataInjectionKeys.ROUTE_HAS_PLATFORM_PERMISSION,
             controller,
             controllerMethod
         );
     }
 
-    static setRouteSkipHasPlatformRole(controller: Function, data: SkipHasRoleMetadata, controllerMethod: string): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_PLATFORM_ROLE, data, controller, controllerMethod);
+    static setRouteSkipHasPlatformPermission(controller: Function, data: SkipHasPermissionMetadata, controllerMethod: string): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_SKIP_HAS_PLATFORM_PERMISSION, data, controller, controllerMethod);
     }
 
-    static getRouteSkipHasPlatformRole(controller: Function, controllerMethod: string): SkipHasRoleMetadata | undefined {
-        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasRoleMetadata>(
-            MetadataInjectionKeys.ROUTE_SKIP_HAS_PLATFORM_ROLE,
+    static getRouteSkipHasPlatformPermission(controller: Function, controllerMethod: string): SkipHasPermissionMetadata | undefined {
+        return MetadataUtilities.ensureInheritedReflectMetadata<SkipHasPermissionMetadata>(
+            MetadataInjectionKeys.ROUTE_SKIP_HAS_PLATFORM_PERMISSION,
             controller,
             controllerMethod
         );
     }
 
-    static setControllerHasPlatformRole(controller: Function, data: HasRoleMetadata): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_ROLE, data, controller);
+    static setControllerHasPlatformPermission(controller: Function, data: HasPermissionMetadata<PlatformPermission>): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_PERMISSION, data, controller);
     }
 
-    static getControllerHasPlatformRole(controller: Function): HasRoleMetadata | undefined {
-        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_ROLE, controller);
+    static getControllerHasPlatformPermission(controller: Function): HasPermissionMetadata<PlatformPermission> | undefined {
+        return ReflectUtilities.getMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_PERMISSION, controller);
     }
 
-    static setControllerSkipHasPlatformRole(controller: Function, data: SkipHasRoleMetadata): void {
-        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_ROLE, data, controller);
+    static setControllerSkipHasPlatformPermission(controller: Function, data: SkipHasPermissionMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_PERMISSION, data, controller);
     }
 
-    static getControllerSkipHasPlatformRole(controller: Function): SkipHasRoleMetadata | undefined {
-        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_ROLE, controller);
+    static getControllerSkipHasPlatformPermission(controller: Function): SkipHasPermissionMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.CONTROLLER_SKIP_HAS_PLATFORM_PERMISSION, controller);
     }
 
     // ---------- require2fa (method-level, inherit) ----------
@@ -587,6 +618,57 @@ export abstract class MetadataUtilities {
 
     static getEntityMetadata<T extends BaseEntity>(entity: Newable<T>): EntityMetadata<T> | undefined {
         return ReflectUtilities.getMetadata(MetadataInjectionKeys.ENTITY_METADATA, entity);
+    }
+
+    // ---------- repository for metadata (own only) ----------
+    // own rather than inherited, so that a class extending a repository of an entity is not taken for
+    // a second one of it
+    static setRepositoryForMetadata(repositoryClass: Newable<unknown>, metadata: RepositoryForMetadata): void {
+        ReflectUtilities.setMetadata(MetadataInjectionKeys.REPOSITORY_FOR_METADATA, metadata, repositoryClass);
+    }
+
+    static getRepositoryForMetadata(repositoryClass: Newable<unknown>): RepositoryForMetadata | undefined {
+        return ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.REPOSITORY_FOR_METADATA, repositoryClass);
+    }
+
+    // ---------- model checks (WeakMap store, inherit) ----------
+    // what a model derived from an entity by copying its properties carries over of the entity's
+    // checks. An entity and a class extending one need no entry: they are found through the entity
+    static setModelChecks(ctor: Newable<unknown>, checks: EntityCheck[]): void {
+        modelChecksStore.set(ctor, checks);
+    }
+
+    static resolveModelChecks(ctor: Newable<unknown>): EntityCheck[] {
+        const carried: EntityCheck[] | undefined = modelChecksStore.get(ctor);
+        if (carried != undefined) {
+            return carried;
+        }
+        const entity: EntityMetadata | undefined = ReflectUtilities.getOwnMetadata(MetadataInjectionKeys.ENTITY_METADATA, ctor);
+        if (entity != undefined) {
+            return entity.checks ?? [];
+        }
+        const parentCtor: Newable<unknown> | undefined = MetadataUtilities.getParentConstructor(ctor);
+        return parentCtor == undefined ? [] : MetadataUtilities.resolveModelChecks(parentCtor);
+    }
+
+    // ---------- custom validations (WeakMap store, inherit) ----------
+    // eslint-disable-next-line typescript/no-explicit-any
+    static addCustomValidation(ctor: Newable<unknown>, rule: CustomValidationRule<any>): void {
+        const own: CustomValidations = customValidationsStore.get(ctor) ?? { rules: [], inherits: true };
+        customValidationsStore.set(ctor, { ...own, rules: [...own.rules, rule] });
+    }
+
+    // a model whose bodies may lack any property, such as a partial one: a rule written for the
+    // whole model would read values that are not there
+    static stopInheritingCustomValidations(ctor: Newable<unknown>): void {
+        customValidationsStore.set(ctor, { rules: customValidationsStore.get(ctor)?.rules ?? [], inherits: false });
+    }
+
+    // eslint-disable-next-line typescript/no-explicit-any
+    static resolveCustomValidations(ctor: Newable<unknown>): CustomValidationRule<any>[] {
+        const own: CustomValidations | undefined = customValidationsStore.get(ctor);
+        const parentCtor: Newable<unknown> | undefined = own?.inherits === false ? undefined : MetadataUtilities.getParentConstructor(ctor);
+        return [...parentCtor == undefined ? [] : MetadataUtilities.resolveCustomValidations(parentCtor), ...own?.rules ?? []];
     }
 
     // ---------- data source metadata ----------

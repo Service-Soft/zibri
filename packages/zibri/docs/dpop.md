@@ -35,7 +35,7 @@ export const dpopProviders = [
 | Setting | What it is |
 |---|---|
 | `DPOP_NONCES` | `true` and every proof carries a nonce your application issued, see [nonces](#nonces). `false`, the default, and a proof carries none |
-| `requireDpop` of the jwt options | `true` and every login is bound to a key: a login, a refresh and an access token without a proof are refused. `false`, the default, and a login is bound when it is started with a proof |
+| `requireDpop` of the JWT options | `true` and every login is bound to a key: a login, a refresh and an access token without a proof are refused. `false`, the default, and a login is bound when it is started with a proof |
 
 ## Logins
 A client binds a login by sending a proof with the request that starts it, such as `POST /auth/login`. The access token names the key's thumbprint as `cnf.jkt`, and so does every access token the login is refreshed into. A refresh sends a proof of the same key; one without it is refused with `400` and spends nothing.
@@ -45,7 +45,7 @@ POST /auth/login HTTP/1.1
 Content-Type: application/json
 DPoP: eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7...
 
-{ "email": "anna@example.com", "password": "..." }
+{ "email": "ada@example.com", "password": "..." }
 ```
 
 A logout takes no proof: it only ever takes access away.
@@ -62,10 +62,10 @@ DPoP: eyJ0eXAiOiJkcG9wK2p3dCIsImFsZyI6IkVTMjU2IiwiandrIjp7...
 A bound token sent with the `Bearer` scheme, an unbound one sent with the `DPoP` scheme, and a request without a proof of the token's key are refused with `401`.
 
 ## Tokens of clients
-A client sends a proof to `/token` and is issued a token bound to its key, with the `token_type` `DPoP`. An [api key](./api-keys.md) created with `requireDpop: true` is issued tokens only for a proof, and is never taken in the api key header itself. [Introspection](./authorization-server.md#introspection) answers the key's thumbprint as `cnf.jkt`, and `token_type` `DPoP`.
+A client sends a proof to `/token` and is issued a token bound to its key, with the `token_type` `DPoP`. An [API key](./api-keys.md) created with `requireDpop: true` is issued tokens only for a proof, and is never taken in the API key header itself. [Introspection](./authorization-server.md#introspection) answers the key's thumbprint as `cnf.jkt`, and `token_type` `DPoP`.
 
 ## What a proof is
-A proof is a jwt the client signs with its private key, and carries the public key in its header:
+A proof is a JWT the client signs with its private key, and carries the public key in its header:
 
 | Part | What it holds |
 |---|---|
@@ -74,7 +74,7 @@ A proof is a jwt the client signs with its private key, and carries the public k
 | `jwk` of the header | The public key, without its private members |
 | `jti` | An id the proof is taken once by |
 | `htm` | The method of the request |
-| `htu` | The url of the request below your `baseUrl`, without its query |
+| `htu` | The URL of the request below your `baseUrl`, without its query |
 | `iat` | When it was signed, within five minutes of now |
 | `ath` | The SHA-256 of the access token, base64url encoded, on a request sending one |
 | `nonce` | The nonce your application issued, while `DPOP_NONCES` is `true` |
@@ -91,7 +91,7 @@ While `DPOP_NONCES` is `true`, a proof carries a nonce your application issued. 
 A `401` challenges with the `DPoP` scheme in the `WWW-Authenticate` header, and names the algorithms a proof may be signed with.
 
 ## See also
-- [Authentication & authorization](./auth.md) — logins and the jwt options
+- [Authentication & authorization](./auth.md) — logins and the JWT options
 - [Issuing tokens to services](./authorization-server.md) — tokens of clients
 - [Client certificates](./client-certificates.md) — binding tokens to a certificate instead
 - [Testing](./testing.md) — `FakeDpopKey`, a key that signs proofs in a test

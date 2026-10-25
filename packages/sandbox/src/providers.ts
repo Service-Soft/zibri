@@ -1,7 +1,7 @@
-import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, inject, JwtAuthOptionsInput, LoggerTransport, LogLevel, Ms, Repository, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, inject, JwtAuthOptionsInput, LoggerTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { optionalEnv, requireEnv } from './env';
-import { Company } from './models';
+import { permissions, Tenant } from './models';
 import { MailingListBaseEmail } from './templates/email-components/mailing-list-base-email';
 import { MailingListSubscribeConfirmationEmail } from './templates/emails/mailing-list-subscribe-confirmation';
 import { PasswordResetEmail } from './templates/emails/password-reset';
@@ -41,6 +41,10 @@ export const providers: DiProvider<unknown>[] = [
         })
     }),
     defineProvider({
+        token: ZIBRI_DI_TOKENS.PERMISSIONS,
+        useValue: permissions
+    }),
+    defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
         useFactory: (): EmailConfigInput => {
             return {
@@ -64,6 +68,14 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,
         useValue: 'forever'
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS,
+        useValue: 'forever'
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS,
+        useValue: Ms.DAY * 365
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.CONFIRM_PASSWORD_RESET_URL,
@@ -92,9 +104,9 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE,
         useValue: {
-            // each tenant is a company, so an invoice is issued by the company it was written in
+            // an invoice is issued by the tenant it was written in
             resolveCompanyInfo: async (tenantId: string): Promise<CompanyInfo> => {
-                const company: Company = await inject<Repository<Company>>(repositoryTokenFor(Company)).findById(tenantId);
+                const tenant: Tenant = await inject(repositoryTokenFor(Tenant)).findById(tenantId);
                 return {
                     address: {
                         street: '',
@@ -103,8 +115,8 @@ export const providers: DiProvider<unknown>[] = [
                         city: '',
                         countryId: ''
                     },
-                    name: company.name,
-                    fullName: company.name,
+                    name: tenant.name,
+                    fullName: tenant.name,
                     email: '',
                     phone: ''
                 };

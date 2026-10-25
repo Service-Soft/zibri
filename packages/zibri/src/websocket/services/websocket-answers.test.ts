@@ -3,8 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -25,7 +26,8 @@ class AnswersWsController {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const websocketOptions: WebsocketOptionsInput = {
@@ -89,7 +91,7 @@ beforeAll(async () => {
     baseUrl = await server.start();
     // eslint-disable-next-line typescript/no-unsafe-assignment
     websocketService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterEach(async () => {
     for (const client of clients.splice(0)) {

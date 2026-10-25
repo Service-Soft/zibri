@@ -9,12 +9,14 @@ import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model';
 import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 import { BaseS3BackupTransport } from './s3.backup-transport';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -54,8 +56,10 @@ class TestS3BackupTransport extends BaseS3BackupTransport {
             endpoint,
             bucket: BUCKET,
             region: REGION,
-            accessKeyId: ACCESS_KEY_ID,
-            secretAccessKey: SECRET_ACCESS_KEY,
+            // resolved per request, the way credentials that expire are
+            // eslint-disable-next-line typescript/require-await
+            credentials: async () => ({ accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY }),
+            serverSideEncryption: 'bucket-default',
             prefix: 'app',
             // a container is reached as localhost, where no bucket can be put into the host name
             addressingStyle: 'path',
@@ -77,6 +81,7 @@ class Item {
 @DataSource()
 @Backup({ transports: [TestS3BackupTransport], encrypt: false })
 class DbDataSource extends PostgresDataSource {
+    override backupScope: PostgresBackupScope = 'schema';
     override rootPw: string = 'password';
     override rootUsername: string = 'postgres';
     override options: OmitStrict<PostgresOptions, 'type'> = {
@@ -87,6 +92,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
+    repositories: RepositoryClass[] = defaultTestServerRepositories;
     schemaManagement: SchemaManagement = 'synchronize';
 }
 
@@ -103,8 +109,7 @@ async function sendSigned(method: string, path: string): Promise<Response> {
         url,
         headers: {},
         payloadHash: S3SignatureUtilities.hash(''),
-        accessKeyId: ACCESS_KEY_ID,
-        secretAccessKey: SECRET_ACCESS_KEY,
+        credentials: { accessKeyId: ACCESS_KEY_ID, secretAccessKey: SECRET_ACCESS_KEY },
         region: REGION,
         date: new Date()
     });
@@ -177,8 +182,7 @@ describe('BaseS3BackupTransport', () => {
             url,
             headers: {},
             payloadHash: S3SignatureUtilities.hash(''),
-            accessKeyId: ACCESS_KEY_ID,
-            secretAccessKey: 'not-the-secret',
+            credentials: { accessKeyId: ACCESS_KEY_ID, secretAccessKey: 'not-the-secret' },
             region: REGION,
             date: new Date()
         });

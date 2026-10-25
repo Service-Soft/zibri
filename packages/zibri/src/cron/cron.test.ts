@@ -4,8 +4,8 @@ import { CronExpression, CronExpressionString } from './cron-expression.utilitie
 import { CronJobEntity, CreateCronJobEntityData, CronJobState } from './cron-job-entity.model';
 import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronService } from './cron.service';
-import { noOp } from '../__testing__/constants';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { noOp, TestTimeouts } from '../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -88,7 +88,7 @@ describe('CronService — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing CronService[\S\s]*CronJobEntity/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('CronService / CronJob — real server', () => {
@@ -100,7 +100,8 @@ describe('CronService / CronJob — real server', () => {
         server = await startTestServer({
             dataSources: [
                 createTestDataSource({
-                    entities: [...defaultTestServerEntities, CronJobEntity]
+                    entities: [...defaultTestServerEntities, CronJobEntity],
+                    repositories: defaultTestServerRepositories
                 })
             ],
             controllers: [],
@@ -114,11 +115,11 @@ describe('CronService / CronJob — real server', () => {
         await server.start();
         cronService = inject(CronService);
         cronJobRepo = inject(repositoryTokenFor(CronJobEntity));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await cronJobRepo.deleteAll({});
@@ -830,6 +831,6 @@ describe('CronService / CronJob — real server', () => {
             // exercise the "already initialized" guard without needing a second full ZibriApplication boot.
             const fakeApp: ZibriApplication = { options: { cronJobs: [] } } as unknown as ZibriApplication;
             await expect(autoCronService.afterAppInit(fakeApp)).rejects.toThrow('already been initialized');
-        }, 15000);
+        }, TestTimeouts.postgres.restart);
     });
 });

@@ -1,22 +1,35 @@
 /* eslint-disable unicorn/no-null */
+import assert from 'node:assert';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import { EqualOperator, FindOptionsWhere, FindOperator, Equal, ObjectLiteral, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
+import { EqualOperator, FindOptionsWhere, FindOperator, ObjectLiteral, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
 
 import { Where, WhereFilter } from './where-filter.model';
 import { Address } from '../../../__testing__/mocks/entities/address.model';
+import { Company } from '../../../__testing__/mocks/entities/company.entity';
+import { Profile } from '../../../__testing__/mocks/entities/profile.entity';
+import { Role } from '../../../__testing__/mocks/entities/role.entity';
 import { User } from '../../../__testing__/mocks/entities/user.entity';
-import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';
+import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
 import { DataSource } from '../../decorators/data-source.decorator';
 
 // the factory returns a decorated class, so extending it registers two data sources and deploys one.
 // The base exists to be inherited from, never to be run
 @DataSource()
-class DbDataSource extends createTestDataSource({ allowOrphan: true }) {}
+// the related entities as well: a filter through a relation is a statement over the related rows,
+// which asks the orm for them
+class DbDataSource extends createTestDataSource({
+        allowOrphan: true,
+        entities: [...defaultTestServerEntities, User, Company, Profile, Role],
+        repositories: defaultTestServerRepositories
+    }) {}
 
-function whereFilterToFindOptionsWhere<T extends object>(
+function whereFilterToFindOptionsWhere<T extends BaseEntity>(
     filter: Where<T>,
     entityClass: Newable<T>
 ): Where<T> extends WhereFilter<T>[] ? ToFindOptionsWhere<T>[] : ToFindOptionsWhere<T> {
@@ -27,11 +40,11 @@ let server: StartedTestServer;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [DbDataSource] });
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('whereFilterToFindOptionsWhere - primitive filters', () => {
     it('string equality', () => {
@@ -134,14 +147,23 @@ describe('whereFilterToFindOptionsWhere - object filters', () => {
         const guard: string = '("TestAlias"."address" IS NOT NULL AND "TestAlias"."address" <> \'null\'::jsonb)';
         expect(sql).toBe(`(${guard} AND ("TestAlias"."address"->>:${key}::text) = :${value})`);
     });
-    it('nested where on relation fields yields nested filter', () => {
+    it('a where through a relation asks for a related row matching it, by a statement over the related rows', () => {
         const filter: Where<User> = { company: { where: { id: '42' } } };
         const result: FindOptionsWhere<User> = whereFilterToFindOptionsWhere(filter, User);
-        const expectedResult: FindOptionsWhere<User> = {
-            company: {
-                id: Equal('42')
-            }
-        };
-        expect(result).toEqual(expectedResult);
+
+        // a statement rather than a join: joined with no related row the columns are null, and a
+        // filter a null satisfies would be satisfied by the row that has nothing related
+        expect(result.company).toBeUndefined();
+        // the statements over related rows are carried on the id, as one condition they all have to hold
+        const onId: FindOperator<FindOperator<unknown>[]> = result.id as unknown as FindOperator<FindOperator<unknown>[]>;
+        expect(onId).toBeInstanceOf(FindOperator);
+        expect(onId.type).toBe('and');
+        expect(onId.value).toHaveLength(1);
+        const [raw] = onId.value;
+        assert(raw);
+        expect(raw.type).toBe('raw');
+        const sql: string = raw.getSql?.('User.id') ?? '';
+        expect(sql).toContain('EXISTS (SELECT 1 FROM "company" WHERE "company"."ownerId" = User.id AND "company"."id" IN (SELECT');
+        expect(Object.values(raw.objectLiteralParameters ?? {})).toContain('42');
     });
 });

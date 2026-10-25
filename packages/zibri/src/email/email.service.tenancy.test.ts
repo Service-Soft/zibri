@@ -6,8 +6,9 @@ import { CreateEmailData } from './models/create-email-data.model';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -20,7 +21,8 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 // in memory, so that what a mail does across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 /**
@@ -71,11 +73,11 @@ describe('EmailService across tenants', () => {
         emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
         emails = inject(repositoryTokenFor(Email));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps a mail in the tenant it was queued in, and sends the queued mails of every tenant', async () => {
         await tenants.runAs(tenantA, async () => await emailService.queue({

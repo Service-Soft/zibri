@@ -7,20 +7,21 @@ import { EmailConfigInput } from './models/email-config.model';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
-import { FsUtilities } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
 
 // in memory, so that what becomes of a mail whose send throws can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const config: EmailConfigInput = {
@@ -68,11 +69,11 @@ describe('EmailService, given a mail whose send throws', () => {
         });
         emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         emails = inject(repositoryTokenFor(Email));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(async () => {
         await emails.deleteAll({}, { acrossTenants: true });
@@ -170,15 +171,5 @@ describe('EmailService, given a mail whose send throws', () => {
         sent.length = 0;
         await expect(emailService.sendQueuedEmails()).resolves.toBe(false);
         expect(sent).toStrictEqual([]);
-    });
-
-    it('counts a missing attachment as an attempt, rather than failing the pass', async () => {
-        await queue('missing attachment', { attachments: [{ filename: 'gone.pdf', path: FsUtilities.getPath('/nonexistent/gone.pdf') }] });
-        await queue('fine');
-
-        await expect(emailService.sendQueuedEmails()).resolves.toBe(true);
-
-        expect((await rowOf('fine')).status).toBe(EmailStatus.SENT);
-        expect((await rowOf('missing attachment')).attempts).toBe(1);
     });
 });

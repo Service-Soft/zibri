@@ -1,13 +1,13 @@
-import { setTimeout as sleep } from 'node:timers/promises';
-
 import { HeldLease, KeptGrant } from './held-lease.model';
 import { LeaseAcquisitionTimeoutError } from './lease-acquisition-timeout.error';
 import { LeaseCleanupCronJob } from './lease-cleanup.cron-job';
+import { LeaseLostError } from './lease-lost.error';
 import { LeaseAcquisitionMode, LeaseOptions, LeaseSetOptions } from './lease-options.model';
 import { LeaseServiceInterface } from './lease-service.interface';
 import { CreateLeaseData, Lease } from './lease.model';
 import { ZibriApplication } from '../application/application';
 import { AlsUtilities } from '../context/als.utilities';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { Repository } from '../data-source/repository/repository';
 import { runInLeaseScope } from '../data-source/run-in-lease-scope.function';
 import { Transaction } from '../data-source/transaction/transaction.model';
@@ -20,16 +20,24 @@ import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { WakeUpListener } from '../polling/wake-up-listener.model';
+import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { Ms } from '../utilities/ms';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
- * How long to wait between attempts in 'wait' mode.
- *
- * A poll rather than a notification, because the grant may be held by another process entirely and
- * both supported data sources can tell us it is free only by being asked.
+ * How long to wait between attempts in 'wait' mode, on a data source that carries no wake ups between
+ * instances.
  */
 const ACQUIRE_RETRY_INTERVAL_IN_MS: number = 100;
+
+/**
+ * How long to wait between attempts in 'wait' mode, when whoever hands the grant back says so. Only
+ * for the release nobody announces: a holder that stopped existing, whose grant lapses on its own.
+ */
+const ACQUIRE_FALLBACK_INTERVAL_IN_MS: number = Ms.SECOND;
 
 /**
  * How many times a grant is renewed within its own lifetime.
@@ -83,6 +91,10 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         return inject(repositoryTokenFor(Lease));
     }
 
+    private get wakeUpService(): WakeUpServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
+    }
+
     /**
      * Fails the boot of an application that cannot coordinate.
      *
@@ -104,7 +116,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async withLease<T>(options: LeaseOptions, fn: () => Promise<T>): Promise<T | undefined> {
+    async withLease<T>(options: LeaseOptions, fn: (lost: AbortSignal) => Promise<T>): Promise<T | undefined> {
         const mode: LeaseAcquisitionMode = options.mode ?? 'skip';
         const taken: Lease | undefined = mode === 'wait'
             ? await this.acquireWaiting(options)
@@ -116,7 +128,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         if (options.heldUntil != undefined && !options.heldUntil.isFinished) {
             return await this.runHoldingUntil(taken, options, options.heldUntil, fn);
         }
-        return await this.runHolding([taken], options, options.key, async () => await fn());
+        return await this.runHolding([taken], options, options.key, fn);
     }
 
     /**
@@ -128,7 +140,12 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
      * @param fn - The work to run.
      * @returns Whatever the work returned.
      */
-    private async runHoldingUntil<T>(taken: Lease, options: LeaseOptions, transaction: Transaction, fn: () => Promise<T>): Promise<T> {
+    private async runHoldingUntil<T>(
+        taken: Lease,
+        options: LeaseOptions,
+        transaction: Transaction,
+        fn: (lost: AbortSignal) => Promise<T>
+    ): Promise<T> {
         let workOutcome: LeaseWorkOutcome = 'unfinished';
         let committed: boolean | undefined = undefined;
         // the work is only done once the transaction has landed it, so a rollback counts as having
@@ -164,7 +181,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
 
         try {
             // the transaction the grant is held until is the one write that does land inside it
-            const result: T = await runInLeaseScope(options.key, fn, transaction);
+            const result: T = await runInLeaseScope(options.key, async () => await fn(grant.lost), transaction);
             workOutcome = 'completed';
             return result;
         }
@@ -181,7 +198,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     async withLeases<T>(
         keys: string[],
         options: LeaseSetOptions,
-        fn: (taken: string[]) => Promise<T>
+        fn: (taken: string[], lost: AbortSignal) => Promise<T>
     ): Promise<T | undefined> {
         // in parallel, because the keys are independent and nothing orders them. Whichever are
         // already held simply come back undefined - this is 'skip' by construction, and there is no
@@ -195,7 +212,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         if (!taken.length) {
             return undefined;
         }
-        return await this.runHolding(taken, options, this.nameFor(taken), async () => await fn(taken.map(l => l.key)));
+        return await this.runHolding(taken, options, this.nameFor(taken), async lost => await fn(taken.map(l => l.key), lost));
     }
 
     /**
@@ -213,15 +230,15 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         taken: Lease[],
         options: LeaseSetOptions,
         name: string,
-        fn: () => Promise<T>
+        fn: (lost: AbortSignal) => Promise<T>
     ): Promise<T> {
         // read by the release, which runs inside hold's finally - so it has to be set before the
         // work's rejection escapes, not in a catch wrapped around hold. It stays 'unfinished' for as
         // long as the work is running, which is what the shutdown drain sees when it gives up on it.
         let outcome: LeaseWorkOutcome = 'unfinished';
-        const body: () => Promise<T> = async () => {
+        const body: (lost: AbortSignal) => Promise<T> = async lost => {
             try {
-                const result: T = await fn();
+                const result: T = await fn(lost);
                 outcome = 'completed';
                 return result;
             }
@@ -237,7 +254,7 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
             // wrapped rather than called directly, so a write that only lands on a commit the grant
             // will not be held for is reported - see runInLeaseScope, and 10.4 for what it costs
             // when it is not noticed
-            async () => await runInLeaseScope(name, body)
+            async lost => await runInLeaseScope(name, async () => await body(lost))
         );
     }
 
@@ -294,18 +311,29 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         // wait runs to its own limit, contending for a grant it would take and hand straight back
         const signal: AbortSignal | undefined = AlsUtilities.findCurrentRequestSignal();
 
-        for (;;) {
-            if (signal?.aborted === true) {
-                throw signal.reason;
+        const dataSource: DataSourceInterface = this.leaseRepository.dataSource;
+        // before the first try, so a release between the try and the wait is not missed
+        const released: WakeUpListener = await this.wakeUpService.listen(dataSource, WAKE_UP_TOPICS.leaseReleased(options.key));
+        const intervalInMs: number = this.wakeUpService.reachesOtherInstances(dataSource)
+            ? ACQUIRE_FALLBACK_INTERVAL_IN_MS
+            : ACQUIRE_RETRY_INTERVAL_IN_MS;
+        try {
+            for (;;) {
+                if (signal?.aborted === true) {
+                    throw signal.reason;
+                }
+                const taken: Lease | undefined = await this.tryAcquire(options);
+                if (taken) {
+                    return taken;
+                }
+                if (Date.now() >= deadline) {
+                    throw new LeaseAcquisitionTimeoutError(options.key, waitInMs);
+                }
+                await released.next(Math.min(intervalInMs, deadline - Date.now()), signal);
             }
-            const taken: Lease | undefined = await this.tryAcquire(options);
-            if (taken) {
-                return taken;
-            }
-            if (Date.now() >= deadline) {
-                throw new LeaseAcquisitionTimeoutError(options.key, waitInMs);
-            }
-            await sleep(ACQUIRE_RETRY_INTERVAL_IN_MS, undefined, { signal }).catch(() => undefined);
+        }
+        finally {
+            released.stop();
         }
     }
 
@@ -338,12 +366,12 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
                     { expiresAt: new Date(Date.now() + options.leaseInMs) }
                 );
                 // a row that is gone is one this instance no longer holds. Throwing is what makes
-                // that reach a log line at all - see evaluation/10-leases-and-claims.md 10.2a for
-                // what it cost when losing a grant was silent.
+                // that reach a log line and the work at all - see evaluation/10-leases-and-claims.md
+                // 10.2a for what it cost when losing a grant was silent.
                 if (renewed !== ids.length) {
-                    throw new InternalError(
-                        `held ${ids.length} leases but only ${renewed} could be renewed`
-                        + ' - another instance may already be doing the same work'
+                    throw new LeaseLostError(
+                        name,
+                        new InternalError(`held ${ids.length} leases but only ${renewed} could be renewed`)
                     );
                 }
             },
@@ -352,6 +380,12 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
                     return;
                 }
                 await this.leaseRepository.deleteAll({ id: { oneOf: ids } });
+                // whoever queues for the key takes it now rather than at its next try. One grant
+                // only: a batch is taken without queueing, and its keys are items nobody queues for
+                const [only, ...more] = leases;
+                if (only != undefined && !more.length) {
+                    await this.wakeUpService.wake(this.leaseRepository.dataSource, WAKE_UP_TOPICS.leaseReleased(only.key));
+                }
             }
         };
     }
@@ -397,8 +431,27 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
      * @param fn - The work to run under it.
      * @returns Whatever the work returned.
      */
-    async hold<T>(lease: HeldLease, leaseInMs: number, fn: () => Promise<T>): Promise<T> {
-        const work: Promise<T> = this.runRenewed(lease, leaseInMs, fn);
+    async hold<T>(lease: HeldLease, leaseInMs: number, fn: (lost: AbortSignal) => Promise<T>): Promise<T> {
+        return await this.holdWith(lease, leaseInMs, new AbortController(), fn);
+    }
+
+    /**
+     * Runs the work while keeping a taken grant alive, telling it through the given controller when
+     * the grant is lost.
+     * @param lease - The grant that was taken.
+     * @param leaseInMs - How long it lives, so renewal can sit well inside that.
+     * @param loss - Aborted once the grant is lost. The caller's, so it can be read before the work
+     * is in a callback to be handed it.
+     * @param fn - The work to run under it.
+     * @returns Whatever the work returned.
+     */
+    private async holdWith<T>(
+        lease: HeldLease,
+        leaseInMs: number,
+        loss: AbortController,
+        fn: (lost: AbortSignal) => Promise<T>
+    ): Promise<T> {
+        const work: Promise<T> = this.runRenewed(lease, leaseInMs, loss, fn);
         // tracked before it is awaited, so a shutdown starting mid work still knows about it
         this.inFlight.set(lease, work);
 
@@ -421,10 +474,12 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
         // deliberately not awaited. This is `hold` with the work replaced by "until somebody says
         // stop", which means renewal, the shutdown drain and the release in its finally all apply
         // unchanged - a grant with no callback around it is the only thing that is new here.
-        const held: Promise<void> = this.hold(lease, leaseInMs, async () => await until);
+        const loss: AbortController = new AbortController();
+        const held: Promise<void> = this.holdWith(lease, leaseInMs, loss, async () => await until);
 
         let released: Promise<void> | undefined = undefined;
         return {
+            lost: loss.signal,
             release: async () => {
                 // the promise rather than a boolean, so two callers racing to release both wait for
                 // the same one to finish rather than one returning while the grant is still going
@@ -493,25 +548,55 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     /**
      * Runs the work with a timer extending its grant underneath it.
      *
-     * Losing the grant is the renewal's business to report, not this method's to act on: stopping
-     * halfway would leave whatever the work had already written behind, which is not obviously
-     * better than finishing. The release checks ownership anyway, so a lapsed holder cannot take its
-     * successor's grant away on the way out.
+     * Losing the grant is told to the work and never acted on here: stopping halfway would leave
+     * whatever the work had already written behind, which is not obviously better than finishing,
+     * and only the work knows whether whoever takes the grant over starts it again from scratch.
+     * The release checks ownership anyway, so a lapsed holder cannot take its successor's grant away
+     * on the way out.
      * @param lease - The grant to keep alive.
      * @param leaseInMs - How long it lives.
+     * @param loss - Aborted once the grant is lost.
      * @param fn - The work to run.
      * @returns Whatever the work returned.
      */
-    private async runRenewed<T>(lease: HeldLease, leaseInMs: number, fn: () => Promise<T>): Promise<T> {
+    private async runRenewed<T>(
+        lease: HeldLease,
+        leaseInMs: number,
+        loss: AbortController,
+        fn: (lost: AbortSignal) => Promise<T>
+    ): Promise<T> {
+        // by this instance's clock, moved on by every renewal that landed. A renewal that failed
+        // before this passes may be a slow round trip; one that failed after it is a grant anybody
+        // may take now, whether or not the store comes back
+        let heldUntil: number = Date.now() + leaseInMs;
         const renewal: NodeJS.Timeout = setInterval(
-            () => void this.tryRenew(lease),
+            () => void (async () => {
+                // taken before the write rather than after, so a slow round trip counts against the
+                // grant rather than for it
+                const renewedAt: number = Date.now();
+                try {
+                    await lease.renew();
+                    heldUntil = renewedAt + leaseInMs;
+                }
+                catch (error) {
+                    this.reportLostRenewal(lease, error);
+                    if (error instanceof LeaseLostError || Date.now() >= heldUntil) {
+                        clearInterval(renewal);
+                        // unlabelled: a grant's name carries the id of whatever it guards
+                        inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+                            .getCounter('leases_lost_total')
+                            .increase();
+                        loss.abort(error instanceof LeaseLostError ? error : new LeaseLostError(lease.name, error));
+                    }
+                }
+            })(),
             leaseInMs / RENEWALS_PER_LEASE
         );
         // so work in flight can never be the reason a process refuses to exit
         renewal.unref();
 
         try {
-            return await fn();
+            return await fn(loss.signal);
         }
         finally {
             clearInterval(renewal);
@@ -519,23 +604,22 @@ export class LeaseService implements LeaseServiceInterface, OnAppInit, OnAppShut
     }
 
     /**
-     * Extends a grant without letting a failed renewal become the reason the work fails.
+     * Reports a renewal that failed, without letting it become the reason the work fails.
      *
      * Reported here rather than left to each `renew` implementation. A grant that has been lost
      * while its work carries on is the exact situation this service exists to make visible, and
      * relying on every implementation to say so itself is how it ends up said nowhere.
-     * @param lease - The grant to extend.
+     * @param lease - The grant that could not be extended.
+     * @param error - What the renewal failed with.
      */
-    private async tryRenew(lease: HeldLease): Promise<void> {
-        try {
-            await lease.renew();
-        }
-        catch (error) {
-            this.logger.warn(
-                `Could not renew "${lease.name}" while the work is still running: `
-                + `${error instanceof Error ? error.message : error}`
-            );
-        }
+    private reportLostRenewal(lease: HeldLease, error: unknown): void {
+        inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+            .getCounter('lease_renewal_failures_total')
+            .increase();
+        this.logger.warn(
+            `Could not renew "${lease.name}" while the work is still running: `
+            + `${error instanceof Error ? error.message : error}`
+        );
     }
 
     /**

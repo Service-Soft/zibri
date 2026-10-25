@@ -15,6 +15,52 @@ import { ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 const IMPOSSIBLE: unique symbol = Symbol('impossible');
 
 /**
+ * What a property's format says about the values a filter may name for it.
+ */
+type DeclaredFormat = {
+    /**
+     * Whether a value is one no row of the property can hold.
+     * @param value - The value asked for.
+     * @returns True if no row could carry it, false if one might.
+     */
+    isImpossible: (value: unknown) => boolean,
+    /**
+     * The given value in the form the rows hold it.
+     * @param value - A value asked for.
+     * @returns The value as stored, or the value as it is.
+     */
+    canonicalValue: (value: unknown) => unknown,
+    /**
+     * A condition object with every value it compares against in the form the rows hold it.
+     * @param condition - The condition object.
+     * @returns A copy of it.
+     */
+    canonicalCondition: (condition: Record<string, unknown>) => Record<string, unknown>
+};
+
+/**
+ * A property holding uuids, which a write stores in lower case.
+ *
+ * Only a string is judged. Null is a value the property can hold, and anything else is left to the
+ * store to answer rather than decided here on a guess.
+ */
+const UUID: DeclaredFormat = {
+    isImpossible: value => typeof value === 'string' && !UUIDUtilities.isUuid(value),
+    canonicalValue: value => UUIDUtilities.resolveCanonical(value),
+    canonicalCondition: condition => canonicalUuidConditionObject(condition)
+};
+
+/**
+ * A property holding whole numbers, which a bound with a fraction is the bound on the next whole
+ * number for.
+ */
+const WHOLE_NUMBER: DeclaredFormat = {
+    isImpossible: value => typeof value === 'number' && !Number.isInteger(value),
+    canonicalValue: value => value,
+    canonicalCondition: condition => wholeBoundsConditionObject(condition)
+};
+
+/**
  * Removes from a filter the conditions that no row could satisfy, because the value asked for is not
  * one the property is able to hold.
  *
@@ -32,7 +78,8 @@ const IMPOSSIBLE: unique symbol = Symbol('impossible');
  * A relation is judged by the ids of the entities a filter on it names, under the same rule, and a
  * filter reaching through a relation to one entity is narrowed by the properties of that entity.
  *
- * Every uuid the filter asks for comes back in lower case, the form every write stores it in.
+ * Every uuid the filter asks for comes back in lower case, the form every write stores it in, and
+ * every bound on a whole number as the whole number it is the bound on.
  * @param branches - The filter to narrow, as the branches it is an OR of.
  * @param properties - The property metadata of the entity being queried.
  * @returns The branches that can still match something. Empty when none of them can.
@@ -113,7 +160,13 @@ function narrowPropertyCondition(condition: unknown, metadata: PropertyMetadata 
     if (isRelationMetadata(metadata)) {
         return narrowToOneRelationCondition(condition, metadata, path);
     }
-    return UUIDUtilities.declaresUuidFormat(metadata) ? narrowCondition(condition, path) : condition;
+    if (UUIDUtilities.declaresUuidFormat(metadata)) {
+        return narrowCondition(condition, path, UUID);
+    }
+    if (metadata?.type === 'number' && metadata.format === 'integer') {
+        return narrowCondition(condition, path, WHOLE_NUMBER);
+    }
+    return condition;
 }
 
 /**
@@ -298,7 +351,7 @@ function isImpossibleEntityId(entity: unknown): boolean {
     if (typeof entity !== 'object' || entity == undefined || !('id' in entity)) {
         return false;
     }
-    return isImpossibleValue(entity.id);
+    return UUID.isImpossible(entity.id);
 }
 
 /**
@@ -311,22 +364,23 @@ function isToManyRelation(property: PropertyMetadata | undefined): boolean {
 }
 
 /**
- * Narrows what one branch asks of one uuid property.
+ * Narrows what one branch asks of one property that declares a format.
  * @param condition - The condition on that property.
  * @param path - The property's place in the caller's filter.
+ * @param format - What the property's format says about the values a filter may name.
  * @returns The narrowed condition, or the marker that no value satisfies it.
  */
-function narrowCondition(condition: unknown, path: string): unknown | typeof IMPOSSIBLE {
+function narrowCondition(condition: unknown, path: string, format: DeclaredFormat): unknown | typeof IMPOSSIBLE {
     if (ScopeWhereUtilities.isConditionObject(condition)) {
-        validateNegationsArePossible(condition, isImpossibleValue, path);
-        const res: Record<string, unknown> = canonicalConditionObject(condition);
+        validateNegationsArePossible(condition, format.isImpossible, path);
+        const res: Record<string, unknown> = format.canonicalCondition(condition);
         // the only key that lists values a row is required to be one of. Every other key asks for
-        // something a uuid column answers on its own, or is a negation, refused above when it names
+        // something a typed column answers on its own, or is a negation, refused above when it names
         // a value no row holds
         if (!Array.isArray(res['oneOf'])) {
             return res;
         }
-        const possible: unknown[] = res['oneOf'].filter(v => !isImpossibleValue(v));
+        const possible: unknown[] = res['oneOf'].filter(v => !format.isImpossible(v));
         if (!possible.length) {
             return IMPOSSIBLE;
         }
@@ -338,7 +392,7 @@ function narrowCondition(condition: unknown, path: string): unknown | typeof IMP
         // simply one fewer option - and a property left with no option at all decides the branch
         const possible: unknown[] = [];
         for (const option of condition) {
-            const narrowed: unknown | typeof IMPOSSIBLE = narrowCondition(option, path);
+            const narrowed: unknown | typeof IMPOSSIBLE = narrowCondition(option, path, format);
             if (narrowed !== IMPOSSIBLE) {
                 possible.push(narrowed);
             }
@@ -349,7 +403,7 @@ function narrowCondition(condition: unknown, path: string): unknown | typeof IMP
         return possible;
     }
 
-    return isImpossibleValue(condition) ? IMPOSSIBLE : UUIDUtilities.resolveCanonical(condition);
+    return format.isImpossible(condition) ? IMPOSSIBLE : format.canonicalValue(condition);
 }
 
 /**
@@ -357,7 +411,7 @@ function narrowCondition(condition: unknown, path: string): unknown | typeof IMP
  * @param condition - A condition object on a uuid property.
  * @returns A copy of the condition.
  */
-function canonicalConditionObject(condition: Record<string, unknown>): Record<string, unknown> {
+function canonicalUuidConditionObject(condition: Record<string, unknown>): Record<string, unknown> {
     const res: Record<string, unknown> = { ...condition };
     // the keys comparing against a value. A pattern is left as it was written, since a uuid is no
     // text to match against on a store that types it
@@ -376,13 +430,27 @@ function canonicalConditionObject(condition: Record<string, unknown>): Record<st
 }
 
 /**
- * Whether the given value is one a property of the uuid format could not be holding.
+ * The given condition with every bound on a whole number property as a whole number.
  *
- * Only a string is judged. Null is a value the property can hold, and anything else is left to the
- * store to answer rather than decided here on a guess.
- * @param value - The value asked for.
- * @returns True if no row could carry it, false if one might.
+ * Nothing between two whole numbers is stored, so a bound with a fraction asks the same of every row
+ * as the bound on the whole number next to it - which a store that types its columns can compare
+ * against, where it refuses the fraction.
+ * @param condition - A condition object on a whole number property.
+ * @returns A copy of the condition.
  */
-function isImpossibleValue(value: unknown): boolean {
-    return typeof value === 'string' && !UUIDUtilities.isUuid(value);
+function wholeBoundsConditionObject(condition: Record<string, unknown>): Record<string, unknown> {
+    const res: Record<string, unknown> = { ...condition };
+    const rounded: [string, (value: number) => number][] = [
+        ['greaterThan', Math.floor],
+        ['lesserThanEquals', Math.floor],
+        ['greaterThanEquals', Math.ceil],
+        ['lesserThan', Math.ceil]
+    ];
+    for (const [key, round] of rounded) {
+        const bound: unknown = res[key];
+        if (typeof bound === 'number' && !Number.isInteger(bound)) {
+            res[key] = round(bound);
+        }
+    }
+    return res;
 }

@@ -1,7 +1,9 @@
-import { HasRoleMetadata } from './has-role-metadata.model';
+import { HasPermissionMetadata } from './has-permission-metadata.model';
 import { IsLoggedInMetadata } from './is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './is-not-logged-in-metadata.model';
 import { Require2faMetadata } from './require-2fa-metadata.model';
+import { type Permission } from '../roles/permission.type';
+import { type PlatformPermission } from '../roles/platform-permission.type';
 
 /**
  * What the \@Auth decorators of a route and its controller resolve to, with the skips already applied.
@@ -20,13 +22,13 @@ export type ResolvedAuthMetadata = {
      */
     isNotLoggedIn: IsNotLoggedInMetadata | undefined,
     /**
-     * The resolved \@Auth.hasRole metadata, if the route requires a role in the request's tenant.
+     * The resolved \@Auth.hasPermission metadata, if the route requires a permission in the request's tenant.
      */
-    hasRole: HasRoleMetadata | undefined,
+    hasPermission: HasPermissionMetadata<Permission> | undefined,
     /**
-     * The resolved \@Auth.hasPlatformRole metadata, if the route requires a role of the user's own.
+     * The resolved \@Auth.hasPlatformPermission metadata, if the route requires a permission of the user's own.
      */
-    hasPlatformRole: HasRoleMetadata | undefined,
+    hasPlatformPermission: HasPermissionMetadata<PlatformPermission> | undefined,
     /**
      * The resolved \@Auth.require2fa metadata, if the route requires a second factor.
      */

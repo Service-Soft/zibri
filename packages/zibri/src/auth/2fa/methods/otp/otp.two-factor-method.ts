@@ -24,7 +24,7 @@ import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
 import { optionalPeer } from '../../../../utilities/optional-peer.function';
 import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../../../models/base-user.model';
+import { UserAccount } from '../../../models/user-account.model';
 
 /**
  * The data for confirming the registration of the otp two factor method.
@@ -136,7 +136,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async requestRegisterForUser<UserType extends UserAccount>(
         user: UserType
     ): Promise<OtpRegistration> {
         // asking for a new enrollment gives up on any that was never finished. Without this every
@@ -161,7 +161,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async confirmRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: OtpConfirmRegisterData
     ): Promise<void> {
@@ -187,12 +187,12 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
+    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
         await this.otpCredentialsRepository.deleteAll({ userId: user.id });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
+    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         // confirmed only, for the reason validate gives: an unconfirmed secret is one nobody has
         // proven they hold, so a user with nothing but that has no second factor to present
         const credentials: OtpCredentials | undefined = await this.otpCredentialsRepository.findOne({
@@ -203,7 +203,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validate<Role extends string, UserType extends BaseUser<Role>>(
+    async validate<UserType extends UserAccount>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {

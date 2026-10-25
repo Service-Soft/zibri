@@ -65,7 +65,7 @@ describe('evaluation/04-infrastructure-subsystems 2.7 / 2.10 - the queue across 
         const second: ClusterInstance = running.instanceAt(1);
 
         // takes the first instance's only worker for the rest of this test
-        await queueOn(first.baseUrl, 4000);
+        const busyJobId: string = await queueOn(first.baseUrl, 4000);
 
         // and this one is queued on that same busy instance. Nothing there can run it, so the whole
         // question is whether the other replica ever sees it - which it can only do if the queue is
@@ -80,6 +80,33 @@ describe('evaluation/04-infrastructure-subsystems 2.7 / 2.10 - the queue across 
 
         // and it ran where the free worker was, not where the request landed
         expect(settled).toBe(`COMPLETED:${second.id}`);
+
+        // both workers free again for the next case
+        await running.waitFor(
+            async () => await readJob(first.baseUrl, busyJobId),
+            value => value.startsWith('COMPLETED:'),
+            { timeoutInMs: 20000 }
+        );
+    }, 40000);
+
+    it('tells a caller waiting on one replica that a job the other ran has ended, rather than leaving it to read the row', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const first: ClusterInstance = cluster.instanceAt(0);
+        const second: ClusterInstance = cluster.instanceAt(1);
+
+        // queued where a worker is free, so it runs there
+        const jobId: string = await queueOn(first.baseUrl, 1500);
+        // and waited for where it does not run
+        const res: Response = await fetch(`${second.baseUrl}/cluster-jobs/wait/${jobId}`);
+        expect(res.status).toBe(200);
+        const [status, ranOn, lagInMs] = (await res.text()).replaceAll('"', '').split(':');
+
+        expect(status).toBe('COMPLETED');
+        expect(ranOn).toBe(first.id);
+        // the replica running it says when it ends, where reading the row again waits for the next read
+        expect(Number(lagInMs)).toBeLessThan(1000);
     }, 40000);
 
     it('takes a job over when the replica running it stops existing', async () => {
@@ -108,12 +135,15 @@ describe('evaluation/04-infrastructure-subsystems 2.7 / 2.10 - the queue across 
         const settled: string = await running.waitFor(
             async () => await readJob(first.baseUrl, jobId),
             value => value.startsWith('COMPLETED:'),
-            { timeoutInMs: 40000 }
+            // a lapsed claim, then the poll of the surviving replica - which nobody tells about a
+            // replica that is killed, so it finds the job within the 30s an idle poll waits at most -
+            // and a full second run of the job
+            { timeoutInMs: 55000 }
         );
         expect(settled).toBe(`COMPLETED:${first.id}`);
         // the work runs again from the beginning rather than resuming, which is the at-least-once
-        // the docs promise - the wait above is a lapsed claim plus a full second run of the job
-    }, 60000);
+        // the docs promise
+    }, 75000);
 
     // the harness rather than the queue, but only a thread job can show it: an instance's worker
     // threads never run its entry, so whatever decides which copy of the shared packages the instance

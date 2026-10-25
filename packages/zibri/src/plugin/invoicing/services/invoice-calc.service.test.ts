@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { InvoiceCalcService } from './invoice-calc.service';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -66,13 +67,13 @@ let invoiceCalcService: InvoiceCalcService;
 
 // an application for its localize service, which says how many decimals an amount has
 beforeAll(async () => {
-    server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+    server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
     invoiceCalcService = new InvoiceCalcService(inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE));
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 /**
  * An invoice of the given items, with nothing else of it mattering to a calculation.

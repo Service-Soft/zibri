@@ -2,13 +2,18 @@ import { SoftDeleteEntity } from './soft-delete-entity.model';
 import { SoftDeleteWhere } from './soft-delete-where.model';
 import { SoftDeletedRows } from './soft-deleted-rows.type';
 import { FindOneOptions } from '../../data-source/models/options/find-one-options.model';
+import { EntitySelection } from '../../entity/models/entity-selection.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 
 /**
  * Options for finding a single entity.
  */
-export type SoftDeleteFindOneOptions<T extends SoftDeleteEntity, Required extends boolean = true> = OmitStrict<
-    FindOneOptions<T, Required>,
+export type SoftDeleteFindOneOptions<
+    T extends SoftDeleteEntity,
+    Required extends boolean = true,
+    S extends EntitySelection<T> | undefined = undefined
+> = OmitStrict<
+    FindOneOptions<T, Required, S>,
     'where'
 > & {
     /**

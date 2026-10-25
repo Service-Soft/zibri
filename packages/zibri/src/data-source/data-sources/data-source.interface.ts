@@ -15,6 +15,9 @@ import { MigrationPropertyMetadata } from '../models/migration-property-metadata
 import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
 import { RenameEntityInput } from '../models/rename-entity-input.model';
 import { Repository } from '../repository/repository';
+import { RepositoryClass } from '../repository/repository-class.type';
+import { RunInTransactionOptions } from '../transaction/run-in-transaction-options.model';
+import { type TransactionConflictError } from '../transaction/transaction-conflict.error';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -80,6 +83,13 @@ export interface DataSourceInterface extends BackupResourceInterface {
     readonly entities: Newable<BaseEntity>[],
 
     /**
+     * The repository classes of this data source, each declared with `@RepositoryFor` for one of its
+     * entities. An entity without one is read and written through the repository the data source
+     * builds for it.
+     */
+    readonly repositories: RepositoryClass[],
+
+    /**
      * All migrations that belong to this data source.
      */
     readonly migrations: Newable<Migration>[],
@@ -129,6 +139,18 @@ export interface DataSourceInterface extends BackupResourceInterface {
      * @returns A new transaction that can be passed to any repository methods.
      */
     startTransaction: (options?: StartTransactionOptions) => Transaction | Promise<Transaction>,
+
+    /**
+     * Runs work in a transaction of its own: commits it when the work is done, rolls it back when the
+     * work fails, and runs the work again from the start when a conflict with another transaction
+     * ended it, a {@link TransactionConflictError}.
+     * @param work - The work, which writes through the transaction it is given and neither commits
+     * nor rolls it back. It may run more than once, so it does nothing outside the transaction that
+     * must not happen twice.
+     * @param options - How the transaction is started, and how often the work is run at most.
+     * @returns What the work returned, once the transaction is committed.
+     */
+    runInTransaction: <R>(work: (transaction: Transaction) => Promise<R>, options: RunInTransactionOptions) => Promise<R>,
 
     /**
      * Runs migrations for the data source.
@@ -216,7 +238,8 @@ export function isDataSource(value: unknown): value is DataSourceInterface {
         'restoreBackup',
         'runMigrations',
         'shutDown',
-        'startTransaction'
+        'startTransaction',
+        'runInTransaction'
     ];
 
     return !keys.find(key => !(key in value));

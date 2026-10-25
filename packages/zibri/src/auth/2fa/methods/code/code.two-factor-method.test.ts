@@ -8,6 +8,7 @@ import { createInMemoryDataSource,
     RecordingSmsService,
     TestBrowser } from 'zibri-testing';
 
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { EmailTwoFactorMethod } from './email.two-factor-method';
 import { SmsCodeLimits } from './sms-code-limits.model';
 import { SmsTwoFactorMethod } from './sms.two-factor-method';
@@ -16,7 +17,7 @@ import { TwoFactorCodeOptions } from './two-factor-code-options.model';
 import { TwoFactorCode } from './two-factor-code.model';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
@@ -121,6 +122,7 @@ async function startApp(
             TwoFactorCode,
             RateLimitStateEntity
         ],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -288,11 +290,12 @@ describe('Two factor codes — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing EmailTwoFactorMethod[\S\s]*TwoFactorCodeCredentials/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start the sms method without a sender', async () => {
         const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, TwoFactorCodeCredentials, TwoFactorCode, RateLimitStateEntity],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
 
@@ -303,13 +306,14 @@ describe('Two factor codes — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/sms_service/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     // evaluation/03-auth-and-security H21: a text message is the one channel that costs money, and
     // nothing bounded how many any caller could have sent, or where to
     it('refuses to start the sms method without limits on what its text messages cost', async () => {
         const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, TwoFactorCodeCredentials, TwoFactorCode, RateLimitStateEntity],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
 
@@ -320,11 +324,12 @@ describe('Two factor codes — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/ZIBRI_DI_TOKENS\.SMS_CODE_LIMITS/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without the entity that keeps how many codes went out, and names it', async () => {
         const dataSourceClass: new () => InMemoryDataSource = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, TwoFactorCodeCredentials, TwoFactorCode],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
 
@@ -335,11 +340,11 @@ describe('Two factor codes — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing EmailTwoFactorMethod[\S\s]*RateLimitStateEntity/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a setting that is not a whole number above 0', async () => {
         await expect(startApp({ digits: 0 })).rejects.toThrow(/digits must be a whole number above 0/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('Two factor codes — by email and text message', () => {
@@ -347,11 +352,11 @@ describe('Two factor codes — by email and text message', () => {
 
     beforeAll(async () => {
         server = await startApp({ resendAfterMs: 1 });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('enrolls by email with a code that is mailed, which counts once confirmed, and takes a sent code once', async () => {
         const { browser, csrfToken, user } = await createLoggedInUser();
@@ -510,11 +515,11 @@ describe('Two factor codes — sending again', () => {
 
     beforeAll(async () => {
         server = await startApp({});
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('sends the user no second code before the interval is over, and the first one still works', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
@@ -553,11 +558,11 @@ describe('Two factor codes — where text messages go', () => {
 
     beforeAll(async () => {
         server = await startApp({ resendAfterMs: 1 }, 1, { ...generousSmsLimits, maxPerNumberPerDay: 2 });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('refuses a number outside the countries it may text, sending and storing nothing', async () => {
         const { user } = await createLoggedInUser();
@@ -590,11 +595,11 @@ describe('Two factor codes — what text messages cost', () => {
 
     beforeAll(async () => {
         server = await startApp({ resendAfterMs: 1 }, 1, { ...generousSmsLimits, maxPerHour: 2 });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('stops texting once the application has sent what an hour allows, and keeps mailing', async () => {
         const sent: number = sms.sent.length;
@@ -614,11 +619,11 @@ describe('Two factor codes — counted across instances', () => {
 
     beforeAll(async () => {
         server = await startApp({});
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps the wait between two codes in the data source, where a restarted instance finds it', async () => {
         const { user } = await createLoggedInUser();
@@ -637,11 +642,11 @@ describe('Two factor codes — wrong ones', () => {
 
     beforeAll(async () => {
         server = await startApp({ resendAfterMs: 1 }, 500);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('makes the user wait after a wrong code, and refuses the right one unchecked until then', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
@@ -663,11 +668,11 @@ describe('Two factor codes — expiring', () => {
 
     beforeAll(async () => {
         server = await startApp({ resendAfterMs: 1, expiresInMs: 1000 });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('refuses a code once its time is up', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();

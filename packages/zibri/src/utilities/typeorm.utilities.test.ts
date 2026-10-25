@@ -3,7 +3,8 @@ import { EntityMetadata as TOEntityMetadata } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 
 import { TypeOrmUtilities } from './typeorm.utilities';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
@@ -26,15 +27,16 @@ let dataSource: DataSourceInterface;
 describe('TypeOrmUtilities', () => {
     beforeAll(async () => {
         const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-            entities: [...defaultTestServerEntities, TypeOrmUtilitiesTestItem]
+            entities: [...defaultTestServerEntities, TypeOrmUtilitiesTestItem],
+            repositories: defaultTestServerRepositories
         });
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     describe('getEntityMetadata', () => {
         it('resolves the real typeorm metadata for a registered entity', async () => {

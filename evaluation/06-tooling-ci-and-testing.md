@@ -1016,9 +1016,28 @@ returns `new SafeString(MaskUtilities.mask(value))`, so handlebars does not esca
 last two, and a value of three characters or fewer whole. A masked value of `<b>` or ending in `<i`
 opens a tag in the rendered mail or page.
 
-### X7. An application that is itself an ES module is not tested — MINOR, **open**
+### X7. An application that is itself an ES module is not tested — ~~MINOR~~ **FIXED**
 
 *Filed on 2026-10-15, from what §X2 says nobody has filed.*
+
+> **Closed 2026-10-21, the user's call to do it on v3 before round 1 closed** (the paused ESM move
+> would replace it). `src/application/esm-application.test.ts` writes an application with
+> `"type": "module"` into `file-output`, its entry and worker file compiled to es modules by
+> TypeScript, its page by zibri-tsx with `module: 'esm'`, and runs it against the built packages:
+> booted through `zibri-testing` on the in-memory data source with the real thread jobs, it serves
+> its page over http, runs a thread job whose worker file is an es module, imports `jsx`, `jsxs` and
+> `Fragment` from `zibri-tsx/jsx-runtime` by name, and finds its root through the `process.argv[1]`
+> fallback. Needs the three builds, like `build-toolchains.test.ts`; container-free, green here.
+>
+> **Found by its first run, fixed red first: no page written the usual way could load in an es module
+> application.** `import { $ts, TsxComponent } from 'zibri'` - the component type beside a hook, as
+> every sandbox page has it - came out of zibri-tsx unchanged, because the module emit transpiled with
+> `verbatimModuleSyntax` and only a binding marked `type` was dropped. A commonjs module reads the
+> missing export as undefined; an es module refuses to link (`Named export 'TsxComponent' not
+> found`). The module emit now lets TypeScript elide what the module never uses as a value, as tsc
+> does for the application's own code. Held by `compile.test.ts` ("drops a binding the template uses
+> as a type only") and by this test's page; the whole zibri-tsx suite (716) and the cli parity stay
+> green.
 
 `zibri` and `zibri-tsx` publish CommonJS, and an application with `"type": "module"` reaches both through
 node's interop. `published-package.test.ts` shows that `import` and `require` of `zibri` reach the same

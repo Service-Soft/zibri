@@ -5,6 +5,7 @@ import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Migration } from '../../data-source/migration/migration.model';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
@@ -14,6 +15,10 @@ export type CreateTestValKeyDataSourceOptions = {
      * The entities of the data source. Needs to include the MigrationEntity.
      */
     entities?: Newable<BaseEntity>[],
+    /**
+     * The repository classes of the data source. None when it is not given.
+     */
+    repositories?: RepositoryClass[],
     /**
      * The migrations of the data source.
      */
@@ -51,6 +56,7 @@ export function createTestValKeyDataSource(
 ): Newable<ValKeyDataSource & { entities: Newable<BaseEntity>[] }> {
     const {
         entities = defaultTestValKeyEntities,
+        repositories = [],
         migrations = [],
         host = 'localhost',
         roundTrips
@@ -66,6 +72,7 @@ export function createTestValKeyDataSource(
             keyPrefix
         };
         entities: Newable<BaseEntity>[] = entities;
+        override readonly repositories: RepositoryClass[] = repositories;
         override migrations: Newable<Migration>[] = migrations;
 
         override async init(): Promise<void> {

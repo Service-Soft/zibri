@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { File } from './file.model';
 import { FormData as ZibriFormData } from './form-data.model';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Property } from '../../entity/decorators/property.decorator';
 import { MimeType } from '../../http/mime-type.enum';
@@ -65,13 +68,17 @@ describe('FormDataBodyParser', () => {
     let baseUrl: string;
 
     beforeAll(async () => {
-        server = await startTestServer({ controllers: [UploadController] });
+        // parsing a body touches no store, so the in-memory one does
+        server = await startTestServer({
+            controllers: [UploadController],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })]
+        });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('parses a multipart form with a text field and a small file', async () => {
         const form: FormData = new FormData();
@@ -132,6 +139,40 @@ describe('FormDataBodyParser', () => {
         const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
 
         expect(res.status).toBe(400);
+    });
+
+    it('answers 400 for a file field named after a member every object has, and keeps answering afterwards', async () => {
+        // a part named `constructor` found `Object` under its name on a plain object, pushed to it,
+        // and threw inside a stream listener where nothing caught it, so one request ended the process
+        for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+            const form: FormData = new FormData();
+            form.append('label', 'hello');
+            form.append(name, new Blob(['x'], { type: 'text/plain' }), 'x.txt');
+
+            const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
+
+            expect(res.status).toBe(400);
+        }
+
+        const form: FormData = new FormData();
+        form.append('label', 'still here');
+        form.append('file', new Blob(['x'], { type: 'text/plain' }), 'note.txt');
+        const after: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
+        expect(after.status).toBe(200);
+    });
+
+    it('answers 400 for a text field named after a member every object has, rather than reading it as a property', async () => {
+        for (const name of ['constructor', '__proto__']) {
+            const form: FormData = new FormData();
+            form.append('label', 'hello');
+            form.append('file', new Blob(['x'], { type: 'text/plain' }), 'note.txt');
+            form.append(name, 'x');
+
+            const res: Response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
+
+            // `__proto__` was dropped without a word, where every other undeclared field is reported
+            expect(res.status).toBe(400);
+        }
     });
 
     it('reads a field sent once per item as a list of that item type', async () => {

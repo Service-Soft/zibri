@@ -4,6 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
  * A sign-in at a provider whose identity no user is linked to yet.
@@ -66,6 +67,19 @@ export class FederatedRegistrationTicket extends BaseEntity {
      */
     @Property.string({ required: false })
     familyName: string | undefined | null;
+
+    /**
+     * Everything the provider proved about who signed in, for the registration to read.
+     */
+    @Property.unknown()
+    claims!: Record<string, unknown>;
+
+    /**
+     * How the user proved who they are at the provider, for the login to keep. Null when the provider
+     * does not say.
+     */
+    @Property.unknown({ required: false })
+    providerAuthentication: ProviderAuthentication | undefined | null;
 
     /**
      * Where the sign-in was to go once it was done.

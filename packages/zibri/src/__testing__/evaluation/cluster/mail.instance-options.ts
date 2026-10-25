@@ -63,6 +63,19 @@ export const slowSendWorkInMs: number = mailCronIntervalInMs + 3000;
 let sendWorkInMs: number = fastSendWorkInMs;
 
 /**
+ * What the attachment of the mail queued with one carries, decoded.
+ */
+export const attachedContent: string = '%PDF invoice 42';
+
+/**
+ * Whether this instance's transport throws instead of sending. Per process.
+ *
+ * Set on the instance that queues the attachment mail, so that it can never be the one that sends
+ * it - whatever slot it wins between queueing and being killed.
+ */
+let refusingSends: boolean = false;
+
+/**
  * Enough capacity that the rate limiter never enters into it.
  *
  * The shared test config sets maxEmailsPerHour to 0, which is a capacity of zero tokens - every send
@@ -76,7 +89,9 @@ const mailConfig: EmailConfig = {
     sendLeaseInMs: 3000,
     sendBatchSize: 10,
     maxSendAttempts: 5,
-    retryDelayInMs: Ms.MINUTE,
+    // a send refused by the queueing instance is tried again within a tick or two rather than a
+    // minute later. Nothing else here throws, so the other scenarios never wait on it
+    retryDelayInMs: Ms.SECOND,
     failedRetentionInMs: 'forever'
 };
 
@@ -98,6 +113,9 @@ class MarkingEmailTransport implements EmailTransportInterface {
      * @returns An answer accepting every recipient.
      */
     async send(email: Email): Promise<EmailSendResult> {
+        if (refusingSends) {
+            throw new Error(`${clusterInstanceId()} refuses to send`);
+        }
         const markRepository: Repository<ClusterMark> = inject(repositoryTokenFor(ClusterMark));
         // written before the send returns, so a second replica sending the same mail leaves a second
         // row rather than racing the first one's cleanup
@@ -107,6 +125,14 @@ class MarkingEmailTransport implements EmailTransportInterface {
             tag: email.id,
             at: new Date()
         });
+        for (const attachment of email.attachments ?? []) {
+            await markRepository.create({
+                instanceId: clusterInstanceId(),
+                kind: 'mail-attachment',
+                tag: Buffer.from(attachment.base64Content, 'base64').toString('utf8'),
+                at: new Date()
+            });
+        }
 
         await new Promise<void>(resolve => {
             setTimeout(resolve, sendWorkInMs);
@@ -146,6 +172,21 @@ class ClusterMailController {
     @Post('/slow-sends')
     slowSends(): void {
         sendWorkInMs = slowSendWorkInMs;
+    }
+
+    /**
+     * Queues one mail with an attachment, and makes this instance refuse to send anything from now on.
+     */
+    @Post('/queue-with-attachment')
+    async queueWithAttachment(): Promise<void> {
+        refusingSends = true;
+        const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
+        await emailService.queue({
+            html: '<p>Your invoice</p>',
+            subject: 'cluster mail with attachment',
+            recipients: ['recipient@example.com'],
+            attachments: [{ filename: 'invoice.pdf', base64Content: Buffer.from(attachedContent).toString('base64') }]
+        });
     }
 }
 

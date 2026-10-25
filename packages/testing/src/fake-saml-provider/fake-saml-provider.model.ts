@@ -3,9 +3,8 @@ import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http
 import { AddressInfo } from 'node:net';
 import { deflateRawSync, inflateRawSync } from 'node:zlib';
 
-import { SignedXml } from 'xml-crypto';
-import { encrypt } from 'xml-encryption';
-import { KnownHeader, MimeType } from 'zibri';
+import type { SignedXml } from 'xml-crypto';
+import { KnownHeader, MimeType, optionalPeer } from 'zibri';
 
 import { FakeSamlAnswerChanges } from './fake-saml-answer-changes.model';
 import { FakeSamlAnswer } from './fake-saml-answer.model';
@@ -57,7 +56,8 @@ const BINDINGS: Record<'redirect' | 'post', string> = {
 };
 
 /**
- * How the user signed in, as every answer says: with a password over a protected connection.
+ * How the user signed in, as an answer says unless the identity names something else: with a password
+ * over a protected connection.
  */
 const PASSWORD_AUTHN_CONTEXT: string = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport';
 
@@ -187,6 +187,12 @@ export class FakeSamlProvider {
      * @returns The provider.
      */
     static async create(options: FakeSamlProviderOptions): Promise<FakeSamlProvider> {
+        // asked for here rather than at the first answer, where a missing package would read as a
+        // signature that does not verify
+        FakeSamlProvider.xmlCrypto();
+        if (options.encryptsTo != undefined) {
+            FakeSamlProvider.xmlEncryption();
+        }
         return new FakeSamlProvider(
             options,
             await createFakeKeyPair('CN=Fake identity provider'),
@@ -335,6 +341,7 @@ export class FakeSamlProvider {
             assertionConsumerServiceUrl: this.readAttribute(xml, 'AuthnRequest', 'AssertionConsumerServiceURL') ?? '',
             forceAuthn: this.readAttribute(xml, 'AuthnRequest', 'ForceAuthn') === 'true',
             nameIdFormat: this.readAttribute(xml, 'NameIDPolicy', 'Format'),
+            requestedAuthnContext: this.readTexts(xml, 'AuthnContextClassRef'),
             relayState: query.get('RelayState') ?? undefined,
             signed
         };
@@ -498,8 +505,9 @@ export class FakeSamlProvider {
         if (signature == undefined) {
             return false;
         }
+        const { SignedXml: XmlSignature } = FakeSamlProvider.xmlCrypto();
         try {
-            const verifier: SignedXml = new SignedXml({ publicCert: certificate });
+            const verifier: SignedXml = new XmlSignature({ publicCert: certificate });
             verifier.loadSignature(signature);
             return verifier.checkSignature(xml);
         }
@@ -606,6 +614,7 @@ export class FakeSamlProvider {
         // a request asking for a new sign-in gets one, which is now
         const authenticatedAt: Date = request.forceAuthn ? now : this.authenticatedAt ?? now;
         const nameIdFormat: string = this.identity.nameIdFormat ?? request.nameIdFormat ?? UNSPECIFIED_NAME_ID_FORMAT;
+        const authnContextClassRef: string = this.escape(this.identity.authnContextClassRef ?? PASSWORD_AUTHN_CONTEXT);
         const attributes: string = Object.entries(this.identity.attributes)
             .map(([name, value]) => [
                 `<saml:Attribute Name="${this.escape(name)}">`,
@@ -634,7 +643,7 @@ export class FakeSamlProvider {
                 ? ''
                 : `<saml:AuthnStatement AuthnInstant="${authenticatedAt.toISOString()}" SessionIndex="${sessionIndex}">`
                     + '<saml:AuthnContext>'
-                    + `<saml:AuthnContextClassRef>${PASSWORD_AUTHN_CONTEXT}</saml:AuthnContextClassRef>`
+                    + `<saml:AuthnContextClassRef>${authnContextClassRef}</saml:AuthnContextClassRef>`
                     + '</saml:AuthnContext>'
                     + '</saml:AuthnStatement>',
             attributes == '' ? '' : `<saml:AttributeStatement>${attributes}</saml:AttributeStatement>`,
@@ -650,7 +659,8 @@ export class FakeSamlProvider {
      * @returns The document, signed.
      */
     private sign(xml: string, element: string, key: FakeKeyPair): string {
-        const signature: SignedXml = new SignedXml({
+        const { SignedXml: XmlSignature } = FakeSamlProvider.xmlCrypto();
+        const signature: SignedXml = new XmlSignature({
             privateKey: key.privateKey,
             publicCert: key.certificate,
             signatureAlgorithm: SIGNATURE_ALGORITHM,
@@ -669,8 +679,26 @@ export class FakeSamlProvider {
         return signature.getSignedXml();
     }
 
+    /**
+     * The xml signer and verifier, an optional peer: loaded rather than imported, so a project that
+     * never fakes a SAML identity provider need not install it.
+     * @returns Its exports.
+     */
+    private static xmlCrypto(): typeof import('xml-crypto') {
+        return optionalPeer('xml-crypto', 'A fake SAML identity provider');
+    }
+
+    /**
+     * The xml encryption, an optional peer needed only by a provider that encrypts its assertions.
+     * @returns Its exports.
+     */
+    private static xmlEncryption(): typeof import('xml-encryption') {
+        return optionalPeer('xml-encryption', 'A fake SAML identity provider that encrypts its assertions');
+    }
+
     private async encrypt(xml: string, certificate: string): Promise<string> {
         const publicKey: string = new X509Certificate(certificate).publicKey.export({ type: 'spki', format: 'pem' }).toString();
+        const { encrypt } = FakeSamlProvider.xmlEncryption();
         return await new Promise<string>((resolve, reject) => {
             encrypt(xml, {
                 rsa_pub: publicKey,
@@ -730,6 +758,10 @@ export class FakeSamlProvider {
 
     private readText(xml: string, element: string): string | undefined {
         return new RegExp(`<(?:\\w+:)?${element}\\b[^>]*>([^<]*)<`).exec(xml)?.[1];
+    }
+
+    private readTexts(xml: string, element: string): string[] {
+        return [...xml.matchAll(new RegExp(`<(?:\\w+:)?${element}\\b[^>]*>([^<]*)<`, 'g'))].map(match => match[1] ?? '');
     }
 
     private readAttribute(xml: string, element: string, attribute: string): string | undefined {

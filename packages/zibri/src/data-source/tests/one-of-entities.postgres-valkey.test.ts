@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Table } from 'typeorm';
 
 import { describeStoredOneOf, Lead } from './one-of-entities.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
@@ -13,7 +14,8 @@ import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, Lead]
+    entities: [...defaultTestServerEntities, Lead],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -28,11 +30,11 @@ beforeAll(async () => {
     server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
     postgres = inject(postgresDataSourceClass).getRepository(Lead);
     valKey = inject(valKeyDataSourceClass).getRepository(Lead);
-}, 50000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeStoredOneOf('postgres', () => postgres);
 

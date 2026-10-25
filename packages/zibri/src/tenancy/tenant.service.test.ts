@@ -5,9 +5,11 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { TenantServiceInterface } from './tenant-service.interface';
 import { TenantService } from './tenant.service';
+import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../__testing__/test-server/membership-repository';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -22,6 +24,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
+import { BaseTenantEntity } from '../entity/base-tenant-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { HttpRequest } from '../http/http-request.model';
@@ -35,13 +38,18 @@ import { WebsocketMessage } from '../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../websocket/models/websocket-options.model';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
+// round-2 08 §X15: the tenant property from the base class, the way an application declares most entities
 @Entity()
-class TenancyNote extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+class TenancyNote extends BaseTenantEntity {
     @Property.string()
     title!: string;
+}
+
+// the tenants of an application keeping them as rows: a tenant's id is the tenant of every row it holds
+@Entity({ tenant: 'shared' })
+class TenancyTenant extends BaseEntity {
+    @Property.string({ unique: true })
+    name!: string;
 }
 
 @Controller('/tenancy-notes', { allowOrphan: true })
@@ -97,7 +105,8 @@ function tenantService(): TenantServiceInterface {
 
 // one class for the whole file, for the reason websocket-payload.test.ts gives
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, TenancyNote]
+    entities: [...defaultTestServerEntities, TenancyNote, TenancyTenant],
+    repositories: defaultTestServerRepositories
 });
 
 const websocketOptions: WebsocketOptionsInput = {
@@ -194,7 +203,7 @@ describe('the tenant of a request', () => {
         await startApp([]);
         await createNote(acme, 'acme plan');
         await createNote(globex, 'globex plan');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -253,7 +262,7 @@ describe('the tenant of a request', () => {
         const { user, accessToken }: { user: JwtUser, accessToken: string } = await logIn('outsider');
         await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
             acme,
-            async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId: acme, userId: user.id, roles: [Roles.USER] })
+            async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId: acme, userId: user.id, roles: [MemberRoles.USER] })
         );
 
         expect(await fetchTitles({ 'x-tenant-id': acme, authorization: `Bearer ${accessToken}` })).toEqual({ status: 200, body: ['acme plan'] });
@@ -285,7 +294,7 @@ describe('an application reading the tenant of a request its own way', () => {
     beforeAll(async () => {
         await startApp([defineProvider({ token: ZIBRI_DI_TOKENS.TENANT_SERVICE, useClass: QueryTenantService })]);
         await createNote(initech, 'initech plan');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -307,5 +316,53 @@ describe('an application reading the tenant of a request its own way', () => {
 
     it('has what the override reads refused the same way when it is not a uuid', async () => {
         expect((await fetchTitles({}, '?tenant=initech')).status).toBe(400);
+    });
+});
+
+// round-2 08 §X15: the shortest path for an application serving one customer, as docs/tenancy.md shows it
+describe('an application with one tenant', () => {
+    let onlyTenant: string;
+
+    /**
+     * Acts in the one tenant, whatever a request names, read from its row once.
+     */
+    class OneTenantService extends TenantService {
+        private tenantId: string | undefined;
+
+        override async resolveTenant(): Promise<string> {
+            const tenants: Repository<TenancyTenant> = inject(repositoryTokenFor(TenancyTenant));
+            this.tenantId ??= (await tenants.findOne({ where: { name: 'Default' } })).id;
+            return this.tenantId;
+        }
+
+        override resolveTenantUrl(url: string): string {
+            return url;
+        }
+    }
+
+    beforeAll(async () => {
+        await startApp([defineProvider({ token: ZIBRI_DI_TOKENS.TENANT_SERVICE, useClass: OneTenantService })]);
+        onlyTenant = (await inject<Repository<TenancyTenant>>(repositoryTokenFor(TenancyTenant)).create({ name: 'Default' })).id;
+        await createNote(onlyTenant, 'the plan');
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, 30000);
+
+    it('reaches the rows of the tenant with requests that name none', async () => {
+        expect(await fetchTitles({})).toEqual({ status: 200, body: ['the plan'] });
+    });
+
+    it('lets a user in through their membership in the tenant, and refuses one without', async () => {
+        const member: { user: JwtUser, accessToken: string } = await logIn('member');
+        const stranger: { user: JwtUser, accessToken: string } = await logIn('stranger');
+        await tenantService().runAs(
+            onlyTenant,
+            async () => await inject(DefaultTestServerMembershipRepository).resolveMembership(member.user.id, undefined)
+        );
+
+        expect(await fetchTitles({ authorization: `Bearer ${member.accessToken}` })).toEqual({ status: 200, body: ['the plan'] });
+        expect((await fetchTitles({ authorization: `Bearer ${stranger.accessToken}` })).status).toBe(403);
     });
 });

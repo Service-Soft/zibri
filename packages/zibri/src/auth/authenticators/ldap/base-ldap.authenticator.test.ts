@@ -10,9 +10,11 @@ import { LdapCredentials } from './ldap-credentials.model';
 import { LdapEntry } from './ldap-entry.model';
 import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
 import { LdapServiceAccount } from './ldap-service-account.model';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -104,7 +106,7 @@ const laterSignIns: LdapEntry[] = [];
  * The directory the tests sign in at, with a hook that creates a user from the entry's email, and one
  * that gives the user the admin role while the entry is in the admins group.
  */
-abstract class TestDirectory extends BaseLdapAuthenticator<Roles, JwtUser> {
+abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
     readonly serviceAccount: LdapServiceAccount = SERVICE_ACCOUNT;
 
     readonly searchBase: string = SEARCH_BASE;
@@ -421,9 +423,10 @@ function identities(): Repository<LdapIdentity, LdapIdentityCreateData> {
  * @param authenticators - The directories.
  * @returns The server, started.
  */
-async function startApp(authenticators: Newable<BaseLdapAuthenticator<Roles, JwtUser>>[]): Promise<StartedTestServer> {
+async function startApp(authenticators: Newable<BaseLdapAuthenticator<string, JwtUser>>[]): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, LdapIdentity, ApiKey],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     return await startTestServer({
@@ -489,7 +492,7 @@ describe('BaseLdapAuthenticator — starting', () => {
         const start: Promise<void> = startAndStopTestServerWithout([], { authenticators: [CompanyDirectory] });
 
         await expect(start).rejects.toThrow(/Error initializing CompanyDirectory[\S\s]*LdapIdentity/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start with a url that is not ldaps:// or ldap://', async () => {
         class PlainDirectory extends TestDirectory {
@@ -499,7 +502,7 @@ describe('BaseLdapAuthenticator — starting', () => {
         }
 
         await expect(startApp([PlainDirectory])).rejects.toThrow('have to start with ldaps:// or ldap://');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without a server', async () => {
         class NoServerDirectory extends TestDirectory {
@@ -509,7 +512,7 @@ describe('BaseLdapAuthenticator — starting', () => {
         }
 
         await expect(startApp([NoServerDirectory])).rejects.toThrow('names no server of the directory');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start with a groupFilter that is not an LDAP filter', async () => {
         class BrokenGroupFilterDirectory extends GroupsDirectory {
@@ -517,7 +520,7 @@ describe('BaseLdapAuthenticator — starting', () => {
         }
 
         await expect(startApp([BrokenGroupFilterDirectory])).rejects.toThrow('The groupFilter of BrokenGroupFilterDirectory is not an LDAP filter.');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start with two directories of the same name', async () => {
         class SameNameDirectory extends TestDirectory {
@@ -529,7 +532,7 @@ describe('BaseLdapAuthenticator — starting', () => {
         }
 
         await expect(startApp([CompanyDirectory, SameNameDirectory])).rejects.toThrow('share the name "company"');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('BaseLdapAuthenticator', () => {
@@ -840,7 +843,7 @@ describe('BaseLdapAuthenticator', () => {
             const second: JwtAuthData<string> = await authDataOf(await signIn({ username: 'paul', password: 'paul-secret' }));
             const { key }: CreatedApiKey = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).createApiKey(
                 first.userId,
-                { name: 'ci', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                { name: 'ci', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
                 undefined
             );
             expect(key).toBeDefined();

@@ -6,8 +6,10 @@ import { LogLevel } from './log-level.enum';
 import { Log } from './log.model';
 import { Logger } from './logger';
 import { LoggerTransport } from './transport/logger-transport.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { waitUntil } from '../__testing__/wait-until.function';
 import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -19,7 +21,8 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 // in memory, so that what a log entry does across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 describe('Logger across tenants', () => {
@@ -33,11 +36,11 @@ describe('Logger across tenants', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
         logs = inject(repositoryTokenFor(Log));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('stores each entry with the tenant it was logged in', async () => {
         const cleanupAfterMs: Record<LogLevel, number> = {
@@ -68,6 +71,32 @@ describe('Logger across tenants', () => {
         await tenants.runAs(UUIDUtilities.generate(), async () => {
             expect((await logs.findAll({ where: { message: { like: `${marker}%` } } })).map(l => l.message)).toEqual([`${marker} outside`]);
         });
+    });
+
+    it('stores an entry of no tenant as one, when the write is started inside a tenant', async () => {
+        const cleanupAfterMs: Record<LogLevel, number> = {
+            [LogLevel.DEBUG]: Ms.DAY,
+            [LogLevel.INFO]: Ms.DAY,
+            [LogLevel.WARN]: Ms.DAY,
+            [LogLevel.ERROR]: Ms.DAY,
+            [LogLevel.CRITICAL]: Ms.DAY
+        };
+        const logger: Logger = new Logger([LoggerTransport.db(LogLevel.INFO)], cleanupAfterMs, 100, 50);
+        const marker: string = UUIDUtilities.generate();
+
+        // the first entry schedules the write, so the write runs in the tenant that entry was logged in
+        await tenants.runAs(tenantA, async () => {
+            logger.info(`${marker} in a`);
+            await Promise.resolve();
+        });
+        logger.info(`${marker} outside`);
+
+        await waitUntil(async () => await logs.count({ where: { message: { like: `${marker}%` } }, acrossTenants: true }) === 2);
+        const stored: Log[] = await logs.findAll({ where: { message: { like: `${marker}%` } }, acrossTenants: true });
+        expect(stored.map(l => [l.message, l.tenantId ?? undefined])).toEqual(expect.arrayContaining([
+            [`${marker} in a`, tenantA],
+            [`${marker} outside`, undefined]
+        ]));
     });
 
     it('cleans up the expired entries of every tenant', async () => {

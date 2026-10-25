@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { Body } from '../routing/decorators/body.decorator';
@@ -30,11 +31,11 @@ describe('Parser — parseBody content-type dispatch', () => {
     beforeAll(async () => {
         server = await startTestServer({ controllers: [ParserTestController] });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('parses a request with a matching, well-known content-type', async () => {
         const res: Response = await fetch(`${baseUrl}/parser-test`, {

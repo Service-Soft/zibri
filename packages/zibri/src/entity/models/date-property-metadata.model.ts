@@ -1,5 +1,17 @@
 import { BasePropertyMetadata, WithDefaultMetadata } from './base-property-metadata.model';
+import { HttpRequestContext } from '../../context/request/http-request.context';
+import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { OmitStrict } from '../../types/omit-strict.type';
+
+/**
+ * A bound of a date property, asked each time a value is validated: given the object the property
+ * is on and the current request, it returns the date, or nothing for no bound.
+ */
+export type DateBound = (
+    // eslint-disable-next-line typescript/no-explicit-any
+    data: any,
+    ctx: HttpRequestContext | WebsocketRequestContext | undefined
+) => Date | undefined;
 
 /**
  * Metadata for date properties.
@@ -10,13 +22,13 @@ export type DatePropertyMetadata = BasePropertyMetadata & WithDefaultMetadata<Da
      */
     type: 'date',
     /**
-     * A date after which the property must be.
+     * The date the value has to be after, such as `() => new Date()` for a date in the future.
      */
-    after: Date | undefined,
+    after: DateBound | undefined,
     /**
-     * A date before the property must be.
+     * The date the value has to be before, such as `(booking: Booking) => booking.endsAt`.
      */
-    before: Date | undefined,
+    before: DateBound | undefined,
     /**
      * Whether or not the property should be indexed.
      */

@@ -1,15 +1,19 @@
 import { Readable } from 'node:stream';
 
-import { EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsRelations, FindOptionsSelect, FindOptionsWhere, InsertResult, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
+import { EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsSelect, FindOptionsWhere, InsertResult, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
+import { DriverUtils } from 'typeorm/driver/DriverUtils';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { OperationLimit } from '../../context/operation-limit.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { EntityOrderUtilities, OrderKey } from '../../entity/models/entity-order.utilities';
+import { RelationTree } from '../../entity/models/entity-relations.model';
+import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
+import { SelectionTree } from '../../entity/models/entity-selection.utilities';
 import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
 import { KeyWhere } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -20,16 +24,18 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
-import { IsolationLevel } from '../data-sources/data-source.interface';
 import { cancelsStatements, StatementCancellingDataSource } from '../data-sources/statement-cancelling-data-source.model';
 import { limitsStatements, OPERATION_LIMIT_DATA_KEY, StatementLimitingDataSource } from '../data-sources/statement-limiting-data-source.model';
 import { type TypeOrmBaseDataSource } from '../data-sources/typeorm-base-data-source.model';
 import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model';
+import { AggregateRow } from '../models/aggregate.model';
 import { DataSourceOptions } from '../models/data-source-options.model';
+import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
-import { Where } from '../models/where/where-filter.model';
+import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { QueryFailedError } from '../query-failed.error';
 import { MistypedStoredValue, StoredValueTypeMismatchError } from '../stored-value-type-mismatch.error';
+import { TransactionConflictError } from '../transaction/transaction-conflict.error';
 import { Transaction } from '../transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { WriteDataUtilities } from '../write-data.utilities';
@@ -42,6 +48,45 @@ import { WriteDataUtilities } from '../write-data.utilities';
  * whatever the entity happens to be is not the thing that fills the heap.
  */
 const STREAM_BATCH_SIZE: number = 500;
+
+/**
+ * The name a page's total is selected under, next to the rows of the page.
+ */
+const TOTAL_SELECTION: string = 'zi_total';
+
+/**
+ * The alias the statement counting a page's total reads under.
+ */
+const TOTAL_ALIAS: string = 'zi_total';
+
+/**
+ * The alias the window of a page is read under when the page's rows are joined with others.
+ */
+const PAGE_ALIAS: string = 'zi_page';
+
+/**
+ * The name a value taken over rows is selected under.
+ */
+const AGGREGATE_SELECTION: string = 'zi_value';
+
+/**
+ * The prefix of the names the values a group of rows shares are selected under.
+ */
+const GROUP_SELECTION: string = 'zi_group_';
+
+/**
+ * The rows of a page as the orm hands them back: as entities, and raw with the total selected next to them.
+ */
+type PageRows<T> = {
+    /**
+     * The rows of the page.
+     */
+    entities: T[],
+    /**
+     * The raw rows, one per joined row, each carrying the selections of the driver's own.
+     */
+    raw: unknown[]
+};
 
 /**
  * One sort the orm placed from find options: a direction, or a direction and where nulls go.
@@ -161,33 +206,158 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     async find(options: DriverFindOptions<T>): Promise<T[]> {
         const findOptions: FindManyOptions<T> = {
             where: this.resolveWhere(options),
-            ...this.orderAndRelations(options),
+            order: this.orderOf(options),
             skip: options.skip,
             take: options.take
         };
-        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
-        return await this.run(async () => await this.onConnection(options.transaction, async manager => this.ordersBySimilarity(keys)
-            ? await this.similarityOrderedQuery(manager, findOptions, keys).getMany()
-            : await manager.find(this.entityClass, findOptions)));
+        const rows: T[] = await this.run(async () => await this.onConnection(
+            options.transaction,
+            async manager => await this.selectQuery(manager, findOptions, options).getMany()
+        ));
+        this.unsetMissingRelations(rows, this.entityClass, EntityRelationsUtilities.resolveTree(options.relations));
+        return rows;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         const findOptions: FindManyOptions<T> = {
-            // an empty filter rather than none: the orm's findOne refuses a read without one, where
-            // every other store reads the first row - which is what a table of one row is read by
-            where: this.resolveWhere(options) ?? {},
-            ...this.orderAndRelations(options)
+            where: this.resolveWhere(options),
+            order: this.orderOf(options),
+            // one row, the way the orm's own findOne asks for it
+            take: 1
         };
-        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
         const res: T | null = await this.run(async () => await this.onConnection(
             options.transaction,
-            async manager => this.ordersBySimilarity(keys)
-                // one row, the way the orm's own findOne asks for it
-                ? await this.similarityOrderedQuery(manager, { ...findOptions, take: 1 }, keys).getOne()
-                : await manager.findOne(this.entityClass, findOptions)
+            async manager => await this.selectQuery(manager, findOptions, options).getOne()
         ));
-        return res ?? undefined;
+        if (res == undefined) {
+            return undefined;
+        }
+        this.unsetMissingRelations([res], this.entityClass, EntityRelationsUtilities.resolveTree(options.relations));
+        return res;
+    }
+
+    /**
+     * Leaves a relation to one row unset where the join found none: a row pointing at nothing, or
+     * at a row the caller may not see, holds no related row rather than a null one - which is what
+     * every other store hands back.
+     * @param rows - The rows, changed in place.
+     * @param entityClass - Their entity.
+     * @param relations - The relations that were joined, and those joined below each of them.
+     */
+    private unsetMissingRelations(rows: BaseEntity[], entityClass: Newable<BaseEntity>, relations: RelationTree): void {
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        for (const [key, below] of relations) {
+            const metadata: PropertyMetadata | undefined = properties[key];
+            if (!isRelationMetadata(metadata)) {
+                continue;
+            }
+            const related: BaseEntity[] = [];
+            for (const row of rows) {
+                const value: unknown = Reflect.get(row, key);
+                if (value === null) {
+                    Reflect.set(row, key, undefined);
+                    continue;
+                }
+                related.push(...Array.isArray(value) ? value as BaseEntity[] : [value as BaseEntity]);
+            }
+            this.unsetMissingRelations(related, metadata.target(), below);
+        }
+    }
+
+    /**
+     * Builds the query of a read: its find options, however it is ordered, with the relations it
+     * asks for joined.
+     * @param manager - The manager to query through.
+     * @param findOptions - The find options of the read.
+     * @param options - The read's options, for its order and the relations it asks for.
+     * @returns The query.
+     */
+    private selectQuery(manager: EntityManager, findOptions: FindManyOptions<T>, options: DriverFindOptions<T>): SelectQueryBuilder<T> {
+        const alias: string = this.typeOrmRepository.metadata.name;
+        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
+        // the columns the selection names and nothing else, which is the part of it a statement saves
+        const narrowed: FindManyOptions<T> = options.select == undefined
+            ? findOptions
+            : { ...findOptions, select: this.columnsSelected(options.select, this.entityClass) as FindOptionsSelect<T> };
+        const query: SelectQueryBuilder<T> = this.ordersBySimilarity(keys)
+            ? this.similarityOrderedQuery(manager, narrowed, keys)
+            : manager.createQueryBuilder(this.entityClass, alias).setFindOptions(narrowed);
+        this.joinRelations(
+            query,
+            alias,
+            this.entityClass,
+            EntityRelationsUtilities.resolveTree(options.relations),
+            options.related,
+            options.select
+        );
+        return query;
+    }
+
+    /**
+     * The columns of one entity a selection names, its id among them, as the orm's find options
+     * select them. A column the selection reaches into is read whole: the values it holds are narrowed
+     * once the rows are read.
+     * @param selection - The selection at this entity's level.
+     * @param entityClass - The entity.
+     * @returns Each column to read, by property.
+     */
+    private columnsSelected(selection: SelectionTree, entityClass: Newable<BaseEntity>): Record<string, true> {
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        const res: Record<string, true> = { id: true };
+        for (const key of selection.keys()) {
+            if (!isRelationMetadata(properties[key])) {
+                res[key] = true;
+            }
+        }
+        return res;
+    }
+
+    /**
+     * Joins the relations a read asks for, each narrowed to the rows the caller may see of its
+     * entity - a plain join would hand back every related row there is.
+     *
+     * Under aliases of this driver's own rather than the ones the orm joins a filter or an order
+     * through: those carry the filter's condition, and a relation holds every row the caller may see
+     * whatever the filter asked of it. One query for the whole tree, however deep it goes.
+     *
+     * A read that selects joins the relations its selection names and reads the columns it names of
+     * them; one it does not name is not joined at all.
+     * @param query - The query of the read.
+     * @param parentAlias - The alias of the entity the relations are read from.
+     * @param entityClass - That entity.
+     * @param relations - The relations to join, and those to join below each of them.
+     * @param related - What the rows each relation reaches are narrowed to.
+     * @param selection - What the read selects at this level, undefined for whole rows.
+     */
+    private joinRelations(
+        query: SelectQueryBuilder<T>,
+        parentAlias: string,
+        entityClass: Newable<BaseEntity>,
+        relations: RelationTree,
+        related: RelatedNarrowing | undefined,
+        selection: SelectionTree | undefined
+    ): void {
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
+        for (const [key, below] of relations) {
+            const metadata: PropertyMetadata | undefined = properties[key];
+            const selected: SelectionTree | true | undefined = selection?.get(key);
+            if (!isRelationMetadata(metadata) || (selection != undefined && selected == undefined)) {
+                continue;
+            }
+            const target: Newable<BaseEntity> = metadata.target();
+            // built the way the orm builds its own, so that a long path is shortened the same way
+            const alias: string = DriverUtils.buildAlias(query.connection.driver, { joiner: '__' }, parentAlias, `zi_${key}`);
+            const narrowing: ParameterizedSql | undefined = this.dataSource.relationJoinCondition(target, alias, related);
+            if (selected == undefined || selected === true) {
+                query.leftJoinAndSelect(`${parentAlias}.${key}`, alias, narrowing?.sql, narrowing?.parameters);
+                this.joinRelations(query, alias, target, below, related, undefined);
+                continue;
+            }
+            query.leftJoin(`${parentAlias}.${key}`, alias, narrowing?.sql, narrowing?.parameters);
+            query.addSelect(Object.keys(this.columnsSelected(selected, target)).map(column => `${alias}.${column}`));
+            this.joinRelations(query, alias, target, below, related, selected);
+        }
     }
 
     /**
@@ -271,22 +441,20 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     }
 
     /**
-     * Says an order and a tree of relations in the words the orm reads them in.
+     * Says an order in the words the orm reads it in.
      *
-     * The one place the two meet, and nothing is translated: both are written the way the orm writes
-     * them, and both name less than it accepts. What the orm cannot be shown is that they do -
-     * its types are mapped over the entity, and an unresolved entity has no keys to map.
+     * Nothing is translated: it is written the way the orm writes it, and names less than it
+     * accepts. What the orm cannot be shown is that it does - its types are mapped over the entity,
+     * and an unresolved entity has no keys to map.
      *
      * Ordering by a relation and filtering on one both reach the store as a join that selects
-     * nothing, so a row comes back holding what the relations asked for and no more.
+     * nothing. The relations a read hands back are joined apart from those, see
+     * {@link joinRelations}.
      * @param options - The resolved find options.
-     * @returns The two of them, ready to be spread into a find.
+     * @returns The order, ready to be put into a find.
      */
-    private orderAndRelations(options: DriverFindOptions<T>): Pick<FindManyOptions<T>, 'order' | 'relations'> {
-        return {
-            order: options.order as FindOptionsOrder<T> | undefined,
-            relations: options.relations as FindOptionsRelations<T> | string[] | undefined
-        };
+    private orderOf(options: DriverFindOptions<T>): FindOptionsOrder<T> | undefined {
+        return options.order as FindOptionsOrder<T> | undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -298,43 +466,171 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
-        if (options.transaction != undefined) {
-            // the caller's transaction already decides what both halves see, and starting a second
-            // one inside it would read a different moment than the rest of their work does
-            return await this.readPageAndTotal(options);
+    async aggregate(options: DriverAggregateOptions<T>): Promise<AggregateRow[]> {
+        const alias: string = this.typeOrmRepository.metadata.name;
+        const raw: Record<string, unknown>[] = await this.run(async () => await this.onConnection(options.transaction, async manager => {
+            const query: SelectQueryBuilder<T> = manager
+                .createQueryBuilder(this.entityClass, alias)
+                .setFindOptions({ where: this.resolveWhere(options) })
+                .select(this.aggregateExpression(alias, options), AGGREGATE_SELECTION);
+            for (const [i, key] of options.groupBy.entries()) {
+                query.addSelect(`${alias}.${key}`, `${GROUP_SELECTION}${i}`).addGroupBy(`${alias}.${key}`);
+            }
+            return await query.getRawMany<Record<string, unknown>>();
+        }));
+        // one row however many matched when nothing groups them, null over no rows: the same answer
+        // as no row, which is what a store answering in process gives
+        if (!options.groupBy.length && raw.length === 1 && raw[0]?.[AGGREGATE_SELECTION] == undefined && options.fn !== 'count') {
+            return [];
         }
-
-        // REPEATABLE READ rather than the default: at READ COMMITTED every statement takes a new
-        // snapshot, so wrapping the two in a transaction would leave them as far apart as they
-        // were. This is the level at which a transaction sees one version of the database for its
-        // whole length, which is the entire reason there is a transaction here.
-        const transaction: Transaction = await this.dataSource.startTransaction({
-            isolationLevel: IsolationLevel.REPEATABLE_READ
-        });
-        try {
-            const res: PaginationResult<T> = await this.readPageAndTotal({ ...options, transaction });
-            await transaction.commit();
-            return res;
-        }
-        catch (error) {
-            await transaction.rollback();
-            throw error;
-        }
+        return raw.map(row => ({
+            group: Object.fromEntries(options.groupBy.map((key, i) => [key, row[`${GROUP_SELECTION}${i}`] ?? undefined])),
+            value: row[AGGREGATE_SELECTION] ?? undefined
+        }));
     }
 
     /**
-     * Reads the page and the total, both through the transaction the options carry.
-     * @param options - The resolved find options, carrying the transaction both halves read in.
-     * @returns The window, and how many rows the filter matches.
+     * The expression a value is taken over the rows with.
+     * @param alias - The alias the rows are read under.
+     * @param options - What is taken of which property.
+     * @returns The expression, naming the property the way the query builder resolves it.
      */
-    private async readPageAndTotal(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+    private aggregateExpression(alias: string, options: DriverAggregateOptions<T>): string {
+        const column: string = `${alias}.${options.property ?? 'id'}`;
+        switch (options.fn) {
+            case 'sum': {
+                return `SUM(${column})`;
+            }
+            case 'average': {
+                return `AVG(${column})`;
+            }
+            case 'minimum': {
+                return `MIN(${column})`;
+            }
+            case 'maximum': {
+                return `MAX(${column})`;
+            }
+            case 'count': {
+                return 'COUNT(*)';
+            }
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+        // the total selected next to the rows of the page, so that one statement answers both. A
+        // statement reads one moment, which is what a page and its total have to describe - and
+        // what a transaction around a read and a count used to hold together, at the price of
+        // holding a connection across six round trips for every list that is shown to anyone
+        const findOptions: FindManyOptions<T> = { where: this.resolveWhere(options), order: this.orderOf(options) };
+        const total: ParameterizedSql = this.totalExpression(options);
+        const { entities, raw }: PageRows<T> = await this.run(async () => await this.onConnection(
+            options.transaction,
+            async manager => await this.pageQuery(manager, findOptions, options)
+                .addSelect(`(${total.sql})`, TOTAL_SELECTION)
+                .setParameters(total.parameters)
+                .getRawAndEntities()
+        ));
+        this.unsetMissingRelations(entities, this.entityClass, EntityRelationsUtilities.resolveTree(options.relations));
+
+        const counted: unknown = this.selectionOf(raw[0], TOTAL_SELECTION);
         return {
-            items: await this.find(options),
-            totalAmount: await this.count(
-                options.totalWhere == undefined ? options : { ...options, where: options.totalWhere }
-            )
+            items: entities,
+            // a page holding no rows carries no total with it: past the last page, or after the
+            // last row of a walk. The one case the total is a round trip of its own
+            totalAmount: counted == undefined ? await this.count(this.totalOptions(options)) : Number(counted)
         };
+    }
+
+    /**
+     * Builds the query of a page: the window the read asks for, with the relations it asks for joined.
+     *
+     * Joined rows multiply - a row with three related rows is three rows to a window - so a window
+     * over a query that joins anything is taken over the ids of the rows alone, and the rows with
+     * everything joined are the ones among them. Still one statement, which is what keeps the page
+     * and its total in one moment.
+     *
+     * Offset and limit rather than skip and take: those have the orm page a query that joins
+     * anything through a second statement, and the window here is over a query whose joins reach
+     * one row each.
+     * @param manager - The manager to query through.
+     * @param findOptions - The find options of the read.
+     * @param options - The read's options, for its window, its order and the relations it asks for.
+     * @returns The query.
+     */
+    private pageQuery(
+        manager: EntityManager,
+        findOptions: FindManyOptions<T>,
+        options: DriverFindAndCountOptions<T>
+    ): SelectQueryBuilder<T> {
+        const query: SelectQueryBuilder<T> = this.selectQuery(manager, findOptions, options);
+        if (!query.expressionMap.joinAttributes.length) {
+            return this.window(query, options);
+        }
+
+        const alias: string = this.typeOrmRepository.metadata.name;
+        const idColumn: string = this.typeOrmRepository.metadata.primaryColumns[0]?.databaseName ?? 'id';
+        const rowsAlone: DriverFindAndCountOptions<T> = { ...options, relations: undefined };
+        const ids: SelectQueryBuilder<T> = this.window(this.selectQuery(manager, findOptions, rowsAlone), options);
+        const page: ParameterizedSql = this.dataSource.toParameterizedSql(ids, PAGE_ALIAS);
+        const escape: (name: string) => string = name => manager.connection.driver.escape(name);
+        // the id as the orm names it in the rows it selects, read out of the window as a derived table
+        const selectedId: string = DriverUtils.buildAlias(manager.connection.driver, undefined, alias, idColumn);
+        return query.andWhere(
+            `${alias}.id IN (SELECT ${escape(PAGE_ALIAS)}.${escape(selectedId)} FROM (${page.sql}) ${escape(PAGE_ALIAS)})`,
+            page.parameters
+        );
+    }
+
+    /**
+     * Narrows a query to the window a read asks for.
+     * @param query - The query.
+     * @param options - The read's options, for its window.
+     * @returns The query, narrowed.
+     */
+    private window(query: SelectQueryBuilder<T>, options: DriverFindAndCountOptions<T>): SelectQueryBuilder<T> {
+        if (options.skip != undefined) {
+            query.offset(options.skip);
+        }
+        if (options.take != undefined) {
+            query.limit(options.take);
+        }
+        return query;
+    }
+
+    /**
+     * The expression counting the rows a page's total counts, to select next to the page.
+     * @param options - The resolved find options, with the filter the total counts when it differs.
+     * @returns The expression, with what it binds.
+     */
+    private totalExpression(options: DriverFindAndCountOptions<T>): ParameterizedSql {
+        const count: SelectQueryBuilder<T> = this.typeOrmRepository.manager
+            .createQueryBuilder(this.entityClass, TOTAL_ALIAS)
+            .setFindOptions({ where: this.resolveWhere(this.totalOptions(options)) })
+            .select('COUNT(*)');
+        return this.dataSource.toParameterizedSql(count, TOTAL_ALIAS);
+    }
+
+    /**
+     * The options a page's total is counted with: the page's, with the filter the total counts.
+     * @param options - The resolved find options.
+     * @returns The options to count with.
+     */
+    private totalOptions(options: DriverFindAndCountOptions<T>): DriverFindOptions<T> {
+        return options.totalWhere == undefined ? options : { ...options, where: options.totalWhere };
+    }
+
+    /**
+     * Reads a selection of the driver's own out of a raw row.
+     * @param row - The raw row, as the orm hands it back.
+     * @param selection - The name the selection was made under.
+     * @returns Its value, or undefined when there is no row.
+     */
+    private selectionOf(row: unknown, selection: string): unknown {
+        if (typeof row !== 'object' || row == undefined) {
+            return undefined;
+        }
+        return Reflect.get(row, selection);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -414,7 +710,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         const findOptions: FindManyOptions<T> = {
             where: this.resolveWhere(options),
-            ...this.orderAndRelations({ ...options, relations: undefined }),
+            order: this.orderOf(options),
             // the id column alone, which is what keeps a large match from being read to be thrown away
             select: ['id'],
             skip: options.skip,
@@ -461,8 +757,8 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     private async updateInOneStatement<R extends boolean>(
         options: DriverUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        const { where, data, transaction, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
-        const resolved: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveWhere({ where });
+        const { where, data, increments, transaction, related, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
+        const resolved: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveWhere({ where, related });
 
         const res: UpdateResult = await this.run(async () => await this.onConnection(transaction, async manager => {
             // the entity is named as a type argument as well as a value, because a builder that has
@@ -472,7 +768,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             const builder: UpdateQueryBuilder<T> = manager
                 .createQueryBuilder()
                 .update<T>(this.entityClass)
-                .set(this.resolveUpdateSet(data, manager, parameters))
+                .set(this.resolveUpdateSet(data, manager, parameters, increments))
                 .setParameters(parameters);
 
             // a filter naming no condition is how a caller asks for every row, and a statement with
@@ -507,10 +803,10 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         options: DriverUpdateAllOptions<T, R>,
         transaction: Transaction
     ): Promise<R extends true ? T[] : number> {
-        const { where, data, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
+        const { where, data, increments, related, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
         // only the ids: what the rows currently hold does not decide anything here, since this is
         // the branch that writes one value to all of them
-        const ids: T['id'][] = await this.findLockedIds(where, transaction);
+        const ids: T['id'][] = await this.findLockedIds(where, related, transaction);
         if (!ids.length) {
             return (returnUpdated === true ? [] : 0) as R extends true ? T[] : number;
         }
@@ -525,13 +821,13 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         const [written, saved]: [DeepPartial<T>, DeepPartial<T> | undefined] = this.writesRelations(data)
             ? this.splitMergedObjects(data)
             : [data, undefined];
-        if (Object.keys(written).length) {
+        if (Object.keys(written).length || Object.keys(increments ?? {}).length) {
             await this.run(async () => await this.onConnection(transaction, async manager => {
                 const parameters: Record<string, unknown> = {};
                 return await manager
                     .createQueryBuilder()
                     .update(this.entityClass)
-                    .set(this.resolveUpdateSet(written, manager, parameters))
+                    .set(this.resolveUpdateSet(written, manager, parameters, increments))
                     .where(this.resolveIdsWhere(ids))
                     .setParameters(parameters)
                     .execute();
@@ -563,21 +859,31 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
      * "of" the entity's own table only: a filter that reaches through a relation joins, and the
      * nullable side of an outer join cannot be locked.
      * @param where - The filter.
+     * @param related - What the rows of each entity the filter reaches through a relation are narrowed to.
      * @param transaction - The transaction holding the rows.
      * @returns The ids of the rows held.
      */
-    private async findLockedIds(where: Where<T> | undefined, transaction: Transaction): Promise<T['id'][]> {
+    private async findLockedIds(
+        where: Where<T> | undefined,
+        related: RelatedNarrowing | undefined,
+        transaction: Transaction
+    ): Promise<T['id'][]> {
         const locked: T[] = await this.run(async () => await this.onConnection(transaction, async manager => await manager
             .find(this.entityClass, {
                 select: { id: true } as FindOptionsSelect<T>,
-                where: this.resolveWhere({ where }),
+                where: this.resolveWhere({ where, related }),
                 lock: { mode: 'pessimistic_write', tables: [this.typeOrmRepository.metadata.tableName] }
             })));
         return locked.map(l => l.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+    async updateEach(
+        rows: DeepPartial<T>[],
+        where: Where<T>,
+        transaction: Transaction | undefined,
+        related?: RelatedNarrowing
+    ): Promise<T[]> {
         if (!rows.length) {
             return [];
         }
@@ -586,7 +892,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         // statement. Both write the rows the filter matches once they are held
         if (rows.some(row => this.writesRelations(row)) || !this.filtersOwnColumnsOnly(where)) {
             return await this.inTransaction(transaction, async own => {
-                const held: Set<string> = new Set((await this.findLockedIds(where, own)).map(id => String(id)));
+                const held: Set<string> = new Set((await this.findLockedIds(where, related, own)).map(id => String(id)));
                 const matched: DeepPartial<T>[] = rows.filter(r => held.has(String(r.id)));
                 if (rows.some(row => this.writesRelations(row))) {
                     // an object through a statement, which merges it, as updateAll writes it next to a relation
@@ -706,23 +1012,38 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         identity: string[],
         rows: UpsertRow<T>[],
         transaction: Transaction | undefined,
-        reachable: Where<T> | undefined
+        reachable: Where<T> | undefined,
+        related?: RelatedNarrowing
     ): Promise<T[]> {
         // the data source rather than the driver, because the statement is dialect specific and the
         // driver is shared by every typeorm backed data source
-        return await this.run(async () => await this.dataSource.upsert(this.entityClass, identity, rows, transaction, reachable));
+        return await this.run(async () => await this.dataSource.upsert(this.entityClass, identity, rows, transaction, reachable, related));
     }
 
     /**
-     * Resolves what an update statement sets each column to: the value given, and for an object the
-     * stored one with the given one merged in.
+     * Resolves what an update statement sets each column to: the value given, for an object the
+     * stored one with the given one merged in, and for an amount what is stored plus the amount.
      * @param data - The change about to be written.
      * @param manager - The entity manager the statement is built with.
      * @param parameters - The named parameters of the statement, which this adds the ones it binds to.
+     * @param increments - The amounts to add, by property.
      * @returns The values to set.
      */
-    private resolveUpdateSet(data: DeepPartial<T>, manager: EntityManager, parameters: Record<string, unknown>): QueryDeepPartialEntity<T> {
+    private resolveUpdateSet(
+        data: DeepPartial<T>,
+        manager: EntityManager,
+        parameters: Record<string, unknown>,
+        increments: Record<string, number> | undefined
+    ): QueryDeepPartialEntity<T> {
         const res: QueryDeepPartialEntity<T> = { ...data } as QueryDeepPartialEntity<T>;
+        for (const [i, [key, amount]] of Object.entries(increments ?? {}).entries()) {
+            const column: string = manager.connection.driver.escape(
+                this.typeOrmRepository.metadata.findColumnWithPropertyName(key)?.databaseName ?? key
+            );
+            parameters[`increment_${i}`] = amount;
+            // a column holding no value counts as 0, as it does on every other store
+            Reflect.set(res, key, () => `COALESCE(${column}, 0) + :increment_${i}`);
+        }
         for (const [c, column] of this.declaredColumns.entries()) {
             const value: unknown = Reflect.get(data, column.propertyName);
             const metadata: PropertyMetadata | undefined = this.properties[column.propertyName];
@@ -802,14 +1123,26 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         return branches.every(branch => Object.values(branch).every(value => value === undefined));
     }
 
+    /**
+     * Whether a filter names columns of this table alone, and so can be answered inside a statement
+     * that writes it.
+     *
+     * Asked of the filter as the caller wrote it rather than of its conversion. A condition through
+     * a relation is converted into a statement over the related rows, attached to the id, and so
+     * looks like a condition on a column of this table. That statement names this row by the alias a
+     * select reads it under, which a statement writing the table has none of: in there the bare
+     * column name is read inside the statement over the related rows, as one of theirs, and the
+     * condition holds for every row.
+     * @param where - The filter.
+     * @returns Whether it reaches through no relation.
+     */
     private filtersOwnColumnsOnly(where: Where<T> | undefined): boolean {
-        const resolved: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = this.resolveWhere({ where });
-        if (resolved == undefined) {
+        if (where == undefined) {
             return true;
         }
-        const branches: FindOptionsWhere<T>[] = Array.isArray(resolved) ? resolved : [resolved];
-        const columns: Set<string> = new Set(this.declaredColumns.map(c => c.propertyName));
-        return branches.every(branch => Object.keys(branch).every(key => columns.has(key)));
+        const branches: WhereFilter<T>[] = Array.isArray(where) ? where : [where];
+        const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(this.entityClass);
+        return branches.every(branch => Object.keys(branch).every(key => !isRelationMetadata(properties[key])));
     }
 
     private async inTransaction<R>(
@@ -966,11 +1299,13 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         }
     }
 
-    private resolveWhere(options: DriverFindOptions<T>): FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined {
+    private resolveWhere(
+        options: Pick<DriverFindOptions<T>, 'where' | 'related'>
+    ): FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined {
         if (!options.where) {
             return undefined;
         }
-        return this.dataSource.whereFilterToFindOptionsWhere(options.where, this.entityClass);
+        return this.dataSource.whereFilterToFindOptionsWhere(options.where, this.entityClass, options.related);
     }
 
     /**
@@ -993,7 +1328,10 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         catch (error) {
             if (error instanceof TOQueryFailedError) {
                 const failed: QueryFailedError = new QueryFailedError(error as TOQueryFailedError);
-                const violated: string[] | undefined = this.dataSource.violatedUniqueProperties(error as TOQueryFailedError);
+                const violated: string[] | undefined = this.dataSource.findViolatedUniqueProperties(
+                    error as TOQueryFailedError,
+                    this.entityClass
+                );
 
                 // the same declaration refusing the same write has to be the same error whichever
                 // store it was made in, because `unique` is declared on the entity: an application
@@ -1007,6 +1345,12 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
                 const check: KeyWhere | undefined = this.dataSource.findViolatedCheck(error as TOQueryFailedError, this.entityClass);
                 if (check != undefined) {
                     throw new CheckConstraintViolationError(this.entityClass.name, check, { cause: failed });
+                }
+                // and a conflict that ended the transaction, which every store holding rows for a
+                // transaction ends the same way
+                const conflict: unknown = this.dataSource.resolveConflictError(error);
+                if (conflict instanceof TransactionConflictError) {
+                    throw conflict;
                 }
 
                 // a json column is the one place a stored value can contradict what the entity says

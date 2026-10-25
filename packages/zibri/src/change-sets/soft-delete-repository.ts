@@ -1,36 +1,41 @@
 import { ChangeSetRepository } from './change-set-repository';
-import { isSoftDeleteEntityNewable } from './models/is-soft-delete-entity.function';
-import { SoftDeleteEntity } from './models/soft-delete-entity.model';
-import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
-import { DeleteAllOptions } from '../data-source/models/options/delete-all-options.model';
-import { DeleteByIdOptions } from '../data-source/models/options/delete-by-id-options.model';
-import { PaginationResult } from '../open-api/pagination-result.model';
+import { SoftDeleteAggregateOptions } from './models/soft-delete-aggregate-options.model';
+import { Aggregated, GroupKeysOf, NumberKeysOf, OrderedKeysOf } from '../data-source/models/aggregate.model';
+import { EntitySelection, Projected } from '../entity/models/entity-selection.model';
+import { KeysetPage, PaginationResult } from '../open-api/pagination-result.model';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { ChangeSetType } from './models/change-set-type.enum';
+import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
+import { isSoftDeleteEntityNewable } from './models/is-soft-delete-entity.function';
 import { SoftDeleteCountOptions } from './models/soft-delete-count-options.model';
+import { SoftDeleteEntity } from './models/soft-delete-entity.model';
 import { SoftDeleteFindAllOptions } from './models/soft-delete-find-all-options.model';
 import { SoftDeleteFindAllPaginatedOptions } from './models/soft-delete-find-all-paginated-options.model';
 import { SoftDeleteFindByIdOptions } from './models/soft-delete-find-by-id-options.model';
 import { SoftDeleteFindOneOptions } from './models/soft-delete-find-one-options.model';
+import { SoftDeleteStreamOptions } from './models/soft-delete-stream-options.model';
 import { SoftDeleteUpdateAllOptions } from './models/soft-delete-update-all-options.model';
 import { SoftDeleteUpdateByIdOptions } from './models/soft-delete-update-by-id-options.model';
 import { SoftDeleteWhere, SoftDeleteWhereFilter } from './models/soft-delete-where.model';
 import { SoftDeletedRows } from './models/soft-deleted-rows.type';
-import { BeforeReturnHook } from '../data-source/hooks/before-return';
-import { BeforeSaveHook } from '../data-source/hooks/before-save';
-import { Where, WhereFilter } from '../data-source/models/where/where-filter.model';
-import { Repository, WrittenUpdate } from '../data-source/repository/repository';
-import { NotFoundError } from '../error-handling/errors/not-found.error';
-import { InternalError } from '../error-handling/internal-error.model';
-import { LoggerInterface } from '../logging/logger.interface';
-import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { AuthServiceInterface } from '../auth/auth-service.interface';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { RepositoryDriverInterface } from '../data-source/driver/repository-driver.interface';
+import { BeforeReturnHook } from '../data-source/hooks/before-return';
+import { BeforeSaveHook } from '../data-source/hooks/before-save';
+import { BaseRepositoryOptions } from '../data-source/models/options/base-repository-options.model';
+import { DeleteAllOptions } from '../data-source/models/options/delete-all-options.model';
+import { DeleteByIdOptions } from '../data-source/models/options/delete-by-id-options.model';
+import { UpdateAllData } from '../data-source/models/update-all-data.model';
+import { Where, WhereFilter } from '../data-source/models/where/where-filter.model';
 import { OwnedRelationUtilities } from '../data-source/owned-relation.utilities';
+import { Repository, WrittenUpdate } from '../data-source/repository/repository';
 import { Transaction } from '../data-source/transaction/transaction.model';
+import { NotFoundError } from '../error-handling/errors/not-found.error';
+import { InternalError } from '../error-handling/internal-error.model';
 import { $ts } from '../localization/translate.function';
+import { LoggerInterface } from '../logging/logger.interface';
 
 /**
  * The value each choice of soft deleted rows gives `deleted` in a filter. Undefined is a filter with
@@ -73,6 +78,24 @@ export class SoftDeleteRepository<
 >
     extends ChangeSetRepository<T, CreateData, UpdateData> {
 
+    /**
+     * Builds a repository of your own on the one the data source built for the entity: it reads and
+     * writes through that one, with its logger, its data source, its hooks and its change sets.
+     * @param entityClass - The entity this repository reads and writes.
+     * @param repo - The repository the data source built for it, which this class has to extend.
+     */
+    constructor(entityClass: Newable<T>, repo: SoftDeleteRepository<T>);
+    /**
+     * Builds a repository over a driver, or over another repository with hooks of its own.
+     * @param entityClass - The entity this repository reads and writes.
+     * @param repo - The driver, or the repository whose driver is read and written through.
+     * @param logger - What the repository logs through.
+     * @param dataSource - The data source the repository belongs to.
+     * @param beforeSave - What runs on every row before it is written.
+     * @param beforeReturn - What runs on every row before it is handed back.
+     * @param authService - Where the user making a change is read from.
+     * @param changeSetRepository - Where the change sets are written.
+     */
     constructor(
         entityClass: Newable<T>,
         repo: RepositoryDriverInterface<T> | Repository<T>,
@@ -82,43 +105,90 @@ export class SoftDeleteRepository<
         beforeReturn: BeforeReturnHook<T>,
         authService: AuthServiceInterface,
         changeSetRepository: Repository<ChangeSet, CreateChangeSetData>
+    );
+    constructor(
+        entityClass: Newable<T>,
+        repo: RepositoryDriverInterface<T> | Repository<T>,
+        logger?: LoggerInterface,
+        dataSource?: DataSourceInterface,
+        beforeSave?: BeforeSaveHook<T, CreateData, UpdateData>,
+        beforeReturn?: BeforeReturnHook<T>,
+        authService?: AuthServiceInterface,
+        changeSetRepository?: Repository<ChangeSet, CreateChangeSetData>
     ) {
-        super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn, authService, changeSetRepository);
+        super(
+            entityClass,
+            repo,
+            ...Repository.resolveParts(repo, logger, dataSource, beforeSave, beforeReturn),
+            ...ChangeSetRepository.resolveChangeSetParts(repo, authService, changeSetRepository)
+        );
         this.keysToExcludeFromChangeSets.add('deleted');
         this.keysToExcludeFromChangeSets.add('deletedWith');
     }
 
-    override async findAll(options?: SoftDeleteFindAllOptions<T>): Promise<T[]> {
-        return await super.findAll({
+    override async findAll<const S extends EntitySelection<T> | undefined = undefined>(
+        options?: SoftDeleteFindAllOptions<T, S>
+    ): Promise<Projected<T, S>[]> {
+        return await super.findAll<S>({
             ...options,
             where: this.softDeleteWhereToWhere(options?.deleted, options?.where)
         });
     }
 
-    override async findOne<B extends boolean = true>(
-        options: SoftDeleteFindOneOptions<T, B>
-    ): Promise<B extends false ? T | undefined : T> {
-        return await super.findOne({
+    override async findOne<B extends boolean = true, const S extends EntitySelection<T> | undefined = undefined>(
+        options: SoftDeleteFindOneOptions<T, B, S>
+    ): Promise<B extends false ? Projected<T, S> | undefined : Projected<T, S>> {
+        return await super.findOne<B, S>({
             ...options,
             where: this.softDeleteWhereToWhere(options?.deleted, options?.where)
         });
     }
 
-    override async findById<B extends boolean = true>(
+    override async findById<B extends boolean = true, const S extends EntitySelection<T> | undefined = undefined>(
         id: T['id'],
-        options?: SoftDeleteFindByIdOptions<T, B>
-    ): Promise<B extends false ? T | undefined : T> {
+        options?: SoftDeleteFindByIdOptions<T, B, S>
+    ): Promise<B extends false ? Projected<T, S> | undefined : Projected<T, S>> {
         // delegates, but cannot be dropped: it is what widens options to SoftDeleteFindByIdOptions.
         // The guard is the findOne the base reads through, which resolves to this class's override
         // and is handed `deleted` along with everything else
-        return await super.findById(id, options);
+        return await super.findById<B, S>(id, options);
     }
 
-    override async count(options?: SoftDeleteCountOptions<T>): Promise<number> {
-        return await super.count({
+    override async count<const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        options?: SoftDeleteCountOptions<T, G>
+    ): Promise<Aggregated<T, G, 'count', number>> {
+        return await super.count<G>({
             ...options,
             where: this.softDeleteWhereToWhere(options?.deleted, options?.where)
         });
+    }
+
+    override async sum<const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: NumberKeysOf<T>,
+        options?: SoftDeleteAggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'sum', number>> {
+        return await super.sum<G>(property, { ...options, where: this.softDeleteWhereToWhere(options?.deleted, options?.where) });
+    }
+
+    override async average<const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: NumberKeysOf<T>,
+        options?: SoftDeleteAggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'average', number | undefined>> {
+        return await super.average<G>(property, { ...options, where: this.softDeleteWhereToWhere(options?.deleted, options?.where) });
+    }
+
+    override async minimum<K extends OrderedKeysOf<T>, const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: K,
+        options?: SoftDeleteAggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'minimum', NonNullable<T[K]> | undefined>> {
+        return await super.minimum<K, G>(property, { ...options, where: this.softDeleteWhereToWhere(options?.deleted, options?.where) });
+    }
+
+    override async maximum<K extends OrderedKeysOf<T>, const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: K,
+        options?: SoftDeleteAggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'maximum', NonNullable<T[K]> | undefined>> {
+        return await super.maximum<K, G>(property, { ...options, where: this.softDeleteWhereToWhere(options?.deleted, options?.where) });
     }
 
     override async exists(options?: SoftDeleteCountOptions<T>): Promise<boolean> {
@@ -128,12 +198,32 @@ export class SoftDeleteRepository<
         });
     }
 
-    override async findAllPaginated(
+    override async findAllPaginated<const S extends EntitySelection<T> | undefined = undefined>(
         page: number,
         limit: number,
-        options?: SoftDeleteFindAllPaginatedOptions<T>
-    ): Promise<PaginationResult<T>> {
-        return await super.findAllPaginated(page, limit, {
+        options?: SoftDeleteFindAllPaginatedOptions<T, S>
+    ): Promise<PaginationResult<Projected<T, S>>> {
+        return await super.findAllPaginated<S>(page, limit, {
+            ...options,
+            where: this.softDeleteWhereToWhere(options?.deleted, options?.where)
+        });
+    }
+
+    override async findAllAfter<const S extends EntitySelection<T> | undefined = undefined>(
+        cursor: string | undefined,
+        limit: number,
+        options?: SoftDeleteFindAllPaginatedOptions<T, S>
+    ): Promise<KeysetPage<Projected<T, S>>> {
+        return await super.findAllAfter<S>(cursor, limit, {
+            ...options,
+            where: this.softDeleteWhereToWhere(options?.deleted, options?.where)
+        });
+    }
+
+    override async* stream<const S extends EntitySelection<T> | undefined = undefined>(
+        options?: SoftDeleteStreamOptions<T, S>
+    ): AsyncIterable<Projected<T, S>> {
+        yield* super.stream<S>({
             ...options,
             where: this.softDeleteWhereToWhere(options?.deleted, options?.where)
         });
@@ -141,7 +231,7 @@ export class SoftDeleteRepository<
 
     override async updateAll<R extends boolean = false>(
         where: SoftDeleteWhere<T>,
-        data: UpdateData,
+        data: UpdateAllData<T, UpdateData>,
         options?: SoftDeleteUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
         return await this.withinTimeout(options, 'updateAll', async () => {

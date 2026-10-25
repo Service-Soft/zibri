@@ -16,11 +16,12 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -41,6 +42,7 @@ class ShutdownFsBackupTransport extends BaseFsBackupTransport {
 @DataSource()
 class ShutdownDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, BackupEntity, BackupResourceEntity];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 /**
@@ -206,7 +208,7 @@ describe('BackupService — a backup when the application stops', () => {
         assert(error instanceof Error, 'the backup did not fail');
         expect(error.message).toContain('The backup "stopped" was stopped because the application is shutting down');
         expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'stopped'))).toBe(false);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('lets a running backup finish within BACKUP_SHUTDOWN_WAIT_IN_MS', async () => {
         server = await startServer(Ms.SECOND * 10);
@@ -218,7 +220,7 @@ describe('BackupService — a backup when the application stops', () => {
 
         expect(await backup.ended).toBeUndefined();
         expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'waited-for', 'metadata.json'))).toBe(true);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('stops a running backup once BACKUP_SHUTDOWN_WAIT_IN_MS is over', async () => {
         server = await startServer(Ms.SECOND / 2);
@@ -233,7 +235,7 @@ describe('BackupService — a backup when the application stops', () => {
         expect(Date.now() - startedAt).toBeLessThan(Ms.SECOND * 10);
         expect(await backup.ended).toBeInstanceOf(Error);
         expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'waited-for-in-vain'))).toBe(false);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('BackupService — a restore when the application stops', () => {
@@ -270,7 +272,7 @@ describe('BackupService — a restore when the application stops', () => {
         expect(error.message).toContain('The restore of backup "stopped-restore" was stopped because the application is shutting down');
         expect(firstStore.value).toBe('current');
         expect(secondStore.value).toBe('current');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('BackupService — a restore the process was killed in', () => {

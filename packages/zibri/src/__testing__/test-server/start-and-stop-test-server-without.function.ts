@@ -1,10 +1,12 @@
 import { InMemoryDataSource, StartTestServerOptions } from 'zibri-testing';
 
-import { defaultTestServerEntities } from './create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from './create-test-data-source.function';
 import { StartedTestServer, startTestServer } from './start-test-server.function';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
+import { MetadataUtilities } from '../../utilities/metadata.utilities';
 
 /**
  * Starts a test server whose data source declares every default entity except the given ones, and
@@ -28,6 +30,9 @@ export async function startAndStopTestServerWithout(
     @DataSource({ allowOrphan: true })
     class WithoutEntitiesDataSource extends InMemoryDataSource {
         override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities.filter(e => !entities.includes(e));
+        // the repositories of the entities left out go with them
+        override readonly repositories: RepositoryClass[] = defaultTestServerRepositories
+            .filter(r => this.entities.some(e => e === MetadataUtilities.getRepositoryForMetadata(r)?.entity));
     }
 
     const server: StartedTestServer = await startTestServer({ ...options, dataSources: [WithoutEntitiesDataSource] });

@@ -1,50 +1,47 @@
-import { isUserService } from './user-service.interface';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { BaseUser } from '../models/base-user.model';
 
+/**
+ * Marks the repository users are read from and written to. `BaseUserRepository()` sets it.
+ */
+export const USER_REPOSITORY: unique symbol = Symbol('zibri.user-repository');
+
+// methods rather than properties holding functions, so that a class extending one implementing it,
+// such as one extending BaseUserRepository(), can override them: a property of the interface would
+// be one of the class the mixin answers, which a method of a subclass cannot override
+/* eslint-disable typescript/method-signature-style */
 /**
  * Interface for a User Repository.
  */
 export interface UserRepositoryInterface<RoleType extends string, UserType extends BaseUser<RoleType>> {
     /**
+     * Marks the repository as the one users are read from and written to.
+     */
+    readonly [USER_REPOSITORY]: true,
+    /**
      * Finds a by the provided id.
      */
-    findById: (id: UserType['id']) => Promise<UserType>,
+    findById(id: UserType['id']): Promise<UserType>,
     /**
      * Finds a user by the provided email.
      */
-    findByEmail: (mail: UserType['email']) => Promise<UserType>,
+    findByEmail(mail: UserType['email']): Promise<UserType>,
     /**
      * Stores when a user was deactivated, or null to reactivate them.
      */
-    updateDeactivatedAt: (id: UserType['id'], deactivatedAt: Date | null, transaction: Transaction | undefined) => Promise<void>
+    updateDeactivatedAt(id: UserType['id'], deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void>,
+    /**
+     * Stores the roles a user holds of their own.
+     */
+    updateRoles(id: UserType['id'], roles: string[], transaction: Transaction | undefined): Promise<void>
 }
+/* eslint-enable typescript/method-signature-style */
 
 /**
  * Checks whether or not the given value is a user repository.
  * @param value - The value to check.
- * @returns True if the value has all the keys of UserRepositoryInterface, false otherwise.
+ * @returns True if the value carries the mark of UserRepositoryInterface, false otherwise.
  */
 export function isUserRepository(value: unknown): value is UserRepositoryInterface<string, BaseUser<string>> {
-    const keys: (keyof UserRepositoryInterface<string, BaseUser<string>>)[] = [
-        'findByEmail',
-        'findById',
-        'updateDeactivatedAt'
-    ];
-
-    if (value == undefined || typeof value !== 'object') {
-        return false;
-    }
-
-    for (const key of keys) {
-        if (!(key in value)) {
-            return false;
-        }
-    }
-
-    if (isUserService(value)) {
-        return false;
-    }
-
-    return true;
+    return value != undefined && typeof value === 'object' && USER_REPOSITORY in value;
 }

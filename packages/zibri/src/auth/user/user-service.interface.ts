@@ -45,11 +45,29 @@ export interface UserServiceInterface {
      */
     updateDeactivatedAt: (id: string, deactivatedAt: Date | null, transaction: Transaction | undefined) => Promise<void>,
     /**
+     * Stores the roles a user holds of their own, in the user repository that holds them.
+     * @throws A NotFoundError when no user repository holds the user.
+     */
+    updateRoles: (id: string, roles: string[], transaction: Transaction | undefined) => Promise<void>,
+    /**
      * Whether the rows of an entity are users, because a user repository reads them.
      *
      * Asked by every repository deleting rows, so that the memberships of a deleted user go with them.
      */
-    isUserEntity: (entityClass: Newable<BaseEntity>) => boolean
+    isUserEntity: (entityClass: Newable<BaseEntity>) => boolean,
+    /**
+     * Finds the roles stored users hold other than the given ones, eg. To refuse starting an
+     * application whose users hold a role that does not exist.
+     *
+     * Reads the users of every user repository built on the data layer.
+     */
+    findUnknownRoles: (known: string[]) => Promise<string[]>,
+    /**
+     * Whether a stored user holds a role, eg. To refuse deleting it.
+     *
+     * Reads the users of every user repository built on the data layer.
+     */
+    isRoleHeld: (role: string) => Promise<boolean>
 }
 
 /**
@@ -62,7 +80,10 @@ export function isUserService(value: unknown): value is UserServiceInterface {
         'findByEmail',
         'findById',
         'updateDeactivatedAt',
+        'updateRoles',
         'isUserEntity',
+        'findUnknownRoles',
+        'isRoleHeld',
         'userRepositories'
     ];
 

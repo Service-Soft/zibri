@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { CrudController } from './crud-controller.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -36,15 +37,15 @@ describe('CrudController', () => {
     beforeAll(async () => {
         server = await startTestServer({
             controllers: [NoteController, WideNoteController],
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, CrudNote] })]
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, CrudNote], repositories: defaultTestServerRepositories })]
         });
         baseUrl = await server.start();
         await inject(repositoryTokenFor(CrudNote)).createAll(Array.from({ length: 501 }, (_, i) => ({ position: i })));
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Reads a page of notes.

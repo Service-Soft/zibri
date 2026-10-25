@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { isCache } from './cache.interface';
 import { WriteThroughReadThroughCache } from './read-through/write-through-read-through.cache';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -31,11 +32,11 @@ describe('isCache', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('returns true for a real cache instance', () => {
         const cache: IsCacheTestCache = inject(IsCacheTestCache);

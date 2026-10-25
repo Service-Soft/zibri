@@ -6,8 +6,8 @@ import 'dotenv/config';
 import { Browser, chromium, Page } from 'playwright';
 
 import { PayPalPaymentData, PayPalPaymentProvider, PayPalPaymentProviderPaymentData, PayPalValidatedPaymentData } from './pay-pal.payment-provider';
-import { testFileFolder } from '../../../../__testing__/constants';
-import { createTestDataSource, defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../../../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -122,7 +122,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
 
         testServer = await startTestServer({
             plugins: [new ZibriPaymentPlugin()],
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment], repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -151,11 +151,11 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
         });
         paymentService = inject<PaymentServiceInterface<[KnownPaymentMethod.PAY_PAL], [PayPalPaymentProvider]>>(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.PAYMENT_SERVICE);
         paymentRepository = inject(repositoryTokenFor(Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData>));
-    }, 20000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await testServer.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     describe('validatePaymentData', () => {
         it('accepts valid data', async () => {

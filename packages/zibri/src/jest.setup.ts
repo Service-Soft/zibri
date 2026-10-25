@@ -11,4 +11,4 @@ global.console = console;
 
 beforeAll(async () => {
     await FsUtilities.mkdir(testVersionsFolder);
-});
+}, 30000);

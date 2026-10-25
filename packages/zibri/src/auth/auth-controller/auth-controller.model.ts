@@ -4,6 +4,7 @@ import { AuthControllerOptions } from './auth-controller-options.model';
 import { FEDERATED_ROUTE } from './auth-controller-routes.model';
 import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 import { AuthControllerUtilities } from './auth-controller.utilities';
+import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { IsolationLevel } from '../../data-source/data-sources/data-source.interface';
@@ -40,6 +41,7 @@ import { ConnectingAuthenticatorInterface, isConnectingAuthenticator } from '../
 import { ConnectionCompletingAuthenticatorInterface, isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface';
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
+import { FederatedLogoutTokenForm } from '../authenticators/federated/federated-logout-token-form.model';
 import { FederatedProviderLogoutMessage } from '../authenticators/federated/federated-provider-logout-message.model';
 import { FederatedRouteUtilities } from '../authenticators/federated/federated-route.utilities';
 import { FederatedSignInResult } from '../authenticators/federated/federated-sign-in-result.model';
@@ -185,10 +187,12 @@ export function AuthController<
         // a controller the framework defines cannot know which one that was.
         //
         // They share one budget per caller: a password is the one secret short enough to guess, and
-        // checking one costs a deliberately slow hash
+        // checking one costs a deliberately slow hash. A login that succeeds is given back, so the
+        // budget counts guesses rather than people: an office behind one address logs in as often as
+        // it likes, and still gets twenty wrong passwords across all its accounts before it waits
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
-        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, { refundOnSuccess: true })
         @respondsWith(strategies.map(s => () => inject(s).authDataModel))
         @Post('/login')
         async login(
@@ -304,7 +308,7 @@ export function AuthController<
                 // resolved user, so by then those have been filtered out. They are the ones worth seeing:
                 // the reply is identical either way, so a run against a list of addresses leaves no other
                 // trace anywhere.
-                inject(ZIBRI_DI_TOKENS.LOGGER).audit({
+                inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
                     action: AuditAction.PASSWORD_RESET_REQUESTED,
                     outcome: user ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
                     reason: user ? undefined : AuditReason.NO_SUCH_SUBJECT,
@@ -314,7 +318,7 @@ export function AuthController<
             }
             catch (error) {
                 await transaction.rollback();
-                inject(ZIBRI_DI_TOKENS.LOGGER).audit({
+                inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
                     action: AuditAction.PASSWORD_RESET_REQUESTED,
                     outcome: AuditOutcome.FAILURE,
                     reason: auditReasonFor(error),
@@ -546,6 +550,21 @@ export function AuthController<
             return await FederatedRouteUtilities.completeSoapLogout(provider, envelope);
         }
 
+        // where an OpenID Connect provider sends a logout token server to server, without a browser
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+        @Response.empty()
+        @Post(`${FEDERATED_ROUTE}/:provider/logout/back-channel`)
+        async backChannelProviderLogout(
+            @Param.path('provider')
+            provider: string,
+            @Body(FederatedLogoutTokenForm, { type: MimeType.FORM_URL_ENCODED })
+            form: FederatedLogoutTokenForm
+        ): Promise<void> {
+            await FederatedRouteUtilities.completeBackChannelLogout(provider, form.logout_token);
+        }
+
         // the document the provider is set up with, for a provider whose protocol publishes one
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
@@ -598,7 +617,7 @@ export function AuthController<
         @Get('/identities')
         async findIdentities(
             @CurrentUser()
-            user: BaseUser<string>
+            user: CurrentUser
         ): Promise<LinkedIdentity[]> {
             return await this.authService.findIdentities(user.id, undefined);
         }
@@ -609,7 +628,7 @@ export function AuthController<
         @Delete('/identities/:identityId')
         async unlinkIdentity(
             @CurrentUser()
-            user: BaseUser<string>,
+            user: CurrentUser,
             @Param.path('identityId')
             identityId: string
         ): Promise<void> {
@@ -626,7 +645,7 @@ export function AuthController<
         @Post('/2fa/register')
         async requestTwoFactorRegistration(
             @CurrentUser()
-            user: BaseUser<string>,
+            user: CurrentUser,
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined,
             @bodyOf(twoFactorMethods.map(m => () => inject(m).requestRegisterModel), false)
@@ -644,7 +663,7 @@ export function AuthController<
         @Post('/2fa/confirm')
         async confirmTwoFactorRegistration(
             @CurrentUser()
-            user: BaseUser<string>,
+            user: CurrentUser,
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined,
             @bodyOf(twoFactorMethods.map(m => () => inject(m).confirmRegisterModel), true)
@@ -662,7 +681,7 @@ export function AuthController<
         @Delete('/2fa/:method')
         async removeTwoFactorMethod(
             @CurrentUser()
-            user: BaseUser<string>,
+            user: CurrentUser,
             @Param.path('method')
             method: string
         ): Promise<void> {
@@ -677,12 +696,77 @@ export function AuthController<
         @Post('/2fa/start')
         async startSecondFactor(
             @CurrentUser()
-            user: BaseUser<string>,
+            user: CurrentUser,
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined
         ): Promise<unknown> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
             return await this.twoFactorService.startSecondFactor(user, instance);
+        }
+
+        // the routes a login that waits for its second factor continues at, each reached with the
+        // ticket the login answered with. Unauthenticated by necessity, like the login itself
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @Response.empty({ mimeTypes: [MimeType.JSON] })
+        @respondsWith(twoFactorMethods.map(m => () => inject(m).secondFactorStartModel))
+        @Post('/login/2fa/start')
+        async startSecondFactorAtLogin(
+            @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
+            method: string | undefined
+        ): Promise<unknown> {
+            const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
+            return await this.authService.startSecondFactorAtLogin(this.resolveLoginTicket(), instance);
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @Response.empty({ mimeTypes: [MimeType.JSON] })
+        @respondsWith(twoFactorMethods.map(m => () => inject(m).registrationModel))
+        @Post('/login/2fa/register')
+        async requestTwoFactorRegistrationAtLogin(
+            @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
+            method: string | undefined,
+            @bodyOf(twoFactorMethods.map(m => () => inject(m).requestRegisterModel), false)
+            data: object | undefined
+        ): Promise<unknown> {
+            const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
+            await AuthControllerUtilities.validateBody(data ?? {}, instance.requestRegisterModel);
+            return await this.authService.requestRegisterTwoFactorMethodAtLogin(this.resolveLoginTicket(), instance, data);
+        }
+
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @Response.empty()
+        @Post('/login/2fa/confirm')
+        async confirmTwoFactorRegistrationAtLogin(
+            @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
+            method: string | undefined,
+            @bodyOf(twoFactorMethods.map(m => () => inject(m).confirmRegisterModel), true)
+            data: object
+        ): Promise<void> {
+            const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
+            await AuthControllerUtilities.validateBody(data, instance.confirmRegisterModel);
+            await this.authService.confirmRegisterTwoFactorMethodAtLogin(this.resolveLoginTicket(), instance, data);
+        }
+
+        // on the login's budget: a factor is guessed at here, with a ticket a password already paid for
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        @Auth.skip({ allowRedundant: true })
+        @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, { refundOnSuccess: true })
+        @respondsWith(strategies.map(s => () => inject(s).authDataModel))
+        @Post('/login/2fa/complete')
+        async completeLogin(
+            @Param.query('strategy', { type: 'string', required: strategies.length > 1 })
+            strategy: string | undefined
+        ): Promise<unknown> {
+            const strategyClass: AuthControllerStrategyClass = AuthControllerUtilities.resolveNamed(strategies, strategy, 'strategy');
+            const ticket: string = this.resolveLoginTicket();
+            return await AuthControllerUtilities.runInTransaction(
+                strategyClass,
+                // eslint-disable-next-line typescript/no-unsafe-return
+                async transaction => await this.authService.completeLogin(ticket, strategyClass, transaction)
+            );
         }
 
         private async completeSignIn(provider: string, answer: URLSearchParams): Promise<RedirectResponse> {
@@ -725,6 +809,17 @@ export function AuthController<
                 return FederatedRouteUtilities.toFailure(error);
             }
         }
+
+        // read from the request rather than declared as a header parameter: the header's name is a
+        // token so that it can be renamed, and a decorator runs before any token is registered
+        private resolveLoginTicket(): string {
+            const header: string = inject(ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER);
+            const ticket: string | undefined = AlsUtilities.getCurrentRequestContext()?.request.headers?.[header];
+            if (!ticket) {
+                throw new UnauthorizedError($ts`"${header}" header not found`);
+            }
+            return ticket;
+        }
     }
 
     const groups: RouteGroup[] = [
@@ -741,6 +836,7 @@ export function AuthController<
                 'providerLogout',
                 'postedProviderLogout',
                 'soapProviderLogout',
+                'backChannelProviderLogout',
                 'metadata'
             ],
             present: federated.length > 0
@@ -749,7 +845,16 @@ export function AuthController<
         { routes: ['completeConnection'], present: completing.length > 0 },
         { routes: ['findIdentities', 'unlinkIdentity'], present: linking.length > 0 },
         {
-            routes: ['requestTwoFactorRegistration', 'confirmTwoFactorRegistration', 'removeTwoFactorMethod', 'startSecondFactor'],
+            routes: [
+                'requestTwoFactorRegistration',
+                'confirmTwoFactorRegistration',
+                'removeTwoFactorMethod',
+                'startSecondFactor',
+                'startSecondFactorAtLogin',
+                'requestTwoFactorRegistrationAtLogin',
+                'confirmTwoFactorRegistrationAtLogin',
+                'completeLogin'
+            ],
             present: twoFactorMethods.length > 0
         }
     ];

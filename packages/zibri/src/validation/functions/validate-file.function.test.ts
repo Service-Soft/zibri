@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { validateFile } from './validate-file.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { FilePropertyMetadata } from '../../entity/models/file-property-metadata.model';
@@ -43,11 +44,11 @@ describe('validateFile', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('returns no problems for a valid file within size and mime constraints', async () => {
         const problems: ValidationProblem[] = await validateFile('file', createFile(), meta(), undefined, undefined);

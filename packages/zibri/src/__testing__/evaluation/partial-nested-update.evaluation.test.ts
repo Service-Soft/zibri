@@ -7,7 +7,8 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -50,13 +51,13 @@ let server: StartedTestServer | undefined;
 let residents: Repository<Resident>;
 
 beforeAll(async () => {
-    server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Resident] })] });
+    server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Resident], repositories: defaultTestServerRepositories })] });
     residents = inject(repositoryTokenFor(Resident));
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 describe('evaluation/01-data-layer M61 - a partial nested object in an update', () => {
     it('changes what updateById names in a nested object and keeps the rest', async () => {

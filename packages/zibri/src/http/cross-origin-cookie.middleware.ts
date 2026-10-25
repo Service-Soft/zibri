@@ -57,7 +57,7 @@ export function crossOriginCookieMiddleware(cors: CorsOptions): RequestHandler {
         const isAccepted: boolean = origin != undefined && accepted.includes(origin);
         // recorded either way: a request with cookies from another origin that was let through is
         // one an audit should be able to find
-        inject(ZIBRI_DI_TOKENS.LOGGER).audit({
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
             action: AuditAction.AUTHORIZATION,
             outcome: isAccepted ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
             reason: AuditReason.CROSS_ORIGIN

@@ -1,5 +1,6 @@
 import { BinaryLike, createHash, createHmac } from 'node:crypto';
 
+import { S3Credentials } from './s3-credentials.model';
 import { S3SigningInput } from './s3-signing-input.model';
 
 // the names signature version 4 gives its algorithm, its service and its scope. They are part of the
@@ -15,18 +16,22 @@ const SERVICE: string = 's3';
  */
 export abstract class S3SignatureUtilities {
     /**
-     * Resolves the headers a request is sent with: the ones it was given, plus the date, the hash of the body and the signature.
+     * Resolves the headers a request is sent with: the ones it was given, plus the date, the hash of the body, the
+     * session token of temporary credentials and the signature.
      * @param input - The request to sign.
      * @returns The headers to send. `host` is not among them, the http client sets it from the url.
      */
     static resolveHeaders(input: S3SigningInput): Record<string, string> {
+        const credentials: S3Credentials = input.credentials;
         // 20130524T000000Z, and the date part of it for the scope
         const amzDate: string = input.date.toISOString().replaceAll(/[:-]|\.\d{3}/g, '');
         const scope: string = `${amzDate.slice(0, 8)}/${input.region}/${SERVICE}/${SCOPE_TERMINATOR}`;
+        // the session token among the signed headers, so that nothing on the way can swap it
         const headers: Record<string, string> = {
             ...input.headers,
             'x-amz-content-sha256': input.payloadHash,
-            'x-amz-date': amzDate
+            'x-amz-date': amzDate,
+            ...credentials.sessionToken == undefined ? {} : { 'x-amz-security-token': credentials.sessionToken }
         };
 
         const entries: [string, string][] = [['host', input.url.host], ...Object.entries(headers)];
@@ -48,7 +53,7 @@ export abstract class S3SignatureUtilities {
         ].join('\n');
         const stringToSign: string = [ALGORITHM, amzDate, scope, S3SignatureUtilities.hash(canonicalRequest)].join('\n');
 
-        let key: Buffer = S3SignatureUtilities.hmac(`${KEY_PREFIX}${input.secretAccessKey}`, amzDate.slice(0, 8));
+        let key: Buffer = S3SignatureUtilities.hmac(`${KEY_PREFIX}${credentials.secretAccessKey}`, amzDate.slice(0, 8));
         for (const part of [input.region, SERVICE, SCOPE_TERMINATOR]) {
             key = S3SignatureUtilities.hmac(key, part);
         }
@@ -56,7 +61,8 @@ export abstract class S3SignatureUtilities {
 
         return {
             ...headers,
-            authorization: `${ALGORITHM} Credential=${input.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+            authorization: `${ALGORITHM} Credential=${credentials.accessKeyId}/${scope}, `
+                + `SignedHeaders=${signedHeaders}, Signature=${signature}`
         };
     }
 
@@ -79,6 +85,17 @@ export abstract class S3SignatureUtilities {
         return createHash('sha256')
             .update(value)
             .digest('hex');
+    }
+
+    /**
+     * Resolves the `Content-MD5` of a body, which the service checks what it received against.
+     * @param body - The body.
+     * @returns Its md5 in base64.
+     */
+    static resolveContentMd5(body: BinaryLike): string {
+        return createHash('md5')
+            .update(body)
+            .digest('base64');
     }
 
     private static resolveCanonicalQuery(url: URL): string {

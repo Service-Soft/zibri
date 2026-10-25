@@ -5,6 +5,7 @@ import { FederatedCallbackForm } from './federated-callback-form.model';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
+import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
 import { FederatedSignInError } from './federated-sign-in.error';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
@@ -16,6 +17,7 @@ import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../di/errors/no-provider.error';
 import { inject } from '../../../di/inject.function';
 import { ErrorUtilities } from '../../../error-handling/error.utilities';
+import { ForbiddenError } from '../../../error-handling/errors/forbidden.error';
 import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../../global/global-registry';
@@ -192,7 +194,7 @@ export abstract class FederatedRouteUtilities {
             return this.toSignedOut(provider);
         }
         await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).endFederatedLogins(logout.session, undefined);
-        inject(ZIBRI_DI_TOKENS.LOGGER).audit({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
         if (logout.answer == undefined) {
             return this.toSignedOut(provider);
         }
@@ -212,7 +214,7 @@ export abstract class FederatedRouteUtilities {
     static async completeSoapLogout(provider: string, envelope: string): Promise<FileResponse> {
         const logout: FederatedSoapLogout = await inject(this.resolveAuthenticator(provider)).resolveSoapLogout(envelope);
         await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).endFederatedLogins(logout.session, undefined);
-        inject(ZIBRI_DI_TOKENS.LOGGER).audit({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
         // a file rather than a model written as xml, since it is signed and has to arrive as it was written
         return FileResponse.fromStream({
             stream: Readable.from([logout.answer]),
@@ -220,6 +222,20 @@ export abstract class FederatedRouteUtilities {
             mimeType: MimeType.TEXT_XML,
             size: Buffer.byteLength(logout.answer)
         });
+    }
+
+    /**
+     * Takes a logout token a provider sent server to server: ends the logins of the session, or of the
+     * person, the token names.
+     * @param provider - The name in the route.
+     * @param token - The token, exactly as it arrived.
+     * @throws NotFoundError when the application has no provider of that name, or it takes no logout tokens.
+     * @throws UnauthorizedError when the token cannot be verified.
+     */
+    static async completeBackChannelLogout(provider: string, token: string): Promise<void> {
+        const session: FederatedSessionMatch = await inject(this.resolveAuthenticator(provider)).resolveBackChannelLogout(token);
+        await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).endFederatedLogins(session, undefined);
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
     }
 
     /**
@@ -277,7 +293,7 @@ export abstract class FederatedRouteUtilities {
      * @returns The redirect.
      */
     static toConnection(userId: string, redirectTo: string): RedirectResponse {
-        inject(ZIBRI_DI_TOKENS.LOGGER).audit({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId });
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId });
         return RedirectResponse.to(new URL(redirectTo));
     }
 
@@ -309,14 +325,29 @@ export abstract class FederatedRouteUtilities {
         if (!ErrorUtilities.isRefusal(error)) {
             throw error;
         }
-        inject(ZIBRI_DI_TOKENS.LOGGER).audit({
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
             action: error instanceof FederatedSignInError ? error.action : AuditAction.LOGIN,
             outcome: AuditOutcome.FAILURE,
             reason: auditReasonFor(error)
         });
         const url: URL = new URL(this.resolveOptions().errorUrl);
-        url.searchParams.set('error', error instanceof FederatedSignInError ? error.failure : FederatedSignInFailure.EXPIRED);
+        url.searchParams.set('error', this.toFailureCode(error));
         return RedirectResponse.to(url);
+    }
+
+    /**
+     * What the error url is told about a refusal.
+     * @param error - The refusal.
+     * @returns The failure.
+     */
+    private static toFailureCode(error: unknown): FederatedSignInFailure {
+        if (error instanceof FederatedSignInError) {
+            return error.failure;
+        }
+        // a sign-in that was proven and then turned away: the account is deactivated or locked, or the
+        // authenticator refused it. Everything else a refusal can be here is a code or a ticket that
+        // is no longer good
+        return error instanceof ForbiddenError ? FederatedSignInFailure.REFUSED : FederatedSignInFailure.EXPIRED;
     }
 
     /**

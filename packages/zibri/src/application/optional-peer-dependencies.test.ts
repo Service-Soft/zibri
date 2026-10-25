@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from '@jest/globals';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 
 import { JsonUtilities } from '../utilities/json.utilities';
 
@@ -32,18 +32,41 @@ const builtRegister: string = path.join(packageDir, 'dist', 'cjs', 'utilities', 
 const builtXlfTransform: string = path.join(
     packageDir, 'dist', 'cjs', 'localization', 'xlf', 'transform-source-translation-tokens.function.js'
 );
+// the test harness, a package of its own that a consumer installs beside the framework. Its built
+// output rather than its sources, which is what a consumer loads: needs `npm run build -w zibri-testing`
+const harnessDir: string = path.resolve(packageDir, '..', 'testing');
+const builtHarness: string = path.join(harnessDir, 'dist', 'index.js');
 
 /**
  * The peers the manifest says a consumer may leave out.
+ * @param manifestDir - The package whose manifest to read, the framework's by default.
  * @returns Their package names.
  */
-function optionalPeers(): string[] {
+function optionalPeers(manifestDir: string = packageDir): string[] {
     const manifest: { peerDependenciesMeta?: Record<string, { optional?: boolean }> } = JsonUtilities.parse(
-        readFileSync(path.join(packageDir, 'package.json'), 'utf8')
+        readFileSync(path.join(manifestDir, 'package.json'), 'utf8')
     );
     return Object.entries(manifest.peerDependenciesMeta ?? {})
         .filter(([, meta]) => meta.optional === true)
         .map(([name]) => name);
+}
+
+/**
+ * Reads a section of a docs page, up to the next heading of its level or above.
+ * @param page - The page, relative to `docs`.
+ * @param heading - The heading line, such as `## Optional packages`.
+ * @throws When there is no heading in the page.
+ * @returns The section, its heading included.
+ */
+function resolveDocsSection(page: string, heading: string): string {
+    const lines: string[] = readFileSync(path.join(packageDir, 'docs', page), 'utf8').split('\n');
+    const start: number = lines.indexOf(heading);
+    if (start === -1) {
+        throw new Error(`docs/${page} has no "${heading}"`);
+    }
+    const level: number = heading.indexOf(' ');
+    const end: number = lines.findIndex((line, i) => i > start && /^#+ /.test(line) && line.indexOf(' ') <= level);
+    return lines.slice(start, end === -1 ? undefined : end).join('\n');
 }
 
 /**
@@ -88,6 +111,49 @@ function inConsumerProcess<T>(script: string): T {
         timeout: 60_000
     });
     return JsonUtilities.parse(output);
+}
+
+/**
+ * What the built source translation extractor found in the framework's own sources.
+ */
+type Extraction = {
+    /**
+     * The version of TypeScript it read them with.
+     */
+    version: string,
+    /**
+     * How many translations it found.
+     */
+    count: number
+};
+
+/**
+ * Runs the built source translation extractor over the framework's own sources, with whatever
+ * `typescript` resolves to replaced by another installed package.
+ * @param installedAs - The package `typescript` resolves to.
+ * @returns The version it ran on, and what it found.
+ */
+function extractingWith(installedAs: string): Extraction {
+    return inConsumerProcess(`
+        import Module from 'node:module';
+        const resolve = Module._resolveFilename;
+        Module._resolveFilename = function (request, ...rest) {
+            return resolve.call(this, request === 'typescript' ? ${JsonUtilities.stringify(installedAs)} : request, ...rest);
+        };
+        const require = Module.createRequire(process.cwd() + '/index.cjs');
+        const { transformSourceTranslationOriginTokens } = require(${JsonUtilities.stringify(builtXlfTransform)});
+        const result = await transformSourceTranslationOriginTokens([{
+            origin: 'zibri',
+            originLocale: 'en-US',
+            // the framework's own sources only: "__testing__" is where other suites write files of
+            // their own while this one reads, the docs examples among them
+            patterns: { include: 'src/**/*.{ts,tsx}', exclude: ['**/*.test.{ts,tsx}', '**/__testing__/**'] }
+        }]);
+        console.log(JSON.stringify({
+            version: require('typescript').version,
+            count: Object.values(result).flatMap(file => file.extracted).length
+        }));
+    `);
 }
 
 /**
@@ -301,6 +367,32 @@ describe('typescript', () => {
         expect(res.message).toContain('typescript');
         expect(res.message).toContain('npm i typescript');
     });
+
+    // round-2 07 §T6: the extractor runs on the application's own TypeScript, so every major the peer
+    // range admits is one it reads the sources with. TypeScript 6 is installed here as `typescript-6`
+    describe('on every major the peer range admits', () => {
+        let extractions: Extraction[];
+
+        beforeAll(() => {
+            extractions = ['typescript', 'typescript-6'].map(installedAs => extractingWith(installedAs));
+        }, 240_000);
+
+        it('is admitted by the peer range', () => {
+            const manifest: { peerDependencies: Record<string, string> } = JsonUtilities.parse(
+                readFileSync(path.join(packageDir, 'package.json'), 'utf8')
+            );
+            const majors: (string | undefined)[] = (manifest.peerDependencies['typescript'] ?? '')
+                .split('||')
+                .map(range => /^\^(\d+)\./.exec(range.trim())?.[1]);
+
+            expect(extractions.map(extraction => extraction.version.split('.')[0]).filter(major => !majors.includes(major))).toStrictEqual([]);
+        });
+
+        it('finds the same translations on each', () => {
+            expect(extractions[0]?.count).toBeGreaterThan(0);
+            expect(new Set(extractions.map(extraction => extraction.count)).size).toBe(1);
+        });
+    });
 });
 
 describe('openapi3-ts', () => {
@@ -482,11 +574,7 @@ describe('@peculiar/x509', () => {
 describe('every optional peer', () => {
 
     it('is listed where a reader looks for what to install', () => {
-        const gettingStarted: string = readFileSync(path.join(packageDir, 'docs', 'getting-started.md'), 'utf8');
-        const section: string = gettingStarted.slice(
-            gettingStarted.indexOf('### Optional packages'),
-            gettingStarted.indexOf('## Usage')
-        );
+        const section: string = resolveDocsSection('getting-started.md', '### Optional packages');
         const listed: Set<string> = new Set([...section.matchAll(/`([^`]+)`/g)].map(match => match[1] ?? ''));
 
         // a package the table leaves out is one an upgrade finds missing at the first boot. The table
@@ -514,5 +602,84 @@ describe('socket.io-parser', () => {
         `);
 
         expect(res.loaded).toBe(true);
+    });
+});
+
+describe('the test harness', () => {
+
+    it('declares ts-node as an optional peer', () => {
+        // every cluster instance is forked with `-r ts-node/register`, and the harness's manifest did
+        // not name it: a cluster started in a generated project only because the scaffold installs
+        // it for the application (round-2 07 §T2)
+        expect(optionalPeers(harnessDir)).toContain('ts-node');
+    });
+
+    it.each(optionalPeers(harnessDir))('loads without %s', name => {
+        const res: { loaded: boolean } = inConsumerProcess(`
+            ${hiding([name])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const harness = require(${JsonUtilities.stringify(builtHarness)});
+            console.log(JSON.stringify({ loaded: typeof harness.startTestServer === 'function' }));
+        `);
+
+        // `zi new` installs the harness alone and writes a first test against an in-memory data
+        // source, and npm installs no optional peer - so a top level import of one failed that test
+        // before it ran, in every generated project (round-2 07 §T2). Nothing else here sees it: every
+        // other suite runs in this workspace, where all of them are installed
+        expect(res.loaded).toBe(true);
+    });
+
+    it('says so by name when a container is started without testcontainers', () => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding(['testcontainers', '@testcontainers/postgresql'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { createPostgresTestDataSource, startDataSourceContainers } = require(${JsonUtilities.stringify(builtHarness)});
+            const { initDiContainer } = require('zibri');
+            // built before the container is initialized, which reads the registered classes once
+            const dataSource = createPostgresTestDataSource();
+            initDiContainer();
+            let message = 'it did not fail';
+            try {
+                await startDataSourceContainers([dataSource]);
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
+        `);
+
+        expect(res.message).toContain('testcontainers');
+        expect(res.message).toContain('npm i ');
+    });
+
+    it('says so by name when a cluster is started without ts-node', () => {
+        const res: { message: string } = inConsumerProcess(`
+            ${hiding(['ts-node'])}
+            const { createRequire } = await import('node:module');
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { startTestCluster } = require(${JsonUtilities.stringify(builtHarness)});
+            let message = 'it did not fail';
+            try {
+                // never read: the question is whether the cluster asks for ts-node before anything
+                // else, rather than leaving each forked instance to die on a bare MODULE_NOT_FOUND
+                await startTestCluster({ instanceOptions: '/nowhere/instance-options.ts' });
+            }
+            catch (error) {
+                message = error.message;
+            }
+            console.log(JSON.stringify({ message }));
+        `);
+
+        expect(res.message).toContain('ts-node');
+        expect(res.message).toContain('npm i ts-node');
+    });
+
+    it('lists every optional peer where a reader looks for what to install', () => {
+        const section: string = resolveDocsSection('testing.md', '## Optional packages');
+        const listed: Set<string> = new Set([...section.matchAll(/`([^`]+)`/g)].map(match => match[1] ?? ''));
+
+        expect(optionalPeers(harnessDir).filter(name => !listed.has(name))).toStrictEqual([]);
     });
 });

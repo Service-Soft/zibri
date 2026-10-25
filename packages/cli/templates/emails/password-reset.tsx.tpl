@@ -1,12 +1,12 @@
 import { $ts, MjButton, MjColumn, MjSection, MjText, PasswordResetEmailTemplate } from 'zibri';
 
-import { Roles, User } from '../../models';
+import { User } from '../../models';
 import { BaseEmail } from '../email-components/base-email';
 import { BaseEmailFooter } from '../email-components/base-email-footer';
 import { BaseEmailHeader } from '../email-components/base-email-header';
 import { EmailWrapper } from '../email-components/email-wrapper';
 
-export const PasswordResetEmail: PasswordResetEmailTemplate<Roles, User> = ({
+export const PasswordResetEmail: PasswordResetEmailTemplate<string, User> = ({
     confirmPasswordResetLink,
     user
 }) => {

@@ -3,7 +3,9 @@ import { InMemoryDataSource } from 'zibri-testing';
 
 import { DataSource } from './decorators/data-source.decorator';
 import { MigrationEntity } from './migration/migration-entity.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { RepositoryClass } from './repository/repository-class.type';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
@@ -108,36 +110,43 @@ class Memo extends BaseEntity {
 @DataSource({ allowOrphan: true })
 class NoteDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
 class ImportedNoteDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, ImportedNote];
+    override readonly repositories: RepositoryClass[] = [];
 }
 
 @DataSource({ allowOrphan: true })
 class NoteAndMemoDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note, Memo];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
 class MemoDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, Memo];
+    override readonly repositories: RepositoryClass[] = [];
 }
 
 @DataSource({ allowOrphan: true })
 class MemberDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Member, PostalAddress];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
 class CustomerDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Customer, CustomerInvoice];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
 class ShelfDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Shelf, Book];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
@@ -146,16 +155,19 @@ class WithoutChangeSetTablesDataSource extends InMemoryDataSource {
         ...defaultTestServerEntities.filter(e => e !== Change && e !== ChangeSet),
         Ledger
     ];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
 class LedgerDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Ledger];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @DataSource({ allowOrphan: true })
 class ArchiveDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [MigrationEntity, Change, ChangeSet, Archive];
+    override readonly repositories: RepositoryClass[] = [];
 }
 
 describe('DataSourceService — starting', () => {
@@ -163,7 +175,7 @@ describe('DataSourceService — starting', () => {
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [WithoutChangeSetTablesDataSource] });
 
         await expect(start).rejects.toThrow(/WithoutChangeSetTablesDataSource[\S\s]*Ledger[\S\s]*ChangeSet and Change/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a relation whose inverse side the target does not declare, and names it', async () => {
         // on every store, and before any of them is initialized: postgres used to fail building its
@@ -171,7 +183,7 @@ describe('DataSourceService — starting', () => {
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [ShelfDataSource] });
 
         await expect(start).rejects.toThrow(/ShelfDataSource[\S\s]*Shelf\.books names "shelf", which Book does not declare/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a relation between a tenant\'s entity and a shared one, both ways, and names it', async () => {
         // no write could ever set it: a row only points at rows of its own tenant, and a shared row
@@ -181,7 +193,7 @@ describe('DataSourceService — starting', () => {
         await expect(start).rejects.toThrow(
             /CustomerDataSource[\S\s]*Customer\.invoices points at CustomerInvoice[\S\s]*CustomerInvoice\.customer points at Customer/
         );
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses an entity that soft deletes, whose rows of a relation removed along with it cannot be, and names it', async () => {
         // soft deleting a member would leave its addresses counted, and deleting them for good would
@@ -189,30 +201,30 @@ describe('DataSourceService — starting', () => {
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [MemberDataSource] });
 
         await expect(start).rejects.toThrow(/MemberDataSource[\S\s]*Member\.addresses points at PostalAddress/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses two entities of the same name, in whichever data sources they are, and names them', async () => {
         // a repository is found by its entity's name, so the second would answer for both
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [NoteDataSource, ImportedNoteDataSource] });
 
         await expect(start).rejects.toThrow(/"Note"[\S\s]*NoteDataSource and ImportedNoteDataSource/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses two entities of one data source stored in the same table, and names them', async () => {
         const start: Promise<StartedTestServer> = startTestServer({ dataSources: [NoteAndMemoDataSource] });
 
         await expect(start).rejects.toThrow(/NoteAndMemoDataSource[\S\s]*"note": Note and Memo/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts with two entities of one table name in different data sources', async () => {
         // each data source is a store of its own, so the names never meet
         const server: StartedTestServer = await startTestServer({ dataSources: [NoteDataSource, MemoDataSource] });
         await server.shutdown();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts without Change and ChangeSet when nothing records change sets', async () => {
         await expect(startAndStopTestServerWithout([Change, ChangeSet])).resolves.toBeUndefined();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('keeps the change sets of each data source in that data source', async () => {
         const server: StartedTestServer = await startTestServer({ dataSources: [LedgerDataSource, ArchiveDataSource] });
@@ -228,5 +240,5 @@ describe('DataSourceService — starting', () => {
         finally {
             await server.shutdown();
         }
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });

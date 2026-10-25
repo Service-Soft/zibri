@@ -23,7 +23,7 @@ export class TokenResponse {
     expires_in!: number;
 
     /**
-     * The roles the token may use, separated by spaces.
+     * The permissions the token may use, separated by spaces.
      */
     @Property.string()
     scope!: string;

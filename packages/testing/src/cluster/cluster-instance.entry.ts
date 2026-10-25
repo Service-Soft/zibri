@@ -14,7 +14,7 @@ import { defaultClusterProviders } from './cluster-providers';
 import { registerAheadOfInit } from '../register-ahead-of-init.function';
 import { resolveApplicationOptions } from '../resolve-application-options.function';
 import { scratchProviders } from '../scratch-directory.function';
-import { applyContainerPort, needsContainer, TestDataSource } from '../start-data-source-containers.function';
+import { applyContainerPort, buildDataSources, needsContainer, TestDataSource } from '../start-data-source-containers.function';
 import { StartTestServerOptions } from '../start-test-server-options.model';
 
 /**
@@ -125,6 +125,7 @@ async function boot(): Promise<void> {
 
     // only the data sources that need a server of their own were given a container, and only a
     // container has a port to map. An in process one is declared like any other and skipped here.
+    await buildDataSources(dataSources);
     const withContainer: TestDataSource[] = dataSources.map(d => inject(d)).filter(needsContainer);
 
     if (withContainer.length !== ports.length) {

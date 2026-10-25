@@ -1,23 +1,26 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { UserRepositoryInterface } from './user-repository.interface';
+import { BaseUserRepository } from './base-user-repository.model';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryFor } from '../../data-source/repository/repository-for.decorator';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { Entity } from '../../entity/decorators/entity.decorator';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { Log } from '../../logging/log.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { PasswordCredentials } from '../authenticators/password/password-credentials.model';
-import { UserRepo } from '../decorators/user-repo.decorator';
+import { BaseUserEntity } from '../models/base-user.model';
 
 /**
  * What a login does while one of the places users are kept cannot be reached.
@@ -29,27 +32,25 @@ import { UserRepo } from '../decorators/user-repo.decorator';
  */
 
 /**
- * A user store that cannot be reached, next to the test server's own one.
+ * Users kept in a second place, such as a directory synchronized into a table of its own.
  */
-@UserRepo()
-class UnreachableUserRepository implements UserRepositoryInterface<Roles, JwtUser> {
-    async findById(): Promise<JwtUser> {
-        return await Promise.reject(new Error('connect ECONNREFUSED - the user directory is unreachable'));
-    }
+@Entity({ tenant: 'shared' })
+class DirectoryUser extends BaseUserEntity<string>() {}
 
-    async findByEmail(): Promise<JwtUser> {
+/**
+ * The repository of the second place, whose store cannot be reached: every login asks it, next to
+ * the test server's own one.
+ */
+@RepositoryFor(DirectoryUser)
+class UnreachableUserRepository extends BaseUserRepository<DirectoryUser>() {
+    override async findByEmail(): Promise<DirectoryUser> {
         return await Promise.reject(new Error('connect ECONNREFUSED - the user directory is unreachable'));
-    }
-
-    async updateDeactivatedAt(): Promise<void> {
-        await Promise.reject(new Error('connect ECONNREFUSED - the user directory is unreachable'));
     }
 }
-// the class exists to be registered by @UserRepo, which happens when it is declared
-void UnreachableUserRepository;
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: [...defaultTestServerEntities, DirectoryUser],
+    repositories: [...defaultTestServerRepositories, UnreachableUserRepository]
 });
 
 describe('logging in while a user store is down', () => {
@@ -93,11 +94,11 @@ describe('logging in while a user store is down', () => {
 
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
         await inject(repositoryTokenFor(PasswordCredentials)).create({ password, userId: user.id });
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('still logs in a user the reachable store holds', async () => {
         // one store being down must not lock out the users of another

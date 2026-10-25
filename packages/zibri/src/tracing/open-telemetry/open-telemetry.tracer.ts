@@ -67,6 +67,9 @@ export class OpenTelemetryTracer implements TracerInterface, OnAppInit, OnAppShu
         const sdk: OpenTelemetryNodeSdk = optionalPeer<OpenTelemetryNodeSdk>('@opentelemetry/sdk-trace-node', neededFor);
         const exporter: OpenTelemetrySpanExporter | undefined = inject(ZIBRI_DI_TOKENS.TRACE_EXPORTER);
 
+        // no sampler or batching options of its own: the sdk reads its OTEL_* environment variables
+        // for those, and a second set here would be a second way to say the same thing, and a way
+        // for the two to disagree
         this.provider = new sdk.NodeTracerProvider({
             spanProcessors: this.resolveSpanProcessors(sdk, exporter),
             // only for spans that leave: who recorded them is the question a backend holding several

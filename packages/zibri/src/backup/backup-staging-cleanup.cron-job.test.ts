@@ -5,7 +5,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { BackupStagingCleanupCronJob } from './backup-staging-cleanup.cron-job';
 import { RestoreJournalUtilities } from './restore-journal.utilities';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
 import { Repository } from '../data-source/repository/repository';
@@ -17,7 +18,8 @@ import { Ms } from '../utilities/ms';
 
 // in memory, because the job needs a running application and nothing of its data source
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 /**
@@ -47,11 +49,11 @@ describe('BackupStagingCleanupCronJob', () => {
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('removes what was abandoned, and keeps what is recent or what an interrupted restore still has to put back', async () => {
         const stagingFolder: FsPath = inject(ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER);

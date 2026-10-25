@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -25,7 +26,8 @@ class MigrationRollbackItem {
 }
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, MigrationRollbackItem]
+    entities: [...defaultTestServerEntities, MigrationRollbackItem],
+    repositories: defaultTestServerRepositories
 });
 
 @Injectable()
@@ -100,11 +102,11 @@ describe('Migration rollback behavior', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         itemRepository = inject(repositoryTokenFor(MigrationRollbackItem));
         migrationRepository = inject(repositoryTokenFor(MigrationEntity));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('runUp commits the migration data and records a migration entity', async () => {
         const migration: SucceedingMigration = inject(SucceedingMigration);

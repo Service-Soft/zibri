@@ -1,12 +1,13 @@
 import { beforeAll, afterAll, describe, it, expect } from '@jest/globals';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { Child } from '../../__testing__/mocks/entities/child.entity';
 import { Company } from '../../__testing__/mocks/entities/company.entity';
 import { Parent } from '../../__testing__/mocks/entities/parent.entity';
 import { Profile } from '../../__testing__/mocks/entities/profile.entity';
 import { Role } from '../../__testing__/mocks/entities/role.entity';
 import { User, UserCreateData, mockCreateUserData } from '../../__testing__/mocks/entities/user.entity';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -17,13 +18,13 @@ describe('cascade delete', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Parent, Child, User, Company, Profile, Role] })]
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Parent, Child, User, Company, Profile, Role], repositories: defaultTestServerRepositories })]
         });
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('deletes children when parent removed', async () => {
         const parentRepo: Repository<Parent> = inject(repositoryTokenFor(Parent));

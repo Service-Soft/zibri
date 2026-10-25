@@ -3,16 +3,18 @@ import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { PasswordCredentials, PasswordCredentialsCreateData } from './password-credentials.model';
 import { PasswordAuthenticator } from './password.authenticator';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Migration } from '../../../data-source/migration/migration.model';
 import { Repository } from '../../../data-source/repository/repository';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
@@ -66,7 +68,7 @@ describe('PasswordAuthenticator — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing PasswordAuthenticator[\S\s]*PasswordCredentials[\S\s]*PasswordResetToken/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 /**
@@ -86,6 +88,7 @@ describe('PasswordAuthenticator — a confirmed reset', () => {
     // allowed to go unused, because the other cases in this file boot without it
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     let server: StartedTestServer;
@@ -102,11 +105,11 @@ describe('PasswordAuthenticator — a confirmed reset', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('ends the logins of every strategy, not only of the one whose controller took it', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
@@ -204,6 +207,7 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
     @DataSource({ allowOrphan: true })
     class UpgradedDataSource extends InMemoryDataSource {
         override readonly entities: Newable<BaseEntity>[] = entities;
+        override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
         override readonly migrations: Newable<Migration>[] = migrations;
     }
 
@@ -257,11 +261,11 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
         migrations.push(MovePasswordsMigration);
         await server.reInit();
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs in with the password of either strategy once the upgrade migration moved them', async () => {
         expect(await login(baseUrl, 'jwt-only@example.com', 'jwt-password')).toBe(200);
@@ -294,6 +298,7 @@ describe('PasswordAuthenticator — passwords 2.x hashed with bcrypt', () => {
     @DataSource({ allowOrphan: true })
     class UpgradedDataSource extends InMemoryDataSource {
         override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+        override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
         override readonly migrations: Newable<Migration>[] = migrations;
     }
 
@@ -362,11 +367,11 @@ describe('PasswordAuthenticator — passwords 2.x hashed with bcrypt', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('moves a password to scrypt the next time its user signs in', async () => {
         expect(await findStoredStrategy(email)).toBe('bcrypt');
@@ -418,11 +423,11 @@ describe('PasswordAuthenticator — a password stored at a cost that has since b
         const user: JwtUser = await userRepo.create({ email, roles: [Roles.USER] });
         userId = user.id;
         await credentialsRepo.create({ password, userId });
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('rewrites the hash at the current cost on the next successful login', async () => {
         expect(await findStoredCost()).toBe('n=1024,r=8,p=1');

@@ -4,6 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
  * A sign-in at a provider that has been proven and not yet turned into a login.
@@ -35,6 +36,19 @@ export class FederatedHandoverCode extends BaseEntity {
      */
     @Property.date()
     authenticatedAt!: Date;
+
+    /**
+     * Everything the provider proved about who signed in, for the login to hand to the authenticator.
+     */
+    @Property.unknown()
+    claims!: Record<string, unknown>;
+
+    /**
+     * How the user proved who they are at the provider, for the login to keep. Null when the provider
+     * does not say.
+     */
+    @Property.unknown({ required: false })
+    providerAuthentication: ProviderAuthentication | undefined | null;
 
     /**
      * Identifies the person at the provider, for the login to keep. Null when the provider names no

@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { type Relation } from 'typeorm';
 
 import { Repository } from './repository';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -118,7 +119,7 @@ let commentRepo: Repository<Comment>;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Company, Profile, Tag, Group, Post, Comment, User] })]
+        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Company, Profile, Tag, Group, Post, Comment, User], repositories: defaultTestServerRepositories })]
     });
     userRepo = inject(repositoryTokenFor(User));
     companyRepo = inject(repositoryTokenFor(Company));
@@ -127,11 +128,11 @@ beforeAll(async () => {
     tagRepo = inject(repositoryTokenFor(Tag));
     groupRepo = inject(repositoryTokenFor(Group));
     commentRepo = inject(repositoryTokenFor(Comment));
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     // Clean all data in reverse dependency order

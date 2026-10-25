@@ -19,9 +19,8 @@ import { BaseUser } from '../models/base-user.model';
  * member of its tenant: its identity provider reaches that membership and nothing else.
  */
 export abstract class BaseScimProvisioner<
-    RoleType extends string,
-    UserType extends BaseUser<RoleType> = BaseUser<RoleType>,
-    MembershipType extends BaseMembership<RoleType> = BaseMembership<RoleType>
+    UserType extends BaseUser<string> = BaseUser<string>,
+    MembershipType extends BaseMembership<string> = BaseMembership<string>
 > {
     /**
      * Finds the existing user a newly provisioned resource stands for, such as by their email. The

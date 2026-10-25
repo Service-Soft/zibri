@@ -19,7 +19,7 @@ export const ALL_EVENTS_TYPE: string = 'zibri.all-events';
  * those still exist. Both read this table. Without it each process could only see its own
  * subscribers, so a replica that emitted an event marked it finished as soon as *its* subscribers had
  * run - and a subscriber living only on other replicas never ran at all, with nothing reporting a
- * failure. See evaluation/04-infrastructure-subsystems.md 1.4b.
+ * failure.
  *
  * One row per subscriber and event type, not per instance: replicas hosting the same subscriber are
  * copies of it, and it is the subscriber that owes the event a run rather than any one process.
@@ -27,6 +27,7 @@ export const ALL_EVENTS_TYPE: string = 'zibri.all-events';
  * Has to be registered in exactly one data source, for the same reason as the events themselves - two
  * stores would mean two registries and neither would see the other.
  */
+// see evaluation/04-infrastructure-subsystems.md 1.4b for the failure this table closed
 @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['subscriberId', 'eventType']] })
 export class EventSubscriberRegistration extends BaseEntity {
     /**

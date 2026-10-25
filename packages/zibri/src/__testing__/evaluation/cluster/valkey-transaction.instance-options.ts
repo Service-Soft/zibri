@@ -3,6 +3,7 @@ import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServe
 import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../../data-source/repository/repository';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { BaseEntity } from '../../../entity/base-entity.model';
@@ -11,7 +12,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
 
 /**
@@ -90,6 +91,7 @@ class ClusterTransactionValKeyDataSource extends ValKeyDataSource {
         keyPrefix: 'cluster-tx'
     };
     entities: Newable<BaseEntity>[] = [...defaultTestValKeyEntities, ValKeyCounter];
+    readonly repositories: RepositoryClass[] = [];
 }
 
 /**
@@ -207,7 +209,7 @@ const options: StartTestServerOptions = {
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark] }), ClusterTransactionValKeyDataSource],
+    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark], repositories: defaultTestServerRepositories }), ClusterTransactionValKeyDataSource],
     providers: defaultClusterProviders
 };
 

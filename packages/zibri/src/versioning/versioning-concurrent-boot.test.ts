@@ -3,8 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { VersionFile } from './version.model';
 import { VersioningService } from './versioning.service';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZibriApplication } from '../application/application';
@@ -59,17 +59,17 @@ describe('VersioningService — instances starting together on one versions fold
     beforeAll(async () => {
         server = await startTestServer({
             version: '1.0.0',
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             controllers: [ConcurrentBootController],
             providers: defaultTestServerProviders,
             additionalLifecycleServices: [ApplicationProbe]
         });
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await FsUtilities.rm(sharedVersionsDir);
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('records the first version once, and every instance starts', async () => {
         if (application == undefined) {

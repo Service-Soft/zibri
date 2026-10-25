@@ -36,6 +36,11 @@ export type FederatedRegistration = {
      */
     familyName: string | undefined,
     /**
+     * Everything the provider proved about them: the claims of an OpenID Connect ID token, the
+     * attributes of a SAML assertion, or what a provider that speaks plain OAuth2 answers about them.
+     */
+    claims: Record<string, unknown>,
+    /**
      * Where the sign-in was to go once it was done, one of the allowed redirects.
      */
     redirectTo: string

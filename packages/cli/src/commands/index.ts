@@ -3,3 +3,6 @@ export * from './resolve-command.function';
 export * from './help';
 export * from './version';
 export * from './new';
+export * from './upgrade';
+export * from './add';
+export * from './remove';

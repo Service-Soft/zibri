@@ -1,12 +1,12 @@
 # Rate limiting
-Rate limiting lets you cap how often a piece of code can run, per key (eg. per user or IP), using one of several interchangeable limiting algorithms.
+Rate limiting caps how often a piece of code runs, per key such as a user or an IP address. Each limiter uses one of several interchangeable algorithms.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `RateLimiter` | decorator | Registers a class as a rate limiter |
 | `RateLimited` | decorator | Applies a rate limiter to a controller method |
-| `RateLimitKeys` | class | Helpers for the common ways of saying what a limit is counted per: `perConnection` (the default), `perUser`, `GLOBAL`. Any key of your own works too |
+| `RateLimitKeys` | class | Helpers for the common ways of saying what a limit is counted per: `perConnection` (the default: an IPv4 address, an IPv6 /64, or a websocket connection), `perUser`, `GLOBAL`. Any key of your own works too |
 | `TokenBucketRateLimiter` | class | Allows bursts up to capacity, refills continuously |
 | `GcraRateLimiter` | class | Token bucket behavior tracked as a single timestamp |
 | `LeakyBucketMeterRateLimiter` | class | Smooths bursts by tracking accumulated "water" |
@@ -20,29 +20,28 @@ Rate limiting lets you cap how often a piece of code can run, per key (eg. per u
 | `RateLimitStateEntity` | class | The entity that `RepositoryRateLimiterStore` persists, add it to the entities of your data source |
 | `RateLimiterLockInterface` | interface | Guards the read-modify-write cycle of `RepositoryRateLimiterStore` |
 | `InProcessRateLimiterLock` | class | Lock for a single instance app |
-| `ValKeyRateLimiterLock` | class | Lock that lives on a valkey server, for apps that run more than once |
+| `ValKeyRateLimiterLock` | class | Lock that lives on a Valkey server, for apps that run more than once |
 | `RateLimiterStoreInterface` | interface | Contract for persisting limiter state |
 | `RateLimitStoreFailurePolicy` | enum | What a limiter does when it cannot reach its store: `REJECT` (the default) or `ALLOW` |
 | `TooManyRequestsError` | error | Thrown when a limit is exceeded and no reservation was made |
 | `RateLimitStoreUnavailableError` | error | Thrown (HTTP 503) when the limiter could not read its state and the policy is `REJECT` |
+| `TokenBucketState` | type | The state a `TokenBucketRateLimiter` keeps per key, which types its store |
+| `RateLimitingServiceInterface` | interface | The registered limiters, and `addLimiter` for one built while the application starts |
 | `ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE` | DI token | Injects `RateLimitingServiceInterface` |
 
-## Usage
-### Defining a limiter
-Extend one of the algorithm classes and decorate it with `@RateLimiter()`. The decorated class acts as its own DI token, so it doesn't need an entry in `ZIBRI_DI_TOKENS`.
+## Defining a limiter
+Extend one of the algorithm classes and decorate it with `@RateLimiter()`. The decorated class is its own DI token, so it needs no entry in `ZIBRI_DI_TOKENS`.
 
 ```ts
-// src/rate-limiters/test.rate-limiter.ts
-import { inject, InMemoryRateLimiterStore, Ms, RateLimiter, RateLimitStateEntity, RateLimitStoreFailurePolicy, RepositoryRateLimiterStore, repositoryTokenFor, TokenBucketRateLimiter, TokenBucketState, ValKeyRateLimiterLock } from 'zibri';
-
-import { CacheDbDataSource } from '../data-sources';
+// src/rate-limiters/task.rate-limiter.ts
+import { InMemoryRateLimiterStore, Ms, RateLimiter, TokenBucketRateLimiter, TokenBucketState } from 'zibri';
 
 @RateLimiter()
-export class TestRateLimiter extends TokenBucketRateLimiter {
+export class TaskRateLimiter extends TokenBucketRateLimiter {
     constructor() {
         super(
             Ms.MINUTE * 5, {
-                name: 'TestRateLimiter',
+                name: 'TaskRateLimiter',
                 store: new InMemoryRateLimiterStore<TokenBucketState>(),
                 capacity: 1,
                 maxReservationWaitMs: undefined
@@ -52,39 +51,46 @@ export class TestRateLimiter extends TokenBucketRateLimiter {
 }
 ```
 
-Every algorithm class takes an `intervalInMs` (or similar rate-defining argument) followed by a config object requiring at least `name`, `capacity`, `store` and `maxReservationWaitMs`.
+Every algorithm class takes an `intervalInMs`, or a similar argument that defines the rate, followed by a config object. The config needs at least `name`, `capacity`, `store` and `maxReservationWaitMs`.
 
-### Sharing limits across instances
-`InMemoryRateLimiterStore` only knows about the process it runs in, so as soon as an app runs more than once every instance has its own limits. `RepositoryRateLimiterStore` keeps the state in a data source instead, which means all instances share it. It goes through a repository, so it works with any data source — valkey and postgres alike:
+## Sharing limits across instances
+`InMemoryRateLimiterStore` keeps its state in the process, so each instance of an application has its own limits. `RepositoryRateLimiterStore` keeps the state in a data source, which every instance shares. It goes through a repository, so it works with any data source, Valkey and Postgres alike:
 
 ```ts
+// src/rate-limiters/task.rate-limiter.ts, as its store
+import { inject, RateLimitStateEntity, RepositoryRateLimiterStore, repositoryTokenFor, TokenBucketState, ValKeyRateLimiterLock } from 'zibri';
+
+import { CacheDbDataSource } from '../data-sources';
+
 new RepositoryRateLimiterStore<TokenBucketState>(
     inject(repositoryTokenFor(RateLimitStateEntity, CacheDbDataSource)),
     new ValKeyRateLimiterLock(inject(CacheDbDataSource)),
-    'TestRateLimiter'
+    'TaskRateLimiter'
 )
 ```
 
-Add `RateLimitStateEntity` to the `entities` of the data source that should hold the limits. It is marked `allowDuplicate`, so several data sources can hold their own limits — name the one you mean when injecting the repository.
+Add `RateLimitStateEntity` to the `entities` of the data source that holds the limits. It is marked `allowDuplicate`, so several data sources can hold limits of their own. Name the one you mean when you inject the repository.
 
-The third argument is the namespace, which keeps the state of each store apart from every other one in the same table — use the name of the limiter. A second store with a namespace that is already taken in the running application is refused.
+The third argument is the namespace. It keeps the state of each store apart from every other store in the same table. Use the name of the limiter. A second store with a namespace that is already taken in the running application is refused.
 
-The second argument is the lock. Reading the state, running the algorithm and writing the result are separate operations, so without a lock two concurrent updates read the same state and one of them is silently lost:
+The second argument is the lock. Reading the state, running the algorithm and writing the result are separate operations, and the lock keeps concurrent updates of one key apart. Without one, two concurrent updates read the same state and one of them is lost.
 
 | Lock | Use for |
 |---|---|
-| `InProcessRateLimiterLock` | a single instance — serializes per key inside the process |
-| `ValKeyRateLimiterLock` | multiple instances — takes the lock on the valkey server, expiring on its own so a dead instance cannot block a limit forever |
+| `InProcessRateLimiterLock` | A single instance. Serializes per key inside the process |
+| `ValKeyRateLimiterLock` | Several instances. Takes the lock on the Valkey server, and expires on its own, so an instance that dies cannot block a limit forever |
 
-Note that `WATCH` / `MULTI` / `EXEC` is *not* a working alternative for the valkey lock: `WATCH` is state of the connection, and the client multiplexes every command over a single one, so concurrent updates would all watch the same key on the same connection and silently lose each other's writes. You can also implement `RateLimiterStoreInterface` yourself.
+You can also implement `RateLimiterStoreInterface` yourself.
 
-A lock that lives outside the process has to expire on its own, or one instance dying takes a key with it. That means it can expire while the section it guards is still running — a slow query, a long garbage collection pause — and a second instance can then hold the same lock at the same time. `RepositoryRateLimiterStore` does not depend on that never happening: every state carries a `version` that the write compares as part of the update, so the second writer is refused and starts over against what the first one left behind, rather than overwriting it. The lock keeps that situation rare; the version is what makes it harmless. A lock of your own only has to provide mutual exclusion for the common case.
+A lock outside the process expires on its own, so it can expire while the update it guards is still running, and a second instance can then take it. `RepositoryRateLimiterStore` stays correct when that happens. Every state carries a `version`, and a write whose `version` changed in the meantime is refused and runs again against the newer state. No update is lost. A lock of your own only has to keep updates apart in the common case.
 
-### When the store cannot answer
-A limiter whose store is unreachable — the data source is down, the lock never came free, the store is full — knows nothing about the caller, so it can neither say yes nor say no truthfully. Which way to be wrong is a decision about what the limit protects, so it is yours to make:
+## When the store cannot answer
+A limiter whose store is unreachable knows nothing about the caller: the data source is down, the lock never came free, or the store is full. `onStoreFailure` says what the limiter does then:
 
 ```ts
 // src/rate-limiters/thumbnail.rate-limiter.ts
+import { InMemoryRateLimiterStore, Ms, RateLimiter, RateLimitStoreFailurePolicy, TokenBucketRateLimiter, TokenBucketState } from 'zibri';
+
 @RateLimiter()
 export class ThumbnailRateLimiter extends TokenBucketRateLimiter {
     constructor() {
@@ -99,119 +105,136 @@ export class ThumbnailRateLimiter extends TokenBucketRateLimiter {
 }
 ```
 
-`REJECT` is the default and answers `RateLimitStoreUnavailableError` — HTTP 503, not 500, because nothing about the request was wrong and retrying is reasonable. Keep it for anything the limit is protecting rather than shaping: a limit that quietly stops applying is one nobody finds out about until it mattered. `ALLOW` runs the call anyway, which suits a limiter that is only smoothing traffic and should not take an endpoint down along with the store.
+`REJECT` is the default. It answers with a `RateLimitStoreUnavailableError`, an HTTP 503, which tells the caller that retrying is reasonable. Keep it for a limit that protects something. `ALLOW` runs the call anyway. Use it for a limiter that only smooths traffic, so the endpoint stays up while the store is down.
 
-Either way the failure is counted on the limiter's error metric, so `ALLOW` does not mean invisible. A limit that says no is unaffected — that is still a `TooManyRequestsError`, whatever the policy.
+Either way the failure is counted on the limiter's error metric. A limit that says no is unaffected by the policy: it throws a `TooManyRequestsError`.
 
-### How many keys a limiter holds
-`InMemoryRateLimiterStore` keeps a key for as long as it is unexpired, and expired ones are cleared out in bulk every ten seconds. Under normal traffic that settles at roughly "distinct callers per window". If it does not, something is wrong rather than busy — usually a `keyFn` deriving keys from something with no natural bound, or an app that has outgrown a store living inside a single process. `maxKeys` is what the store holds at most, 100 000 by default:
+## How many keys a limiter holds
+`InMemoryRateLimiterStore` keeps a key while it is unexpired, and clears out the expired ones in bulk every ten seconds. Under normal traffic it holds about one key per distinct caller per window. A store that grows past that usually has a `keyFn` that derives keys from something without a natural bound, or belongs to an application that has outgrown a store inside one process. `maxKeys` caps the keys the store holds, 100 000 by default:
 
 ```ts
+// src/rate-limiters/task.rate-limiter.ts, as its store
+import { InMemoryRateLimiterStore, TokenBucketState } from 'zibri';
+
 new InMemoryRateLimiterStore<TokenBucketState>({ maxKeys: 5000 })
 ```
 
-A full store refuses keys it has never seen, which reaches the caller as whatever that limiter's `onStoreFailure` says, and reports itself once as an error in the log. Keys already in the store keep counting exactly, so what being full costs is one limited endpoint rather than the process — and rather than the limit itself, which is what evicting would cost: whoever filled the store would be resetting everybody else's counter for them.
+A full store refuses keys it has never seen. The caller gets whatever that limiter's `onStoreFailure` says, and the store logs one error. Keys already in the store keep counting exactly. A full store costs one limited endpoint, and resets no caller's counter.
 
 `RepositoryRateLimiterStore` takes the same option as its fourth argument, 1 000 000 by default, and is full the same way:
 
 ```ts
+// src/rate-limiters/task.rate-limiter.ts, as its store
+import { inject, RateLimitStateEntity, RepositoryRateLimiterStore, repositoryTokenFor, TokenBucketState, ValKeyRateLimiterLock } from 'zibri';
+
+import { CacheDbDataSource } from '../data-sources';
+
 new RepositoryRateLimiterStore<TokenBucketState>(
     inject(repositoryTokenFor(RateLimitStateEntity, CacheDbDataSource)),
     new ValKeyRateLimiterLock(inject(CacheDbDataSource)),
-    'TestRateLimiter',
+    'TaskRateLimiter',
     { maxKeys: 200_000 }
 )
 ```
 
 Its size is the number of unexpired keys of its namespace, counted at most every ten seconds per instance, plus the keys that instance created since. Instances creating keys at the same moment can take it past `maxKeys` by what they create in those ten seconds.
 
-### Applying a limiter to an endpoint
+## Applying a limiter to an endpoint
 Use `@RateLimited()` on a controller method, passing the limiter class:
 
 ```ts
-// src/controllers/test.controller.ts
-import { Auth, Controller, Get, InjectRepository, RateLimited, RateLimitKeys, Repository, Response } from 'zibri';
+// src/controllers/task.controller.ts
+import { Auth, Controller, Get, InjectRepository, RateLimited, Repository, Response } from 'zibri';
 
-import { Test } from '../models';
+import { Task } from '../models';
+import { TaskRateLimiter } from '../rate-limiters/task.rate-limiter';
 
 @Auth.isLoggedIn()
-@Controller('/tests', { versions: 'all' })
-export class TestController {
+@Controller('/tasks', { versions: 'all' })
+export class TaskController {
     constructor(
-        @InjectRepository(Test)
-        private readonly testRepository: Repository<Test>
+        @InjectRepository(Task)
+        private readonly taskRepository: Repository<Task>
     ) {}
 
-    @RateLimited(TestRateLimiter)
-    @Response.array(Test)
+    @RateLimited(TaskRateLimiter)
+    @Response.array(Task)
     @Get()
-    async find(): Promise<Test[]> {
-        return await this.testRepository.findAll();
+    async find(): Promise<Task[]> {
+        return await this.taskRepository.findAll();
     }
 }
 ```
 
-If the limit is reached, a `TooManyRequestsError` (HTTP 429) is thrown, carrying the rate-limit result (limit, remaining, reset time) on `.rateLimitResult`.
-<br>
-`@RateLimited` also accepts an options object:
-- `keyFn`: what the limit is counted per — a key, or a function resolving one from the arguments.
-- `countFn`: how many units of capacity the call consumes (defaults to 1).
-- `reserveIfUnavailable`: if `true`, falls back to reserving capacity instead of throwing when the limit is currently exceeded.
+When the limit is reached, the call throws a `TooManyRequestsError` (HTTP 429). Its `.rateLimitResult` carries the limit, what remains and the reset time.
 
-### What a limit is counted per
-**Limits count per caller unless you say otherwise** — the client address over http, the connection
+`@RateLimited` also takes an options object:
+- `keyFn`: what the limit is counted per, as a key or a function resolving one from the arguments.
+- `countFn`: how many units of capacity the call consumes. Defaults to 1.
+- `reserveIfUnavailable`: with `true`, the call reserves capacity instead of throwing when the limit is currently exceeded.
+- `refundOnSuccess`: with `true`, what the call consumed is given back once it returns, so only calls that throw count. For a limit on trying something, such as a login.
+
+## What a limit is counted per
+A limit counts per caller unless you name a key: the client address over HTTP, the connection
 over a websocket. `RateLimitKeys` names the choices:
 
 ```ts
 // src/controllers/keyed.controller.ts
+import { Controller, Get, RateLimited, RateLimitKeys } from 'zibri';
+
+import { TaskRateLimiter } from '../rate-limiters/task.rate-limiter';
+
 @Controller('/keyed', { versions: 'all' })
 export class KeyedController {
-    @RateLimited(TestRateLimiter)                                    // per caller, the default
+    @RateLimited(TaskRateLimiter)                                    // per caller, the default
     @Get('/login')
     async login(): Promise<void> {}
 
-    @RateLimited(TestRateLimiter, { keyFn: RateLimitKeys.perUser })  // per logged in user
+    @RateLimited(TaskRateLimiter, { keyFn: RateLimitKeys.perUser })  // per logged in user
     @Get('/export')
     async exportData(): Promise<void> {}
 
-    @RateLimited(TestRateLimiter, { keyFn: RateLimitKeys.GLOBAL })   // one bucket for everyone
+    @RateLimited(TaskRateLimiter, { keyFn: RateLimitKeys.GLOBAL })   // one bucket for everyone
     @Get('/mail')
     async mail(): Promise<void> {}
 
-    @RateLimited(TestRateLimiter, { keyFn: (id: string) => `tenant:${id}` }) // from the arguments
+    @RateLimited(TaskRateLimiter, { keyFn: (id: string) => `tenant:${id}` }) // from the arguments
     @Get('/tenant/:id')
     async tenant(id: string): Promise<void> {}
 }
 ```
 
-Reach for `GLOBAL` when the limit belongs to the *resource* rather than the caller — an outgoing mail
-server that accepts so many messages an hour, whoever asked for them. It is also where every per
-caller key lands when there is no request at all, such as work started by a cron job.
+Use `GLOBAL` when the limit belongs to the resource, not to the caller: an outgoing mail server
+that accepts so many messages an hour, whoever asked for them. `GLOBAL` is also where every per
+caller key lands when there is no request, such as for work a cron job started.
 
-Be aware of what a shared bucket means: one caller can spend everybody else's capacity, so a single
-attacker can lock out your whole user base. That is why it is not the default.
+> [!WARNING]
+> In a shared bucket, one caller can spend everybody else's capacity, so a single attacker can lock
+> out every user.
 
-If your application runs behind a load balancer or ingress, tell it so with `security.trustProxy` —
-see [app settings](./app-settings.md). Until it knows, the client address is the last hop it actually
-saw, which is the proxy, and every request lands in the same bucket.
+> [!WARNING]
+> If your application runs behind a load balancer or ingress, set `security.trustProxy`, see
+> [app settings](./app-settings.md). Without it, the client address is the last hop the
+> application saw, which is the proxy, and every request lands in the same bucket.
 
-### Choosing an algorithm
+## Choosing an algorithm
 - **`TokenBucketRateLimiter`**: the default choice for most cases. Allows bursts up to `capacity`, then refills continuously.
-- **`GcraRateLimiter`**: behaves like a token bucket but stores state as a single timestamp instead of a token count — cheaper to store.
-- **`FixedWindowRateLimiter`**: simplest and cheapest, but can allow up to `2x capacity` in a short burst straddling a window boundary.
-- **`SlidingWindowCounterRateLimiter`**: avoids the fixed-window boundary burst problem, without the memory cost of logging every request.
-- **`SlidingWindowLogRateLimiter`**: exact sliding-window enforcement, at the cost of memory growing with request volume.
+- **`GcraRateLimiter`**: behaves like a token bucket, and stores its state as a single timestamp instead of a token count, which is cheaper to store.
+- **`FixedWindowRateLimiter`**: the cheapest. Can allow up to `2x capacity` in a short burst across a window boundary.
+- **`SlidingWindowCounterRateLimiter`**: has no burst at a window boundary, and no memory cost of logging every request.
+- **`SlidingWindowLogRateLimiter`**: an exact sliding window. Its memory grows with request volume.
 - **`LeakyBucketMeterRateLimiter`**: smooths bursts by modeling requests as water leaking out of a bucket at a constant rate.
-- **`LeakyBucketQueueRateLimiter`**: schedules requests onto a fixed output rate instead of rejecting bursts outright, up to a max queue depth/wait time.
-- **`SemaphoreRateLimiter`**: limits concurrent operations rather than a rate over time (eg. "at most 5 running exports at once"). Permits must be released after use; `wrap` does this automatically.
+- **`LeakyBucketQueueRateLimiter`**: schedules requests onto a fixed output rate instead of rejecting bursts outright, up to a maximum queue depth or wait time.
+- **`SemaphoreRateLimiter`**: limits concurrent operations, not a rate over time, for example "at most 5 running exports at once". Permits are released after use, and `wrap` releases them for you.
 
-### Reservations
-Instead of immediately rejecting a request that exceeds the limit, a limiter can reserve capacity for later. A reservation debits capacity immediately, even if it isn't available yet, and must eventually be either committed or cancelled — unresolved reservations are automatically cancelled and refunded after their `expiresAtMs`. This is used automatically when `reserveIfUnavailable: true` is passed to `@RateLimited`.
+## Reserving capacity for later
+A limiter can reserve capacity for later instead of rejecting a request that exceeds the limit. A reservation takes capacity at once, even before it is available, and is then either committed or canceled. A reservation nobody resolves is canceled and refunded once its `expiresAtMs` passes. `reserveIfUnavailable: true` on `@RateLimited` reserves for you.
 
 ## Configuration
-Rate limiting has no global options to configure — each limiter is configured individually through its own constructor (see above). To read the list of currently registered limiters (eg. for a dashboard), inject `RateLimitingServiceInterface`:
+Rate limiting has no global options. Each limiter is configured through its own constructor, see above. To read the registered limiters, for a dashboard for example, inject `RateLimitingServiceInterface`:
 
 ```ts
+// src/services/rate-limiter-overview.ts
 import { inject, RateLimitingServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
 const rateLimitingService: RateLimitingServiceInterface = inject(ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE);
@@ -220,9 +243,16 @@ const limiterNames: string[] = rateLimitingService.limiters.map(l => l.config.na
 
 A limiter built while the application starts, by a feature only some applications use, is added with `addLimiter`, so the cleanup below reaches it too.
 
-Each limiter also reports metrics (allowed/blocked counts, active keys, active reservations, decision duration, store duration) through the [metrics](./metrics.md) system automatically.
+Each limiter reports [metrics](./metrics.md#what-a-snapshot-contains): allowed and blocked counts, active keys, active reservations, decision duration and store duration.
 
-A cleanup job runs every ten seconds against every limiter, dropping expired state and giving back the capacity of reservations nobody came back for. It costs two store operations per limiter regardless of how many keys there are, plus one update for each key that is actually holding an abandoned reservation — usually none. It runs on every instance rather than on one, because the default store is per instance and each has its own state to expire.
+A cleanup job runs every ten seconds against every limiter, on every instance. It drops expired state and gives back the capacity of reservations nobody came back for. It costs two store operations per limiter, however many keys there are, plus one update for each key holding an abandoned reservation.
+
+## Requirements
+The data source that holds the limits declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `RateLimitStateEntity` | A rate limiter keeps its state in `RepositoryRateLimiterStore` |
 
 ## See also
 - [Replication](./replication.md) — why a limiter needs a shared store once there is more than one instance

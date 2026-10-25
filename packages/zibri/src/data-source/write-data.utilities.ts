@@ -65,6 +65,26 @@ export abstract class WriteDataUtilities {
     }
 
     /**
+     * Resolves what an update that adds amounts writes to a stored row: the data, with each amount
+     * added to what the row holds. A property holding no value counts as 0.
+     * @param data - The data of the update, as it is written to the row.
+     * @param stored - The row as it is stored.
+     * @param increments - The amounts to add, by property.
+     * @returns The data, with a value for every property an amount was added to.
+     */
+    static resolveIncremented<D extends object>(data: D, stored: object, increments: Record<string, number> | undefined): D {
+        if (increments == undefined) {
+            return data;
+        }
+        const res: D = { ...data };
+        for (const [key, amount] of Object.entries(increments)) {
+            const value: unknown = Reflect.get(stored, key);
+            Reflect.set(res, key, (typeof value === 'number' ? value : 0) + amount);
+        }
+        return res;
+    }
+
+    /**
      * Resolves an update that writes every object it gives as it is given, rather than merged into
      * the stored one: each property the stored object holds and the given one leaves out is given as
      * null, as deep as the objects go.

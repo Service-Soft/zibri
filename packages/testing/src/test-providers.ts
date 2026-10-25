@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CronServiceInterface, defineProvider, DiProvider, EmailConfigInput, EncryptionMasterKey, JwtAuthOptionsInput, Ms, MultithreadingServiceInterface, RateLimitStoreFailurePolicy, ScryptCost, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { defaultPasswordResetEmailTemplate } from './password-reset-email.template';
 import { UnconfiguredEmailTransport } from './unconfigured.email-transport';
@@ -71,6 +71,14 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
         useValue: 'forever'
     }),
     defineProvider({
+        token: ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS,
+        useValue: 'forever'
+    }),
+    defineProvider({
+        token: ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS,
+        useValue: Ms.DAY * 365
+    }),
+    defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,
         useValue: new UnconfiguredEmailTransport()
     }),
@@ -94,9 +102,12 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
                 changeCron: noOpAsync,
                 update: noOpAsync,
                 applyStoredChanges: noOpAsync,
-                // never actually reached, because this stub schedules nothing. True rather than
-                // false so that it cannot silently suppress a job if it ever is.
-                shouldRunExecution: () => Promise.resolve(true)
+                // never actually reached, because this stub schedules nothing. Runs rather than
+                // skips so that it cannot silently suppress a job if it ever is.
+                runExecution: async (_key: string, _ttlMs: number, run: () => Promise<void>) => {
+                    await run();
+                    return true;
+                }
             };
             return res;
         }
@@ -121,7 +132,8 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
                 waitForThreadJob: () => {
                     throw new Error('mock');
                 },
-                startQueuedJobs: noOp
+                startQueuedJobs: () => Promise.resolve(false),
+                deleteExpiredJobs: () => Promise.resolve(0)
             };
             return res;
         }
@@ -132,6 +144,6 @@ export const defaultTestProviders: DiProvider<unknown>[] = [
     // says so with a provider of its own.
     defineProvider({
         token: ZIBRI_DI_TOKENS.AUTH_RATE_LIMIT_OPTIONS,
-        useFactory: () => ({ maxAttempts: 10000, windowInMs: Ms.MINUTE })
+        useFactory: () => ({ maxAttempts: 10000, windowInMs: Ms.MINUTE, onStoreFailure: RateLimitStoreFailurePolicy.ALLOW })
     })
 ];

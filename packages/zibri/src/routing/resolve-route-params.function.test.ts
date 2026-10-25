@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
 import { Param } from './decorators/param.decorator';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 
 @Controller('/forgot-decorator')
@@ -27,11 +28,11 @@ describe('resolveRouteParams — forgotten decorator guard', () => {
     beforeAll(async () => {
         server = await startTestServer({ controllers: [ForgotDecoratorController] });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('returns a 500 when a controller method parameter has no resolving decorator', async () => {
         const res: Response = await fetch(`${baseUrl}/forgot-decorator/abc`);

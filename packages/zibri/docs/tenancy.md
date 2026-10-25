@@ -1,36 +1,38 @@
 # Tenants
-Every row your application stores belongs to one tenant, or is shared by all of them. Zibri keeps a
-tenant's rows out of every other tenant's reach: each read and each write is narrowed to the tenant
-the work is done for, whatever the code around it forgets to filter.
+A tenant is one customer of your application, such as a team, with its own rows. Every row your
+application stores belongs to one tenant, or is shared by all of them. Each read and each write is
+narrowed to the tenant the work is done for, whatever the code around it forgets to filter, so a
+tenant's rows stay out of every other tenant's reach.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `EntityTenant` | type | What `@Entity({ tenant })` takes: `'shared'`, or the property holding the tenant id of each row |
+| `BaseTenantEntity` | class | The base of an entity whose rows each belong to a tenant: `BaseEntity` with the uuid `tenantId` |
 | `TenantServiceInterface` | interface | `runAs` to do work as a tenant, `getActiveTenantId` to ask which tenant is active, `resolveTenant` to read the tenant of a request, `resolveTenantUrl` to put a tenant into a link |
 | `TenantService` | class | Default implementation, reading the tenant of a request from its `x-tenant-id` header or query parameter |
 | `ZIBRI_DI_TOKENS.TENANT_SERVICE` | DI token | Override to replace the implementation |
 | `NoActiveTenantError` | error | Thrown when a tenant's rows are reached while no tenant is active |
 | `BaseMembershipEntity`, `BaseMembership` | function, type | A user belonging to a tenant: `tenantId`, `userId`, the `roles` they hold there and when it was deactivated |
-| `MembershipRepo` | decorator | Marks the class memberships are read from |
-| `MembershipRepositoryInterface` | interface | What that class answers: `findMembership`, `findMemberships`, `resolveMembership`, `updateDeactivatedAt`, `deleteMembership`, `deleteMemberships` |
+| `CurrentMembership` | type | The membership a request acts through, as a handler or a scope is handed it: without its roles |
+| `BaseMembershipRepository` | function | The base class the repository of your membership entity extends |
+| `MembershipRepositoryInterface` | interface | What the membership repository answers: `findMembership`, `findMemberships`, `resolveMembership`, `updateDeactivatedAt`, `deleteMembership`, `deleteMemberships` |
+| `MEMBERSHIP_ENTITY`, `MEMBERSHIP_REPOSITORY` | constant | Mark an entity and a repository as the ones of memberships. `BaseMembershipEntity` and `BaseMembershipRepository` set them |
 | `MembershipServiceInterface` | interface | Finds the memberships of a user, and follows every change to them |
 | `ChangedMembership` | type | A user and a tenant whose membership was written |
-| `MembershipService` | class | Default implementation, reading the class marked with `@MembershipRepo()` |
+| `MembershipService` | class | Default implementation, reading the membership repository |
 | `ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE` | DI token | Override to replace the implementation |
 
 ## Declaring the tenant of an entity
-Every entity holds the tenant of each row in its uuid property `tenantId`:
+Every entity holds the tenant of each row in its uuid property `tenantId`. `BaseTenantEntity`
+declares it:
 
 ```ts
 // src/models/project.model.ts
-import { BaseEntity, Entity, Property } from 'zibri';
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Project extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Project extends BaseTenantEntity {
     @Property.string()
     name!: string;
 
@@ -39,10 +41,7 @@ export class Project extends BaseEntity {
 }
 
 @Entity()
-export class Task extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Task extends BaseTenantEntity {
     @Property.string()
     title!: string;
 
@@ -67,10 +66,30 @@ export class Country extends BaseEntity {
 }
 ```
 
-To hold the tenant in another property, name it with `@Entity({ tenant: { property: 'workspaceId' } })`.
-An entity without its tenant property, that is not shared, does not compile. The tenant property is
-a plain `@Property.string({ format: 'uuid' })`: it cannot be encrypted, hashed or the primary key,
-and an application declaring it any other way does not start.
+The tenants themselves are rows of a shared entity of your own, such as the `Tenant` of the project
+`zi new` generates. Its id is the tenant id of every row the tenant holds:
+
+```ts
+// src/models/tenant.model.ts
+import { BaseEntity, Entity, Property } from 'zibri';
+
+@Entity({ tenant: 'shared' })
+export class Tenant extends BaseEntity {
+    @Property.string({ unique: true })
+    name!: string;
+
+    @Property.string({ unique: true })
+    subdomain!: string;
+}
+```
+
+See [why every entity has a tenant](./faq.md#why-does-every-entity-have-a-tenant).
+
+An entity extending `BaseEntity` declares the property itself, as `@Property.string({ format: 'uuid' })
+tenantId!: string`. To hold the tenant in another property, name it with
+`@Entity({ tenant: { property: 'workspaceId' } })`. An entity without its tenant property, that is
+not shared, does not compile. The tenant property is a plain `@Property.string({ format: 'uuid' })`:
+it cannot be encrypted, hashed or the primary key.
 
 When the tenant property is `required: false`, a row may also belong to no tenant. Such a row is
 seen by every tenant, while a row with a tenant is seen by that tenant only:
@@ -93,9 +112,12 @@ export class Announcement extends BaseEntity {
 Work reaches the rows of the tenant that is active while it runs. Make a tenant active with `runAs`:
 
 ```ts
+// src/services/project-names.function.ts
 import { inject, Repository, repositoryTokenFor, TenantServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
-async function nameProjects(tenantId: string): Promise<string[]> {
+import { Project } from '../models/project.model';
+
+export async function nameProjects(tenantId: string): Promise<string[]> {
     const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     const projects: Repository<Project> = inject(repositoryTokenFor(Project));
     return await tenants.runAs(tenantId, async () => (await projects.findAll({ take: 'all' })).map(p => p.name));
@@ -125,9 +147,10 @@ header. A request whose header and query name different tenants answers `400`. `
 puts a tenant into a link:
 
 ```ts
+// src/services/invitation-link.function.ts
 import { inject, TenantServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
-async function invitationLink(tenantId: string, token: string): Promise<string> {
+export async function invitationLink(tenantId: string, token: string): Promise<string> {
     const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     return await tenants.resolveTenantUrl(`https://api.example.com/invitations/${token}`, tenantId);
 }
@@ -174,6 +197,8 @@ export class SubdomainTenantService extends TenantService {
 // src/providers.ts
 import { DiProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
+import { SubdomainTenantService } from './services/subdomain-tenant.service';
+
 export const providers: DiProvider<unknown>[] = [
     { token: ZIBRI_DI_TOKENS.TENANT_SERVICE, useClass: SubdomainTenantService }
 ];
@@ -185,63 +210,39 @@ in user acts in a tenant only through their membership in it: a request of their
 are no member of answers `403`, on every route.
 
 ## Members and their roles
-A user belongs to the tenants they have a membership in. Declare the membership entity and the class
-it is read from, next to your user:
+A user belongs to the tenants they have a membership in. Declare the membership entity and its
+repository next to your user, and list the repository in the `repositories` of the data source. A
+user has one membership in each tenant, holding the names of their roles there:
 
 ```ts
 // src/models/membership.model.ts
 import { BaseMembershipEntity, Entity } from 'zibri';
 
-import { Role } from './role.enum';
-
-// one membership per user in each tenant
 @Entity({ uniques: [['userId']] })
-export class Membership extends BaseMembershipEntity(Role) {}
+export class Membership extends BaseMembershipEntity() {}
 ```
 
 ```ts
 // src/repositories/membership.repository.ts
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, MembershipRepo, MembershipRepositoryInterface, Repository, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
+import { BaseMembershipRepository, RepositoryFor } from 'zibri';
 
-@MembershipRepo()
-export class MembershipRepository extends Repository<Membership> implements MembershipRepositoryInterface<Role, Membership> {
-    constructor(
-        @InjectRepository(Membership)
-        repo: Repository<Membership>,
-        @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        logger: LoggerInterface
-    ) {
-        super(Membership, repo, logger, repo.dataSource, getDefaultBeforeSaveHook(), getDefaultBeforeReturnHook());
-    }
+import { Membership } from '../models/membership.model';
 
-    async findMembership(userId: string): Promise<Membership | undefined> {
-        return await this.findOne({ where: { userId }, required: false });
-    }
-
-    async findMemberships(userId: string): Promise<Membership[]> {
-        return await this.findAll({ where: { userId }, acrossTenants: true });
-    }
-
-    async resolveMembership(userId: string, transaction: Transaction | undefined): Promise<Membership> {
-        return await this.findOne({ where: { userId }, transaction, required: false })
-            ?? await this.create({ userId, roles: [] }, { transaction });
-    }
-
-    async updateDeactivatedAt(userId: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
-        await this.updateAll({ userId }, { deactivatedAt }, { transaction });
-    }
-
-    async deleteMembership(userId: string, transaction: Transaction | undefined): Promise<void> {
-        await this.deleteAll({ userId }, { transaction });
-    }
-
-    async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {
-        await this.deleteAll({ userId: { oneOf: userIds } }, { transaction, acrossTenants: true });
-    }
-}
+@RepositoryFor(Membership)
+export class MembershipRepository extends BaseMembershipRepository<Membership>() {}
 ```
 
-An application with users and no class marked with `@MembershipRepo()` does not start.
+A membership repository is required in an application with users, and an application has one.
+`BaseMembershipRepository` implements `MembershipRepositoryInterface`, which the framework reads and
+writes memberships through. Override one of its methods to do that differently. A membership
+entity that soft deletes passes the repository it extends, such as
+`BaseMembershipRepository<Membership>(SoftDeleteRepository)`.
+
+A change to a membership reaches the [websocket connections](./websocket.md#tenants) of its user,
+and the roles written on it are checked against the roles of the application.
+`BaseMembershipEntity` and `BaseMembershipRepository` mark their classes with `MEMBERSHIP_ENTITY` and
+`MEMBERSHIP_REPOSITORY`, which a membership entity or repository of your own declares itself, the way
+[a user entity](./auth.md#creating-and-registering-user-models) does.
 
 Deleting a user deletes their memberships in every tenant, in the same transaction, however the user
 is deleted. A soft deleted user keeps them.
@@ -251,19 +252,70 @@ answers `403`, and `findMembership` and `findMemberships` of the `MembershipServ
 It keeps its roles, so setting `deactivatedAt` back to `null` returns the user to the tenant as they
 were.
 
-A route asks for a role in one of two ways:
+A route asks for a [permission](./roles-and-permissions.md) in one of two ways:
 
 | Decorator | Checks |
 |---|---|
-| `@Auth.hasRole(roles)` | the roles of the user's membership in the tenant the request is for |
-| `@Auth.hasPlatformRole(roles)` | the roles of the user's own, independent of the tenant, eg. for operating the whole application |
+| `@Auth.hasPermission(permission)` | the roles of the user's membership in the tenant the request is for |
+| `@Auth.hasPlatformPermission(permission)` | the roles of the user's own, independent of the tenant, such as for operating the whole application |
+
+Every role is a row of one level, carrying permissions of that level, see [roles and permissions](./roles-and-permissions.md). A tenant role is one every tenant shares or one of a [tenant's own](./roles-and-permissions.md#a-tenants-own-roles), which its administrators define. Give a user a tenant role in the tenant a request acts in with `assignRole` of the [`RoleService`](./roles-and-permissions.md#managing-roles).
 
 A platform role never makes a user a member of a tenant. Work across tenants is code that passes
-[`acrossTenants`](#reaching-every-tenant), behind `@Auth.hasPlatformRole`.
+[`acrossTenants`](#reaching-every-tenant), behind `@Auth.hasPlatformPermission`.
 
-A [scope](./data-source.md#restricting-which-rows-a-caller-may-see) gets the `tenantId` and the
-`currentMembership` of the request next to the `currentUser`, and `AuthService.getCurrentMembership`
-answers the membership a request acts through.
+A [scope](./data-source.md#what-a-scope-is-told) gets the `tenantId` and the `currentMembership` of
+the request next to the `currentUser`, whose `permissions` are those of that membership, and asks for
+one with `hasPermission`. `AuthService.getCurrentMembership` answers the membership a request acts
+through, without its roles: the `CurrentMembership`. `findMembership` of the `MembershipService`
+answers it with its roles.
+
+## Serving one tenant
+An application with a single customer declares its entities the same way, and acts in that one
+tenant on every request. Its `TenantService` answers the tenant, so callers name none:
+
+```ts
+// src/services/one-tenant.service.ts
+import { inject, Repository, repositoryTokenFor, TenantService } from 'zibri';
+
+import { Tenant } from '../models/tenant.model';
+
+export class OneTenantService extends TenantService {
+    private tenantId: string | undefined;
+
+    override async resolveTenant(): Promise<string> {
+        const tenants: Repository<Tenant> = inject(repositoryTokenFor(Tenant));
+        this.tenantId ??= (await tenants.findOne({ where: { name: 'Default' } })).id;
+        return this.tenantId;
+    }
+
+    override resolveTenantUrl(url: string): string {
+        return url;
+    }
+}
+```
+
+It reads the tenant once, and answers its id from then on.
+
+Provide it under `ZIBRI_DI_TOKENS.TENANT_SERVICE`, as for [reading the tenant from somewhere
+else](#the-tenant-of-a-request). A logged in user still reaches the tenant through their membership
+in it, so give every user one when they are created:
+
+```ts
+// src/services/admit-user.function.ts
+import { inject, TenantServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { MembershipRepository } from '../repositories/membership.repository';
+
+export async function admitUser(tenantId: string, userId: string): Promise<void> {
+    const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
+    const memberships: MembershipRepository = inject(MembershipRepository);
+    await tenants.runAs(tenantId, async () => await memberships.resolveMembership(userId, undefined));
+}
+```
+
+The project `zi new` generates creates the tenant `Default` together with its first administrator,
+and makes them its `admin`.
 
 ## What is narrowed
 Every repository call on a tenant's entity is narrowed to the active tenant:
@@ -291,57 +343,63 @@ on the tenant property.
 On an entity whose tenant is optional, the rows of no tenant are unique among themselves, the same
 way each tenant's rows are.
 
-A unique group that names the tenant property already is kept as it is written:
+A unique group that names the tenant property already is kept as it is written, such as for one
+row of settings per tenant:
 
 ```ts
 // src/models/tenant-settings.model.ts
-import { BaseEntity, Entity, Property } from 'zibri';
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
-// one row of settings per tenant
 @Entity({ uniques: [['tenantId']] })
-export class TenantSettings extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class TenantSettings extends BaseTenantEntity {
     @Property.string()
     locale!: string;
 }
 ```
 
-An [`upsert`](./data-source.md#changing-a-value-based-on-what-is-stored--upsert) finds the row of the
+An [`upsert`](./data-source.md#changing-a-value-based-on-what-is-stored) finds the row of the
 active tenant: its identity is unique together with the tenant.
 
 ## Relations
 A row only points at rows of its own tenant, and a shared row only at shared rows. Every write
-checks it, however it sets the relation - by a related row, by its id or by the column holding the
+checks it, however it sets the relation: by a related row, by its id or by the column holding the
 id. A row pointing at a row of another tenant, or at one that is not there, is refused with a `403`.
 
 Related rows created together with a row get its tenant:
 
 ```ts
-async function createProject(projects: Repository<Project>): Promise<Project> {
-    // every task gets the tenant of the project
+// src/services/projects.function.ts
+import { Repository } from 'zibri';
+
+import { Project } from '../models/project.model';
+
+export async function createProject(projects: Repository<Project>): Promise<Project> {
     return await projects.create({ name: 'Website', tasks: [{ title: 'Design' }, { title: 'Build' }] });
 }
 ```
 
-A relation between an entity whose rows all belong to a tenant and a shared entity is refused when
-the application starts, since no row could ever be written through it. Keep the id of the shared row
-in a column of its own instead, eg. a simple `userId` string rather than a whole `user` relation.
+An entity whose rows all belong to a tenant has no relation to a shared entity, since no row could
+ever be written through it. Keep the id of the shared row in a column of its own instead, such as a
+`userId` string in place of a `user` relation.
 
 ## Reaching every tenant
-Work that serves every tenant at once - a job draining a queue, a report across tenants - passes
-`acrossTenants` to the call:
+Work that serves every tenant at once, such as a job draining a queue or a report across tenants,
+passes `acrossTenants` to the call:
 
 ```ts
-async function countProjects(projects: Repository<Project>): Promise<number> {
+// src/services/projects.function.ts
+import { Repository } from 'zibri';
+
+import { Project } from '../models/project.model';
+
+export async function countProjects(projects: Repository<Project>): Promise<number> {
     return await projects.count({ acrossTenants: true });
 }
 ```
 
 A row created across tenants names its tenant in its data, or `null` for a row of no tenant where
-the tenant is optional. Each use of `acrossTenants` is a place the restriction does not hold, so it
-is written at the call rather than configured anywhere.
+the tenant is optional. `acrossTenants` applies to the one call that passes it. No setting turns it
+on for more.
 
 ## Work outside a request
 What starts in a tenant stays in it, wherever it is picked up later:
@@ -352,7 +410,7 @@ What starts in a tenant stays in it, wherever it is picked up later:
 | A queued [thread job](./multithreading.md) | The tenant it was queued in |
 | A queued [email](./email.md) | The tenant it was queued in |
 | A [log entry](./logging.md) | The tenant it was logged in |
-| A [change set](./data-source.md#changesetrepository) | The tenant of the row it describes |
+| A [change set](./data-source.md#recording-who-changed-what) | The tenant of the row it describes |
 | A [websocket](./websocket.md#tenants) channel or message | The tenant it was created or sent in |
 | A [cache](./caching.md) entry | The tenant active while it is read or written |
 
@@ -362,3 +420,10 @@ event, the callbacks of a thread job and the transport sending a mail.
 
 A [cron job](./cron.md) runs outside every tenant. To do work for a tenant in it, use `runAs`, and
 use `acrossTenants` to do work for all of them.
+
+## See also
+- [Roles and permissions](./roles-and-permissions.md) — the roles a member holds in a tenant
+- [Data sources](./data-source.md) — repositories, and the rows a scope lets a caller see
+- [Authentication & authorization](./auth.md) — users, and the logins their requests carry
+- [API keys](./api-keys.md) — keys bound to one tenant
+- [FAQ](./faq.md#why-does-every-entity-have-a-tenant) — why every entity has a tenant

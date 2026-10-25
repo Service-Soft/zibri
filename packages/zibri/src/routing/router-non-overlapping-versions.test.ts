@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, it } from '@jest/globals';
 
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 
 @Controller('/versioned', { versions: ['1.0.0'] })
@@ -27,11 +28,11 @@ describe('Router — non-overlapping versions on the same route', () => {
         server = await startTestServer({
             controllers: [VersionedControllerV1, VersionedControllerV2]
         });
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('allows the same route path when versions do not overlap', () => {
         // asserted implicitly: beforeAll's startTestServer must not reject

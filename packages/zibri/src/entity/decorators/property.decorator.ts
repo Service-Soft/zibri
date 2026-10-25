@@ -313,7 +313,6 @@ export namespace Property {
             type: Relation.MANY_TO_ONE,
             cascade: [],
             description: undefined,
-            joinColumn: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
             ...metadata
@@ -374,7 +373,6 @@ export namespace Property {
             required: true,
             type: Relation.BELONGS_TO_ONE,
             cascade: [],
-            joinColumn: undefined,
             description: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,

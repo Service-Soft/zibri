@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Transaction } from './transaction.model';
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -57,7 +58,7 @@ describe('a valkey transaction that is never committed or rolled back', () => {
         });
         dataSource = inject(valKeyDataSourceClass);
         repo = inject(repositoryTokenFor(ValKeyItem));
-    }, 30000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
     it('gives the rows it was holding back to everyone else', async () => {
         const item: ValKeyItem = await repo.create({ value: 'first' });
@@ -76,5 +77,5 @@ describe('a valkey transaction that is never committed or rolled back', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 });

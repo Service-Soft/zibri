@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
-import { HasRoleMetadata } from '../../auth/models/has-role-metadata.model';
+import { HasPermissionMetadata } from '../../auth/models/has-permission-metadata.model';
+import { ApiKeyAuthStrategy } from '../../auth/strategies/api-key/api-key.auth-strategy';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -17,7 +18,9 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -30,9 +33,9 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * warnings come from. A route the framework refuses to make sense of therefore booted cleanly and
  * failed on whoever called it first.
  *
- * The copy those lookups allocated was a shallow spread, so the arrays inside it - the roles a route
- * accepts, the strategies it accepts them from - were still the route's own. Handing them out is
- * handing out the ability to widen the route.
+ * The copy those lookups allocated was a shallow spread, so the arrays inside it - the strategies a
+ * route accepts a caller from - were still the route's own. Handing them out is handing out the
+ * ability to widen the route.
  *
  * Every expectation describes the fixed behavior, so this file is red until the finding is closed.
  * See ./README.md for why.
@@ -40,14 +43,15 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 
 const password: string = 'secure123';
 
-const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: defaultTestServerEntities });
+const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
 @Controller('/evaluation-route-metadata')
 class RouteMetadataController {
 
-    @Auth.hasRole([Roles.ADMIN])
-    @Get('/admin-only')
-    adminOnly(): { ok: boolean } {
+    // what the caller below holds, accepted only from a strategy their login is not one of
+    @Auth.hasPlatformPermission(TestPlatformPermissions.USER, [ApiKeyAuthStrategy])
+    @Get('/keys-only')
+    keysOnly(): { ok: boolean } {
         return { ok: true };
     }
 
@@ -87,8 +91,8 @@ beforeAll(async () => {
     baseUrl = await server.start();
 
     const email: string = 'route-metadata-evaluation@example.com';
-    // a caller who is logged in and holds no role the route accepts, which is the only vantage point
-    // from which widening `allowedRoles` is visible
+    // a caller who is logged in through a strategy the route does not accept, which is the only
+    // vantage point from which widening `allowedStrategies` is visible
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
     const credentials: Repository<PasswordCredentials, PasswordCredentialsCreateData> = inject(repositoryTokenFor(PasswordCredentials));
     await credentials.create({ password, userId: user.id });
@@ -105,13 +109,13 @@ beforeAll(async () => {
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('evaluation/02-http-runtime-core M3 - what a route declared is read once', () => {
 
-    it('refuses a caller holding none of the roles the route accepts', async () => {
+    it('refuses a caller logged in through a strategy the route does not accept', async () => {
         // the control every expectation below reads against
-        const res: globalThis.Response = await fetch(`${baseUrl}/evaluation-route-metadata/admin-only`, {
+        const res: globalThis.Response = await fetch(`${baseUrl}/evaluation-route-metadata/keys-only`, {
             headers: { authorization: `Bearer ${accessToken}` }
         });
 
@@ -119,16 +123,17 @@ describe('evaluation/02-http-runtime-core M3 - what a route declared is read onc
     });
 
     it('does not hand out the route\'s own declaration by reference', async () => {
-        const handedOut: HasRoleMetadata | undefined = MetadataUtilities.getRouteHasRole(RouteMetadataController, 'adminOnly');
-        expect(handedOut?.allowedRoles).toEqual([Roles.ADMIN]);
+        const handedOut: HasPermissionMetadata | undefined = MetadataUtilities.getRouteHasPlatformPermission(RouteMetadataController, 'keysOnly');
+        expect(handedOut?.allowedStrategies).toEqual([ApiKeyAuthStrategy]);
 
-        handedOut?.allowedRoles.push(Roles.USER);
+        handedOut?.allowedStrategies?.push(JwtAuthStrategy);
 
         // the copy was a shallow spread: the array inside it was the route's own, so writing to what
         // a lookup handed back rewrote what the route accepts
-        expect(MetadataUtilities.getRouteHasRole(RouteMetadataController, 'adminOnly')?.allowedRoles).toEqual([Roles.ADMIN]);
+        expect(MetadataUtilities.getRouteHasPlatformPermission(RouteMetadataController, 'keysOnly')?.allowedStrategies)
+            .toEqual([ApiKeyAuthStrategy]);
 
-        const res: globalThis.Response = await fetch(`${baseUrl}/evaluation-route-metadata/admin-only`, {
+        const res: globalThis.Response = await fetch(`${baseUrl}/evaluation-route-metadata/keys-only`, {
             headers: { authorization: `Bearer ${accessToken}` }
         });
         expect(res.status).toBe(403);

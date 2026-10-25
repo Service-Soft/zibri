@@ -12,6 +12,7 @@ import { SchemaManagement } from '../../data-source/models/schema-management.mod
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { Repository, UNBOUNDED_FIND_ALL_LIMIT } from '../../data-source/repository/repository';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../../data-source/unique-constraint-violation.error';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -29,7 +30,7 @@ import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -183,6 +184,8 @@ class EvalDataSource extends PostgresDataSource {
         EvalNote,
         EvalScopedOrder
     ];
+
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
 }

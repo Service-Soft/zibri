@@ -9,6 +9,7 @@ export * from './create-postgres-test-data-source.function';
 export * from './fake-dpop/fake-dpop-key.model';
 export * from './fake-dpop/fake-dpop-proof-options.model';
 export * from './fake-oauth-provider/fake-jwt-access-token-options.model';
+export * from './fake-oauth-provider/fake-logout-token-options.model';
 export * from './fake-oauth-provider/fake-oauth-api-request.model';
 export * from './fake-oauth-provider/fake-oauth-identity.model';
 export * from './fake-oauth-provider/fake-oauth-provider-options.model';

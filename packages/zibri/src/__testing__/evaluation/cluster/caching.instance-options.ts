@@ -9,6 +9,7 @@ import { ValKeyCacheStore } from '../../../caching/store/val-key.cache-store';
 import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../../data-source/repository/repository';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -20,7 +21,7 @@ import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Get } from '../../../routing/decorators/get.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
 
 /**
@@ -61,6 +62,7 @@ class ClusterValKeyDataSource extends ValKeyDataSource {
         keyPrefix: valKeyPrefix
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;
+    readonly repositories: RepositoryClass[] = [];
 }
 
 /**
@@ -177,7 +179,7 @@ const options: StartTestServerOptions = {
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark] }), ClusterValKeyDataSource]
+    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark], repositories: defaultTestServerRepositories }), ClusterValKeyDataSource]
 };
 
 export default options;

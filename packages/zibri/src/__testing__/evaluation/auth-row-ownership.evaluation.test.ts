@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
-import { type BaseUser } from '../../auth/models/base-user.model';
+import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { AlsUtilities } from '../../context/als.utilities';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
@@ -31,7 +31,8 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -57,7 +58,7 @@ const suspended: Set<string> = new Set<string>();
  * The requesting user, for a property default that fills in who a row belongs to.
  * @returns The requesting user, if there is one.
  */
-async function currentUser(): Promise<BaseUser<string> | undefined> {
+async function currentUser(): Promise<CurrentUser | undefined> {
     const context: HttpRequestContext | WebsocketRequestContext | undefined = AlsUtilities.getCurrentRequestContext();
     return await context?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
 }
@@ -99,7 +100,7 @@ class EvaluationInvoice extends BaseEntity {
             if (!ctx.currentUser) {
                 throw new UnauthorizedError($ts`Reports belong to a user, and this caller is not one.`);
             }
-            return ctx.currentUser.roles.includes(Roles.ADMIN) ? undefined : { userId: ctx.currentUser.id };
+            return ctx.currentUser.platformPermissions.includes(TestPlatformPermissions.ADMIN) ? undefined : { userId: ctx.currentUser.id };
         })
     }
 })
@@ -147,7 +148,7 @@ class EvaluationRoom extends BaseEntity {
             if (!ctx.currentUser) {
                 return { isPublic: true };
             }
-            if (ctx.currentUser.roles.includes(Roles.ADMIN)) {
+            if (ctx.currentUser.platformPermissions.includes(TestPlatformPermissions.ADMIN)) {
                 return undefined;
             }
             if (suspended.has(ctx.currentUser.id)) {
@@ -224,9 +225,9 @@ class EvaluationInvoiceController {
         return await this.invoices.findAll({ where: { title } });
     }
 
-    // the escape hatch, next to the role check that is what actually decides who may call this
+    // the escape hatch, next to the permission check that is what actually decides who may call this
     @Get('/admin/all')
-    @Auth.hasPlatformRole([Roles.ADMIN])
+    @Auth.hasPlatformPermission(TestPlatformPermissions.ADMIN)
     async listAll(): Promise<EvaluationInvoice[]> {
         return await this.invoices.findAll({ unscoped: ['restrictedTo'] });
     }
@@ -328,7 +329,8 @@ let rootToken: string;
 const password: string = 'secure123';
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, EvaluationInvoice, EvaluationReport, EvaluationRoom, EvaluationDocument]
+    entities: [...defaultTestServerEntities, EvaluationInvoice, EvaluationReport, EvaluationRoom, EvaluationDocument],
+    repositories: defaultTestServerRepositories
 });
 
 /**

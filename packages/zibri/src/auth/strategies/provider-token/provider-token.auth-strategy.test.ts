@@ -6,8 +6,9 @@ import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, 
 import { ProviderTokenAuthStrategy } from './provider-token.auth-strategy';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -27,6 +28,7 @@ import { FederatedLoginAttempt } from '../../authenticators/federated/federated-
 import { FederatedRegistrationTicket } from '../../authenticators/federated/federated-registration-ticket.model';
 import { OAuthClientAuthentication } from '../../authenticators/oauth/oauth-client-authentication.model';
 import { BaseOidcAuthenticator } from '../../authenticators/oidc/base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../../authenticators/oidc/oidc-authentication-time.type';
 import { OidcBearerTokens } from '../../authenticators/oidc/oidc-bearer-tokens.model';
 import { Auth } from '../../decorators/auth.decorator';
 import { CurrentUser } from '../../decorators/current-user.decorator';
@@ -50,6 +52,7 @@ let strictProvider: FakeOAuthProvider;
 let lenientProvider: FakeOAuthProvider;
 let signInOnlyProvider: FakeOAuthProvider;
 let otherProvider: FakeOAuthProvider;
+let pairwiseProvider: FakeOAuthProvider;
 
 /**
  * The authority client certificates are issued by, made before any application starts.
@@ -59,12 +62,14 @@ let authority: FakeKeyPair;
 /**
  * Takes access tokens for the api only as RFC 9068 marks them.
  */
-class StrictProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class StrictProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'strict';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'at+jwt', idTokenAudiences: [] };
 
@@ -76,12 +81,14 @@ class StrictProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> 
 /**
  * Takes access tokens for the api whatever they are marked, and the ID tokens of the mobile app.
  */
-class LenientProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class LenientProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'lenient';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'any', idTokenAudiences: [MOBILE_CLIENT_ID] };
 
@@ -93,12 +100,14 @@ class LenientProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser>
 /**
  * Signs users in, and takes none of its provider's tokens.
  */
-class SignInOnlyProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class SignInOnlyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'sign-in-only';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     get issuer(): string {
         return signInOnlyProvider.issuer;
@@ -106,14 +115,38 @@ class SignInOnlyProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUs
 }
 
 /**
+ * Knows its identities by the `oid` claim, as a provider whose `sub` differs per client is known by,
+ * and takes access tokens for the api.
+ */
+class PairwiseProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
+    readonly name: string = 'pairwise';
+
+    readonly clientId: string = CLIENT_ID;
+
+    readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
+    override readonly subjectClaim: string = 'oid';
+
+    override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'any', idTokenAudiences: [] };
+
+    get issuer(): string {
+        return pairwiseProvider.issuer;
+    }
+}
+
+/**
  * Says it takes bearer tokens, and names nobody they may be for.
  */
-class NoAudienceProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class NoAudienceProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'no-audience';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [], accessTokenType: 'at+jwt', idTokenAudiences: [] };
 
@@ -134,7 +167,7 @@ class SecondStrictProviderAuthenticator extends StrictProviderAuthenticator {
 /**
  * Takes the certificate from the proxy on this machine, which is where the test's requests come from.
  */
-class LocalProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<Roles, JwtUser> {
+class LocalProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<string, JwtUser> {
     readonly header: string = 'Client-Cert';
     readonly headerFormat: ClientCertificateHeaderFormat = 'rfc9440';
     readonly trustedProxies: string[] = ['127.0.0.1', '::1'];
@@ -159,7 +192,7 @@ class ApiController {
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): Me {
         return { id: user.id };
     }
@@ -168,6 +201,13 @@ class ApiController {
     @Auth.require2fa({ reauth: { allow: true, windowInMs: 10 * Ms.MINUTE } })
     @Get('/sensitive')
     sensitive(): { ok: boolean } {
+        return { ok: true };
+    }
+
+    @Auth.isLoggedIn()
+    @Auth.require2fa({ providerFactors: { methods: ['mfa'] } })
+    @Get('/mfa')
+    mfa(): { ok: boolean } {
         return { ok: true };
     }
 }
@@ -180,7 +220,7 @@ const ALL_STRATEGIES: AuthStrategies = [JwtAuthStrategy, ClientAccessTokenAuthSt
  * @param authenticators - The providers' authenticators.
  * @returns The controller.
  */
-function defineAuthController(authenticators: Newable<BaseOidcAuthenticator<Roles, JwtUser>>[]): Newable<unknown> {
+function defineAuthController(authenticators: Newable<BaseOidcAuthenticator<string, JwtUser>>[]): Newable<unknown> {
     // an orphan for every case that boots with other providers
     @Controller('/auth', { allowOrphan: true, versions: 'all' })
     class ProviderAuthController extends AuthController({ strategies: [JwtAuthStrategy], authenticators, twoFactorMethods: [OtpTwoFactorMethod] }) {}
@@ -194,7 +234,7 @@ function defineAuthController(authenticators: Newable<BaseOidcAuthenticator<Role
  * @returns The server, and the url it listens at.
  */
 async function startApp(
-    authenticators: Newable<BaseOidcAuthenticator<Roles, JwtUser>>[],
+    authenticators: Newable<BaseOidcAuthenticator<string, JwtUser>>[],
     authStrategies: AuthStrategies = ALL_STRATEGIES
 ): Promise<[StartedTestServer, string]> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
@@ -206,6 +246,7 @@ async function startApp(
             FederatedRegistrationTicket,
             FederatedConnectionCode
         ],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -243,7 +284,7 @@ async function startApp(
  * case fails rather than leaving it running.
  * @param authenticators - Its authenticators.
  */
-async function startThenShutDown(authenticators: Newable<BaseOidcAuthenticator<Roles, JwtUser>>[]): Promise<void> {
+async function startThenShutDown(authenticators: Newable<BaseOidcAuthenticator<string, JwtUser>>[]): Promise<void> {
     const [server] = await startApp(authenticators);
     await server.shutdown();
 }
@@ -254,6 +295,7 @@ beforeAll(async () => {
     lenientProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, algorithm: 'RS256' });
     signInOnlyProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
     otherProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
+    pairwiseProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
 });
 
 afterAll(async () => {
@@ -261,6 +303,7 @@ afterAll(async () => {
     await lenientProvider?.stop();
     await signInOnlyProvider?.stop();
     await otherProvider?.stop();
+    await pairwiseProvider?.stop();
 });
 
 // first, so no application is running yet when they start one
@@ -268,17 +311,17 @@ describe('ProviderTokenAuthStrategy — starting', () => {
     it('refuses to start when no authenticator of the application takes its provider\'s tokens', async () => {
         await expect(startThenShutDown([SignInOnlyProviderAuthenticator]))
             .rejects.toThrow(/ProviderTokenAuthStrategy[\S\s]*no authenticator of the application takes/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start an authenticator that takes bearer tokens for no audience', async () => {
         await expect(startThenShutDown([NoAudienceProviderAuthenticator]))
             .rejects.toThrow(/NoAudienceProviderAuthenticator takes bearer tokens for no audience/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start when two authenticators take the tokens of the same provider', async () => {
         await expect(startThenShutDown([StrictProviderAuthenticator, SecondStrictProviderAuthenticator]))
             .rejects.toThrow(/StrictProviderAuthenticator and SecondStrictProviderAuthenticator both take/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
@@ -286,12 +329,17 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
     let baseUrl: string;
 
     beforeAll(async () => {
-        [server, baseUrl] = await startApp([StrictProviderAuthenticator, LenientProviderAuthenticator, SignInOnlyProviderAuthenticator]);
-    }, 20000);
+        [server, baseUrl] = await startApp([
+            StrictProviderAuthenticator,
+            LenientProviderAuthenticator,
+            SignInOnlyProviderAuthenticator,
+            PairwiseProviderAuthenticator
+        ]);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Creates a user, and links an identity at a provider to them.
@@ -426,6 +474,21 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         expect((await callWith('/me', token)).status).toBe(401);
     });
 
+    it('finds the identity by the claim subjectClaim names, whichever sub the token carries', async () => {
+        const oid: string = `oid-${randomBytes(6).toString('hex')}`;
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${oid}@example.com`, roles: [Roles.USER] });
+        await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
+            .create({ issuer: pairwiseProvider.issuer, subject: oid, userId: user.id, signIn: true, grantedScopes: [] });
+
+        // the sub an access token for the api carries, which no sign-in ever linked
+        pairwiseProvider.identity = { subject: 'pairwise-mobile', claims: { oid } };
+        expect(await readUserId(await callWith('/me', pairwiseProvider.createJwtAccessToken({ audience: API_AUDIENCE })))).toBe(user.id);
+
+        // the oid as the sub, and no oid claim: names nobody
+        pairwiseProvider.identity = { subject: oid };
+        expect((await callWith('/me', pairwiseProvider.createJwtAccessToken({ audience: API_AUDIENCE }))).status).toBe(401);
+    });
+
     it('takes a token bound to a DPoP key only with a proof of the key', async () => {
         const user: JwtUser = await createLinkedUser(strictProvider);
         const dpopKey: FakeDpopKey = new FakeDpopKey();
@@ -456,6 +519,15 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         const token: string = strictProvider.createJwtAccessToken({ audience: API_AUDIENCE, claims: { cnf: { jwk: { kty: 'EC' } } } });
 
         expect((await callWith('/me', token)).status).toBe(401);
+    });
+
+    it('takes the second factor the token says was presented at the provider, on a route that counts it', async () => {
+        await createLinkedUser(strictProvider);
+        const withFactor: (claims: Record<string, unknown>) => string = claims => strictProvider.createJwtAccessToken({ audience: API_AUDIENCE, claims });
+
+        expect((await callWith('/mfa', withFactor({ amr: ['pwd', 'mfa'] }))).status).toBe(200);
+        expect((await callWith('/mfa', withFactor({ amr: ['pwd'] }))).status).toBe(401);
+        expect((await callWith('/mfa', withFactor({}))).status).toBe(401);
     });
 
     it('takes when the user signed in at the provider as the time of the login', async () => {

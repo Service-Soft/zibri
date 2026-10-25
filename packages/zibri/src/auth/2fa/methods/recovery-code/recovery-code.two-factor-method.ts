@@ -17,7 +17,7 @@ import { validateEntitiesRegistered } from '../../../../utilities/validate-entit
 import { type HashServiceInterface } from '../../../hash/hash-service.interface';
 import { type HashString } from '../../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../../hash/strategies/sha256.hash-strategy';
-import { BaseUser } from '../../../models/base-user.model';
+import { UserAccount } from '../../../models/user-account.model';
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
 import { NoRegisterData } from '../no-register-data.model';
 import { base32Encode } from '../otp/base32-encode.function';
@@ -100,7 +100,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async requestRegisterForUser<UserType extends UserAccount>(
         user: UserType
     ): Promise<RecoveryCodeRegistration> {
         // a set that was never confirmed is given up on, while the confirmed one keeps working until
@@ -117,7 +117,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async confirmRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: RecoveryCodeConfirmRegisterData
     ): Promise<void> {
@@ -134,12 +134,12 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
+    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
         await this.recoveryCodeRepository.deleteAll({ userId: user.id });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
+    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         const found: TwoFactorRecoveryCode | undefined = await this.recoveryCodeRepository.findOne({
             where: { userId: user.id, confirmed: true },
             required: false
@@ -148,7 +148,7 @@ export class RecoveryCodeTwoFactorMethod implements TwoFactorMethod<void, Recove
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validate<Role extends string, UserType extends BaseUser<Role>>(
+    async validate<UserType extends UserAccount>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {

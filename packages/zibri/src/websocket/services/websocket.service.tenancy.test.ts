@@ -4,11 +4,13 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
@@ -43,7 +45,8 @@ class TenancyWsController {
 
 // in memory, so that what the websockets do across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const websocketOptions: WebsocketOptionsInput = {
@@ -90,7 +93,7 @@ async function logIn(name: string): Promise<{ user: JwtUser, accessToken: string
  * @returns The membership.
  */
 async function addMember(userId: string, tenantId: string, transaction?: Transaction): Promise<TestMembership> {
-    return await tenants.runAs(tenantId, async () => await memberships.create({ tenantId, userId, roles: [Roles.USER] }, { transaction }));
+    return await tenants.runAs(tenantId, async () => await memberships.create({ tenantId, userId, roles: [MemberRoles.USER] }, { transaction }));
 }
 
 /**
@@ -222,11 +225,11 @@ beforeAll(async () => {
     channels = inject(repositoryTokenFor(WebsocketChannel));
     messages = inject(repositoryTokenFor(WebsocketMessage));
     memberships = inject(DefaultTestServerMembershipRepository);
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 afterEach(async () => {
     for (const client of clients.splice(0)) {

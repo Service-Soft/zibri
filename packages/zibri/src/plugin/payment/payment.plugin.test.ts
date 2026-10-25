@@ -6,7 +6,8 @@ import { Payment } from './models/payment.model';
 import { ZibriPaymentPlugin } from './payment.plugin';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -47,7 +48,7 @@ async function startWith(
         plugins: [new ZibriPaymentPlugin()],
         // one class per call and this helper runs once per test, so every application here is given
         // the newest, and the earlier ones stay declared without ever being deployed
-        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment], allowOrphan: true })],
+        dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment], repositories: defaultTestServerRepositories, allowOrphan: true })],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({
@@ -89,7 +90,7 @@ describe('ZibriPaymentPlugin — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing ZibriPaymentPlugin[\S\s]*- Payment/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('ZibriPaymentPlugin.validate', () => {
@@ -99,7 +100,7 @@ describe('ZibriPaymentPlugin.validate', () => {
         await server?.shutdown();
         server = undefined;
         GlobalRegistry['appData'].state = AppState.OFFLINE;
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('starts successfully with unique provider names and payment methods', async () => {
         const provider: ReturnType<typeof createFakeProvider> = createFakeProvider('Provider');
@@ -109,7 +110,7 @@ describe('ZibriPaymentPlugin.validate', () => {
             { [KnownPaymentMethod.PAY_PAL]: 'Provider' }
         );
         await expect(server.start()).resolves.toEqual(expect.any(String));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     it('rejects duplicate payment provider names', async () => {
         const providerA: ReturnType<typeof createFakeProvider> = createFakeProvider('Duplicate');
@@ -122,7 +123,7 @@ describe('ZibriPaymentPlugin.validate', () => {
                 [KnownPaymentMethod.CREDIT_CARD]: 'Duplicate'
             }
         )).rejects.toThrow(/duplicate payment provider names/);
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     it('rejects duplicate payment methods', async () => {
         const provider: ReturnType<typeof createFakeProvider> = createFakeProvider('Provider');
@@ -131,5 +132,5 @@ describe('ZibriPaymentPlugin.validate', () => {
             [provider],
             { [KnownPaymentMethod.PAY_PAL]: 'Provider' }
         )).rejects.toThrow(/duplicate payment methods/);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 });

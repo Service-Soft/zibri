@@ -12,8 +12,9 @@ import { JwtAuthStrategy } from './jwt.auth-strategy';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -64,7 +65,7 @@ type LoginBody = {
     accessToken: { value: string }
 };
 
-const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities });
+const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
 const email: string = 'asymmetric@example.com';
 const password: string = 'secure123';
@@ -193,11 +194,11 @@ describe('JwtAuthStrategy — access tokens signed with a key pair', () => {
         });
         baseUrl = await server.start();
         userId = await seedUser();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs an access token that a verifier holding only the public key accepts', async () => {
         const { accessToken } = await login(baseUrl);
@@ -300,7 +301,7 @@ describe('JwtAuthStrategy — an RSA key pair', () => {
         finally {
             await server.shutdown();
         }
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('JwtAuthStrategy — an Ed25519 key pair', () => {
@@ -331,7 +332,7 @@ describe('JwtAuthStrategy — an Ed25519 key pair', () => {
         finally {
             await server.shutdown();
         }
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('JwtAuthStrategy — refuses to start with a key it cannot use', () => {

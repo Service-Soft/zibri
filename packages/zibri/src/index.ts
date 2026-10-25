@@ -7,14 +7,29 @@ export * from './application/application-options.model';
 
 // auth
 export * from './auth/decorators/auth.decorator';
-export * from './auth/decorators/user-repo.decorator';
 export * from './auth/decorators/current-user.decorator';
 
 export * from './auth/models/is-logged-in-metadata.model';
 export * from './auth/models/base-user.model';
+export * from './auth/models/user-account.model';
 export * from './auth/models/authentication.model';
 export * from './auth/models/user-repositories.model';
-export * from './auth/models/has-role-metadata.model';
+export * from './auth/models/has-permission-metadata.model';
+export * from './auth/roles/role-level.type';
+export * from './auth/roles/permission.type';
+export * from './auth/roles/platform-permission.type';
+export * from './auth/roles/define-permissions.function';
+export * from './auth/roles/permission-declaration.model';
+export * from './auth/roles/zibri-permissions.model';
+export * from './auth/roles/base-role.model';
+export * from './auth/roles/role-repository.interface';
+export * from './auth/roles/base-role-repository.model';
+export * from './auth/roles/role-create-data.model';
+export * from './auth/roles/role-update-data.model';
+export * from './auth/roles/role-identity.model';
+export * from './auth/roles/written-role.model';
+export * from './auth/roles/role-service.interface';
+export * from './auth/roles/role.service';
 export * from './auth/models/is-not-logged-in-metadata.model';
 export * from './auth/models/skip-auth-metadata.model';
 export * from './auth/models/resolved-auth-metadata.model';
@@ -22,7 +37,12 @@ export * from './auth/models/route-auth-configuration.model';
 export * from './auth/models/password-reset-token.model';
 export * from './auth/models/require-2fa-metadata.model';
 export * from './auth/models/require-2fa-reauth.model';
+export * from './auth/models/require-2fa-provider-factors.model';
+export * from './auth/models/provider-authentication.model';
+export * from './auth/models/ended-login.model';
 export * from './auth/models/logout-result.model';
+export * from './auth/models/login-ticket.model';
+export * from './auth/login-ticket-cleanup.cron-job';
 
 export * from './auth/auth-service.interface';
 export * from './auth/auth.rate-limiter';
@@ -71,6 +91,7 @@ export * from './auth/strategies/jwt/jwt-remote-key-set.type';
 export * from './auth/strategies/jwt/jwt-revoked-access-token.model';
 export * from './auth/strategies/jwt/jwt-revoked-access-token-cleanup.cron-job';
 export * from './auth/strategies/jwt/jwt-provider-token-verify-options.model';
+export * from './auth/strategies/jwt/jwt-logout-token-verify-options.model';
 export * from './auth/strategies/jwt/jwt-sign-options.model';
 export * from './auth/strategies/jwt/jwt-verify-options.model';
 
@@ -179,6 +200,8 @@ export * from './auth/authenticators/provider-token-authenticator.interface';
 export * from './auth/authenticators/provider-token.model';
 export * from './auth/authenticators/password/password.authenticator';
 export * from './auth/authenticators/password/password-credentials.model';
+export * from './auth/authenticators/password/password-failure-limit.model';
+export * from './auth/authenticators/password/password-failure-streak.model';
 export * from './auth/authenticators/password/password-reset-email-template.model';
 export * from './auth/authenticators/password/request-password-reset-data.model';
 export * from './auth/authenticators/password/confirm-password-reset-data.model';
@@ -250,6 +273,7 @@ export * from './auth/authenticators/federated/federated-logout-answer.model';
 export * from './auth/authenticators/federated/federated-soap-logout.model';
 export * from './auth/authenticators/federated/federated-session.model';
 export * from './auth/authenticators/federated/federated-session-match.model';
+export * from './auth/authenticators/federated/federated-logout-token-form.model';
 export * from './auth/authenticators/federated/federated-session-columns.model';
 export * from './auth/authenticators/federated/federated-session.utilities';
 export * from './auth/authenticators/saml/base-saml.authenticator';
@@ -281,6 +305,7 @@ export * from './auth/authenticators/oauth/oauth-provider-tokens.model';
 export * from './auth/authenticators/oauth/oauth-offline-access.model';
 export * from './auth/authenticators/oauth/oauth-response-mode.type';
 export * from './auth/authenticators/oidc/base-oidc.authenticator';
+export * from './auth/authenticators/oidc/oidc-authentication-time.type';
 export * from './auth/authenticators/oidc/oidc-bearer-tokens.model';
 export * from './auth/authenticators/oidc/providers/base-google.authenticator';
 export * from './auth/authenticators/oidc/providers/base-apple.authenticator';
@@ -290,6 +315,7 @@ export * from './auth/authenticators/oauth2/base-oauth2.authenticator';
 export * from './auth/authenticators/oauth2/providers/base-github.authenticator';
 
 export * from './auth/user/user-repository.interface';
+export * from './auth/user/base-user-repository.model';
 export * from './auth/user/user-service.interface';
 export * from './auth/user/user.service';
 
@@ -302,6 +328,8 @@ export * from './auth/2fa/two-factor-throttled.error';
 export * from './auth/2fa/two-factor-locked.error';
 export * from './auth/2fa/invalid-two-factor-code.error';
 export * from './auth/2fa/reauthentication-required.error';
+export * from './auth/2fa/second-factor-required.error';
+export * from './auth/2fa/two-factor-at-login.type';
 
 export * from './auth/2fa/methods/two-factor-method.interface';
 export * from './auth/2fa/methods/no-register-data.model';
@@ -454,6 +482,7 @@ export * from './error-handling/errors/forbidden.error';
 export * from './error-handling/errors/credential-cloned.error';
 export * from './error-handling/errors/credential-reused.error';
 export * from './error-handling/errors/account-deactivated.error';
+export * from './error-handling/errors/password-locked.error';
 export * from './error-handling/errors/account-locked.error';
 export * from './error-handling/errors/too-many-requests.error';
 export * from './error-handling/errors/service-unavailable.error';
@@ -465,6 +494,12 @@ export * from './error-handling/errors/content-too-large.error';
 export * from './error-handling/errors/global.error';
 export * from './error-handling/errors/invalid-decorator-combination.error';
 export * from './error-handling/errors/unsupported-media-type.error';
+
+// audit
+export * from './audit/audit-entry.model';
+export * from './audit/audit-service.interface';
+export * from './audit/audit.service';
+export * from './audit/audit-cleanup.cron-job';
 
 // assets
 export * from './assets/asset-service.interface';
@@ -518,15 +553,19 @@ export * from './entity/partial-class.model';
 export * from './entity/pick-class.model';
 export * from './entity/any-object.model';
 export * from './entity/base-entity.model';
+export * from './entity/base-tenant-entity.model';
 export * from './entity/entity-metadata-missing.error';
 
 export * from './entity/decorators/entity.decorator';
 export * from './entity/decorators/property.decorator';
 
+export * from './entity/models/entity-check.model';
 export * from './entity/models/entity-order.model';
 export * from './entity/models/entity-order.utilities';
 export * from './entity/models/entity-relations.model';
 export * from './entity/models/entity-relations.utilities';
+export * from './entity/models/entity-selection.model';
+export * from './entity/models/entity-selection.utilities';
 export * from './entity/models/entity-scope.model';
 export * from './entity/models/entity-tenant.model';
 export * from './entity/models/unique-declaration.model';
@@ -609,9 +648,10 @@ export * from './http/trace-context.middleware';
 export * from './tenancy/tenant-service.interface';
 export * from './tenancy/tenant.service';
 export * from './tenancy/membership/base-membership.model';
+export * from './tenancy/membership/current-membership.model';
 export * from './tenancy/membership/changed-membership.model';
 export * from './tenancy/membership/membership-repository.interface';
-export * from './tenancy/membership/membership-repo.decorator';
+export * from './tenancy/membership/base-membership-repository.model';
 export * from './tenancy/membership/membership-service.interface';
 export * from './tenancy/membership/membership.service';
 export * from './data-source/tenancy/no-active-tenant.error';
@@ -635,6 +675,9 @@ export * from './tracing/open-telemetry/otlp-trace-exporter.function';
 export * from './tracing/open-telemetry/trace-buffer.span-processor';
 
 // validation
+export * from './validation/custom-validation.model';
+export * from './validation/decorators/validate-custom.decorator';
+export * from './validation/validation-problem-code.enum';
 export * from './validation/validation-problem.model';
 export * from './validation/validation-service.interface';
 export * from './validation/validation.service';
@@ -656,6 +699,9 @@ export * from './data-source/unique-constraint-name.function';
 export * from './data-source/check-constraint-name.function';
 
 export * from './data-source/repository/repository';
+export * from './data-source/repository/repository-for.decorator';
+export * from './data-source/repository/repository-class.type';
+export * from './data-source/repository/repository-for-metadata.model';
 
 export * from './data-source/decorators/data-source.decorator';
 
@@ -665,8 +711,10 @@ export * from './data-source/data-sources/typeorm-base-data-source.model';
 export * from './data-source/data-sources/data-source-initialization.error';
 export * from './data-source/data-sources/sql-data-source.interface';
 
+export * from './data-source/data-sources/postgres/postgres-backup-scope.model';
 export * from './data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 
+export * from './data-source/data-sources/val-key/val-key-backup-mode.model';
 export * from './data-source/data-sources/val-key/val-key-data-source.model';
 
 export * from './data-source/data-sources/where-converter/typeorm-where-filter.converter';
@@ -682,7 +730,12 @@ export * from './data-source/keyset/keyset-order.model';
 
 export * from './data-source/transaction/transaction-already-finished.error';
 export * from './data-source/transaction/key-declarations-changed.error';
+export * from './data-source/transaction/run-in-transaction-options.model';
+export * from './data-source/transaction/transaction-conflict.error';
+export * from './data-source/transaction/transaction-deadlock.error';
+export * from './data-source/transaction/transaction-serialization.error';
 export * from './data-source/transaction/transaction.model';
+export * from './data-source/transaction/transaction.utilities';
 export * from './data-source/transaction/typeorm-transaction.model';
 export * from './data-source/transaction/val-key-transaction.model';
 
@@ -710,6 +763,9 @@ export * from './data-source/models/refused-value.model';
 export * from './data-source/models/conversion-refusal.enum';
 // the shape of the onConflict argument, so a caller can type one outside the call
 export * from './data-source/models/atomic-update.model';
+export * from './data-source/models/update-all-data.model';
+export * from './data-source/models/aggregate.model';
+export * from './data-source/aggregate.utilities';
 export * from './data-source/models/keyset-cursor.model';
 
 export * from './data-source/models/options/base-repository-options.model';
@@ -740,6 +796,9 @@ export * from './data-source/models/where/string-where-filter.model';
 export * from './data-source/models/where/fuzzy-like.model';
 export * from './data-source/models/where/where-filter-keys.model';
 export * from './data-source/models/where/where-filter.model';
+export * from './data-source/models/related-narrowing.model';
+export * from './data-source/scopes/related-narrowing.utilities';
+export * from './data-source/scopes/scope-where.utilities';
 export * from './data-source/models/where/where-for.function';
 
 export * from './data-source/migration/migration.model';
@@ -759,17 +818,24 @@ export * from './cron/cron-back-off-options.model';
 export * from './cron/cron-service.interface';
 export * from './cron/cron-sync.cron-job';
 export * from './cron/cron.service';
-export * from './cron/should-run-execution.type';
+export * from './cron/run-execution.type';
 export * from './cron/cron-expression.utilities';
 
 // leases
 export * from './leases/held-lease.model';
 export * from './leases/lease-acquisition-timeout.error';
+export * from './leases/lease-lost.error';
 export * from './leases/lease-cleanup.cron-job';
 export * from './leases/lease-options.model';
 export * from './leases/lease-service.interface';
 export * from './leases/lease.model';
 export * from './leases/lease.service';
+
+// polling
+export * from './polling/polling-cron-job.model';
+export * from './polling/wake-up-listener.model';
+export * from './polling/wake-up-service.interface';
+export * from './polling/wake-up.service';
 
 // email
 export * from './email/email-service.interface';
@@ -849,6 +915,8 @@ export * from './metrics/gauge.interface';
 export * from './metrics/histogram.interface';
 export * from './metrics/metric-type.enum';
 export * from './metrics/metric.model';
+export * from './metrics/metrics-collector.model';
+export * from './metrics/metrics-exposition.model';
 export * from './metrics/collect-metrics.cron-job';
 
 // change sets
@@ -868,6 +936,8 @@ export * from './change-sets/models/soft-delete-find-by-id-options.model';
 export * from './change-sets/models/soft-delete-find-one-options.model';
 export * from './change-sets/models/soft-delete-where.model';
 export * from './change-sets/models/soft-delete-find-all-paginated-options.model';
+export * from './change-sets/models/soft-delete-stream-options.model';
+export * from './change-sets/models/soft-delete-aggregate-options.model';
 export * from './change-sets/models/soft-delete-update-all-options.model';
 export * from './change-sets/models/soft-delete-update-by-id-options.model';
 export * from './change-sets/models/soft-deleted-rows.type';
@@ -976,6 +1046,7 @@ export * from './multithreading/models/thread-job-data.model';
 export * from './multithreading/models/thread-job-function.model';
 export * from './multithreading/models/thread-job-entity.model';
 export * from './multithreading/run-queued-thread-jobs.cron-job';
+export * from './multithreading/thread-job-cleanup.cron-job';
 
 export * from './multithreading/services/multithreading-service.interface';
 export * from './multithreading/services/multithreading.service';
@@ -1021,6 +1092,8 @@ export * from './backup/transports/backup-transport.interface';
 export * from './backup/transports/fs.backup-transport';
 export * from './backup/transports/s3.backup-transport';
 export * from './backup/transports/s3/s3-backup-transport-options.model';
+export * from './backup/transports/s3/s3-credentials.model';
+export * from './backup/transports/s3/s3-server-side-encryption.model';
 export * from './backup/transports/sftp.backup-transport';
 export * from './backup/transports/sftp/sftp-authentication.model';
 export * from './backup/transports/sftp/sftp-backup-transport-options.model';
@@ -1105,6 +1178,7 @@ export * from './utilities/bytes';
 export * from './utilities/doubly-linked-list';
 export * from './versioning/sem-ver.utilities';
 export * from './utilities/now-in-ns.function';
+export * from './utilities/optional-peer.function';
 export * from './utilities/promise.utilities';
 export * from './utilities/ms';
 export * from './utilities/number.utilities';

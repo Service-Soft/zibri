@@ -12,7 +12,7 @@ export class IntrospectionResponse {
     active!: boolean;
 
     /**
-     * The roles the token may use right now, separated by spaces.
+     * The permissions the token may use right now, separated by spaces.
      */
     @Property.string({ required: false })
     scope?: string;

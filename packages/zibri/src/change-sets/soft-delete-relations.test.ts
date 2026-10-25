@@ -3,7 +3,8 @@ import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { SoftDeleteEntity } from './models/soft-delete-entity.model';
 import { SoftDeleteRepository } from './soft-delete-repository';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
@@ -65,7 +66,8 @@ class Step extends BaseEntity {
 }
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, Recipe, Step]
+    entities: [...defaultTestServerEntities, Recipe, Step],
+    repositories: defaultTestServerRepositories
 });
 
 describe('what a soft delete hands back', () => {
@@ -75,7 +77,7 @@ describe('what a soft delete hands back', () => {
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         recipes = inject(repositoryTokenFor(Recipe));
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

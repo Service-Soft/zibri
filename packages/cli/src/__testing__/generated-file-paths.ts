@@ -1,7 +1,13 @@
 import { Dirent, readdirSync } from 'node:fs';
 import path from 'node:path';
 
+import { SCAFFOLD_FEATURES } from '../scaffold';
 import { Path } from '../utilities';
+
+/**
+ * Every feature, as the command line names them: what `GENERATED_FILE_PATHS` is generated with.
+ */
+export const EVERY_FEATURE: string = SCAFFOLD_FEATURES.join(',');
 
 /**
  * The root of this package, which is what the generator's own assets are found relative to.
@@ -37,17 +43,20 @@ const EXPLICITLY_CREATED_FILES: string[] = [
     'src/application-options.base.ts',
     'src/application-options.ts',
     'src/__testing__/test-application-options.ts',
+    'src/__testing__/health.test.ts',
     'src/__testing__/home-page.test.ts',
     'src/providers.ts',
     'src/create-default-data.function.ts',
     'src/data-sources/db/db.data-source.ts',
     'src/data-sources/db/entities.ts',
+    'src/data-sources/db/repositories.ts',
     'src/data-sources/db/migrations/index.ts',
     'src/data-sources/db/index.ts',
     'src/data-sources/index.ts',
     'src/repositories/index.ts',
     'src/repositories/user.repository.ts',
     'src/repositories/membership.repository.ts',
+    'src/repositories/role.repository.ts',
     'src/controllers/auth.controller.ts',
     'src/controllers/health.controller.ts',
     'src/controllers/page.controller.ts',
@@ -55,8 +64,12 @@ const EXPLICITLY_CREATED_FILES: string[] = [
     'src/models/index.ts',
     'src/models/generated/providers.ts',
     'src/models/roles.enum.ts',
+    'src/models/platform-roles.enum.ts',
+    'src/models/permissions.ts',
+    'src/models/role.model.ts',
     'src/models/user.model.ts',
     'src/models/membership.model.ts',
+    'src/models/tenant.model.ts',
     'src/cron/index.ts',
     'src/services/index.ts'
 ];
@@ -79,7 +92,7 @@ function listCopiedTemplateFiles(sourceDir: string, destinationPrefix: string): 
 }
 
 /**
- * Every file "zi new" writes that another copy of it can be compared against.
+ * Every file "zi new" writes with every feature that another copy of it can be compared against.
  *
  * All of them but `NOT_IN_VERSION_CONTROL`, which by construction has nothing to compare to.
  */

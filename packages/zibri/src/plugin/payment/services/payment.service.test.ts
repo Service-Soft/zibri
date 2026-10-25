@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { PaymentServiceInterface } from './payment-service.interface';
-import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -86,7 +87,7 @@ describe('PaymentService', () => {
 
         server = await startTestServer({
             plugins: [new ZibriPaymentPlugin()],
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Payment], repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -111,7 +112,7 @@ describe('PaymentService', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     afterEach(() => {
         jest.clearAllMocks();

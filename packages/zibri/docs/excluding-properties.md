@@ -1,33 +1,31 @@
 # Excluding properties
-At some point in time you will probably stumble across the problem of having some sensitive data like eg. a password where you want to make sure that it will never leave the server in some form. Be it via http, websocket connection or inside of logs.
+An excluded property stays on the server. Your code reads it like any other property, and it is left out wherever the object is serialized: in an HTTP response, a websocket message or a log. Mark a password hash or another secret this way.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `Property` | decorator | Defines an entity property; accepts an `exclude` option |
 
-## Usage
-### Marking a property as excluded
-To support that use case, Zibri provides a exclude flag:
+## Marking a property as excluded
+Set `exclude: true` on the property:
 
 ```ts
 // src/models/user.model.ts
 import { BaseEntity, Entity, HashString, Property } from 'zibri';
 
 @Entity({ tenant: 'shared' })
-export class UserWithPassword extends BaseEntity {
-    // Alternatively you can also provide an options object instead of the boolean flag.
+export class User extends BaseEntity {
     @Property.string({ hash: true, exclude: true })
     password!: HashString;
 }
 ```
 
-The configuration object that can be used instead of the boolean flag here is pretty flexible with a callback. It allows for example to exclude based on the current users role. So you could specify that for Admins the password hash is not excluded, but for normal Users it is.
+Instead of `true`, `exclude` takes a function of the object and the request context, which returns whether to exclude the property. It can, for example, exclude the password hash for every role but admins.
 
-### CAVEAT: What this actually does
-Be aware that this does NOT remove the property as soon as the result comes back from your repository call. It simply marks them as not enumarable, which results in the property never showing up when things like JSON.stringify etc. are used.
+## Reading an excluded property on the server
+An entity read through a repository still holds its excluded properties. They are not enumerable, so `JSON.stringify` and everything else that serializes the object leaves them out.
 
-This allows you to work with the value while it's still on the server. If you have a login endpoint for example, you can access the password hash to compare it to the user input. But if you return the current user data afterwards, the password is removed.
+A login endpoint reads the password hash to compare it with what the user sent. When it returns the user afterwards, the response has no password.
 
 ## See also
 - [Models](./models.md) — the `@Property` decorators the `exclude` option belongs to

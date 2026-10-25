@@ -1,6 +1,7 @@
 import { describeKeyReconciliation, PlainWidget } from './key-reconciliation.cases';
 import { createTestDataSource } from '../../__testing__/test-server/create-test-data-source.function';
 import { Injectable } from '../../di/decorators/injectable.decorator';
+import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
@@ -57,4 +58,8 @@ postgresMigrations.push(CreateWidgetTableMigration);
 
 // a file per store rather than one for both: each case boots only the store it runs on, and a data
 // source declared in the same file but left out of the application is refused as an orphan
-describeKeyReconciliation('postgres', { dataSourceClass: postgresDataSourceClass, entities: postgresEntities });
+describeKeyReconciliation('postgres', {
+    dataSourceClass: postgresDataSourceClass,
+    entities: postgresEntities,
+    runStatement: async sql => await inject(postgresDataSourceClass).query(MigrationEntity).connection.query(sql)
+});

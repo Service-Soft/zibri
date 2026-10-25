@@ -4,6 +4,7 @@ import { describe, expect, it } from '@jest/globals';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { $t } from '../../localization/translate.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
 import { whereFor } from '../models/where/where-for.function';
@@ -21,10 +22,14 @@ import { Repository } from '../repository/repository';
     allowDuplicate: true,
     uniques: [['code']],
     checks: [
-        // eslint-disable-next-line unicorn/no-null
-        whereFor<Chore>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
-        whereFor<Chore>({ estimate: { greaterThanEquals: 1 } }),
-        whereFor<Chore>({ label: { notOneOf: ['forbidden'] } })
+        {
+            // eslint-disable-next-line unicorn/no-null
+            where: whereFor<Chore>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
+            code: 'completedAtRequired',
+            message: $t`a done chore has a completion date`
+        },
+        { where: whereFor<Chore>({ estimate: { greaterThanEquals: 1 } }), code: 'estimateTooSmall', message: $t`takes at least 1` },
+        { where: whereFor<Chore>({ label: { notOneOf: ['forbidden'] } }), code: 'labelForbidden', message: $t`this label is forbidden` }
     ]
 })
 export class Chore extends BaseEntity {

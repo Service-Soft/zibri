@@ -11,8 +11,6 @@ import { OpenApiSecuritySchemeObject } from '../../../open-api/open-api.model';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
 import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
 import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum';
 import { OAuth2Error } from '../../authorization-server/oauth2.error';
@@ -49,18 +47,19 @@ type ClientAccessToken = {
      */
     payload: JwtClientAccessTokenPayload,
     /**
-     * The roles the token may use.
+     * The permissions the token may use.
      */
-    roles: string[]
+    permissions: string[]
 };
 
 /**
  * Client access token auth strategy implementation of Zibri.
  *
  * Issues the access tokens the authorization server hands to clients, and reads them: a request sends
- * one as a bearer token, and acts as the user of the client's api key, holding the roles the token may
- * use that the user still has. A token bound to a client certificate is taken only beside that
- * certificate. The tokens are signed with the access token key of `ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS`.
+ * one as a bearer token, and acts as the user of the client's api key, holding the permissions the
+ * token may use that the user's roles still carry. A token bound to a client certificate is taken only
+ * beside that certificate. The tokens are signed with the access token key of
+ * `ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS`.
  */
 export class ClientAccessTokenAuthStrategy<
     RoleType extends string,
@@ -127,13 +126,9 @@ export class ClientAccessTokenAuthStrategy<
             this.userService.findById<RoleType, UserType, false>(token.payload.sub, { required: false }),
             this.isLive(token.payload)
         ]);
-        if (user == undefined || !live) {
-            return undefined;
-        }
-        // narrowed on the user itself rather than beside it, as an api key's roles are, so that a
-        // handler reading the current user sees what the token may do too. The user's current roles,
-        // so that a role taken from the user is taken from the tokens
-        return { ...user, roles: user.roles.filter(role => token.roles.includes(role)) };
+        // the user's current roles, as an api key's user: a role taken from the user is taken from
+        // the tokens
+        return user == undefined || !live ? undefined : user;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -141,7 +136,7 @@ export class ClientAccessTokenAuthStrategy<
         const token: ClientAccessToken | undefined = await this.findRequestToken(context);
         return token == undefined
             ? undefined
-            : { id: token.payload.sub, email: token.payload.email, roles: token.roles.filter(role => this.isRole<RoleType>(role)) };
+            : { id: token.payload.sub, email: token.payload.email, roles: token.payload.roles.filter(role => this.isRole<RoleType>(role)) };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -149,7 +144,7 @@ export class ClientAccessTokenAuthStrategy<
         // read off the token rather than the key, so that what the token may do is what it was issued
         // with, whether or not the key is read again
         const token: ClientAccessToken | undefined = await this.findRequestToken(context);
-        return token == undefined ? undefined : { roles: token.roles, tenantId: token.payload.tenant_id };
+        return token == undefined ? undefined : { permissions: token.permissions, tenantId: token.payload.tenant_id };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -173,7 +168,8 @@ export class ClientAccessTokenAuthStrategy<
         const payload: JwtClientAccessTokenPayload = {
             sub: user.id,
             email: user.email,
-            scope: grant.roles.join(' '),
+            scope: grant.permissions.join(' '),
+            roles: user.roles,
             client_id: grant.clientId,
             jti: UUIDUtilities.generate(),
             ...grant.tenantId == undefined ? {} : { tenant_id: grant.tenantId },
@@ -197,10 +193,11 @@ export class ClientAccessTokenAuthStrategy<
         if (user == undefined || user.deactivatedAt != undefined || !live) {
             return { active: false };
         }
+        // what a request with the token holds now: what the user's roles carry, narrowed to the client's
+        const held: string[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveUserPermissions(user, found.payload.tenant_id);
         return {
             active: true,
-            // what a request with the token holds now: the user's roles, narrowed to the client's
-            scope: user.roles.filter(role => found.roles.includes(role)).join(' '),
+            scope: found.permissions.filter(permission => held.includes(permission)).join(' '),
             username: user.email,
             token_type: found.payload.cnf?.jkt == undefined ? 'Bearer' : 'DPoP',
             exp: found.verified.expiresAt,
@@ -234,7 +231,7 @@ export class ClientAccessTokenAuthStrategy<
             expirationDate: new Date(found.verified.expiresAt * Ms.SECOND)
         });
         // a socket that connected with the token is closed, the way a request with it is now refused
-        await inject<WebsocketServiceInterface<BaseWebsocketConnection>>(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE)
+        await inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE)
             .disconnectEndedLogins([found.payload.sub], undefined);
     }
 
@@ -274,7 +271,8 @@ export class ClientAccessTokenAuthStrategy<
         if (verified == undefined || !isJwtClientAccessTokenPayload(verified.payload)) {
             return undefined;
         }
-        return { verified, payload: verified.payload, roles: verified.payload.scope.split(' ').filter(role => role !== '') };
+        const permissions: string[] = verified.payload.scope.split(' ').filter(permission => permission !== '');
+        return { verified, payload: verified.payload, permissions };
     }
 
     /**

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { defineProvider } from '../../di/models/di-provider.model';
@@ -108,11 +109,11 @@ describe('WebsocketService handshake', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     afterEach(async () => {
         connectCheckMode = 'allow';

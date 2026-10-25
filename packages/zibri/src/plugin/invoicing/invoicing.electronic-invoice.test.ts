@@ -13,8 +13,9 @@ import { CiiSchemedId } from './services/conformance/en16931/cii/cii-schemed-id.
 import { PeppolConformanceService } from './services/conformance/en16931/peppol-conformance.service';
 import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
 import { InvoicePdfService } from './services/invoice-pdf.service';
+import { TestTimeouts } from '../../__testing__/constants';
 import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -84,7 +85,7 @@ let server: StartedTestServer | undefined;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
         plugins: [new ZibriInvoicingPlugin()],
         providers: [
             ...defaultTestServerProviders,
@@ -102,11 +103,11 @@ beforeAll(async () => {
             }))
         ]
     });
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 /**
  * The XRechnung of an invoice, as written.

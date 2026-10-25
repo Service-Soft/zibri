@@ -191,7 +191,8 @@ describe('GlobalRegistry', () => {
                 baseUrl: 'http://localhost:3000',
                 controllers: [],
                 websocketControllers: [],
-                defaultAuth: 'public'
+                defaultAuth: 'public',
+                twoFactorAtLogin: 'never'
             };
 
             GlobalRegistry.setAppData(options);

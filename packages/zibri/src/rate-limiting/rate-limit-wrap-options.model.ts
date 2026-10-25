@@ -29,7 +29,15 @@ export type RateLimitWrapOptions<TArgs extends unknown[]> = {
     /**
      * Whether or not a reservation should be made if the limit would be reached instead of throwing a TooManyRequestsError.
      */
-    reserveIfUnavailable?: boolean
+    reserveIfUnavailable?: boolean,
+    /**
+     * Whether what a call consumed is given back once it returns, so that only calls which throw
+     * count against the limit.
+     *
+     * For a limit on trying something - a login - where a success is not an attempt worth charging
+     * for, and every failure is.
+     */
+    refundOnSuccess?: boolean
 };
 
 /**

@@ -2,6 +2,7 @@ import { BaseMembership } from './base-membership.model';
 import { ChangedMembership } from './changed-membership.model';
 import { isMembershipRepository, MembershipRepositoryInterface } from './membership-repository.interface';
 import { MembershipServiceInterface } from './membership-service.interface';
+import { RoleUtilities } from '../../auth/roles/role.utilities';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
@@ -25,13 +26,18 @@ import { type WebsocketServiceInterface } from '../../websocket/services/websock
 import { type TenantServiceInterface } from '../tenant-service.interface';
 
 /**
- * Default membership service implementation of Zibri, reading the memberships from the one class
- * marked with `@MembershipRepo()`.
+ * Default membership service implementation of Zibri, reading the memberships from the one
+ * membership repository, such as one extending `BaseMembershipRepository()`.
  */
 @Injectable({ register: 'onUse' })
 export class MembershipService implements MembershipServiceInterface, OnAppInit, AfterAppInit {
 
     private repository: MembershipRepositoryInterface<string, BaseMembership<string>> | undefined;
+
+    /**
+     * The membership repository, as the repository of its entity.
+     */
+    private entityRepository: Repository<BaseMembership<string>> | undefined;
 
     private get userService(): UserServiceInterface {
         return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
@@ -53,32 +59,32 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         const providers: DiProvider<unknown>[] = getRegisteredProvidersOfVariant(DiVariants.MEMBERSHIP_REPO);
         if (providers.length > 1) {
             throw new InternalError([
-                `Several classes are marked with @MembershipRepo: ${providers.map(p => getDiTokenName(p.token)).join(', ')}.`,
+                `Several membership repositories are listed: ${providers.map(p => getDiTokenName(p.token)).join(', ')}.`,
                 'The memberships of an application are read from one place. Keep one of them.'
             ]);
         }
         const [provider] = providers;
         if (provider != undefined) {
             const repository: unknown = inject(provider.token);
-            if (!isMembershipRepository(repository)) {
+            // registered under the variant by its data source, which lists repository classes only
+            if (!(repository instanceof Repository) || !isMembershipRepository(repository)) {
                 throw new InternalError(
-                    // eslint-disable-next-line stylistic/max-len
-                    `Invalid class marked with @MembershipRepo: ${getDiTokenName(provider.token)} needs to implement MembershipRepositoryInterface`
+                    `Invalid membership repository: ${getDiTokenName(provider.token)} needs to extend BaseMembershipRepository<Membership>()`
                 );
             }
             this.repository = repository;
+            this.entityRepository = repository;
             this.logger.info(`configures the membership repository ${getDiTokenName(provider.token)}`);
         }
 
-        // among what the application has actually built, for the reason UserService gives. This
-        // service answers the same questions as a repository, so it is left out by itself
-        const undecorated: unknown = getAllInstantiatedValues()
-            .find(value => value !== this && value !== this.repository && isMembershipRepository(value));
-        if (undecorated != undefined && typeof undecorated === 'object') {
-            throw new InternalError(
-                // eslint-disable-next-line stylistic/max-len
-                `The class "${undecorated.constructor.name}" seems to be a membership repository but has not been decorated with @MembershipRepo()`
-            );
+        // among what the application has actually built, for the reason UserService gives
+        const unlisted: unknown = getAllInstantiatedValues()
+            .find(value => value !== this.repository && isMembershipRepository(value));
+        if (unlisted != undefined && typeof unlisted === 'object') {
+            throw new InternalError([
+                `The class "${unlisted.constructor.name}" is a membership repository, but no data source lists it in its repositories.`,
+                'Declare it with @RepositoryFor(Membership), and list it in the repositories of the data source that declares Membership.'
+            ]);
         }
     }
 
@@ -90,10 +96,10 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         // and is told while it starts rather than by its first refused request
         if (this.repository == undefined && this.userService.userRepositories.length) {
             throw new InternalError([
-                'No class is marked with @MembershipRepo.',
+                'No membership repository is listed.',
                 'A logged in user acts in a tenant through their membership in it, which holds their roles there.',
-                'Declare a membership entity, eg. one extending BaseMembershipEntity(Roles),',
-                'and mark its repository with @MembershipRepo().'
+                'Declare a membership entity, eg. one extending BaseMembershipEntity<MemberRole>(), and its repository with',
+                '@RepositoryFor(Membership) extending BaseMembershipRepository<Membership>(), and list it in the repositories of the data source.'
             ]);
         }
     }
@@ -148,6 +154,12 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
         await this.tenantService.runAs(tenantId, async () => await repository.deleteMembership(userId, transaction));
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateRoles(userId: string, tenantId: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
+        const repository: MembershipRepositoryInterface<string, BaseMembership<string>> = this.getRepository();
+        await this.tenantService.runAs(tenantId, async () => await repository.updateRoles(userId, roles, transaction));
+    }
+
     /**
      * Gets the repository memberships are written to.
      * @returns The repository.
@@ -155,7 +167,7 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
      */
     private getRepository(): MembershipRepositoryInterface<string, BaseMembership<string>> {
         if (this.repository == undefined) {
-            throw new InternalError('No class is marked with @MembershipRepo, so there is nowhere to write a membership to.');
+            throw new InternalError('No membership repository is listed, so there is nowhere to write a membership to.');
         }
         return this.repository;
     }
@@ -170,9 +182,42 @@ export class MembershipService implements MembershipServiceInterface, OnAppInit,
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     isMembershipEntity(entityClass: Newable<BaseEntity>): boolean {
-        // only a repository of this framework writes through the data layer that reports writes. One
-        // reading memberships from anywhere else reports its own changes
-        return this.repository instanceof Repository && this.repository.entityClass === entityClass;
+        // only the entity of a data source is written through the data layer that reports writes.
+        // Memberships read from anywhere else report their own changes
+        return this.entityRepository?.entityClass === entityClass;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findUnknownRoles(known: string[], findTenantRoles: (tenantId: string) => Promise<string[]>): Promise<string[]> {
+        // the entity of a data source only, for the reason isMembershipEntity has
+        if (this.entityRepository == undefined) {
+            return [];
+        }
+        // the store hands out the memberships holding a role every tenant does not share, and only
+        // their tenants' own roles are asked for
+        return await RoleUtilities.resolveUnknownRoles(
+            this.entityRepository.stream({
+                where: { roles: RoleUtilities.whereHoldingUnknownRoles(known) },
+                unscoped: true,
+                acrossTenants: true,
+                autoDecrypt: false
+            }),
+            known,
+            findTenantRoles
+        );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async isRoleHeld(role: string, tenantId: string | undefined): Promise<boolean> {
+        // the entity of a data source only, for the reason isMembershipEntity has
+        if (this.entityRepository == undefined) {
+            return false;
+        }
+        return await this.entityRepository.count({
+            where: { roles: { includes: [role] }, ...tenantId == undefined ? {} : { tenantId } },
+            unscoped: true,
+            acrossTenants: true
+        }) > 0;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

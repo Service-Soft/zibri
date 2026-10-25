@@ -1,19 +1,21 @@
 import { Property } from '../../entity/decorators/property.decorator';
-import { type FsPath } from '../../utilities/fs.utilities';
 
 /**
- * An email attachment, consisting of filename and path.
+ * A file attached to an email, carried on the queued email itself.
+ *
+ * Whichever instance sends the email reads its attachments from the queued row, so the content is
+ * part of the attachment rather than a path to it.
  */
 export class EmailAttachment {
     /**
-     * The filename of the attachment.
+     * The name of the file, as the recipient sees it. Its extension decides the content type.
      */
     @Property.string()
     filename!: string;
 
     /**
-     * The path of the attachment.
+     * The content of the file, base64 encoded. Eg. `buffer.toString('base64')`.
      */
     @Property.string()
-    path!: FsPath;
+    base64Content!: string;
 }

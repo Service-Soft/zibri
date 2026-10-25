@@ -11,7 +11,9 @@ import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing
 import { type EntityOrder } from '../../entity/models/entity-order.model';
 import { type RelationTree } from '../../entity/models/entity-relations.model';
 import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
-import { denyAll, type DenyAll } from '../../entity/models/entity-scope.model';
+import { denyAll, type DenyAll, isUnscoped } from '../../entity/models/entity-scope.model';
+import { EntitySelection, Projected } from '../../entity/models/entity-selection.model';
+import { EntitySelectionUtilities, SelectionTree } from '../../entity/models/entity-selection.utilities';
 import { Relation } from '../../entity/models/relation.enum';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
@@ -31,17 +33,21 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { AggregateUtilities } from '../aggregate.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { DeadlineAwareRepositoryDriver } from '../driver/deadline-aware.repository-driver';
 import { MembershipReportingRepositoryDriver } from '../driver/membership-reporting.repository-driver';
 import { DriverFindOptions, DriverStreamOptions, RepositoryDriverInterface } from '../driver/repository-driver.interface';
+import { RoleReportingRepositoryDriver } from '../driver/role-reporting.repository-driver';
+import { RoleValidatingRepositoryDriver } from '../driver/role-validating.repository-driver';
 import { TracedRepositoryDriver } from '../driver/traced.repository-driver';
 import { BeforeReturnHook } from '../hooks/before-return';
 import { BeforeSaveHook, SaveOperation } from '../hooks/before-save';
 import { isDefaultBeforeSaveHook } from '../hooks/hooks.default';
 import { afterCursorWhere, keysetStepsFor, keysetValuesOf } from '../keyset/after-cursor-where.function';
 import { keysetFingerprint, KeysetOrderKey, resolveKeysetOrder } from '../keyset/keyset-order.model';
+import { AggregateFunction, Aggregated, AggregateOptions, AggregateRow, GroupKeysOf, NumberKeysOf, OrderedKeysOf } from '../models/aggregate.model';
 import { AtomicUpdate } from '../models/atomic-update.model';
 import { decodeKeysetCursor, encodeKeysetCursor } from '../models/keyset-cursor.model';
 import { BaseRepositoryOptions } from '../models/options/base-repository-options.model';
@@ -63,16 +69,20 @@ import { UpsertOptions } from '../models/options/upsert-options.model';
 import { WriteRelationsOptions } from '../models/options/write-relations-options.model';
 import { OwnedRelationWrite } from '../models/owned-relation-write.model';
 import { OwnedRelation } from '../models/owned-relation.model';
+import { type RelatedNarrowing } from '../models/related-narrowing.model';
+import { IncrementAmounts, UpdateAllData } from '../models/update-all-data.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { FuzzySearchUtilities } from '../models/where/fuzzy-search.utilities';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { OwnedRelationUtilities } from '../owned-relation.utilities';
+import { RelatedNarrowingUtilities } from '../scopes/related-narrowing.utilities';
 import { resolveEntityScope } from '../scopes/resolve-entity-scope.function';
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 import { TenantOwnership, TenantRowData, TenantUtilities } from '../tenancy/tenant.utilities';
 import { WrittenRowTenantUtilities } from '../tenancy/written-row-tenant.utilities';
 import { Transaction } from '../transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
+import { UpdateIncrementUtilities } from '../update-increment.utilities';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { validateWriteIsNotBlind } from '../validate-write-is-not-blind.function';
 import { dropImpossibleConditions } from '../where/drop-impossible-conditions.function';
@@ -145,6 +155,34 @@ export type BulkUpdate<T extends BaseEntity> = {
 };
 
 /**
+ * What a call taking a value over rows hands on, whichever of them it is.
+ */
+type AggregateCallOptions<T extends BaseEntity> = BaseRepositoryOptions & {
+    /**
+     * The filter the rows are taken from.
+     */
+    where?: Where<T>,
+    /**
+     * The properties to take the value per group of.
+     */
+    groupBy?: readonly PropertyKey[]
+};
+
+/**
+ * What an update that adds amounts is judged by once it is written.
+ */
+type IncrementJudging<T extends BaseEntity> = {
+    /**
+     * The scope the caller is restricted to.
+     */
+    scope: Where<T> | DenyAll | undefined,
+    /**
+     * The properties the update adds to that the scope reads.
+     */
+    judgedAfter: string[]
+};
+
+/**
  * One row of an upsert as it is handed to the store, with what is left to judge once it is written.
  */
 type PreparedUpsert<T extends BaseEntity> = {
@@ -190,6 +228,16 @@ type OwnedRowsById = Map<string, Map<string, BaseEntity[]>>;
 const RELATION_TYPES: Set<string> = new Set(Object.values(Relation));
 
 /**
+ * What a repository runs with: its logger, its data source and its two hooks.
+ */
+type RepositoryParts<T extends BaseEntity, CreateData extends DeepPartial<T>, UpdateData extends DeepPartial<T>> = [
+    LoggerInterface,
+    DataSourceInterface,
+    BeforeSaveHook<T, CreateData, UpdateData>,
+    BeforeReturnHook<T>
+];
+
+/**
  * A repository that handles data source related things for its entity.
  *
  * Everything that is independent of the underlying storage is handled here, the actual reading
@@ -205,7 +253,21 @@ export class Repository<
      */
     protected readonly driver: RepositoryDriverInterface<T>;
 
+    /**
+     * What this repository logs through.
+     */
+    protected readonly logger: LoggerInterface;
+
+    /**
+     * The warnings already given about a selection that reads whole rows, so each is given once.
+     */
+    private readonly wholeRowSelectionWarnings: Set<string> = new Set();
+
     private readonly _dataSource: DataSourceInterface;
+
+    private readonly beforeSave: BeforeSaveHook<T, CreateData, UpdateData>;
+
+    private readonly beforeReturn: BeforeReturnHook<T>;
 
     /**
      * The metadata of entity that this repository manages.
@@ -228,33 +290,114 @@ export class Repository<
         return this._dataSource;
     }
 
+    /**
+     * Builds a repository of your own on the one the data source built for the entity: it reads and
+     * writes through that one, with its logger, its data source and its hooks.
+     * @param entityClass - The entity this repository reads and writes.
+     * @param repo - The repository the data source built for it, which this class has to extend.
+     */
+    constructor(entityClass: Newable<T>, repo: Repository<T>);
+    /**
+     * Builds a repository over a driver, or over another repository with hooks of its own.
+     * @param entityClass - The entity this repository reads and writes.
+     * @param repo - The driver, or the repository whose driver is read and written through.
+     * @param logger - What the repository logs through.
+     * @param dataSource - The data source the repository belongs to.
+     * @param beforeSave - What runs on every row before it is written.
+     * @param beforeReturn - What runs on every row before it is handed back.
+     */
+    constructor(
+        entityClass: Newable<T>,
+        repo: RepositoryDriverInterface<T> | Repository<T>,
+        logger: LoggerInterface,
+        dataSource: DataSourceInterface,
+        beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
+        beforeReturn: BeforeReturnHook<T>
+    );
     constructor(
         /**
          * The entity this repository reads and writes.
          */
         readonly entityClass: Newable<T>,
         repo: RepositoryDriverInterface<T> | Repository<T>,
-        protected readonly logger: LoggerInterface,
-        dataSource: DataSourceInterface,
-        private readonly beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
-        private readonly beforeReturn: BeforeReturnHook<T>
+        logger?: LoggerInterface,
+        dataSource?: DataSourceInterface,
+        beforeSave?: BeforeSaveHook<T, CreateData, UpdateData>,
+        beforeReturn?: BeforeReturnHook<T>
     ) {
-        // wrapped once here rather than at every call: a repository built on another one already
-        // holds a wrapped driver, so taking that one keeps a nested repository from recording each
-        // of its reads twice. The refusal sits outside the tracing, so an operation that never
-        // reached the store leaves no span claiming it did
-        this.driver = repo instanceof Repository
-            ? repo.driver
-            : new DeadlineAwareRepositoryDriver(
-                new MembershipReportingRepositoryDriver(new TracedRepositoryDriver(repo, entityClass), entityClass, logger)
+        [this.logger, this._dataSource, this.beforeSave, this.beforeReturn] = Repository.resolveParts(
+            repo,
+            logger,
+            dataSource,
+            beforeSave,
+            beforeReturn
+        );
+        if (repo instanceof Repository) {
+            // a repository built on a `SoftDeleteRepository` that extends plain `Repository` reads and
+            // writes through the driver alone: it finds deleted rows, writes no change set and hard
+            // deletes, and nothing said so
+            if (!(this instanceof repo.constructor)) {
+                const base: string = repo.constructor.name;
+                throw new InternalError(
+                    `${this.constructor.name} is built on a ${base}, so it has to extend ${base}: `
+                    + 'extending anything else loses what that class adds.'
+                );
+            }
+            // taken wrapped, so a nested repository records none of its reads twice
+            this.driver = repo.driver;
+        }
+        else {
+            // wrapped once here rather than at every call. The refusal sits outside the tracing, so
+            // an operation that never reached the store leaves no span claiming it did
+            const traced: TracedRepositoryDriver<T> = new TracedRepositoryDriver(repo, entityClass);
+            this.driver = new DeadlineAwareRepositoryDriver(
+                new RoleValidatingRepositoryDriver(
+                    new RoleReportingRepositoryDriver(
+                        new MembershipReportingRepositoryDriver(traced, entityClass, this.logger),
+                        entityClass,
+                        this.logger
+                    ),
+                    entityClass
+                )
             );
+        }
         ModelRegistry.get(this.entityClass);
         const metadata: EntityMetadata<T> | undefined = MetadataUtilities.getEntityMetadata(this.entityClass);
         if (!metadata) {
             throw new EntityMetadataMissingError(this.entityClass);
         }
-        this._dataSource = dataSource;
         this.entityMetadata = metadata;
+    }
+
+    /**
+     * What a repository runs with: given outright, or taken off the repository it is built on.
+     * @param repo - The driver, or the repository built on.
+     * @param logger - The logger given, if any.
+     * @param dataSource - The data source given, if any.
+     * @param beforeSave - The before save hook given, if any.
+     * @param beforeReturn - The before return hook given, if any.
+     * @returns The logger, the data source and the two hooks.
+     * @throws When something is missing and there is no repository to take it from.
+     */
+    protected static resolveParts<T extends BaseEntity, CreateData extends DeepPartial<T>, UpdateData extends DeepPartial<T>>(
+        repo: RepositoryDriverInterface<T> | Repository<T>,
+        logger: LoggerInterface | undefined,
+        dataSource: DataSourceInterface | undefined,
+        beforeSave: BeforeSaveHook<T, CreateData, UpdateData> | undefined,
+        beforeReturn: BeforeReturnHook<T> | undefined
+    ): RepositoryParts<T, CreateData, UpdateData> {
+        if (repo instanceof Repository) {
+            return [
+                logger ?? repo.logger,
+                dataSource ?? repo._dataSource,
+                beforeSave ?? repo.beforeSave,
+                beforeReturn ?? repo.beforeReturn
+            ];
+        }
+        if (logger == undefined || dataSource == undefined || beforeSave == undefined || beforeReturn == undefined) {
+            throw new InternalError('A repository over a driver takes its logger, its data source and its hooks.');
+        }
+        return [logger, dataSource, beforeSave, beforeReturn];
     }
 
     /**
@@ -278,11 +421,11 @@ export class Repository<
      * @param where - The filter to query with, already narrowed by the entity's scopes.
      * @returns Find options that a driver can be called with.
      */
-    private toDriverFindOptions(
-        options: FindAllOptions<T> | FindOneOptions<T> | undefined,
+    private async toDriverFindOptions<S extends EntitySelection<T> | undefined>(
+        options: FindAllOptions<T, S> | FindOneOptions<T, boolean, S> | undefined,
         where: Where<T> | undefined
-    ): DriverFindOptions<T> {
-        const allOptions: FindAllOptions<T> | undefined = options as FindAllOptions<T> | undefined;
+    ): Promise<DriverFindOptions<T>> {
+        const allOptions: FindAllOptions<T, S> | undefined = options as FindAllOptions<T, S> | undefined;
         // 'all' is the absence of a limit as far as the store is concerned. The difference
         // between saying it and saying nothing is handled by findAll, which is where it matters
         const take: number | undefined = allOptions?.take === 'all' ? undefined : allOptions?.take;
@@ -291,14 +434,77 @@ export class Repository<
         const order: EntityOrder<T> | undefined = allOptions?.order ?? this.entityMetadata.defaultOrder;
         // here rather than in each store, so that every store refuses the same orders
         FuzzySearchUtilities.validateOrderable(order, this.entityClass);
+        const relations: FindAllOptions<T>['relations'] = options?.relations ?? this.entityMetadata.defaultRelations;
         return {
             where,
             order: this.totalOrder(order, allOptions?.skip != undefined || take != undefined),
-            relations: options?.relations ?? this.entityMetadata.defaultRelations,
+            relations,
+            related: await this.resolveRelated(where, relations, options),
+            select: this.resolveColumnsToRead(options?.select, relations),
             skip: allOptions?.skip,
             take,
             transaction: options?.transaction
         };
+    }
+
+    /**
+     * Resolves which properties a read hands to the driver to read, from what the caller selected.
+     *
+     * The selection is refused here, before anything is read, when it names what the read cannot
+     * hand back. A property whose value is decided by a function handed the whole row - an
+     * `exclude`, or an encryption - makes the read take whole rows, since the narrowed one is not
+     * the row it decides on; that is said once per selection, because it costs what the selection was
+     * meant to save.
+     * @param select - What the caller selected, if anything.
+     * @param relations - The relations the read includes.
+     * @returns The properties to read, or undefined for whole rows.
+     */
+    private resolveColumnsToRead(
+        select: EntitySelection<T> | undefined,
+        relations: FindAllOptions<T>['relations'] | RelationTree | undefined
+    ): SelectionTree | undefined {
+        const tree: SelectionTree | undefined = EntitySelectionUtilities.resolveTree(select);
+        if (tree == undefined) {
+            return undefined;
+        }
+        EntitySelectionUtilities.validateImpossibleSelect(tree, this.entityClass, EntityRelationsUtilities.resolveTree(relations));
+        const needingWholeRow: string[] = EntitySelectionUtilities.findPropertiesNeedingWholeRow(tree, this.entityClass);
+        if (!needingWholeRow.length) {
+            return tree;
+        }
+        const warning: string = `Selecting ${needingWholeRow.join(', ')} reads whole rows of ${this.entityClass.name}, because what`
+            + ' they hand back is decided by a function that is given the whole row (an exclude or an encryption).'
+            + ' The selection still narrows what comes back, but reads as much as a read without one.';
+        if (!this.wholeRowSelectionWarnings.has(warning)) {
+            this.wholeRowSelectionWarnings.add(warning);
+            this.logger.warn(warning);
+        }
+        return undefined;
+    }
+
+    /**
+     * Resolves what the rows of every entity a call reaches through a relation are narrowed to.
+     *
+     * The rows a relation holds, a filter through it and a count of it are all answered about the
+     * rows the caller may see of the related entity, the way a call on that entity's own repository
+     * answers - and a call exempt from the scopes is exempt from theirs.
+     * @param where - The filter of the call, already narrowed by the entity's scopes.
+     * @param relations - The relations the call resolves, if any.
+     * @param options - The options of the call, carrying `unscoped`.
+     * @returns The narrowing per entity reached, or undefined when nothing the call reaches is narrowed.
+     */
+    private async resolveRelated(
+        where: Where<T> | undefined,
+        relations: FindAllOptions<T>['relations'] | RelationTree | undefined,
+        options: BaseRepositoryOptions | undefined
+    ): Promise<RelatedNarrowing | undefined> {
+        const related: RelatedNarrowing = await RelatedNarrowingUtilities.resolve(
+            this.entityClass,
+            where,
+            EntityRelationsUtilities.resolveTree(relations),
+            options?.unscoped
+        );
+        return related.size ? related : undefined;
     }
 
     /**
@@ -355,13 +561,16 @@ export class Repository<
      * @param where - The filter, already narrowed by the entity's scopes.
      * @returns The resolved options for the driver.
      */
-    private toDriverStreamOptions(
-        options: StreamOptions<T> | undefined,
+    private async toDriverStreamOptions(
+        options: StreamOptions<T, EntitySelection<T> | undefined> | undefined,
         where: Where<T> | undefined
-    ): DriverStreamOptions<T> {
+    ): Promise<DriverStreamOptions<T>> {
+        const relations: FindAllOptions<T>['relations'] = options?.relations ?? this.entityMetadata.defaultRelations;
         return {
             where,
-            relations: options?.relations ?? this.entityMetadata.defaultRelations,
+            relations,
+            related: await this.resolveRelated(where, relations, options),
+            select: this.resolveColumnsToRead(options?.select, relations),
             transaction: options?.transaction
         };
     }
@@ -464,17 +673,21 @@ export class Repository<
     }
 
     /**
-     * Refuses a write that points a row at a row of another tenant.
+     * Refuses a write that points a row at a row of another tenant, or at a row the caller may not
+     * see.
      *
      * A row only ever references rows of its own tenant, and a row of no tenant only rows of none.
      * That is what keeps a read through a relation inside one tenant without narrowing it: every
-     * relation between two rows was written by a call that was checked here. One read per entity
+     * relation between two rows was written by a call that was checked here. A row pointed at has
+     * to be one the caller may see as well, the way a row they create has to be, since the rows a
+     * relation holds are read back by whoever may see the row holding it. One read per entity
      * pointed at, across every row of the write.
      * @param rows - The data of each row being written, with the tenant the row belongs to.
-     * @param options - The options of the write, for its transaction.
-     * @throws {ForbiddenError} When a row points at a row of another tenant, or at one that is not there.
+     * @param options - The options of the write, for its transaction and `unscoped`.
+     * @throws {ForbiddenError} When a row points at a row of another tenant, at one the caller may
+     * not see, or at one that is not there.
      */
-    private async validateReferencesInTenant(rows: TenantRowData[], options: BaseRepositoryOptions | undefined): Promise<void> {
+    private async validateReferences(rows: TenantRowData[], options: BaseRepositoryOptions | undefined): Promise<void> {
         const expected: Map<Newable<BaseEntity>, Map<string, Set<string | undefined>>> = new Map();
         for (const { data, rowTenant } of rows) {
             for (const { target, ids } of TenantUtilities.resolveReferences(data, this.entityClass, rowTenant)) {
@@ -488,10 +701,13 @@ export class Repository<
 
         await Promise.all([...expected].map(async ([target, byId]) => {
             // a row of no tenant pointing at rows of no tenant is what every application without
-            // tenants does on every write, and there is nothing to compare
+            // tenants does on every write, and there is nothing to compare - unless the rows pointed
+            // at are ones this caller may not see
             const targetMetadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(target);
             const everyRowShared: boolean = [...byId.values()].every(tenants => tenants.size === 1 && tenants.has(undefined));
-            if (targetMetadata?.tenant === 'shared' && everyRowShared) {
+            const targetScoped: boolean = targetMetadata?.scope?.restrictedTo != undefined
+                && !isUnscoped('restrictedTo', options?.unscoped);
+            if (targetMetadata?.tenant === 'shared' && everyRowShared && !targetScoped) {
                 return;
             }
             // a row this transaction wrote is known already, which is every row a write creates along
@@ -502,11 +718,13 @@ export class Repository<
                 [...byId.keys()]
             );
             const unknown: string[] = [...byId.keys()].filter(id => !tenantOfId.has(id));
+            // through the repository of the rows pointed at, under the scopes the call is not exempt
+            // from: a row the caller may not see is not there as far as they are concerned
             const found: BaseEntity[] = unknown.length
                 ? await this.dataSource.getRepository(target).findAll({
                     where: { id: { oneOf: unknown } },
                     acrossTenants: true,
-                    unscoped: true,
+                    unscoped: options?.unscoped,
                     take: 'all',
                     transaction: options?.transaction
                 })
@@ -515,8 +733,8 @@ export class Repository<
                 tenantOfId.set(row.id, TenantUtilities.resolveTenantOf(row, target));
             }
             for (const [id, tenants] of byId) {
-                // refused alike whether the row is another tenant's or not there at all, so the answer
-                // says nothing about which ids exist elsewhere
+                // refused alike whether the row is another tenant's, hidden from the caller or not
+                // there at all, so the answer says nothing about which ids exist elsewhere
                 const tenant: string | undefined = tenantOfId.get(id);
                 if (!tenantOfId.has(id) || tenants.size !== 1 || !tenants.has(tenant)) {
                     throw this.resolveOutOfScopeError();
@@ -606,9 +824,15 @@ export class Repository<
             return;
         }
 
+        // narrowed the way a read is before any store sees it: every uuid in lower case, the form
+        // writes store them in, and a branch no row can satisfy dropped. Judged raw, a scope spelling
+        // a uuid in upper case read rows it refused to write
+        const branches: WhereFilter<T>[] = scope === denyAll
+            ? []
+            : dropImpossibleConditions(ScopeWhereUtilities.branchesOf(scope), MetadataUtilities.getModelProperties(this.entityClass));
         // any branch, not every: the scope's branches are an OR, so a row that satisfies one of them
         // is a row the caller may see
-        const allowed: boolean = scope !== denyAll && ScopeWhereUtilities.branchesOf(scope).some(branch => {
+        const allowed: boolean = branches.some(branch => {
             const applicable: WhereFilter<T> = judged === 'every'
                 ? branch
                 : this.conditionsOn(branch, judged);
@@ -637,7 +861,7 @@ export class Repository<
         }
         // forbidden rather than not found: the caller reads this row, and a row that is there to read
         // and missing to write would be the one answer that is not true
-        this.logger.audit({
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
             action: AuditAction.AUTHORIZATION,
             outcome: AuditOutcome.FAILURE,
             reason: AuditReason.OUT_OF_SCOPE
@@ -655,7 +879,7 @@ export class Repository<
         // recorded, where a refused *read* is not: a read that comes back empty cannot be told apart
         // from a row that is simply not there - which is the property the 404 exists for - while a
         // write landing outside the scope is a caller stating what they intended
-        this.logger.audit({
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
             action: AuditAction.AUTHORIZATION,
             outcome: AuditOutcome.FAILURE,
             reason: AuditReason.OUT_OF_SCOPE
@@ -711,7 +935,7 @@ export class Repository<
             this.writeUuidsInLowerCase(own);
             await this.beforeSave(own, SaveOperation.CREATE, this.entityClass);
             await this.applyScopeToData(own, SaveOperation.CREATE, options);
-            await this.validateReferencesInTenant(
+            await this.validateReferences(
                 [{ data: own, rowTenant: TenantUtilities.resolveTenantOf(own, this.entityClass) }],
                 options
             );
@@ -795,7 +1019,7 @@ export class Repository<
     ): Promise<OwnedRowsById> {
         // the check the row's own data went through, which gives a row created along with it the
         // row's tenant and refuses linking one of another tenant
-        await this.validateReferencesInTenant(entries.map(([data, , rowTenant]) => ({ data, rowTenant })), options);
+        await this.validateReferences(entries.map(([data, , rowTenant]) => ({ data, rowTenant })), options);
         const res: OwnedRowsById = new Map();
         const childOptions: BaseRepositoryOptions = {
             transaction: this.writeTransaction(options),
@@ -1386,9 +1610,16 @@ export class Repository<
     ): Promise<T[]> {
         const rows: UpsertRow<T>[] = prepared.map(p => p.row);
         const reachable: Where<T> | undefined = this.resolveReachableByUpsert(identity, rows, scope);
+        // what the scope and the rows' own conditions reach through relations, judged over the rows
+        // the caller may see of them
+        const related: RelatedNarrowing | undefined = await this.resolveRelated(
+            [...ScopeWhereUtilities.branchesOf(reachable), ...rows.flatMap(row => ScopeWhereUtilities.branchesOf(row.where))],
+            undefined,
+            options
+        );
         // the conflicting row holds the same identity, the tenant included, so both paths point a row
         // of the create data's tenant at whatever either of them names
-        await this.validateReferencesInTenant(
+        await this.validateReferences(
             rows.map(row => ({
                 data: Object.assign({ ...row.create }, this.resolveConflictSets(row.onConflict)),
                 rowTenant: TenantUtilities.resolveTenantOf(row.create, this.entityClass)
@@ -1410,10 +1641,10 @@ export class Repository<
         const writtenAfter: boolean = prepared.some(p => p.bound != undefined);
         try {
             if (!judgedAfter && !refusedPartway && !writtenAfter) {
-                return await this.driver.upsert(identity, rows, this.writeTransaction(options), reachable);
+                return await this.driver.upsert(identity, rows, this.writeTransaction(options), reachable, related);
             }
             return await this.inTransaction(options, async transaction => {
-                const written: T[] = await this.driver.upsert(identity, rows, transaction, reachable);
+                const written: T[] = await this.driver.upsert(identity, rows, transaction, reachable, related);
                 await this.writeBoundConflictSets(prepared, written, transaction);
                 for (const [i, entity] of written.entries()) {
                     const incremented: string[] = prepared[i]?.incremented ?? [];
@@ -1553,13 +1784,6 @@ export class Repository<
                     'change it. Write the other side separately, or use create.'
                 ]);
             }
-            if (metadata.joinColumn == undefined) {
-                throw new InternalError([
-                    `"${this.entityClass.name}.${String(key)}" declares no joinColumn,`,
-                    'so there is no property on this row to write its foreign key into.'
-                ]);
-            }
-
             const value: unknown = writable[key];
             const id: unknown = value != undefined && typeof value === 'object' && 'id' in value ? value.id : value;
             if (typeof id !== 'string') {
@@ -1614,7 +1838,7 @@ export class Repository<
                     `Found an id on ${entitiesWithIdCount} out of ${data.length} entries of the create data. These ids will be ignored.`
                 );
             }
-            await this.validateReferencesInTenant(
+            await this.validateReferences(
                 own.map(d => ({ data: d, rowTenant: TenantUtilities.resolveTenantOf(d, this.entityClass) })),
                 options
             );
@@ -1638,17 +1862,26 @@ export class Repository<
     /**
      * Writes the rows a create makes.
      *
-     * Inserted when every id was generated here, since no stored row can hold one of those. A row
-     * given its id with `allowId` may be stored already, so those are saved, which updates such a row.
+     * Inserted: every id was generated here, which no stored row holds, or given with `allowId` and
+     * checked to be free first.
      * @param rows - The rows, each with its id.
      * @param options - The options of the create, holding its transaction and `allowId`.
      * @returns The written rows, in the order they were given.
+     * @throws {UniqueConstraintViolationError} When a given id is held by a stored row.
      */
     private async writeNewRows(rows: DeepPartial<T>[], options: CreateOptions<T> | CreateAllOptions<T> | undefined): Promise<T[]> {
         const transaction: Transaction | undefined = this.writeTransaction(options);
-        const res: T[] = options?.allowId === true
-            ? await this.driver.save(rows, transaction, true)
-            : await this.driver.insert(rows, transaction);
+        if (options?.allowId === true) {
+            // a create is a create: a row given its id used to be *saved*, which rewrote a stored row
+            // holding that id - another tenant's, another owner's, a soft deleted one - past every
+            // check an update makes, since everything before this point judged the new data alone
+            const ids: string[] = rows.map(row => String(row.id));
+            const missing: Set<string> = await this.findMissingIds(this.entityClass, ids, transaction);
+            if (ids.some(id => !missing.has(id))) {
+                throw new UniqueConstraintViolationError(this.entityClass.name, ['id']);
+            }
+        }
+        const res: T[] = await this.driver.insert(rows, transaction);
         this.recordWrittenRows(res, transaction);
         return res;
     }
@@ -1697,6 +1930,7 @@ export class Repository<
         const read: T[] = await this.driver.find({
             where: { id: { oneOf: written.map(w => w.id) } } as Where<T>,
             relations,
+            related: await this.resolveRelated(undefined, relations, options),
             transaction: options?.transaction
         });
         await Promise.all(read.map(r => this.beforeReturn(r, this.entityClass, true)));
@@ -1750,10 +1984,10 @@ export class Repository<
      * @param options - Additional options, eg. Transaction or whether a result is required.
      * @returns The found entity. If required is set to false, also undefined.
      */
-    async findById<B extends boolean = true>(
+    async findById<B extends boolean = true, const S extends EntitySelection<T> | undefined = undefined>(
         id: T['id'],
-        options?: FindByIdOptions<T, B>
-    ): Promise<B extends false ? T | undefined : T> {
+        options?: FindByIdOptions<T, B, S>
+    ): Promise<B extends false ? Projected<T, S> | undefined : Projected<T, S>> {
         return await this.withinTimeout(options, 'findById', async () => {
             // combined with whatever the caller asked for rather than replacing it. Spreading the
             // options over the id let a `where` they carried take the id's place, so the read looked
@@ -1763,13 +1997,13 @@ export class Repository<
                 [{ id } as WhereFilter<T>],
                 MetadataUtilities.getModelProperties(this.entityClass)
             );
-            const res: T | undefined = byId.matchesNothing
+            const res: Projected<T, S> | undefined = byId.matchesNothing
                 ? undefined
-                : await this.findOne({ ...options, where: byId.where, required: false });
+                : await this.findOne<false, S>({ ...options, where: byId.where, required: false });
             if (!res && options?.required !== false) {
                 throw new NotFoundError($ts`Could not find ${this.entityClass.name} with id "${id}".`);
             }
-            return res as B extends false ? T | undefined : T;
+            return res as B extends false ? Projected<T, S> | undefined : Projected<T, S>;
         });
     }
 
@@ -1778,41 +2012,58 @@ export class Repository<
      * @param options - The options, including the where filter, whether a result is required etc.
      * @returns The found result. If required is set to false, also undefined.
      */
-    async findOne<B extends boolean = true>(
-        options: FindOneOptions<T, B>
-    ): Promise<B extends false ? T | undefined : T> {
+    async findOne<B extends boolean = true, const S extends EntitySelection<T> | undefined = undefined>(
+        options: FindOneOptions<T, B, S>
+    ): Promise<B extends false ? Projected<T, S> | undefined : Projected<T, S>> {
         return await this.withinTimeout(options, 'findOne', async () => {
             const scoped: ScopedWhere<T> = await this.scopedWhere(options.where, options);
             // a row the scope excludes is answered exactly like one that does not exist, so a caller
             // cannot use a guarded route to find out which ids are real
             const res: T | undefined = scoped.matchesNothing
                 ? undefined
-                : await this.driver.findOne(this.toDriverFindOptions(options, scoped.where));
+                : await this.driver.findOne(await this.toDriverFindOptions(options, scoped.where));
 
             if (!res && options.required !== false) {
                 throw new NotFoundError($ts`Could not find ${this.entityClass.name}.`);
             }
             if (!res) {
-                return undefined as B extends false ? T | undefined : T;
+                return undefined as B extends false ? Projected<T, S> | undefined : Projected<T, S>;
             }
             await this.beforeReturn(res, this.entityClass, options.autoDecrypt ?? true);
-            return res;
+            return this.narrowToSelection([res], options.select)[0] as B extends false ? Projected<T, S> | undefined : Projected<T, S>;
         });
+    }
+
+    /**
+     * Narrows rows that went through the return hooks to what a read selected.
+     *
+     * After the hooks rather than before them, so that what they decide - an excluded property, a
+     * decrypted one - is decided on the row as it was read.
+     * @param rows - The rows, as the hooks left them.
+     * @param select - What the read selected, if anything.
+     * @returns The rows, narrowed. The same rows when nothing was selected.
+     */
+    private narrowToSelection(rows: T[], select: EntitySelection<T> | undefined): T[] {
+        const tree: SelectionTree | undefined = EntitySelectionUtilities.resolveTree(select);
+        if (tree == undefined) {
+            return rows;
+        }
+        return rows.map(row => EntitySelectionUtilities.project(row, tree, this.entityClass));
     }
 
     /**
      * Finds all entities with the given options.
      * @param options - The options, including the where filter etc.
-     * @returns An array of found entities.
+     * @returns An array of found entities, narrowed to what `select` names when it names anything.
      */
-    async findAll(options?: FindAllOptions<T>): Promise<T[]> {
+    async findAll<const S extends EntitySelection<T> | undefined = undefined>(options?: FindAllOptions<T, S>): Promise<Projected<T, S>[]> {
         return await this.withinTimeout(options, 'findAll', async () => {
             const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
             if (scoped.matchesNothing) {
                 return [];
             }
 
-            const driverOptions: DriverFindOptions<T> = this.toDriverFindOptions(options, scoped.where);
+            const driverOptions: DriverFindOptions<T> = await this.toDriverFindOptions(options, scoped.where);
             // a call that names no limit is claiming the result is small enough to hold, and this
             // checks that claim rather than believing it. One row more than the cap is asked for, so
             // getting that row back is proof there was something past the cap - a result of exactly
@@ -1839,7 +2090,8 @@ export class Repository<
             }
 
             await Promise.all(res.map(r => this.beforeReturn(r, this.entityClass, options?.autoDecrypt ?? true)));
-            return res;
+            // narrowed at run time to what the selection names, which is what the type says
+            return this.narrowToSelection(res, options?.select) as Projected<T, S>[];
         });
     }
 
@@ -1864,9 +2116,14 @@ export class Repository<
      *     await this.remind(invoice);
      * }
      */
-    async* stream(options?: StreamOptions<T>): AsyncIterable<T> {
+    async* stream<const S extends EntitySelection<T> | undefined = undefined>(
+        options?: StreamOptions<T, S>
+    ): AsyncIterable<Projected<T, S>> {
         if (options?.timeoutInMs == undefined) {
-            yield* this.streamRows(options);
+            for await (const entity of this.streamRows(options)) {
+                // narrowed at run time to what the selection names, which is what the type says
+                yield entity as Projected<T, S>;
+            }
             return;
         }
 
@@ -1881,7 +2138,7 @@ export class Repository<
                 if (next.done === true) {
                     return;
                 }
-                yield next.value;
+                yield next.value as Projected<T, S>;
             }
         }
         finally {
@@ -1892,18 +2149,18 @@ export class Repository<
 
     /**
      * Reads every entity matching the given options, one at a time, as {@link stream} hands them out.
-     * @param options - The where filter and the relations to resolve.
-     * @yields Each matching entity, in turn.
+     * @param options - The where filter, the relations to resolve and what to select.
+     * @yields Each matching entity, in turn, narrowed to what was selected.
      */
-    private async* streamRows(options: StreamOptions<T> | undefined): AsyncIterable<T> {
+    private async* streamRows(options: StreamOptions<T, EntitySelection<T> | undefined> | undefined): AsyncIterable<T> {
         const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
         if (scoped.matchesNothing) {
             return;
         }
 
-        for await (const entity of this.driver.stream(this.toDriverStreamOptions(options, scoped.where))) {
+        for await (const entity of this.driver.stream(await this.toDriverStreamOptions(options, scoped.where))) {
             await this.beforeReturn(entity, this.entityClass, options?.autoDecrypt ?? true);
-            yield entity;
+            yield* this.narrowToSelection([entity], options?.select);
         }
     }
 
@@ -1923,7 +2180,11 @@ export class Repository<
      * @param options - Additional options including where filter etc.
      * @returns A paginated result of the found entities.
      */
-    async findAllPaginated(page: number, limit: number, options?: FindAllPaginatedOptions<T>): Promise<PaginationResult<T>> {
+    async findAllPaginated<const S extends EntitySelection<T> | undefined = undefined>(
+        page: number,
+        limit: number,
+        options?: FindAllPaginatedOptions<T, S>
+    ): Promise<PaginationResult<Projected<T, S>>> {
         return await this.withinTimeout(options, 'findAllPaginated', async () => {
             // named by what the caller passed, before they turn into a skip and a take
             this.validateCount('page', page, 1);
@@ -1942,13 +2203,14 @@ export class Repository<
             // caller shows someone is the pair - "20 of 137" - so it is the pair that has to be true.
             // Which is also why the page is not read through `findAll`: its bound is for a call that
             // named no limit, and this one always names one.
-            const res: PaginationResult<T> = await this.driver.findAndCount(this.toDriverFindOptions(
+            const res: PaginationResult<T> = await this.driver.findAndCount(await this.toDriverFindOptions(
                 { ...options, skip: (page - 1) * limit, take: limit },
                 scoped.where
             ));
 
             await Promise.all(res.items.map(i => this.beforeReturn(i, this.entityClass, options?.autoDecrypt ?? true)));
-            return res;
+            // narrowed at run time to what the selection names, which is what the type says
+            return { ...res, items: this.narrowToSelection(res.items, options?.select) as Projected<T, S>[] };
         });
     }
 
@@ -1986,11 +2248,11 @@ export class Repository<
      * }
      * while (cursor != undefined);
      */
-    async findAllAfter(
+    async findAllAfter<const S extends EntitySelection<T> | undefined = undefined>(
         cursor: string | undefined,
         limit: number,
-        options?: FindAllPaginatedOptions<T>
-    ): Promise<KeysetPage<T>> {
+        options?: FindAllPaginatedOptions<T, S>
+    ): Promise<KeysetPage<Projected<T, S>>> {
         return await this.withinTimeout(options, 'findAllAfter', async () => {
             this.validateCount('limit', limit, 1);
             const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
@@ -2001,9 +2263,14 @@ export class Repository<
             // resolved before the cursor is read, because the cursor is only valid for this order and
             // this filter - and because an order that cannot be continued through is the caller's
             // mistake whether or not they passed a cursor
-            const driverOptions: DriverFindOptions<T> = this.toDriverFindOptions({ ...options, take: limit }, scoped.where);
+            const driverOptions: DriverFindOptions<T> = await this.toDriverFindOptions({ ...options, take: limit }, scoped.where);
             const keys: KeysetOrderKey[] = resolveKeysetOrder(this.entityClass, driverOptions.order);
             const fingerprint: string = keysetFingerprint(keys, scoped.where);
+            if (driverOptions.select != undefined) {
+                // the next cursor is read off the last row, so what it is ordered by is read whether
+                // or not it is selected - and left off the rows again before they are handed back
+                driverOptions.select = EntitySelectionUtilities.withKeys(driverOptions.select, keys.map(key => key.property));
+            }
 
             const after: ScopedWhere<T> = cursor == undefined
                 ? scoped
@@ -2039,7 +2306,9 @@ export class Repository<
             // counting would cost and does not need the total to be exact at the moment the walk ends
             const last: T | undefined = res.items.length < limit ? undefined : res.items.at(-1);
             return {
-                ...res,
+                totalAmount: res.totalAmount,
+                // narrowed at run time to what the selection names, which is what the type says
+                items: this.narrowToSelection(res.items, options?.select) as Projected<T, S>[],
                 nextCursor: last == undefined
                     ? undefined
                     : encodeKeysetCursor({ order: fingerprint, values: keysetValuesOf(last, keys) })
@@ -2055,14 +2324,137 @@ export class Repository<
      * @param options - The options, including the where filter and a transaction.
      * @returns How many entities match, of those the caller is allowed to see.
      */
-    async count(options?: CountOptions<T>): Promise<number> {
+    async count<const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        options?: CountOptions<T, G>
+    ): Promise<Aggregated<T, G, 'count', number>> {
         return await this.withinTimeout(options, 'count', async () => {
+            if (options?.groupBy != undefined) {
+                // one row per group, which is the shape the type gives a grouped count
+                return await this.resolveAggregate('count', undefined, options) as Aggregated<T, G, 'count', number>;
+            }
             const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
             if (scoped.matchesNothing) {
-                return 0;
+                return 0 as Aggregated<T, G, 'count', number>;
             }
-            return await this.driver.count({ where: scoped.where, transaction: options?.transaction });
+            return await this.driver.count({
+                where: scoped.where,
+                related: await this.resolveRelated(scoped.where, undefined, options),
+                transaction: options?.transaction
+            }) as Aggregated<T, G, 'count', number>;
         });
+    }
+
+    /**
+     * Adds up a number property over the entities a filter matches, without reading any of them.
+     *
+     * An entity holding no value for it is left out, and no entity at all adds up to 0. Narrowed by
+     * the scopes every read is, so the sum is of the entities the caller may see.
+     * @param property - The number property to add up.
+     * @param options - The where filter, a transaction, and the properties to add up per group of.
+     * @returns The sum, or one row per group holding what the group shares and `sum`.
+     */
+    async sum<const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: NumberKeysOf<T>,
+        options?: AggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'sum', number>> {
+        return await this.withinTimeout(options, 'sum', async () => {
+            // the shape the type gives it: a number, or one row per group
+            return await this.resolveAggregate('sum', String(property), options) as Aggregated<T, G, 'sum', number>;
+        });
+    }
+
+    /**
+     * Averages a number property over the entities a filter matches, without reading any of them.
+     *
+     * An entity holding no value for it is left out, and with no value at all there is no average.
+     * @param property - The number property to average.
+     * @param options - The where filter, a transaction, and the properties to average per group of.
+     * @returns The average, or one row per group holding what the group shares and `average`.
+     */
+    async average<const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: NumberKeysOf<T>,
+        options?: AggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'average', number | undefined>> {
+        return await this.withinTimeout(options, 'average', async () => {
+            // the shape the type gives it: a number, or one row per group
+            return await this.resolveAggregate('average', String(property), options) as Aggregated<T, G, 'average', number | undefined>;
+        });
+    }
+
+    /**
+     * Finds the smallest value of a number or date property among the entities a filter matches,
+     * without reading any of them.
+     * @param property - The number or date property.
+     * @param options - The where filter, a transaction, and the properties to find it per group of.
+     * @returns The smallest value, or one row per group holding what the group shares and `minimum`.
+     */
+    async minimum<K extends OrderedKeysOf<T>, const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: K,
+        options?: AggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'minimum', NonNullable<T[K]> | undefined>> {
+        return await this.withinTimeout(options, 'minimum', async () => {
+            // the shape the type gives it: a value of the property, or one row per group
+            const res: unknown = await this.resolveAggregate('minimum', String(property), options);
+            return res as Aggregated<T, G, 'minimum', NonNullable<T[K]> | undefined>;
+        });
+    }
+
+    /**
+     * Finds the largest value of a number or date property among the entities a filter matches,
+     * without reading any of them.
+     * @param property - The number or date property.
+     * @param options - The where filter, a transaction, and the properties to find it per group of.
+     * @returns The largest value, or one row per group holding what the group shares and `maximum`.
+     */
+    async maximum<K extends OrderedKeysOf<T>, const G extends readonly GroupKeysOf<T>[] | undefined = undefined>(
+        property: K,
+        options?: AggregateOptions<T, G>
+    ): Promise<Aggregated<T, G, 'maximum', NonNullable<T[K]> | undefined>> {
+        return await this.withinTimeout(options, 'maximum', async () => {
+            // the shape the type gives it: a value of the property, or one row per group
+            const res: unknown = await this.resolveAggregate('maximum', String(property), options);
+            return res as Aggregated<T, G, 'maximum', NonNullable<T[K]> | undefined>;
+        });
+    }
+
+    /**
+     * Takes a value over the entities a filter matches, narrowed by the scopes every read is.
+     * @param fn - What is taken.
+     * @param property - The property it is taken of. Undefined for a count.
+     * @param options - The where filter, a transaction, and the properties to take it per group of.
+     * @returns The value, 0 for a sum or count of nothing, or one row per group when grouped.
+     */
+    private async resolveAggregate(
+        fn: AggregateFunction,
+        property: string | undefined,
+        options: AggregateCallOptions<T> | undefined
+    ): Promise<unknown> {
+        if (property != undefined) {
+            AggregateUtilities.validateAggregatedProperty(fn, property, this.entityClass);
+        }
+        const groupBy: string[] = (options?.groupBy ?? []).map(String);
+        AggregateUtilities.validateGroupKeys(groupBy, this.entityClass);
+
+        const scoped: ScopedWhere<T> = await this.scopedWhere(options?.where, options);
+        const rows: AggregateRow[] = scoped.matchesNothing
+            ? []
+            : await this.driver.aggregate({
+                where: scoped.where,
+                related: await this.resolveRelated(scoped.where, undefined, options),
+                transaction: options?.transaction,
+                fn,
+                property,
+                groupBy
+            });
+        // a sum or count of nothing is 0, as it is everywhere else; the others have nothing to answer
+        const valueOf: (row: AggregateRow | undefined) => unknown = row => {
+            const value: unknown = AggregateUtilities.resolveValue(fn, property, row?.value, this.entityClass);
+            return fn === 'sum' || fn === 'count' ? value ?? 0 : value;
+        };
+        if (options?.groupBy == undefined) {
+            return valueOf(rows[0]);
+        }
+        return rows.map(row => ({ ...AggregateUtilities.resolveGroup(row.group, this.entityClass), [fn]: valueOf(row) }));
     }
 
     /**
@@ -2086,6 +2478,7 @@ export class Repository<
                 where: scoped.where,
                 // explicit, so the entity's default relations are not joined for a row nobody reads
                 relations: [],
+                related: await this.resolveRelated(scoped.where, undefined, options),
                 take: 1,
                 transaction: options?.transaction
             });
@@ -2168,7 +2561,7 @@ export class Repository<
                 options,
                 async () => await this.findById(id, { ...options, where: undefined, relations: [] })
             );
-            await this.validateReferencesInTenant([{ data: own, rowTenant }], options);
+            await this.validateReferences([{ data: own, rowTenant }], options);
         }
 
         // the condition is dropped for the read *after* the write, because the write is usually what
@@ -2204,6 +2597,7 @@ export class Repository<
             where: withId.where ?? ({ id } as Where<T>),
             data: own,
             transaction: this.writeTransaction(options),
+            related: await this.resolveRelated(withId.where, undefined, options),
             returnUpdated: true
         });
         await this.validateUpdateWasWritten(updated.length, id, findOptions);
@@ -2282,7 +2676,7 @@ export class Repository<
             await this.applyScopeToData(data, SaveOperation.UPDATE, options);
         }));
         if (own.some(data => TenantUtilities.pointsAtRows(data, this.entityClass))) {
-            await this.validateReferencesInTenant(await this.resolveTenantsOfUpdated(own, options), options);
+            await this.validateReferences(await this.resolveTenantsOfUpdated(own, options), options);
         }
 
         const reach: ScopedWhere<T> = this.resolveWriteWhere(where, options);
@@ -2300,7 +2694,8 @@ export class Repository<
             : await this.driver.updateEach(
                 own,
                 withIds.where ?? ({ id: { oneOf: ids } } as Where<T>),
-                this.writeTransaction(options)
+                this.writeTransaction(options),
+                await this.resolveRelated(withIds.where, undefined, options)
             );
 
         const writtenById: Map<string, T> = new Map(written.map(row => [String(row.id), row]));
@@ -2399,6 +2794,12 @@ export class Repository<
 
     /**
      * Updates all entities that match the provided where filter.
+     *
+     * A number property can be given `{ increment: amount }` instead of a value, which adds the amount
+     * to what each row stores in the same write, so that two callers adding at the same time both
+     * land. A property holding no value counts as 0. An increment of a property the caller's scope
+     * reads is judged on what it wrote, and the update is refused and undone when a row left what
+     * the caller may see.
      * @param where - The where filter to find the entities that should be updated.
      * @param data - The data to update the entities with.
      * @param options - Additional options, like a transaction.
@@ -2407,11 +2808,12 @@ export class Repository<
      */
     async updateAll<R extends boolean = false>(
         where: Where<T>,
-        data: UpdateData,
+        data: UpdateAllData<T, UpdateData>,
         options?: UpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
         return await this.withinTimeout(options, 'updateAll', async () => {
-            const res: BulkUpdate<T> = await this.applyUpdateAll(where, data, options, options?.returnUpdated ?? false);
+            const [values, increments] = UpdateIncrementUtilities.resolveValuesAndIncrements<UpdateData>(data, this.entityClass);
+            const res: BulkUpdate<T> = await this.applyUpdateAll(where, values, increments, options, options?.returnUpdated ?? false);
             return (options?.returnUpdated === true ? res.updates.map(u => u.entity) : res.count) as R extends true ? T[] : number;
         });
     }
@@ -2421,7 +2823,8 @@ export class Repository<
      *
      * Split out for the same reason {@link saveUpdate} hands its change back: a change set records
      * what landed, and what landed is the caller's change plus whatever the save hooks put on it.
-     * One entry per row, because a bound encrypted value is encrypted for the row it lands in.
+     * One entry per row, because a bound encrypted value is encrypted for the row it lands in, and an
+     * amount added lands as a value of each row's own.
      * @param where - The where filter to find the entities that should be updated.
      * @param data - The data to update the entities with.
      * @param options - Additional options, like a transaction.
@@ -2429,10 +2832,11 @@ export class Repository<
      */
     protected async saveUpdateAll(
         where: Where<T>,
-        data: UpdateData,
+        data: UpdateAllData<T, UpdateData>,
         options?: UpdateAllOptions<T, boolean>
     ): Promise<WrittenUpdate<T>[]> {
-        return (await this.applyUpdateAll(where, data, options, true)).updates;
+        const [values, increments] = UpdateIncrementUtilities.resolveValuesAndIncrements<UpdateData>(data, this.entityClass);
+        return (await this.applyUpdateAll(where, values, increments, options, true)).updates;
     }
 
     /**
@@ -2443,7 +2847,8 @@ export class Repository<
      * bulk update is where nothing bounds what that costs - the write half of what
      * {@link UNBOUNDED_FIND_ALL_LIMIT} exists for on the read side.
      * @param where - The where filter to find the entities that should be updated.
-     * @param data - The data to update the entities with.
+     * @param data - The values to update the entities with.
+     * @param increments - The amounts to add to what the entities store, by property.
      * @param options - Additional options, like a transaction.
      * @param returnUpdated - Whether the updated entities have to be read back. Separate from the
      * caller's own `returnUpdated`, because a change set needs them whether or not anyone asked -
@@ -2453,12 +2858,15 @@ export class Repository<
     private async applyUpdateAll(
         where: Where<T>,
         data: UpdateData,
+        increments: IncrementAmounts,
         options: UpdateAllOptions<T, boolean> | undefined,
         returnUpdated: boolean
     ): Promise<BulkUpdate<T>> {
+        // only what it sets: an amount adds to whatever is stored, so a write that landed in between
+        // is kept rather than lost, as on the conflict path of an upsert
         validateWriteIsNotBlind(this.entityClass, data, where);
         if (this.givesOwnedRows([data])) {
-            return await this.applyUpdateAllWithOwnedRows(where, data, options);
+            return await this.applyUpdateAllWithOwnedRows(where, data, increments, options);
         }
 
         // a copy, for the reason `create` takes one
@@ -2475,27 +2883,43 @@ export class Repository<
             return { count: 0, updates: [] };
         }
 
+        // an amount a row adds is not known until it lands, since what it adds to is whatever is
+        // stored - so where the scope reads the property, the rows are judged on what was written, in
+        // a transaction that undoes the update when one of them left the caller's reach
+        const scope: Where<T> | DenyAll | undefined = await this.resolveRestriction(options);
+        const judgedAfter: string[] = Object.keys(increments).filter(key => this.scopeReads(scope, key as Extract<keyof T, string>));
+
         const boundProperties: string[] = await boundEncryptionProperties(own, this.entityClass);
         if (boundProperties.length) {
             // that branch writes a value of its own to every row, so it has them either way
-            const updates: WrittenUpdate<T>[] = await this.updateAllBound(scoped.where ?? where, own, boundProperties, options);
+            const updates: WrittenUpdate<T>[] = await this.updateAllBound(
+                scoped.where ?? where,
+                own,
+                increments,
+                boundProperties,
+                { scope, judgedAfter },
+                options
+            );
             return { count: updates.length, updates };
         }
 
         await this.beforeSave(own, SaveOperation.UPDATE, this.entityClass);
         await this.applyScopeToData(own, SaveOperation.UPDATE, options);
         if (TenantUtilities.pointsAtRows(own, this.entityClass)) {
-            await this.validateReferencesInTenant([{ data: own, rowTenant: await this.resolveTenantOfUpdated(options) }], options);
+            await this.validateReferences([{ data: own, rowTenant: await this.resolveTenantOfUpdated(options) }], options);
         }
 
-        if (!returnUpdated) {
+        const related: RelatedNarrowing | undefined = await this.resolveRelated(scoped.where ?? where, undefined, options);
+        if (!returnUpdated && !judgedAfter.length) {
             // one driver call and nothing around it, so no transaction is taken here: a driver that
             // has to hold its rows takes one of its own, and one that writes in a single statement
             // would have paid a BEGIN and a COMMIT for nothing
             const count: number = await this.driver.updateAll({
                 where: scoped.where ?? where,
                 data: own,
-                transaction: this.writeTransaction(options)
+                increments,
+                transaction: this.writeTransaction(options),
+                related
             });
             return { count, updates: [] };
         }
@@ -2509,16 +2933,43 @@ export class Repository<
             const written: T[] = await this.driver.updateAll({
                 where: scoped.where ?? where,
                 data: own,
+                increments,
                 transaction,
+                related,
                 returnUpdated: true
             });
+            for (const entity of written) {
+                this.validateWithinScope(entity, judgedAfter, scope);
+            }
+            if (!returnUpdated) {
+                return written;
+            }
             // inside the transaction the write ran in, because rows that are not committed yet are
             // not rows anything outside it can read
             return await this.writtenEntities(written, { ...options, transaction });
         });
-        // one change for every row here, and it is the same one: this is the branch that writes a
-        // single value to all of them. A copy each, because whoever records it may write to it.
-        return { count: res.length, updates: res.map(entity => ({ entity, written: { ...own } })) };
+        // one change for every row here, the values being the same for all of them and the amounts
+        // landing as what each row holds now. A copy each, because whoever records it may write to it.
+        return {
+            count: res.length,
+            updates: returnUpdated ? res.map(entity => ({ entity, written: this.resolveWritten(own, increments, entity) })) : []
+        };
+    }
+
+    /**
+     * What an update wrote to one row: the values it set, and for every amount it added the value the
+     * row holds now.
+     * @param values - The values the update set, as they were stored.
+     * @param increments - The amounts it added, by property.
+     * @param entity - The row as it is after the update.
+     * @returns The change, a copy of its own.
+     */
+    private resolveWritten(values: UpdateData, increments: IncrementAmounts, entity: T): DeepPartial<T> {
+        const res: Record<string, unknown> = { ...values };
+        for (const key of Object.keys(increments)) {
+            res[key] = Reflect.get(entity, key);
+        }
+        return res as DeepPartial<T>;
     }
 
     /**
@@ -2529,7 +2980,8 @@ export class Repository<
      * Every row gets its own copy of the rows given without an id. A row given with one belongs to one
      * row only, so it is refused once the filter matches more.
      * @param where - The where filter to find the entities that should be updated.
-     * @param data - The data to update the entities with.
+     * @param data - The values to update the entities with.
+     * @param increments - The amounts to add to what the entities store, by property.
      * @param options - Additional options, like a transaction.
      * @returns How many were updated, and each of them with its change.
      * @throws When a row given with an id would go to more rows than one.
@@ -2537,13 +2989,14 @@ export class Repository<
     private async applyUpdateAllWithOwnedRows(
         where: Where<T>,
         data: UpdateData,
+        increments: IncrementAmounts,
         options: UpdateAllOptions<T, boolean> | undefined
     ): Promise<BulkUpdate<T>> {
         return await this.inTransaction(options, async transaction => {
             const own: UpdateData = WriteDataUtilities.copy(data, this.entityClass);
             const [owned] = this.takeOwnedRows([own]);
             const inTransaction: UpdateAllOptions<T, boolean> = { ...options, transaction };
-            const res: BulkUpdate<T> = await this.applyOwnColumnsOfUpdateAll(where, own, inTransaction);
+            const res: BulkUpdate<T> = await this.applyOwnColumnsOfUpdateAll(where, own, increments, inTransaction);
 
             const givesRowsById: boolean = OwnedRelationUtilities
                 .resolveWrites(OwnedRelationUtilities.resolveAll(this.entityClass), [[owned ?? {}, '']])
@@ -2574,16 +3027,18 @@ export class Repository<
      * update statement without one - so the rows are found with the same narrowing the write applies.
      * @param where - The where filter to find the entities that should be updated.
      * @param own - The data, with the relation values taken off.
+     * @param increments - The amounts to add to what the entities store, by property.
      * @param options - The options of the update, holding its transaction.
      * @returns Each matched row with the change written to it.
      */
     private async applyOwnColumnsOfUpdateAll(
         where: Where<T>,
         own: UpdateData,
+        increments: IncrementAmounts,
         options: UpdateAllOptions<T, boolean>
     ): Promise<BulkUpdate<T>> {
-        if (Object.keys(own).length) {
-            return await this.applyUpdateAll(where, own, options, true);
+        if (Object.keys(own).length || Object.keys(increments).length) {
+            return await this.applyUpdateAll(where, own, increments, options, true);
         }
         const reach: ScopedWhere<T> = this.resolveWriteWhere(where, options);
         if (reach.matchesNothing) {
@@ -2635,14 +3090,18 @@ export class Repository<
      * be one thing hands in a transaction and picks its isolation level; both halves run inside it.
      * @param where - The filter naming the rows to update.
      * @param data - The data to update them with.
+     * @param increments - The amounts to add to what the rows store, by property.
      * @param boundProperties - The properties in that data which are bound to their row.
+     * @param judging - The scope the caller is restricted to, and the added properties it reads.
      * @param options - Additional options, like a transaction.
      * @returns Each updated row with the change that produced it, which here really is one per row.
      */
     private async updateAllBound(
         where: Where<T>,
         data: UpdateData,
+        increments: IncrementAmounts,
         boundProperties: string[],
+        judging: IncrementJudging<T>,
         options?: UpdateAllOptions<T, boolean>
     ): Promise<WrittenUpdate<T>[]> {
         return await this.inTransaction(options, async transaction => {
@@ -2690,21 +3149,31 @@ export class Repository<
             const tenantOfRow: Map<string, string | undefined> = new Map(
                 rows.map(row => [row.id, TenantUtilities.resolveTenantOf(row, this.entityClass)])
             );
-            await this.validateReferencesInTenant(
+            await this.validateReferences(
                 rowData.map(single => ({ data: single, rowTenant: tenantOfRow.get(String(single.id)) })),
                 { ...options, transaction }
             );
 
             // each row with its own values, which is what updateEach writes - and unlike a save, it
             // merges an object into the stored one, as every other update does
-            const written: T[] = await this.driver.updateEach(rowData, { id: { oneOf: rows.map(r => r.id) } } as Where<T>, transaction);
+            const ids: Where<T> = { id: { oneOf: rows.map(r => r.id) } } as Where<T>;
+            let written: T[] = await this.driver.updateEach(rowData, ids, transaction);
+            if (Object.keys(increments).length) {
+                // the amounts in a write of their own, in the same transaction: each row's values are
+                // its own here, and an amount adds to what is stored either way
+                const nothingElse: DeepPartial<T> = {} as DeepPartial<T>;
+                written = await this.driver.updateAll({ where: ids, data: nothingElse, increments, transaction, returnUpdated: true });
+            }
+            for (const entity of written) {
+                this.validateWithinScope(entity, judging.judgedAfter, judging.scope);
+            }
             const updated: T[] = await this.writtenEntities(written, { ...options, transaction });
             // paired by id rather than by position: `rowData` was built from the rows this read, and
             // what the driver hands back is its own list. They hold the same rows, and nothing says
             // they hold them in the same order.
             return updated.map(entity => ({
                 entity,
-                written: rowData.find(d => d.id === entity.id) ?? { ...data, id: entity.id }
+                written: this.resolveWritten(rowData.find(d => d.id === entity.id) ?? { ...data, id: entity.id }, increments, entity)
             }));
         });
     }
@@ -2830,7 +3299,7 @@ export class Repository<
             if (scoped.matchesNothing) {
                 return 0;
             }
-            const ids: string[] = await this.driver.findIds(this.toDriverFindOptions({ ...options, take: 'all' }, scoped.where));
+            const ids: string[] = await this.driver.findIds(await this.toDriverFindOptions({ ...options, take: 'all' }, scoped.where));
             await this.removeRows(ids, options);
             return ids.length;
         }

@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 
 import { ConfirmPasswordResetData } from './confirm-password-reset-data.model';
 import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentialsDto } from './password-credentials.model';
+import { PasswordFailureLimit } from './password-failure-limit.model';
+import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './password-failure-streak.model';
 import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
 import { RequestPasswordResetData } from './request-password-reset-data.model';
 import { ZibriApplication } from '../../../application/application';
@@ -15,8 +17,11 @@ import { inject } from '../../../di/inject.function';
 import { type EmailServiceInterface } from '../../../email/email-service.interface';
 import { EmailPriority } from '../../../email/models/email-priority.enum';
 import { HttpError } from '../../../error-handling/errors/http.error';
+import { PasswordLockedError } from '../../../error-handling/errors/password-locked.error';
 import { UnauthorizedError } from '../../../error-handling/errors/unauthorized.error';
+import { InternalError } from '../../../error-handling/internal-error.model';
 import { $ts } from '../../../localization/translate.function';
+import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
 import { TsxUtilities } from '../../../tsx/tsx.utilities';
 import { Newable } from '../../../types/newable.type';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
@@ -45,6 +50,7 @@ export class PasswordAuthenticator<
     private readonly confirmPasswordResetUrl: string;
     private readonly PasswordResetEmail: PasswordResetEmailTemplate<RoleType, UserType>;
     private dummyPasswordHashPromise: Promise<HashString> | undefined;
+    private failureLimit: PasswordFailureLimit = false;
 
     // read when used rather than injected, so that an application without the entities is told which
     // ones to declare by init, instead of failing on a repository token while this is built
@@ -54,6 +60,10 @@ export class PasswordAuthenticator<
 
     private get passwordResetTokenRepository(): Repository<PasswordResetToken, PasswordResetTokenCreateData> {
         return inject(repositoryTokenFor(PasswordResetToken));
+    }
+
+    private get failureStreakRepository(): Repository<PasswordFailureStreak, PasswordFailureStreakCreateData> {
+        return inject(repositoryTokenFor(PasswordFailureStreak));
     }
 
     constructor(
@@ -83,6 +93,11 @@ export class PasswordAuthenticator<
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordCredentials, PasswordResetToken);
+        this.failureLimit = app.options.passwordFailureLimit;
+        if (this.failureLimit !== false) {
+            validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordFailureStreak);
+            this.validateFailureLimit();
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -105,12 +120,27 @@ export class PasswordAuthenticator<
                 storedPassword ?? await this.resolveDummyPasswordHash()
             );
             if (foundUser == undefined || storedPassword == undefined || !passwordMatched) {
+                if (foundUser != undefined) {
+                    await this.recordWrongPassword(foundUser.id);
+                }
                 throw new UnauthorizedError($ts`Invalid email or password.`);
+            }
+            // after the comparison, whatever it says: a lock that skipped the hash would be readable
+            // from the response time
+            const streak: PasswordFailureStreak | undefined = await this.findFailureStreak(foundUser.id);
+            this.validateNotLocked(streak);
+            if (streak != undefined) {
+                // the right password ends the streak
+                await this.failureStreakRepository.deleteById(streak.id);
             }
             await this.upgradeStoredPassword(foundUser, credentials.password, storedPassword);
             return { user: foundUser, authenticatedAt: new Date() };
         }
         catch (error) {
+            // the one refusal that says more than "wrong" - to the trail only, its message is the same
+            if (error instanceof PasswordLockedError) {
+                throw error;
+            }
             // every way of being refused answers the same, or the difference says whether the address
             // is registered. A fault is not one of those, and folding it in made a user store that is
             // down answer exactly like a wrong password - to the caller, and in the audit trail, where
@@ -233,8 +263,83 @@ export class PasswordAuthenticator<
         );
         await this.credentialsRepository.updateById(credentials.id, { password: data.newPassword }, { transaction: data.transaction });
         await this.passwordResetTokenRepository.deleteById(resetToken.id, { transaction: data.transaction });
+        if (this.failureLimit !== false) {
+            // the user proved the mailbox is theirs, which is what a lock was waiting for
+            await this.failureStreakRepository.deleteAll({ userId: user.id }, { transaction: data.transaction });
+        }
         // TODO: set require password change to false
         return user.id;
+    }
+
+    /**
+     * Counts a wrong password against the user, and locks the account once the streak reaches the
+     * application's limit.
+     *
+     * Outside the login's transaction, which the refusal rolls back.
+     * @param userId - The user the password was presented for.
+     */
+    private async recordWrongPassword(userId: string): Promise<void> {
+        if (this.failureLimit === false) {
+            return;
+        }
+        const streak: PasswordFailureStreak | undefined = await this.findFailureStreak(userId);
+        // a lock that has passed ends the streak too, or the first wrong password after it would lock again
+        const count: number = streak == undefined || this.hasLockPassed(streak) ? 1 : streak.count + 1;
+        const locks: boolean = count >= this.failureLimit.maxFailures && !this.isLocked(streak);
+        // null rather than undefined, so an update that does not lock keeps the column as it is
+        // eslint-disable-next-line unicorn/no-null
+        const lockedUntil: Date | null = locks ? new Date(Date.now() + this.failureLimit.lockForMs) : streak?.lockedUntil ?? null;
+        await (streak
+            ? this.failureStreakRepository.updateById(streak.id, { count, lockedUntil })
+            : this.failureStreakRepository.create({ userId, count, lockedUntil }));
+        if (locks) {
+            inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.PASSWORD_LOCKED, outcome: AuditOutcome.SUCCESS, userId });
+        }
+    }
+
+    /**
+     * The user's streak of wrong passwords, if the application counts them and there is one.
+     * @param userId - The user.
+     * @returns The streak.
+     */
+    private async findFailureStreak(userId: string): Promise<PasswordFailureStreak | undefined> {
+        if (this.failureLimit === false) {
+            return undefined;
+        }
+        return await this.failureStreakRepository.findOne({ where: { userId }, required: false });
+    }
+
+    /**
+     * Refuses a streak that has locked its account.
+     * @param streak - The streak, if there is one.
+     * @throws PasswordLockedError while the lock lasts.
+     */
+    private validateNotLocked(streak: PasswordFailureStreak | undefined): void {
+        if (this.isLocked(streak)) {
+            throw new PasswordLockedError();
+        }
+    }
+
+    private isLocked(streak: PasswordFailureStreak | undefined): boolean {
+        return streak?.lockedUntil != undefined && new Date(streak.lockedUntil).getTime() > Date.now();
+    }
+
+    private hasLockPassed(streak: PasswordFailureStreak): boolean {
+        return streak.lockedUntil != undefined && !this.isLocked(streak);
+    }
+
+    private validateFailureLimit(): void {
+        if (this.failureLimit === false) {
+            return;
+        }
+        const { maxFailures, lockForMs } = this.failureLimit;
+        // 100 is NIST 800-63B's ceiling for consecutive failures; fewer than one would lock on none
+        if (!Number.isInteger(maxFailures) || maxFailures < 1 || maxFailures > 100) {
+            throw new InternalError(`passwordFailureLimit.maxFailures must be a whole number from 1 to 100, got ${maxFailures}.`);
+        }
+        if (!(lockForMs > 0)) {
+            throw new InternalError(`passwordFailureLimit.lockForMs must be greater than 0, got ${lockForMs}.`);
+        }
     }
 
     /**

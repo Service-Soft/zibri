@@ -1,9 +1,11 @@
+import { CheckConstraintViolationError } from '../../data-source/check-constraint-violation.error';
 import { ControllerRouteConfiguration } from '../../routing/controller-route-configuration.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ReflectUtilities } from '../../utilities/reflect.utilities';
 import type { PropertyMetadata } from '../decorators/property.decorator';
+import type { EntityCheck } from '../models/entity-check.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export function getAllPrototypeKeys<T>(Clazz: Newable<T>, omitKeys: (keyof T)[]): (keyof T)[] {
@@ -124,6 +126,15 @@ export function copyClassProperties<T, S>(
         TargetClass,
         { ...existingModelProperties, ...filteredBaseModelProperties }
     );
+
+    // a check comes along only with every property it compares: one comparing a property the copy
+    // left out is about a value its bodies never hold
+    const keptProperties: string[] = Object.keys(MetadataUtilities.getModelProperties(TargetClass));
+    const carriedChecks: EntityCheck[] = MetadataUtilities.resolveModelChecks(SourceClass)
+        .filter(check => CheckConstraintViolationError.resolveProperties(check.where).every(p => keptProperties.includes(p)));
+    if (carriedChecks.length) {
+        MetadataUtilities.setModelChecks(TargetClass, [...MetadataUtilities.resolveModelChecks(TargetClass), ...carriedChecks]);
+    }
 
     const baseRoutes: ControllerRouteConfiguration[] = MetadataUtilities
         .getControllerRoutes(SourceClass)

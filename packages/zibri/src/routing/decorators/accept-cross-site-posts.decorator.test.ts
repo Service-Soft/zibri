@@ -4,6 +4,7 @@ import { AcceptCrossSitePosts } from './accept-cross-site-posts.decorator';
 import { Controller } from './controller.decorator';
 import { Get } from './get.decorator';
 import { Post } from './post.decorator';
+import { TestTimeouts } from '../../__testing__/constants';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { Auth } from '../../auth/decorators/auth.decorator';
 
@@ -33,7 +34,7 @@ describe('AcceptCrossSitePosts', () => {
 
         await expect(startAndStopTestServerWithout([], { controllers: [ReadController] }))
             .rejects.toThrow(/AcceptCrossSitePosts.*GET \/accept-cross-site-reads/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start when the versions of one route do not all accept the same', async () => {
         // the check runs before the route, where nothing says yet which version a request is for
@@ -58,5 +59,5 @@ describe('AcceptCrossSitePosts', () => {
 
         await expect(startAndStopTestServerWithout([], { controllers: [AcceptingController, RefusingController] }))
             .rejects.toThrow(/POST \/accept-cross-site-versions\/callback/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });

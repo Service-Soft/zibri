@@ -1,13 +1,11 @@
 # Localization
-Zibri uses the `XLIFF` standard for its translation system by default.
+Translations are XLIFF files, the XML format translation tools read and write. Before every build,
+each string your code marks for translation, tsx templates included, is written to
+`src/translations/source.xlf`, which you commit. You provide a file for each other locale, such as
+`de.xlf`, in the same folder.
 
-It automatically generates a `source.xlf` file on startup based on all strings in your code base marked for translation.
-This works in tsx files as well.
-
-The generated file is written to `src/translations/source.xlf` and tracked in version control.
-Translation files for other locales (eg. `de.xlf`) should live alongside it in the same directory and need to be provided by you.
-
-Zibri also comes with a localize service that handles things like [formatting](#formatting).
+The localize service [formats](#formatting) dates, prices and percentages for a locale, and orders
+text.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -15,41 +13,45 @@ Zibri also comes with a localize service that handles things like [formatting](#
 | `$t` | function | Marks a string for translation, returning a `TranslationToken` |
 | `$ts` | function | Marks a string for translation and resolves it immediately using the automatically resolved locale |
 | `TranslationToken` | class | Represents a marked string; use `.getValue(locale)` to translate it |
+| `TranslatedString` | type | A string that is translated already, as `$ts` and `getValue` return it |
 | `defineDateFormat` | function | Defines a date/time/date-time format for a supported locale |
-| `defineProvider` | function | Registers a DI provider, eg. for `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` |
 | `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` | DI token | Configures supported locales, default locale and locale resolution |
 | `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` | DI token | Injects `LocalizeServiceInterface` |
 | `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `getCurrencyMinorUnits`, `formatPercent` and `formatDate` |
-| `LocaleCode` | type | Type of a supported locale code (eg. `'en-US'`, `'de'`) |
-| `Timezone` | type | Type of an IANA time zone name (eg. `'UTC'`, `'Europe/Berlin'`) |
+| `LocaleCode` | type | Type of a supported locale code (such as `'en-US'`, `'de'`) |
+| `Timezone` | type | Type of an IANA time zone name (such as `'UTC'`, `'Europe/Berlin'`) |
 
-## Usage
-### Marking strings for translation
+## Marking strings for translation
 To mark a string for translation you can use `$t`:
 
 ```ts
-import { $t, defineProvider, FsUtilities, TranslationToken, ZIBRI_DI_TOKENS } from 'zibri';
+// src/services/task-label.service.ts
+import { $t, TranslationToken } from 'zibri';
 
-import { customer, formatPrice, order, user } from './example-data';
-
-const exampleToken: TranslationToken = $t`Example token`;
-const englishTokenTranslation: string = exampleToken.getValue('en-US');
-const germanTokenTranslation: string = exampleToken.getValue('de');
+const taskCreated: TranslationToken = $t`Task created`;
+const englishTaskCreated: string = taskCreated.getValue('en-US');
+const germanTaskCreated: string = taskCreated.getValue('de');
 ```
 
-Or `$ts` if you want to translate them directly using the [automatically resolved locale](#automatically-resolve-locales):
+Or `$ts` if you want to translate them directly using the [automatically resolved locale](#resolving-the-locale-of-a-request):
 
 ```ts
+// src/services/task-label.service.ts
 import { $ts } from 'zibri';
 
-const automaticTokenTranslation: string = $ts`Example token`;
+const taskCreatedForThisRequest: string = $ts`Task created`;
 ```
 
-### String parameters
+## Adding parameters to a string
 
 Template parameters are supported and automatically named from the expression they contain:
 
 ```ts
+// src/services/greeting.service.ts
+import { $t, TranslationToken } from 'zibri';
+
+import { user } from './user';
+
 const greeting: TranslationToken = $t`Hello ${user.firstName} ${user.lastName}`;
 // source → 'Hello {user.firstName} {user.lastName}'
 ```
@@ -57,6 +59,12 @@ const greeting: TranslationToken = $t`Hello ${user.firstName} ${user.lastName}`;
 For complex expressions, the full expression text is used as the placeholder name:
 
 ```ts
+// src/services/order-summary.service.ts
+import { $t, TranslationToken } from 'zibri';
+
+import { formatPrice } from './format-price';
+import { order } from './order';
+
 const total: TranslationToken = $t`Total: ${formatPrice(order.total)} for ${order.items.length} items`;
 // source → 'Total: {formatPrice(order.total)} for {order.items.length} items'
 ```
@@ -71,19 +79,17 @@ In your translation files, placeholders can be freely reordered to suit the targ
 </trans-unit>
 ```
 
-### Configuring supported locales
-Any locale you want to support must be defined by providing a them to `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`:
+## Configuring supported locales
+The locales you support are listed in `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`:
 
 ```ts
-// providers.ts
+// src/providers.ts
 import { defineDateFormat, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
 // ...
     defineProvider({
         token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
         useValue: {
-            // You can also specify what locale to use by default
-            // defaultLocale: 'de',
             supportedLocales: {
                 'en-US': {
                     currencyCode: 'USD',
@@ -103,11 +109,12 @@ import { defineDateFormat, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 // ...
 ```
 
-As you can see, besides the actual locale, you also have to define what currency is used and some default date formats.
+Each locale names its currency and its default date, date-time and time formats. `defaultLocale`
+names the locale used by default, `'en-US'` unless you set it.
 
-### Providing translations
+## Providing translations
 
-Once the `source.xlf` has been generated, copy it and rename it to the target locale (eg. `de.xlf`).
+Once the `source.xlf` has been generated, copy it and rename it to the target locale (such as `de.xlf`).
 Add a `target-language` attribute to the `<file>` element and fill in `<target>` for each `<trans-unit>`:
 
 ```xml
@@ -128,47 +135,55 @@ Add a `target-language` attribute to the `<file>` element and fill in `<target>`
 </xliff>
 ```
 
-Translation files are located at `src/translations/locale.xlf`. Zibri will warn on startup if any `<trans-unit>` from `source.xlf` is missing a `<target>` in a locale file.
+A translation file is `src/translations/<locale>.xlf`. On startup, a warning names every
+`<trans-unit>` of `source.xlf` that has no `<target>` in a locale's file.
 
-The `<source>` element and `<note>` are informational, only the `<target>` is read at runtime.
-Standard XLIFF editors can open these files directly.
+The `<source>` element and `<note>` are informational. Only the `<target>` is read at runtime.
+Standard XLIFF editors open these files directly.
 
-An application whose `translations` folder holds no `source.xlf` starts without it and serves every
-string as it is written in the code. Zibri says so once, on startup.
+An application whose `translations` folder holds no `source.xlf` serves every string as it is written
+in the code, and logs a warning saying so on startup.
 
-Point the folder Zibri reads them from somewhere else with the `TRANSLATIONS_PATH` token:
+Point the folder translations are read from somewhere else with the `TRANSLATIONS_PATH` token:
 
 ```ts
+// src/providers.ts
+import { defineProvider, FsUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.TRANSLATIONS_PATH,
     useFactory: () => FsUtilities.getPath('/var/lib/my-app/translations')
 })
 ```
 
-### Automatically resolve locales
-In a lot of cases, you want to use a locale based on the requesting user.
-
-Zibri resolves that from:
-1. the `'locale'` query parameter<br>
-   (can be configured via `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`)
+## Resolving the locale of a request
+The locale of a request is resolved from, in this order:
+1. the `'locale'` query parameter, named by `localeQueryParam` of `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`
 2. the `'accept-language'` header
-3. the default locale as defined by the `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`
+3. the `defaultLocale` of `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT`
 
-> Please note that resolved locales don't always need to exact match a supported locale. If you have `'en-US'` as a supported loale for example and the resolved locale is `'en'`, than that will match for translations and date formats. The only exception here is currency, something like `'USD'` will always have to exact match `'en-US'`.
+A requested locale resolves to a supported locale of the same language. With `'en-US'` supported, a
+request for `'en'` or `'en-GB'` resolves to `'en-US'`. `TranslationToken.getValue` resolves the locale
+it is given the same way.
 
-### Formatting
-Formatting dates, currencies, percentages etc. is also part of the localization system. For that you can use inject the `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` and use its `formatPrice`, `formatPercent` and `formatDate` methods:
+`formatPrice` and `formatDate` take the locale you pass them as it is written. Pass a supported locale,
+or the locale of the request.
+
+## Formatting
+The localize service formats dates, prices and percentages. Inject it with
+`ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` and call `formatPrice`, `formatPercent` or `formatDate`:
 
 ```ts
+// src/services/report.service.ts
 import { Inject, LocaleCode, LocalizeServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
-class ExampleService {
+class ReportService {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE)
         private localizeService: LocalizeServiceInterface
     ) {}
 
-    formatExamples(locale: LocaleCode): void {
+    formatValues(locale: LocaleCode): void {
         // Format a price using the locale's configured currency
         this.localizeService.formatPrice(19.99, { locale });
         // en-US → '$19.99'
@@ -205,64 +220,81 @@ class ExampleService {
 }
 ```
 
-### Which zone a date is read in
-A `Date` is an instant. Which calendar day and hour that instant falls on is a separate question, and only a time zone answers it — the same moment is `2024-01-01 02:30` in UTC and `2023-12-31 21:30` in New York.
+## Which zone a date is read in
+A `Date` is an instant. A time zone says which calendar day and hour that instant falls on: the same moment is `2024-01-01 02:30` in UTC and `2023-12-31 21:30` in New York.
 
 `formatDate` reads the instant in the `defaultTimezone` of the localize options, which is `'UTC'`:
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
     useValue: { defaultTimezone: 'Europe/Berlin' }
 })
 ```
 
-The default is UTC rather than the machine's zone, so that one instant reads the same wherever the code runs. A machine zone is part of the environment, which makes the same timestamp one day on a laptop and another in production, and moves it by an hour twice a year anywhere observing daylight saving.
+The default ignores the zone of the machine, so one instant reads the same wherever the code runs.
 
-State a zone per call to override it:
+State a zone per call to override it. The first call below reads the instant in the default zone, the
+second in the customer's own zone, for something addressed to them:
 
 ```ts
-export function formatPaidAt(localizeService: LocalizeServiceInterface, locale: LocaleCode): void {
-    // the deployment's zone
-    localizeService.formatDate(order.paidAt, 'date-time', { locale });
+// src/services/order-date.service.ts
+import { LocaleCode, LocalizeServiceInterface } from 'zibri';
 
-    // the customer's zone, for something addressed to them
+import { customer } from './customer';
+import { order } from './order';
+
+export function formatPaidAt(localizeService: LocalizeServiceInterface, locale: LocaleCode): void {
+    localizeService.formatDate(order.paidAt, 'date-time', { locale });
     localizeService.formatDate(order.paidAt, 'date-time', { locale, timezone: customer.timezone });
 }
 ```
 
 `Timezone` is a union of the IANA zone names, so a typo is a compile error.
 
-The zone is a formatting argument, the same as the locale: it belongs to the moment of rendering, so one instant can read as the customer's local time in an email and as the issuer's time on the document that has to say the same thing to everyone.
+The zone is a formatting argument, like the locale. One instant can read as the customer's local time in an email, and as the issuer's time on a document.
 
-### Which order text is in
-Which text sorts after which is a question about a language — Swedish sorts `ä` after `z` where German sorts it with `a`. `defaultLocale` answers it for the whole application, and every data source is held to that answer — a postgres text column is created with the matching collation, and anything comparing text in process uses the same rule. An `order`, a page of a keyset walk and an `after` filter therefore agree wherever they run, and text is ordered alphabetically rather than by the bytes it is written with: `alpha` comes before `Bravo`, which is the opposite of what comparing the stored bytes says.
+## Which order text is in
+Languages order text differently: Swedish sorts `ä` after `z`, where German sorts it with `a`. Text is ordered by the rules of `defaultLocale`, on every data source. An `order`, a page of a keyset walk and an `after` filter agree wherever they run. Text is ordered alphabetically: `alpha` comes before `Bravo`.
 
-Ordering is per application rather than per request. A column's collation belongs to the schema, so ordering by the requesting locale would mean naming a collation in every statement, which takes ordered reads off their index.
+> [!NOTE]
+> Text has one order for the whole application. A request in another locale gets the same order.
 
-An application whose supported locales order text differently has a decision to make, and it refuses to start until it does:
+An application whose supported locales order text differently sets `textOrder` to `'defaultLocale'`,
+which serves every supported locale and orders text by the rules of the default one. See
+[why some options have no default](./faq.md#why-do-some-options-have-no-default):
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
-    // serving both, and storing one order: the default locale's
     useValue: { defaultLocale: 'de-DE', textOrder: 'defaultLocale' }
 })
 ```
 
-`compareText` is what orders text, wherever the framework does it itself:
+`compareText` orders text the same way, for text you sort yourself:
 
 ```ts
+// src/services/task-title.service.ts
+import { LocalizeServiceInterface } from 'zibri';
+
 export function sortTitles(localizeService: LocalizeServiceInterface, titles: string[]): string[] {
     return [...titles].sort((a, b) => localizeService.compareText(a, b));
 }
 ```
 
-Postgres needs a server built with ICU, which is where its collation for a locale comes from. One without it is refused at startup, naming the collation it does not have.
+## Requirements
+| Package | Used for |
+|---|---|
+| `typescript` | Finding the strings marked for translation when `source.xlf` is written. You install it |
 
 ## See also
 - [Request context](./request-context.md) — reading the resolved locale (`CURRENT_LOCALE`) from the current request
 - [Templating](./templating.md) — the `$t`/`$ts`/`$f` hooks available in tsx components
 - [Cron](./cron.md) — `defaultTimezone` as the zone a schedule is read in
 - [Data source](./data-source.md) — ordering and filtering the text that order applies to
-

@@ -5,6 +5,7 @@ import { Controller } from './decorators/controller.decorator';
 import { Delete } from './decorators/delete.decorator';
 import { Get } from './decorators/get.decorator';
 import { Post } from './decorators/post.decorator';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { XmlUtilities } from '../document/xml.utilities';
 import { Property } from '../entity/decorators/property.decorator';
@@ -87,7 +88,7 @@ describe('Router - answering with xml', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     /**
      * Sends the order as xml, accepting what is given.

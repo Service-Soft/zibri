@@ -1,8 +1,13 @@
+import { CacheInvalidation } from './cache-invalidation.model';
 import { type CacheServiceInterface } from './cache-service.interface';
 import { CronExpression } from '../cron/cron-expression.utilities';
-import { CronJob, InitialCronConfig } from '../cron/cron-job.model';
+import { InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { BaseEntity } from '../entity/base-entity.model';
+import { PollingCronJob } from '../polling/polling-cron-job.model';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { Newable } from '../types/newable.type';
 
 /**
  * Applies the cache invalidations other instances have published.
@@ -15,9 +20,9 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  *
  * Deliberately `distributed: false`. Every instance has its own caches to clear, so every instance
  * has to run this; electing one would clear one instance's caches and leave the rest stale, which
- * is the very thing being fixed.
+ * is the very thing being fixed. Keeps no row for the same reason.
  */
-export class CacheInvalidationCronJob extends CronJob {
+export class CacheInvalidationCronJob extends PollingCronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Cache Invalidation',
@@ -25,8 +30,15 @@ export class CacheInvalidationCronJob extends CronJob {
         // users are served something that has already changed
         cron: CronExpression.every(2, 'seconds').build(),
         runOnInit: false,
-        distributed: false
+        distributed: false,
+        syncToDataSource: false
     };
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected readonly wakeUpTopic: string = WAKE_UP_TOPICS.CACHE_INVALIDATIONS;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected readonly polledEntity: Newable<BaseEntity> = CacheInvalidation;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.CACHE_SERVICE)
@@ -36,7 +48,10 @@ export class CacheInvalidationCronJob extends CronJob {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onTick(): Promise<void> {
+    protected async poll(): Promise<boolean> {
         await this.cacheService.applyPendingInvalidations();
+        // one read applies everything published so far, so there is nothing left to look again for
+        // until the next invalidation wakes it
+        return false;
     }
 }

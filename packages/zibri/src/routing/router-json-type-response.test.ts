@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { KnownHeader } from '../http/known-header.enum';
@@ -40,14 +41,14 @@ describe('Router - answering with a json type of its own', () => {
     beforeAll(async () => {
         server = await startTestServer({
             controllers: [ResourceController],
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })]
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })]
         });
         baseUrl = await server.start();
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('answers in the json type the request accepts, as json', async () => {
         const scim: globalThis.Response = await find('application/scim+json');

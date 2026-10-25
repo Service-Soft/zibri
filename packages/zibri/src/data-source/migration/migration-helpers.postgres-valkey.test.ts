@@ -2,7 +2,8 @@ import { afterAll, beforeAll } from '@jest/globals';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Badge, describeMigrationHelpers, Gadget } from './migration-helpers.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -11,7 +12,8 @@ import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-da
 import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.model';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, Gadget, Badge]
+    entities: [...defaultTestServerEntities, Gadget, Badge],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -22,11 +24,11 @@ let server: StartedTestServer | undefined;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeMigrationHelpers('postgres', () => {
     const dataSource: PostgresDataSource = inject(postgresDataSourceClass);

@@ -47,6 +47,57 @@ export async function runMigrations(
 
     validateDatabaseIsNotAhead(applied, appVersion);
 
+    await runUpMissing(applied, migrations, logger, appVersion);
+}
+
+/**
+ * Applies every migration of a data source that a backup restored into it has not recorded.
+ *
+ * What a data source runs right after a restore, so that what the backup holds is stored the way this
+ * version of the app expects: a backup taken by an older version gets the migrations it lacks.
+ * @param dataSourceClass - The data source that the migrations belong to.
+ * @param migrations - The migration classes of the data source.
+ * @param logger - The logger to report the progress with.
+ * @throws When no app version could be resolved, or the backup was taken by a newer version of the
+ * app, which has to restore it instead.
+ */
+export async function runMigrationsAfterRestore(
+    dataSourceClass: Newable<DataSourceInterface>,
+    migrations: Newable<Migration>[],
+    logger: LoggerInterface
+): Promise<void> {
+    const appVersion: SemVerVersion = resolveAppVersion();
+    const applied: MigrationEntity[] = await appliedMigrations(dataSourceClass);
+
+    // a refusal of its own rather than the one booting gives: nothing about this is a newer instance
+    // still serving, and reverting is no way out - what has to change is which build restores it
+    const ahead: MigrationEntity[] = findAhead(applied, appVersion);
+    if (ahead.length) {
+        throw new InternalError([
+            `This app is version ${appVersion}, but the backup restored into "${dataSourceClass.name}" holds`,
+            `what a newer version stored: ${namesOf(ahead)}.`,
+            'A build runs on no schema newer than its own, so the backup is refused.',
+            'Restore it with a build of that version or a newer one.'
+        ]);
+    }
+
+    await runUpMissing(applied, migrations, logger, appVersion);
+}
+
+/**
+ * Applies every migration the database has not recorded and that belongs to this version of the app
+ * or an older one.
+ * @param applied - Every migration the database has recorded.
+ * @param migrations - The migration classes of the data source.
+ * @param logger - The logger to report the progress with.
+ * @param appVersion - The version of the running app.
+ */
+async function runUpMissing(
+    applied: MigrationEntity[],
+    migrations: Newable<Migration>[],
+    logger: LoggerInterface,
+    appVersion: SemVerVersion
+): Promise<void> {
     if (!migrations.length) {
         return;
     }
@@ -189,7 +240,7 @@ export async function recordKeyReconciliation(dataSourceClass: Newable<DataSourc
  * @throws When any applied migration belongs to a newer version than the app.
  */
 function validateDatabaseIsNotAhead(applied: MigrationEntity[], appVersion: SemVerVersion): void {
-    const ahead: MigrationEntity[] = applied.filter(m => SemVerUtilities.compare(m.version, appVersion) === 'bigger');
+    const ahead: MigrationEntity[] = findAhead(applied, appVersion);
     if (!ahead.length) {
         return;
     }
@@ -201,6 +252,16 @@ function validateDatabaseIsNotAhead(applied: MigrationEntity[], appVersion: SemV
         'rather than reverting the schema that the newer instances are using.',
         'To go back deliberately: stop the newer instances, revert the migrations, then deploy this build.'
     ]);
+}
+
+/**
+ * Finds the recorded migrations that belong to a newer version than the app.
+ * @param applied - Every migration the database has recorded.
+ * @param appVersion - The version of the running app.
+ * @returns The ones of a newer version.
+ */
+function findAhead(applied: MigrationEntity[], appVersion: SemVerVersion): MigrationEntity[] {
+    return applied.filter(m => SemVerUtilities.compare(m.version, appVersion) === 'bigger');
 }
 
 /**

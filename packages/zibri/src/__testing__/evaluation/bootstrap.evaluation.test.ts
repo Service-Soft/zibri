@@ -8,6 +8,7 @@ import { CronService } from '../../cron/cron.service';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -21,7 +22,7 @@ import { Log } from '../../logging/log.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -253,7 +254,11 @@ describe('evaluation - application bootstrap', () => {
             // the relation into postgres options. allowOrphan because the data source class this
             // declares stays registered, and every case after this one would find it unused
             await expect(startTestServer({
-                dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, EvalShelf, EvalBook], allowOrphan: true })]
+                dataSources: [createTestDataSource({
+                    entities: [...defaultTestServerEntities, EvalShelf, EvalBook],
+                    repositories: defaultTestServerRepositories,
+                    allowOrphan: true
+                })]
             })).rejects.toThrow(/EvalShelf\.books names "shelf", which EvalBook does not declare/);
         }, 90000);
     });
@@ -276,6 +281,8 @@ describe('evaluation - application bootstrap', () => {
                 };
 
                 entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+
+                readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
                 schemaManagement: SchemaManagement = 'synchronize';
             }
@@ -302,6 +309,8 @@ describe('evaluation - application bootstrap', () => {
                 };
 
                 entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+
+                readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
                 schemaManagement: SchemaManagement = 'synchronize';
             }

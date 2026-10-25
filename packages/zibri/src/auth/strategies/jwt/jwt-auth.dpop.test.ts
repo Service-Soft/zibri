@@ -7,8 +7,9 @@ import { JwtUtilities } from './jwt.utilities';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -52,7 +53,7 @@ type Answer = {
     body: Record<string, unknown>
 };
 
-const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities });
+const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
 const password: string = 'correct horse battery staple';
 
@@ -191,7 +192,7 @@ describe('JwtAuthStrategy — DPoP, by default', () => {
     beforeAll(async () => {
         server = await startApp(defaultTestServerProviders);
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -212,7 +213,7 @@ describe('JwtAuthStrategy — logins bound to a DPoP key when they send a proof'
     beforeAll(async () => {
         server = await startApp(bindingLogins(false, false));
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -292,7 +293,7 @@ describe('JwtAuthStrategy — logins that have to be bound to a DPoP key', () =>
     beforeAll(async () => {
         server = await startApp(bindingLogins(true, false));
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -315,7 +316,7 @@ describe('JwtAuthStrategy — DPoP proofs that carry a nonce', () => {
     beforeAll(async () => {
         server = await startApp(bindingLogins(false, true));
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

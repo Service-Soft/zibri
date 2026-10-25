@@ -23,7 +23,12 @@ const startMessage: Record<ValidationErrorType, TranslationToken> = {
  * An error with validation.
  */
 export class ValidationError extends BadRequestError {
-    constructor(readonly type: ValidationErrorType, paramName: string | undefined, problems: ValidationProblem[], options?: ErrorOptions) {
+    constructor(
+        readonly type: ValidationErrorType,
+        paramName: string | undefined,
+        readonly problems: ValidationProblem[],
+        options?: ErrorOptions
+    ) {
         const paramNameSuffix: string = paramName ? ` "${paramName}"` : '';
         const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(ctx);

@@ -5,6 +5,7 @@ import { AddressInfo } from 'node:net';
 import { JsonUtilities, KnownHeader, MimeType } from 'zibri';
 
 import { FakeJwtAccessTokenOptions } from './fake-jwt-access-token-options.model';
+import { FakeLogoutTokenOptions } from './fake-logout-token-options.model';
 import { FakeOAuthApiRequest } from './fake-oauth-api-request.model';
 import { FakeOAuthIdentity } from './fake-oauth-identity.model';
 import { FakeOAuthProviderOptions } from './fake-oauth-provider-options.model';
@@ -13,6 +14,11 @@ import { FakeOAuthProviderOptions } from './fake-oauth-provider-options.model';
  * The claims of an ID token, before it is signed.
  */
 export type FakeOidcIdTokenClaims = Record<string, unknown>;
+
+/**
+ * The event a logout token carries, as OpenID Connect Back-Channel Logout 1.0 names it.
+ */
+const BACK_CHANNEL_LOGOUT_EVENT: string = 'http://schemas.openid.net/event/backchannel-logout';
 
 /**
  * The keys the provider signs its ID tokens with.
@@ -52,6 +58,10 @@ type IssuedCode = {
      * When they signed in.
      */
     authenticatedAt: Date,
+    /**
+     * The session the sign-in started at the provider, which the ID token names in `sid`.
+     */
+    sessionId: string,
     /**
      * The scopes the user granted.
      */
@@ -144,6 +154,18 @@ export class FakeOAuthProvider {
      * Every request to the provider's api, in order, whether the provider answers it or not.
      */
     readonly apiRequests: FakeOAuthApiRequest[] = [];
+
+    /**
+     * The query of every request to the end session endpoint, in order: the logouts the application
+     * sent the browser there with.
+     */
+    readonly endSessionRequests: URLSearchParams[] = [];
+
+    /**
+     * The id of the session each sign-in started at the provider, in order, as the ID tokens name it in
+     * `sid` and a logout names it again.
+     */
+    readonly sessionIds: string[] = [];
 
     private readonly server: Server;
     private readonly codes: Map<string, IssuedCode> = new Map();
@@ -238,6 +260,7 @@ export class FakeOAuthProvider {
             exp: now + 300,
             jti: randomBytes(12).toString('hex'),
             auth_time: Math.floor((this.authenticatedAt ?? new Date()).getTime() / 1000),
+            ...this.identity.claims,
             ...options.claims
         });
     }
@@ -257,9 +280,29 @@ export class FakeOAuthProvider {
             aud: audience,
             iat: now,
             exp: now + 300,
-            auth_time: Math.floor((this.authenticatedAt ?? new Date()).getTime() / 1000),
+            ...this.authTimeClaim(this.authenticatedAt ?? new Date()),
             email: this.identity.email,
+            ...this.identity.claims,
             ...claims
+        });
+    }
+
+    /**
+     * Signs a logout token (OpenID Connect Back-Channel Logout 1.0) for the session or the user given,
+     * the way the provider sends one to the application's back-channel logout route.
+     * @param options - The session, the user, and claims on top.
+     * @returns The token.
+     */
+    createLogoutToken(options: FakeLogoutTokenOptions): string {
+        return this.signJwt('logout+jwt', {
+            iss: this.issuer,
+            aud: this.options.clientId,
+            iat: Math.floor(Date.now() / 1000),
+            jti: randomBytes(12).toString('hex'),
+            events: { [BACK_CHANNEL_LOGOUT_EVENT]: {} },
+            ...options.subject == undefined ? {} : { sub: options.subject },
+            ...options.sessionId == undefined ? {} : { sid: options.sessionId },
+            ...options.claims
         });
     }
 
@@ -298,6 +341,9 @@ export class FakeOAuthProvider {
                     token_endpoint: `${this.issuer}/token`,
                     jwks_uri: `${this.issuer}/jwks`,
                     revocation_endpoint: `${this.issuer}/revoke`,
+                    end_session_endpoint: `${this.issuer}/end-session`,
+                    // eslint-disable-next-line cspell/spellchecker
+                    backchannel_logout_supported: true,
                     response_types_supported: ['code'],
                     subject_types_supported: ['public'],
                     id_token_signing_alg_values_supported: [this.algorithm],
@@ -322,6 +368,10 @@ export class FakeOAuthProvider {
             }
             case '/revoke': {
                 await this.revoke(new URLSearchParams(await this.readBody(req)), req.headers.authorization, res);
+                return;
+            }
+            case '/end-session': {
+                this.endSession(url.searchParams, res);
                 return;
             }
             default: {
@@ -384,12 +434,15 @@ export class FakeOAuthProvider {
         else {
             const code: string = randomBytes(24).toString('base64url');
             const scopes: string[] = (query.get('scope') ?? '').split(' ').filter(scope => scope !== '');
+            const sessionId: string = randomBytes(8).toString('hex');
+            this.sessionIds.push(sessionId);
             this.codes.set(code, {
                 redirectUri,
                 codeChallenge,
                 nonce: query.get('nonce') ?? undefined,
                 identity: { ...this.identity },
                 authenticatedAt: this.authenticatedAt ?? new Date(),
+                sessionId,
                 scopes: scopes.filter(scope => !this.declinedScopes.includes(scope)),
                 // the two ways providers are asked for it: OpenID Connect's scope, and Google's parameter
                 offline: scopes.includes('offline_access') || query.get('access_type') === 'offline'
@@ -447,13 +500,15 @@ export class FakeOAuthProvider {
             aud: this.options.clientId,
             iat: now,
             exp: now + 300,
-            auth_time: Math.floor(issued.authenticatedAt.getTime() / 1000),
+            ...this.authTimeClaim(issued.authenticatedAt),
             nonce: issued.nonce,
+            sid: issued.sessionId,
             email: issued.identity.email,
             email_verified: issued.identity.emailVerified,
             name: issued.identity.name,
             given_name: issued.identity.givenName,
-            family_name: issued.identity.familyName
+            family_name: issued.identity.familyName,
+            ...issued.identity.claims
         };
         const rewrite: ((claims: FakeOidcIdTokenClaims) => FakeOidcIdTokenClaims) | undefined = this.rewriteIdToken;
         this.rewriteIdToken = undefined;
@@ -466,6 +521,15 @@ export class FakeOAuthProvider {
                 ? {}
                 : { id_token: this.signJwt('JWT', rewrite == undefined ? claims : rewrite(claims)) }
         });
+    }
+
+    /**
+     * The `auth_time` claim of an ID token, for a provider that says when the user signed in.
+     * @param authenticatedAt - When they did.
+     * @returns The claim, or nothing for a provider that does not say.
+     */
+    private authTimeClaim(authenticatedAt: Date): FakeOidcIdTokenClaims {
+        return this.options.issuesAuthTime === false ? {} : { auth_time: Math.floor(authenticatedAt.getTime() / 1000) };
     }
 
     private refresh(refreshToken: string | null, res: ServerResponse): void {
@@ -483,6 +547,28 @@ export class FakeOAuthProvider {
             ...this.issueAccessToken(grant, current),
             ...current === refreshToken ? {} : { refresh_token: current }
         });
+    }
+
+    /**
+     * Ends the session, the way a provider's end session endpoint does: sends the browser back to where
+     * the application asked, with the state it gave, or shows a page when it asked for nothing.
+     * @param query - What the application sent the browser with.
+     * @param res - The response.
+     */
+    private endSession(query: URLSearchParams, res: ServerResponse): void {
+        this.endSessionRequests.push(query);
+        const redirectUri: string | null = query.get('post_logout_redirect_uri');
+        if (redirectUri == undefined) {
+            this.sendJson(res, 200, { signedOut: true });
+            return;
+        }
+        const target: URL = new URL(redirectUri);
+        const state: string | null = query.get('state');
+        if (state != undefined) {
+            target.searchParams.set('state', state);
+        }
+        res.writeHead(302, { [KnownHeader.LOCATION]: target.toString() });
+        res.end();
     }
 
     private async revoke(body: URLSearchParams, authorization: string | undefined, res: ServerResponse): Promise<void> {

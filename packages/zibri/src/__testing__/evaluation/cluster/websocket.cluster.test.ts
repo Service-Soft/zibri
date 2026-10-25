@@ -1,8 +1,11 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
-import { ClusterInstance, StartedTestCluster, startTestCluster } from 'zibri-testing';
+import { ExecResult } from 'testcontainers';
+import { ClusterInstance, StartedDataSourceContainer, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin } from './websocket.instance-options';
+import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin, ClusterWebsocketValKeyDataSource } from './websocket.instance-options';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model';
 
@@ -148,38 +151,81 @@ describe('evaluation/04-infrastructure-subsystems 1.13 - answers of clients conn
     }, 30000);
 });
 
+/**
+ * Logs a user in, connects them to the second instance and deactivates them from the first.
+ * @param first - The instance the deactivation runs on.
+ * @param second - The instance holding the socket.
+ * @returns Whether the socket was closed within ten seconds.
+ */
+async function resolveClosedOnDeactivation(first: ClusterInstance, second: ClusterInstance): Promise<boolean> {
+    const loggedIn: Response = await fetch(`${first.baseUrl}/cluster-websocket/login`, { method: 'POST' });
+    // checked here, because the socket below connects without a login as well and the failure
+    // would only surface later, as a deactivation of nobody
+    expect(loggedIn.ok).toBe(true);
+    const login: ClusterLogin = await loggedIn.json() as ClusterLogin;
+
+    // connected to the instance the deactivation does not run on, which is the one that has to be told
+    const socket: Socket = io(second.baseUrl, { auth: { offset: 0 }, extraHeaders: { authorization: `Bearer ${login.accessToken}` }, reconnection: false });
+    openSockets.push(socket);
+    await new Promise<void>((resolve, reject) => {
+        socket.once('connect', () => resolve());
+        socket.once('connect_error', reject);
+    });
+    const closed: Promise<boolean> = new Promise<boolean>(resolve => {
+        const timeout: NodeJS.Timeout = setTimeout(() => resolve(false), 10000);
+        socket.once('disconnect', () => {
+            clearTimeout(timeout);
+            resolve(true);
+        });
+    });
+
+    const res: Response = await fetch(`${first.baseUrl}/cluster-websocket/deactivate/${login.userId}`, { method: 'POST' });
+    expect(res.status).toBe(204);
+
+    return await closed;
+}
+
 describe('evaluation/02-http-runtime-core M17 - a socket whose login ended, on another instance', () => {
 
     it('closes the socket of a deactivated user on the instance that holds it', async () => {
         if (!cluster) {
             throw new Error('the cluster did not start');
         }
+        expect(await resolveClosedOnDeactivation(cluster.instanceAt(0), cluster.instanceAt(1))).toBe(true);
+    }, 30000);
+});
+
+// last in the file: it drops the connections every instance listens on
+describe('evaluation/round-2/03-http-runtime-core H18 - after valkey dropped the connections the instances listen on', () => {
+
+    it('still delivers broadcasts and ended logins to the clients of the other instance', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
         const first: ClusterInstance = cluster.instanceAt(0);
         const second: ClusterInstance = cluster.instanceAt(1);
-        const loggedIn: Response = await fetch(`${first.baseUrl}/cluster-websocket/login`, { method: 'POST' });
-        // checked here, because the socket below connects without a login as well and the failure
-        // would only surface later, as a deactivation of nobody
-        expect(loggedIn.ok).toBe(true);
-        const login: ClusterLogin = await loggedIn.json() as ClusterLogin;
+        const valKey: StartedDataSourceContainer | undefined = cluster.containers
+            .find(c => c.dataSourceClass === ClusterWebsocketValKeyDataSource);
+        if (!valKey) {
+            throw new Error('the cluster started no valkey container');
+        }
+        const onSecond: Socket = await connectClient(second.baseUrl);
+        let heard: boolean = false;
+        onSecond.on(clusterBroadcastEvent, () => heard = true);
 
-        // connected to the instance the deactivation does not run on, which is the one that has to be told
-        const socket: Socket = io(second.baseUrl, { auth: { offset: 0 }, extraHeaders: { authorization: `Bearer ${login.accessToken}` }, reconnection: false });
-        openSockets.push(socket);
-        await new Promise<void>((resolve, reject) => {
-            socket.once('connect', () => resolve());
-            socket.once('connect_error', reject);
-        });
-        const closed: Promise<boolean> = new Promise<boolean>(resolve => {
-            const timeout: NodeJS.Timeout = setTimeout(() => resolve(false), 10000);
-            socket.once('disconnect', () => {
-                clearTimeout(timeout);
-                resolve(true);
-            });
-        });
+        const killed: ExecResult = await valKey.container.exec(['valkey-cli', 'CLIENT', 'KILL', 'TYPE', 'pubsub']);
+        expect(killed.exitCode).toBe(0);
 
-        const res: Response = await fetch(`${first.baseUrl}/cluster-websocket/deactivate/${login.userId}`, { method: 'POST' });
-        expect(res.status).toBe(204);
+        // sent until it arrives: what is published while an instance subscribes again reaches
+        // nobody there, which is what a channel is
+        const deadline: number = Date.now() + 15000;
+        while (!heard && Date.now() < deadline) {
+            const res: Response = await fetch(`${first.baseUrl}/cluster-websocket/broadcast`, { method: 'POST' });
+            expect(res.status).toBe(204);
+            await sleep(500);
+        }
+        expect(heard).toBe(true);
 
-        expect(await closed).toBe(true);
-    }, 30000);
+        expect(await resolveClosedOnDeactivation(first, second)).toBe(true);
+    }, 45000);
 });

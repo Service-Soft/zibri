@@ -1,7 +1,12 @@
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Property } from '../../entity/decorators/property.decorator';
-import { AnyEnum } from '../../types/any-enum.type';
 import { Newable } from '../../types/newable.type';
+
+/**
+ * Marks an entity whose rows are the users of the application, as a static member of its class.
+ * `BaseUserEntity()` sets it.
+ */
+export const USER_ENTITY: unique symbol = Symbol('zibri.user-entity');
 
 /**
  * Common properties shared by all users.
@@ -12,7 +17,8 @@ export type BaseUser<Role extends string> = BaseEntity & {
      */
     email: string,
     /**
-     * The roles of the user.
+     * The platform roles of the user, which \@Auth.hasPlatformRole checks. Each is one
+     * `ZIBRI_DI_TOKENS.ROLES_AND_PERMISSIONS` declares at the platform level.
      */
     roles: Role[],
     /**
@@ -24,19 +30,21 @@ export type BaseUser<Role extends string> = BaseEntity & {
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
- * Defines a base user entity class with the specified roles.
- * @param roleValue - The enum that is used for defining the roles of the user.
+ * Defines a base user entity class, whose roles are typed as the given ones.
+ *
+ * Which roles a user may hold is what `ZIBRI_DI_TOKENS.ROLES_AND_PERMISSIONS` declares at the
+ * platform level: writing any other is refused.
  */
-export function BaseUserEntity<Role extends string>(
-    roleValue: AnyEnum<Role>
-): Newable<BaseUser<Role>> {
+export function BaseUserEntity<Role extends string = string>(): Newable<BaseUser<Role>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp extends BaseEntity implements BaseUser<Role> {
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        static readonly [USER_ENTITY]: true = true;
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.string({ format: 'email', unique: true })
         email!: string;
         // eslint-disable-next-line jsdoc/require-jsdoc
-        @Property.array({ items: { type: 'string', enum: roleValue } })
+        @Property.array({ items: { type: 'string' } })
         roles!: Role[];
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.date({ required: false })

@@ -6,7 +6,7 @@ import { Table, TableColumn } from 'typeorm';
 import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
 
 import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -24,6 +24,7 @@ import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/po
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
+import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
 
 @Entity({ tenant: 'shared', tableName: 'measurement' })
@@ -48,6 +49,7 @@ class LegacyDbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, LegacyMeasurement];
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     // stands in for the database as it was before the migration, so it is created from the classes
     schemaManagement: SchemaManagement = 'synchronize';
 }
@@ -113,6 +115,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Measurement];
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     override migrations: Newable<Migration>[] = [WidenAmountMigration];
     // the framework entities still need their tables. Synchronizing after the migration also makes
     // this a test of the migration alone: had it left the column as it was, synchronize would

@@ -1,4 +1,6 @@
 import { AnyCache } from './cache/cache.interface';
+import { type CacheTagMatcher } from './cache-tag-matchers';
+import { type ZibriApplication } from '../application/application';
 
 /**
  * Interface for a cache service.
@@ -16,6 +18,22 @@ export interface CacheServiceInterface {
      * eventually consistent across a deployment.
      */
     invalidateTags: (tags: string[]) => void | Promise<void>,
+    /**
+     * Registers something kept in memory besides the caches, such as the roles, to be told whenever a
+     * tag is invalidated on any instance. Called while the application starts, from `onAppInit`.
+     * Throws a MissingEntitiesError naming the registrant when the application declares no
+     * `CacheInvalidation`.
+     * @param app - The application starting.
+     * @param registrant - What registers, for the error.
+     * @param tag - The tags to listen for: one tag, or a matcher like the tags of a cache.
+     * @param listener - What runs when a tag it listens for is invalidated, with that tag.
+     */
+    registerInvalidationListener: (
+        app: ZibriApplication,
+        registrant: string,
+        tag: CacheTagMatcher,
+        listener: (tag: string) => Promise<void>
+    ) => void,
     /**
      * Applies the invalidations other instances have published since this one last looked.
      *

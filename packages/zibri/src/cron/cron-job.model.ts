@@ -8,7 +8,7 @@ import { CronFailurePolicy } from './cron-failure-policy.model';
 import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model';
 import { CronRetryOptions } from './cron-retry-options.model';
 import { CronUpdateData } from './cron.service';
-import { ShouldRunExecution } from './should-run-execution.type';
+import { RunExecution } from './run-execution.type';
 import { Repository } from '../data-source/repository/repository';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -17,6 +17,7 @@ import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { TraceSpanStatus } from '../tracing/trace-span-status.enum';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { OmitStrict } from '../types/omit-strict.type';
@@ -28,7 +29,8 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
  */
 export type CronConfig = OmitStrict<
     CronJobEntity,
-    'id' | 'source' | 'lastRun' | 'errorMessage' | 'state' | 'previousState' | 'consecutiveFailures' | 'backedOffUntil'
+    'id' | 'source' | 'declaredCron' | 'declaredActive' | 'lastRun' | 'errorMessage' | 'state' | 'previousState'
+    | 'consecutiveFailures' | 'backedOffUntil'
 > & {
     /**
      * What the job does when its ticks throw: retry the slot, back off, stop, and come back after a
@@ -36,11 +38,11 @@ export type CronConfig = OmitStrict<
      */
     onFailure: CronFailurePolicy,
     /**
-     * Whether the job starts out on the schedule. Defaults to true.
+     * Whether the job is on the schedule. Defaults to true.
      *
-     * Only says where the job begins. What it is doing later is the job's {@link CronJobState}, which
-     * an operator changes through the cron service and which a failure can change on its own - none
-     * of which belongs in a class that is read once per boot.
+     * Read at every start: a start that finds it changed since the last one puts the job on the
+     * schedule or takes it off. Between two such changes the job's {@link CronJobState} is what the
+     * cron service and its failures make it.
      */
     active: boolean,
     /**
@@ -114,10 +116,10 @@ export abstract class CronJob {
     protected task: ScheduledTask | undefined;
 
     /**
-     * Decides whether this instance runs a given execution, so that a job scheduled on every
-     * replica still happens once across the deployment.
+     * Runs a given execution if this instance is the one that runs it, so that a job scheduled on
+     * every replica still happens once across the deployment.
      */
-    protected shouldRunExecution!: ShouldRunExecution;
+    protected runExecution!: RunExecution;
 
     /**
      * The repository for syncing cron jobs back and forth to the db.
@@ -234,16 +236,16 @@ export abstract class CronJob {
      * should not begin on an instance nothing can reach yet - {@link start} is the second step.
      * @param logger - A logger instance.
      * @param repo - The cron job repository to sync to a data source.
-     * @param shouldRunExecution - Decides whether this instance runs a given execution.
+     * @param runExecution - Runs a given execution if this instance is the one that runs it.
      */
     async init(
         logger: LoggerInterface,
         repo: Repository<CronJobEntity, CreateCronJobEntityData>,
-        shouldRunExecution: ShouldRunExecution
+        runExecution: RunExecution
     ): Promise<void> {
         this.logger = logger;
         this.cronJobRepository = repo;
-        this.shouldRunExecution = shouldRunExecution;
+        this.runExecution = runExecution;
         if (this.entity) {
             throw new InternalError('the cron job has already been initialized.');
         }
@@ -253,6 +255,27 @@ export abstract class CronJob {
 
         this.entity = await this.resolveEntity();
         this.createTask();
+
+        // every job from the start, so a job that never failed reads 0 rather than no data
+        const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+        metricsService.getCounter('cron_job_runs_total', ['job']).increase({ job: this.entity.name }, 0);
+        metricsService.getCounter('cron_job_failures_total', ['job']).increase({ job: this.entity.name }, 0);
+    }
+
+    /**
+     * Counts a run of this job, and how long it took.
+     * @param durationInMs - How long the run took, its retries included.
+     * @param failed - Whether it ended failed.
+     */
+    private recordRun(durationInMs: number, failed: boolean): void {
+        const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+        const labels: Record<string, string> = { job: this.name };
+        metricsService.getCounter('cron_job_runs_total', ['job']).increase(labels);
+        if (failed) {
+            metricsService.getCounter('cron_job_failures_total', ['job']).increase(labels);
+        }
+        metricsService.getHistogram('cron_job_duration_ms', ['job'], [10, 100, 1000, 10000, 60000, 600000])
+            .observe(labels, durationInMs);
     }
 
     /**
@@ -337,13 +360,9 @@ export abstract class CronJob {
             missedExecutionTolerance: this.entity.catchUpWithinMs ?? undefined,
             // node-cron writes to the console otherwise, past the app's logger
             logger: this.resolveTaskLogger(),
-            // `distributed` requires a name: node-cron builds the coordination key from it as
-            // `<name>:<scheduled time>`, which is what makes every replica compete for the same
-            // execution instead of each quietly running its own.
-            name: this.entity.name,
-            distributed: this.fullInitialConfig.distributed,
-            distributedLease: inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS),
-            runCoordinator: { shouldRun: (key: string, ttlMs: number) => this.shouldRunExecution(key, ttlMs) }
+            // not node-cron's own coordination: that only elects before the body and holds nothing
+            // across it. The election happens in runOnTick, around the run
+            name: this.entity.name
         });
     }
 
@@ -404,9 +423,11 @@ export abstract class CronJob {
         // deploy started after that won the same key again and repeated the run. Never less than the
         // execution lease, so a slot a moment away does not make a claim that lapses on arrival.
         const untilSlotInMs: number = nextRun.getTime() - Date.now();
-        return await this.shouldRunExecution(
+        // the claim alone: the startup run itself is node-cron's to execute once this answers
+        return await this.runExecution(
             `${this.entity.name}:startup:${nextRun.toISOString()}`,
-            Math.max(untilSlotInMs, inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS))
+            Math.max(untilSlotInMs, inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS)),
+            () => Promise.resolve()
         );
     }
 
@@ -423,6 +444,8 @@ export abstract class CronJob {
         const { active, syncToDataSource, distributed, onFailure, ...persisted } = this.fullInitialConfig;
         const initial: CreateCronJobEntityData = {
             ...persisted,
+            declaredCron: persisted.cron,
+            declaredActive: active,
             source: CODE_SOURCE,
             state: active ? CronJobState.ACTIVE : CronJobState.INACTIVE,
             previousState: undefined,
@@ -458,43 +481,67 @@ export abstract class CronJob {
      * nothing anywhere: the deployment that has been running longest is the one that keeps the
      * behavior its author has since decided against.
      *
-     * That is the whole line - a value an operator can change at runtime is theirs, and the rest is
-     * the code's. `cron` and the state have `changeCron`, `enable` and `disable`; `runOnInit`,
-     * `timezone` and `catchUpWithinMs` have nothing, so they come back from the class. `onFailure` is
-     * not stored at all and is always read from the class.
+     * `runOnInit`, `timezone` and `catchUpWithinMs` have no way to change at runtime, so they come
+     * back from the class. `onFailure` is not stored at all and is always read from the class.
+     *
+     * `cron` and the state have `changeCron`, `enable` and `disable`, so both the class and an
+     * operator answer them, and the newer answer wins. The row records what the class declared at the
+     * last start: a class declaring something else now is a change to the code, which replaces
+     * whatever the row holds. A class declaring the same leaves the row's value, so a change made
+     * through the cron service survives every restart until the code changes.
      *
      * A `previousState` is then a job the framework stopped, and the restart is the retry - the
      * deploy, the failover or the configuration change that made this boot happen is the same class
      * of event as the one that would have fixed it. `errorMessage` survives so the failure is still
      * readable afterwards.
-     *
-     * `cron` and the state an operator chose are therefore left exactly as they are: taking those
-     * back on every boot would undo the change the moment anything restarted.
      * @param entity - The row as it is stored.
      * @returns The row, reconciled.
      */
     protected async reconcileOnBoot(entity: CronJobEntity): Promise<CronJobEntity> {
-        const { runOnInit, timezone } = this.fullInitialConfig;
+        const { runOnInit, timezone, cron, active } = this.fullInitialConfig;
         const catchUpWithinMs: number | undefined = this.fullInitialConfig.catchUpWithinMs ?? undefined;
-        const state: CronJobState = entity.previousState ?? entity.state;
+        // a row that records no declaration was stored before rows recorded one, so its values may
+        // be an operator's change and are kept - the class is followed from this start on.
+        //
+        // During a rolling deploy an old instance restarting after a new one started takes the old
+        // declaration back, and the next new one to start takes it again: the last version to start
+        // wins, which is the one left running once the deploy is through.
+        const cronChanged: boolean = entity.declaredCron != undefined && entity.declaredCron !== cron;
+        const activeChanged: boolean = entity.declaredActive != undefined && entity.declaredActive !== active;
+        const declaredState: CronJobState = active ? CronJobState.ACTIVE : CronJobState.INACTIVE;
+        const state: CronJobState = activeChanged ? declaredState : entity.previousState ?? entity.state;
+        const reconciledCron: CronExpressionString = cronChanged ? cron : entity.cron;
 
         if (
             entity.runOnInit === runOnInit
             && entity.timezone === timezone
             && (entity.catchUpWithinMs ?? undefined) === catchUpWithinMs
+            && entity.cron === reconciledCron
+            && entity.declaredCron === cron
+            && entity.declaredActive === active
             && entity.state === state
             && entity.previousState == undefined
         ) {
             return entity;
         }
 
+        if (entity.cron !== reconciledCron) {
+            this.logger.info(`cron job "${entity.name}": schedule '${entity.cron}' replaced by '${cron}', declared in code`);
+        }
+        if (activeChanged && entity.state !== state) {
+            this.logger.info(`cron job "${entity.name}": ${active ? 'put on' : 'taken off'} the schedule, declared in code`);
+        }
+
         const reconciled: Pick<
             CronJobEntity,
-            'runOnInit' | 'timezone' | 'catchUpWithinMs' | 'state' | 'previousState'
+            'runOnInit' | 'timezone' | 'catchUpWithinMs' | 'cron' | 'declaredCron' | 'declaredActive' | 'state' | 'previousState'
         > = {
             runOnInit,
             timezone,
             catchUpWithinMs,
+            cron: reconciledCron,
+            declaredCron: cron,
+            declaredActive: active,
             state,
             // null rather than undefined, because a write only carries the properties it names and
             // undefined names none - the column would keep the state that has just been returned to
@@ -506,40 +553,39 @@ export abstract class CronJob {
     }
 
     /**
-     * Brings the stored row back in line with what the job class declares about how it behaves.
+     * Runs whenever the cron expression fires, and for a slot that is caught up.
      *
-     * `runOnInit` says what the job does, which is the developer's answer and lives in the class - so
-     * the row holds a copy of it rather than the truth about it. Without this the
-     * declaration is only ever read the first time the job is seen, and editing it afterwards changes
-     * nothing anywhere: the deployment that has been running longest is the one that keeps the
-     * behavior its author has since decided against.
-     *
-     * `cron` and `active` are left exactly as they are. Those are what an operator changes at runtime,
-     * through the cron service, and taking them back on every boot would undo the change the moment
-     * anything restarted.
-     * @param entity - The row as it is stored.
-     * @returns The row, with the declared behavior applied.
+     * A slot of a distributed job is work the deployment owes once: it is run on the instance that
+     * claims it, with the claim held for as long as the run lasts, so an instance that starts while
+     * the run is under way finds the slot taken rather than catching it up beside the run. A startup
+     * run, which has no slot, was claimed by `start` already.
+     * @param scheduledAt - The time on the schedule this run is for, if it is for one.
      */
-    protected async adoptDeclaredPolicy(entity: CronJobEntity): Promise<CronJobEntity> {
-        const { runOnInit } = this.fullInitialConfig;
-        if (entity.runOnInit === runOnInit) {
-            return entity;
+    async runOnTick(scheduledAt?: Date): Promise<void> {
+        if (!this.entity) {
+            throw new CronJobNotInitializedError();
         }
-
-        await this.cronJobRepository.updateAll({ name: entity.name }, { runOnInit });
-        return { ...entity, runOnInit };
+        if (!this.fullInitialConfig.distributed || scheduledAt == undefined) {
+            await this.runTick(scheduledAt);
+            return;
+        }
+        await this.runExecution(
+            `${this.entity.name}:${scheduledAt.toISOString()}`,
+            inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS),
+            async () => await this.runTick(scheduledAt)
+        );
     }
 
     /**
-     * Runs whenever the cron expression fires.
-     * This is a wrapper around this.onTick that takes care of validation, error handling and updating cron job data.
+     * Runs the tick: a wrapper around `onTick` that takes care of validation, error handling and
+     * updating the cron job's row.
      *
      * Asks the stored row first, which another instance may have changed: a job disabled or stopped
      * there is skipped and taken off this instance's schedule, and one rescheduled there runs only at
      * the times of its new schedule.
      * @param scheduledAt - The time on the schedule this run is for, if it is for one.
      */
-    async runOnTick(scheduledAt?: Date): Promise<void> {
+    private async runTick(scheduledAt?: Date): Promise<void> {
         if (!this.entity) {
             throw new CronJobNotInitializedError();
         }
@@ -565,7 +611,9 @@ export abstract class CronJob {
         // request happened to be in flight is not part of that request, and saying it was would make
         // one request look responsible for everything the schedule did
         await TracingUtilities.trace(this.name, { root: true, attributes: { 'code.function': 'onTick' } }, async span => {
+            const startedAt: number = performance.now();
             const err: unknown = await this.resolveTickOutcome();
+            this.recordRun(performance.now() - startedAt, err != undefined);
 
             entity.lastRun = new Date();
             const recovered: boolean = err == undefined && (entity.consecutiveFailures > 0 || entity.backedOffUntil != undefined);

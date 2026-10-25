@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -26,7 +27,7 @@ describe('MultithreadingService, given a job without a timeout', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -37,6 +38,8 @@ describe('MultithreadingService, given a job without a timeout', () => {
                         defaultTimeoutMs: Ms.HOUR,
                         defaultTimeoutPriorityMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
+                        maxAttempts: 3,
+                        workerResourceLimits: {},
                         enableTsWorkerFiles: true
                     }
                 }),
@@ -45,11 +48,11 @@ describe('MultithreadingService, given a job without a timeout', () => {
         });
         multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
         threadJobs = inject(repositoryTokenFor(ThreadJobEntity));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('gives a normal job defaultTimeoutMs', async () => {
         const id: string = await multithreadingService.queueThreadJob({ workerData: { filePath: computingWorker, amount: 1 } });

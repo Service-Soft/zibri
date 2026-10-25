@@ -1,10 +1,12 @@
-import { hasPlatformRoleDecorator } from './has-platform-role.decorator';
-import { hasRoleDecorator, HasRoleFn } from './has-role.decorator';
+import { hasPermissionDecorator, HasPermissionFn } from './has-permission.decorator';
+import { hasPlatformPermissionDecorator } from './has-platform-permission.decorator';
 import { isLoggedInDecorator, IsLoggedInFn } from './is-logged-in.decorator';
 import { isNotLoggedInDecorator, IsNotLoggedInFn } from './is-not-logged-in.decorator';
 import { require2faDecorator, Require2faFn } from './require-2fa.decorator';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { SkipAuthMetadata } from '../models/skip-auth-metadata.model';
+import { type Permission } from '../roles/permission.type';
+import { type PlatformPermission } from '../roles/platform-permission.type';
 
 /**
  * Bundles decorators for marking controller endpoints for authentication and authorization.
@@ -22,19 +24,21 @@ export namespace Auth {
      */
     export const isNotLoggedIn: IsNotLoggedInFn = isNotLoggedInDecorator;
     /**
-     * Marks an endpoint to be only reachable when the logged in user holds one of the provided roles
-     * in the tenant the request is for, through their membership in it.
-     * @param allowedRoles - All roles that are allowed to access this endpoint.
+     * Marks an endpoint to be only reachable when one of the roles the logged in user holds in the
+     * tenant the request is for, through their membership in it, carries the provided tenant
+     * permission, see `definePermissions`.
+     * @param permission - The permission needed to access this endpoint.
      * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
      */
-    export const hasRole: HasRoleFn = hasRoleDecorator;
+    export const hasPermission: HasPermissionFn<Permission> = hasPermissionDecorator;
     /**
-     * Marks an endpoint to be only reachable when the logged in user holds one of the provided roles
-     * of their own, whichever tenant the request is for - eg. An operator of the whole application.
-     * @param allowedRoles - All roles that are allowed to access this endpoint.
+     * Marks an endpoint to be only reachable when one of the roles of the logged in user's own carries
+     * the provided platform permission, whichever tenant the request is for - eg. An operator of the
+     * whole application, see `definePlatformPermissions`.
+     * @param permission - The permission needed to access this endpoint.
      * @param allowedStrategies - The auth strategies that are allowed to be used to check that.
      */
-    export const hasPlatformRole: HasRoleFn = hasPlatformRoleDecorator;
+    export const hasPlatformPermission: HasPermissionFn<PlatformPermission> = hasPlatformPermissionDecorator;
     /**
      * Marks an endpoint to be only reachable when the logged in user provides a second factor somehow.
      * @param allowedMethods - The allowed two factor methods to use.

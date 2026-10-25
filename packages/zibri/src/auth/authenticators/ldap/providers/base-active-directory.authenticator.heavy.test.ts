@@ -8,7 +8,7 @@ import { BaseActiveDirectoryAuthenticator } from './base-active-directory.authen
 import { ContainerOutput } from '../../../../__testing__/container-output.model';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -58,7 +58,7 @@ let ldapsUrl: string;
  */
 const firstSignIns: LdapEntry[] = [];
 
-abstract class TestDomain extends BaseActiveDirectoryAuthenticator<Roles, JwtUser> {
+abstract class TestDomain extends BaseActiveDirectoryAuthenticator<string, JwtUser> {
     // what the entrypoint provisions the domain as
     readonly netbiosName: string = 'ZIBRI';
 
@@ -231,6 +231,7 @@ describe('BaseActiveDirectoryAuthenticator against a Samba domain controller', (
 
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, LdapIdentity],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({

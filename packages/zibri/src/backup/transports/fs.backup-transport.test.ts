@@ -4,11 +4,12 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
 import { BaseFsBackupTransport } from './fs.backup-transport';
-import { testFileFolder } from '../../__testing__/constants';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -34,6 +35,7 @@ class TestFsBackupTransport extends BaseFsBackupTransport {
 @Backup({ transports: [TestFsBackupTransport], encrypt: false })
 class BackedUpDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, BackupEntity, BackupResourceEntity];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 describe('BaseFsBackupTransport', () => {
@@ -41,7 +43,7 @@ describe('BaseFsBackupTransport', () => {
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [BackedUpDataSource] });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();

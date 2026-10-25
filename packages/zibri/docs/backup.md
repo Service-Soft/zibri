@@ -1,11 +1,13 @@
 # Backup
-The backup system in Zibri consists of multiple parts.
+A backup copies the data of a resource, such as a data source, to one or more transports: a folder, an S3 bucket or an SFTP server. You take backups with the backup service, and restore your application from one later.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `Backup` | decorator | Marks a class as a backup resource, defining what should be backed up |
 | `BackupResourceInterface` | interface | Contract for extracting and restoring a resource's data |
+| `BackupTransport` | decorator | Marks a class as a backup transport, listed in `backupTransports` of the application options |
+| `PostgresBackupScope` | type | What a backup of a Postgres data source covers: `'schema'` or `'entity-tables'`. Required with `@Backup` |
 | `BaseFsBackupTransport` | class | Backup transport that writes/reads backup data to/from the local file system |
 | `BaseS3BackupTransport` | class | Backup transport that stores backups in a bucket of an S3 compatible object storage |
 | `S3BackupTransportOptions` | interface | Where and how `BaseS3BackupTransport` stores backups |
@@ -21,36 +23,35 @@ The backup system in Zibri consists of multiple parts.
 | `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` | DI token | Where a backup is staged on its way to and from a transport |
 | `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS` | DI token | How long the application waits for a running backup or restore when it stops. Defaults to 0 |
 
-## Usage
-### The parts of the backup system
-#### One or more backup resources
-These define WHAT should be backed up and need to be marked with the `@Backup` decorator.
+## The parts of the backup system
+### One or more backup resources
+A backup resource is what gets backed up. Mark it with the `@Backup` decorator.
 
-A decorated resource needs to implement `BackupResourceInterface` to define how data should be extracted from the resource (eg. by running a sql dump) and read back in.
+A resource implements `BackupResourceInterface`, which says how its data is extracted, such as by a SQL dump, and how it is read back in.
 
-#### One or more backup transports
-These define how extracted data from the resource is saved and how to retrive it when restoring a backup. They are classes decorated with `@BackupTransport` and need to be provided on the `ZibriApplicationOptions.backupTransports` array.
+### One or more backup transports
+A backup transport stores the extracted data, and fetches it again for a restore. It is a class decorated with `@BackupTransport`, listed in `ZibriApplicationOptions.backupTransports`.
 
-For more detail on those, especially if you are interested in creating your own transport, see [backup transports](./generated/interfaces/backup_transports_backup-transport.interface.BackupTransportInterface.html).
+To write a transport of your own, see [backup transports](./generated/interfaces/backup_transports_backup-transport.interface.BackupTransportInterface.html).
 
-#### The backup service
-The backup service is responsible for creating and restoring backups based on the configured resources and transports.
+### The backup service
+The backup service creates and restores backups of the resources, through their transports.
 
-### Example
-In the following, we have a postgres data source that we want to backup:
+## Backing up a data source
+This Postgres data source is backed up:
 
 ```ts
 // src/data-sources/db/db.data-source.ts
-import { DataSource, Backup, BackupServiceInterface, BackupTransport, BaseFsBackupTransport, FsPath, FsUtilities, inject, Newable, OmitStrict, PostgresDataSource, PostgresOptions, Repository, repositoryTokenFor, SchemaManagement, BaseEntity, BackupEntity, BackupResourceEntity, ZIBRI_DI_TOKENS } from 'zibri';
+import { Backup, BackupEntity, BackupResourceEntity, BackupTransport, BaseEntity, BaseFsBackupTransport, DataSource, FsPath, FsUtilities, Newable, OmitStrict, PostgresBackupScope, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
 
 @BackupTransport()
-class TestBackupTransport extends BaseFsBackupTransport {
+class DiskBackupTransport extends BaseFsBackupTransport {
     override readonly name: string = 'fs-backup-transport';
     protected override readonly backupBasePath: FsPath = FsUtilities.getPath('./backups');
 }
 
 @DataSource()
-@Backup({ transports: [TestBackupTransport], encrypt: true }) // Alternative for all registered transports: { transports: 'all' }
+@Backup({ transports: [DiskBackupTransport], encrypt: true })
 class DbDataSource extends PostgresDataSource {
     options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
         host: 'localhost',
@@ -60,28 +61,51 @@ class DbDataSource extends PostgresDataSource {
         ssl: true
     };
     schemaManagement: SchemaManagement = 'synchronize';
+    backupScope: PostgresBackupScope = 'schema';
     entities: Newable<BaseEntity>[] = [
         BackupEntity,
         BackupResourceEntity
         //...
     ];
+    repositories: RepositoryClass[] = [];
 }
 ```
 
-Notice that we don't need to implement `BackupResourceInterface` here, as `PostgresDataSource` already does that for us. What we did need to do was add two new entities. A resource checks at startup that it can actually take and restore a backup, so anything else it still needs is reported by name while the application boots rather than the first time a backup is attempted. For this data source, that is the postgres client tools `pg_dump`, `pg_restore` and `psql`, in a version no older than the server's.
+`PostgresDataSource` implements `BackupResourceInterface` itself. Its entities include `BackupEntity` and `BackupResourceEntity`, which record the backups.
 
-If you want a resource to be backed up to all registered transports, you can simply define `transports: 'all'` in the decorator.
+A `PostgresDataSource` takes and restores a backup with the Postgres client tools `pg_dump`, `pg_restore` and `psql`, which are installed beside the application, at least as new as the server.
 
-A backup covers what its resource owns and a restore replaces exactly that. For this data source, that is the schema it works in: every table and other object in it, with who owns it, its grants and its comments. Other schemas of the same database are neither backed up nor touched by a restore.
+To back up a resource to every registered transport, set `transports: 'all'` in the decorator.
 
-A restore gives every object back to the role that owned it when the backup was taken. A role the backup names as an owner or in a grant has to exist on the server you restore to; otherwise the restore fails and changes nothing.
+A backup covers what its resource owns, and a restore replaces exactly that. On a Postgres data source, `backupScope` says what that is. A data source marked with `@Backup` has to set it, see [why some options have no default](./faq.md#why-do-some-options-have-no-default):
 
-The credentials the resource already runs with are enough to take and restore a backup. To run backups as another role, set `rootUsername` and `rootPw`. That role has to be a member of every role that owns an object of the schema.
+| `backupScope` | A backup covers | Use it when |
+|---|---|---|
+| `'schema'` | The schema the data source works in: every table and other object in it, such as the views, types and functions your migrations create. | The schema belongs to this application alone. |
+| `'entity-tables'` | The tables of the data source's entities. Everything else in the schema is neither backed up nor touched by a restore. | Anything else keeps tables in the same schema, such as another application or reporting. |
 
-The `FsBackupTransport` simply writes the backup data for this resource to the local file system, so it should only be used for illustration/testing purposes.
+Either way, a backup carries each object's owner, its grants and its comments, and other schemas of the same database are neither backed up nor touched by a restore. With `'entity-tables'`, a restore fails and changes nothing when anything outside those tables depends on one of them, such as a view or a foreign key of another table. Remove it before the restore and create it again afterwards.
 
-### Encrypting backups
-`encrypt` says whether a resource's data is encrypted before it leaves the application. With `true`, every backup is encrypted with a key of its own, and that key is stored with the backup, encrypted with the encryption service's `masterEncrypt` (see [the master key](./encryption-and-hashing.md#the-master-key)). Neither this instance's disk nor any transport holds the data unencrypted.
+A restore gives every object back to the role that owned it when the backup was taken. A role the backup names as an owner or in a grant has to exist on the server you restore to. Otherwise the restore fails and changes nothing.
+
+The credentials the resource already runs with are enough to take and restore a backup. To run backups as another role, set `rootUsername` and `rootPw`. That role has to be a member of every role that owns an object the backup covers.
+
+`BaseFsBackupTransport` writes the backups to `backupBasePath`, a folder on this instance's own disk.
+
+> [!WARNING]
+> A backup on the instance's own disk is lost with that disk. Use `BaseFsBackupTransport` for testing, and another transport in production.
+
+A `ValKeyDataSource` marked with `@Backup` sets `backupMode` instead, which says how its keys are read:
+
+| `backupMode` | A backup | Use it when |
+|---|---|---|
+| `'snapshot'` | Reads every key at one moment. A transaction committed while it is taken is in it whole or not at all. The server answers nothing else until every key is read. | The store is small enough to pause for, such as sessions or a cache. |
+| `'walk'` | Reads the keys a batch at a time, while the server goes on answering. A transaction committed meanwhile can be in it with some of its rows and without others. | The store is too large to pause the server for. |
+
+Either way, a restore builds the ids, indexes and uniques of every entity again from the rows it restored.
+
+## Encrypting backups
+`encrypt` says whether a resource's data is encrypted before it leaves the application. With `true`, every backup is encrypted with a key of its own, and that key is stored with the backup, encrypted with the encryption service's `masterEncrypt` (see [the master key](./encryption-and-hashing.md#setting-the-master-key)). Neither this instance's disk nor any transport holds the data unencrypted.
 
 A restore needs the master key the backup was taken under. When you replace the master key, keep the old one in `oldMasterKeys` for as long as you keep backups taken under it. A backup whose master key is not listed is refused before anything is fetched, and the error names the key.
 
@@ -89,12 +113,12 @@ Every backup records the keys a restore of it needs: `masterKeys` and `dataKeyId
 
 An encrypted backup that was changed where it is stored is refused before any of it is applied, even when the record beside it was changed to match.
 
-### Storing backups in an S3 compatible bucket
-`BaseS3BackupTransport` stores backups in a bucket of any service that speaks the S3 protocol — AWS S3, MinIO, Cloudflare R2, Backblaze B2, Hetzner, IONOS, Wasabi and others:
+## Storing backups in an S3 compatible bucket
+`BaseS3BackupTransport` stores backups in a bucket of any service that speaks the S3 protocol, such as AWS S3, MinIO, Cloudflare R2, Backblaze B2, Hetzner, IONOS or Wasabi:
 
 ```ts
 // src/backup/s3.backup-transport.ts
-import { BaseS3BackupTransport, S3BackupTransportOptions } from 'zibri';
+import { BackupTransport, BaseS3BackupTransport, S3BackupTransportOptions } from 'zibri';
 
 import { secrets } from './secrets';
 
@@ -105,13 +129,49 @@ export class S3BackupTransport extends BaseS3BackupTransport {
         endpoint: 'https://s3.eu-central-1.amazonaws.com',
         bucket: 'my-app-backups',
         region: 'eu-central-1',
-        accessKeyId: secrets.s3AccessKeyId,
-        secretAccessKey: secrets.s3SecretAccessKey,
+        credentials: { accessKeyId: secrets.s3AccessKeyId, secretAccessKey: secrets.s3SecretAccessKey },
+        serverSideEncryption: 'bucket-default',
         prefix: 'production',
         addressingStyle: 'virtual-hosted'
     };
 }
 ```
+
+For credentials that expire, such as those of a role your workload assumes, pass a function as `credentials`. The transport calls it before every request and sends the `sessionToken` it returns. Return the same credentials for as long as they are valid:
+
+```ts
+// src/backup/workload-s3.backup-transport.ts
+import { BackupTransport, BaseS3BackupTransport, S3BackupTransportOptions } from 'zibri';
+
+import { resolveWorkloadCredentials } from './workload-credentials';
+
+@BackupTransport()
+export class WorkloadS3BackupTransport extends BaseS3BackupTransport {
+    override readonly name: string = 'workload-s3-backup-transport';
+    protected override readonly options: S3BackupTransportOptions = {
+        endpoint: 'https://s3.eu-central-1.amazonaws.com',
+        bucket: 'my-app-backups',
+        region: 'eu-central-1',
+        credentials: resolveWorkloadCredentials,
+        serverSideEncryption: { algorithm: 'aws:kms', keyId: 'alias/my-app-backups' },
+        addressingStyle: 'virtual-hosted'
+    };
+}
+```
+
+A credential provider of the AWS SDK, such as `fromNodeProviderChain()` of `@aws-sdk/credential-providers`, has that shape and keeps its credentials until they expire, so you can pass it as it is.
+
+`serverSideEncryption` says how the service encrypts the backups it stores:
+
+| `serverSideEncryption` | Every backup is stored |
+|---|---|
+| `'bucket-default'` | As the default encryption of the bucket says. |
+| `{ algorithm: 'AES256' }` | Encrypted with keys the service manages. |
+| `{ algorithm: 'aws:kms', keyId? }` | Encrypted with a key of the service's key management service: `keyId`, or the service's default key without one. |
+
+This is independent of [`encrypt`](#encrypting-backups), which encrypts a backup before it leaves your application.
+
+Every upload carries the digest of what it sends, so a bucket with object lock and a default retention period takes backups and keeps each of them for that period.
 
 The bucket has to exist. Each resource is stored as the object `<prefix>/<backup name>/<resource name>`, and the record of the backup as `<prefix>/<backup name>/metadata.json` beside it.
 
@@ -121,8 +181,8 @@ A backup is uploaded in parts of `partSize`, `16mb` by default. A backup is at m
 
 A backup that fails while it is uploaded is aborted, which removes the parts uploaded so far. When the abort itself fails, the transport logs a warning naming the upload, and its parts stay stored until you abort it or a lifecycle rule of the bucket removes it.
 
-### Storing backups on an SFTP server
-`BaseSftpBackupTransport` stores backups in a folder on any server you can reach over SFTP — a storage box, a NAS, or a machine of your own. It needs the `ssh2` package:
+## Storing backups on an SFTP server
+`BaseSftpBackupTransport` stores backups in a folder on any server you can reach over SFTP, such as a storage box, a NAS or a machine of your own. It needs the `ssh2` package, see [requirements](#requirements):
 
 ```bash
 npm i ssh2
@@ -130,7 +190,7 @@ npm i ssh2
 
 ```ts
 // src/backup/sftp.backup-transport.ts
-import { BaseSftpBackupTransport, SftpBackupTransportOptions } from 'zibri';
+import { BackupTransport, BaseSftpBackupTransport, SftpBackupTransportOptions } from 'zibri';
 
 import { secrets } from './secrets';
 
@@ -159,19 +219,25 @@ ssh-keyscan -t ed25519 backups.example.com | ssh-keygen -lf -
 
 When the server presents a different key, the error names the key it presented, so you can compare the two.
 
-### Creating and restoring backups
-Now we can use the backup service to create a new backup:
+## Creating and restoring backups
+`createBackup` takes a backup of every resource:
 
 ```ts
+// src/services/backup.service.ts
+import { BackupServiceInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
+
 export async function createBackup(): Promise<void> {
     const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
     await backupService.createBackup();
 }
 ```
 
-Which you can later restore using:
+`restore` restores one:
 
 ```ts
+// src/services/backup.service.ts
+import { BackupEntity, BackupServiceInterface, inject, Repository, repositoryTokenFor, ZIBRI_DI_TOKENS } from 'zibri';
+
 export async function restoreBackup(): Promise<void> {
     const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
     const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
@@ -183,6 +249,9 @@ export async function restoreBackup(): Promise<void> {
 `delete` removes a backup from every transport that holds it, and from the database:
 
 ```ts
+// src/services/backup.service.ts
+import { BackupEntity, BackupServiceInterface, inject, Repository, repositoryTokenFor, ZIBRI_DI_TOKENS } from 'zibri';
+
 export async function deleteBackup(): Promise<void> {
     const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
     const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
@@ -193,24 +262,23 @@ export async function deleteBackup(): Promise<void> {
 
 A backup whose resources name a transport the application does not register is refused, and stays as it is.
 
-### Backups the database does not know about yet
-When the application starts, it records every backup its transports hold that the database does not know about yet — after a restore of the database, for example. A transport that cannot be reached then is skipped with a warning naming it, so a backup server that is down does not keep your application from starting. What only that transport holds is recorded by the next sync that reaches it.
+## Backups the database does not know about yet
+When the application starts, it records every backup its transports hold that the database does not know about yet, such as after a restore of the database. A transport that cannot be reached then is skipped with a warning naming it, and the application starts. The next sync that reaches it records what only that transport holds.
 
 To sync at any other time, call `syncBackupEntities()`. It fails when a transport cannot be reached.
 
-### What a restore checks first
+## What a restore checks first
 
-Creating a backup records how many bytes each resource turned out to be and what they sum to, and
-marks the resource complete once every transport has taken the whole thing. A restore fetches the
-stored data, checks it against that record, and refuses before applying any of it when the two differ —
-so an archive that was truncated or altered where it is kept fails the restore rather than half
-succeeding.
+Creating a backup records the size and the checksum of each resource. It marks the resource complete
+once every transport has taken all of it. A restore fetches the stored data and checks it against that
+record. When the two differ, the restore fails before it applies any of it, so an archive that was
+truncated or altered where it is kept changes nothing.
 
-That record is written beside the data as well as into the database, because the database is often the
-thing being restored. A resource that records nothing is refused too: anything that finished recorded
-what it wrote, so a resource without that record describes a backup that started and stopped.
+The record is stored beside the data on every transport, as well as in the database, so a restore of
+that database can check it too. A resource without that record, or not marked complete, is refused: its
+backup never finished.
 
-### A restore of several resources
+## A restore of several resources
 
 A restore fetches and checks the data of every resource before it applies any of them. It then takes a
 snapshot of what each resource holds right now, and applies the resources one after another.
@@ -226,7 +294,22 @@ cannot be put back is logged with the file its snapshot is kept in, and tried ag
 until it is; the daily job keeps that file. The snapshots are on this instance's disk, so an instance
 started on a fresh disk has nothing to put back.
 
-### When the application stops
+## A backup of another release
+
+A data source brings what it restores in line with the release restoring it: it runs every
+[migration](./data-source.md#handling-migrations) the backup has not recorded and makes the indexes and uniques
+match what the entities declare, before the restore is done. A backup an older release took comes back
+in the schema of the current one.
+
+A backup holding a migration of a newer release is refused, and the error names the migration. Restore
+it with a build of that version or a newer one.
+
+## Restoring with one instance
+
+Run a restore while one instance of your application is running: stop the others before you restore,
+and start them again once it is done.
+
+## When the application stops
 
 When the application stops while a backup or restore is running, it waits for it for
 `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS`, 0 by default, and then stops it:
@@ -240,55 +323,58 @@ Stopping takes up to 30 seconds more. Choose the wait so that both fit into the 
 gives the process before it kills it:
 
 ```ts
+// src/providers.ts
 import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({ token: ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS, useValue: Ms.MINUTE * 5 });
 ```
 
-### Where a backup passes through
+## Where a backup passes through
 
-A backup is written to this instance's own disk on its way out and fetched to it on the way back, so
-plan for room for the largest backup being written at a time, and for twice the largest being restored:
-a restore holds the archives of all its resources and a snapshot of each at once. `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER`
-says where, and defaults to `.zibri/backups` beside the application. Each file is removed as soon as
-the backup or restore it belongs to is done, and a daily job clears anything a killed process left
-behind, except what the next start puts a killed restore back from.
+A backup passes through this instance's own disk. It is written there on its way out, and fetched
+there on its way back. Leave room for the largest backup being taken at a time, and for twice the
+largest being restored: a restore holds the archives of all its resources and a snapshot of each at
+once. `ZIBRI_DI_TOKENS.BACKUP_TEMP_FOLDER` says where, and defaults to `.zibri/backups` beside the
+application. Each file is removed as soon as the backup or restore it belongs to is done. A daily job
+clears anything a killed process left behind, except what the next start puts a killed restore back
+from.
 
-Two things follow from it. Every transport is read exactly once per restore, whatever the check and the
-restore need between them — which for a transport that charges for what it sends is the difference
-between one transfer and two. And on the way out, transports follow the file while it is still being
-written, so each of them gets the whole archive without any of them pacing another, and without pacing
-whatever is producing the data: a database dump runs at the speed of the disk and closes its snapshot
-as soon as it is done, rather than holding it open for as long as the slowest upload takes.
+A restore reads each transport once. While a backup is taken, every transport reads the file as it is
+written, so a slow transport holds back neither the other transports nor the resource producing the
+data.
 
-### The shape a backup is written in
+## The shape a backup is written in
 
-A backup carries two versions, and they answer different questions.
+A backup records two versions:
 
-`zibriVersion` is which build took it — provenance, for when you are reading a bug report about an
-archive somebody else produced.
+| Field | What it is |
+|---|---|
+| `zibriVersion` | The build that took the backup |
+| `formatVersion` | The shape the backup is written in. A restore reads it |
 
-`formatVersion` is the shape it is written in, and it is the one a restore acts on: an archive written
-in a shape this build does not know is refused by name, before any of it is applied. That matters most
-on the way back — one instance restoring what a newer one wrote, or a rollback — because a shape read
-as though it were a different one lines up whatever fields happen to line up, and what a restore does
-with them lands on a database.
+A backup written in a shape this build does not read is refused by name, before any of it is applied.
+`READABLE_BACKUP_FORMAT_VERSIONS` lists the shapes this build reads, and `BACKUP_FORMAT_VERSION` is
+the one it writes. `BACKUP_FORMAT_VERSION` changes when the shape of a backup changes, independent of
+the release.
 
-The two are deliberately separate. A backup outlives the releases either side of it, so tying whether
-one can be read to the framework's own version would make every archive unreadable the next time the
-framework breaks something that has nothing to do with backups. `BACKUP_FORMAT_VERSION` changes when
-the shape of a backup changes and at no other time, which is usually never.
+The shape covers the record stored beside the data, the fields a restore reads from it, and how
+encrypted data is sealed. What a resource's own `createBackupData` produces belongs to the resource: a
+Postgres dump is read by Postgres.
 
-What the shape covers is what the framework writes: the record stored beside the data, which fields
-a restore reads out of it, and how encrypted data is sealed. It says nothing about what a resource's own `createBackupData` produces — a
-Postgres dump is read by Postgres, and which versions of it can is Postgres's contract rather than this
-one. It also says nothing about the layout a transport stores under, which belongs to the transport:
-one that changes where it puts things keeps reading what it already wrote, and the framework never
-needs to know either way.
+A transport stores the record and hands it back unopened, so a transport of your own works with every
+shape.
 
-That split is why a transport never opens the record. It receives the document to store and hands it
-back unopened, so a transport of your own goes on working across a change of shape without being
-touched — it stores bytes and a document, and what a document means stays here.
+## Requirements
+| Package | Used for |
+|---|---|
+| `ssh2` | Reaching an SFTP server, with `BaseSftpBackupTransport`. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `BackupEntity`, `BackupResourceEntity` | A backup resource is registered |
 
 ## See also
 - [Data sources](./data-source.md) — `PostgresDataSource` and other data sources that back up automatically
+- [Encryption and hashing](./encryption-and-hashing.md#setting-the-master-key) — the master key encrypted backups are restored with

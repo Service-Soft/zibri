@@ -5,7 +5,7 @@ import { ScimErrorType } from './scim-error-type.enum';
 import { ScimPatchOperation } from './scim-patch-operation.model';
 import { ScimPatchUtilities } from './scim-patch.utilities';
 import { ScimSchema } from './scim-schema.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 
 /**
@@ -23,7 +23,7 @@ describe('ScimPatchUtilities', () => {
 
     // an application around the pure logic, for the translated messages of the errors it throws
     beforeAll(async () => {
-        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
     });
 
     afterAll(async () => {

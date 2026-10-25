@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from '@jest/globals';
 
 import { RateLimitingServiceInterface } from './rate-limiting-service.interface';
+import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { CronJob } from '../cron/cron-job.model';
@@ -85,7 +86,7 @@ describe('RateLimitingService (via a real app boot)', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('collects every class registered with @RateLimiter(), runs their cleanup, and schedules the cleanup cron job', async () => {
         const providers: DiProvider<unknown>[] = [
@@ -113,7 +114,7 @@ describe('RateLimitingService (via a real app boot)', () => {
         await rateLimitingService.cleanup();
         expect(limiterA.cleaned).toBe(true);
         expect(limiterB.cleaned).toBe(true);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     it('rejects app startup when a class structurally implements RateLimiterInterface but is missing @RateLimiter()', async () => {
         const providers: DiProvider<unknown>[] = [

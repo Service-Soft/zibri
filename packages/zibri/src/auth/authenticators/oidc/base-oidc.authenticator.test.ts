@@ -4,9 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
 import { BaseOidcAuthenticator } from './base-oidc.authenticator';
+import { OidcAuthenticationTime } from './oidc-authentication-time.type';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -73,24 +75,28 @@ let provider: FakeOAuthProvider;
 let formPostProvider: FakeOAuthProvider;
 let apiProvider: FakeOAuthProvider;
 
-class FakeProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class FakeProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'fake';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
 
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
+
     get issuer(): string {
         return provider.issuer;
     }
 }
 
-class FormPostProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class FormPostProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'fake-form-post';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly responseMode: OAuthResponseMode = 'form_post';
 
@@ -99,12 +105,14 @@ class FormPostProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser
     }
 }
 
-class ApiProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class ApiProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'fake-api';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly apiScopes: string[] = [READ_SCOPE, WRITE_SCOPE];
 
@@ -201,6 +209,7 @@ async function startApp(
             FederatedConnectionCode,
             OAuthProviderTokens
         ],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -467,13 +476,13 @@ describe('BaseOidcAuthenticator — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing FakeProviderAuthenticator[\S\s]*FederatedLoginAttempt[\S\s]*FederatedRegistrationTicket/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without the options every provider shares', async () => {
         const start: Promise<[StartedTestServer, string]> = startApp([], JwtAuthStrategy, undefined);
 
         await expect(start).rejects.toThrow(/federation_options/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('BaseOidcAuthenticator — signing in to cookies', () => {
@@ -487,11 +496,11 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
             CookieAuthStrategy,
             oauthOptions
         );
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     const authorizeUrl: (query?: Record<string, string>) => string = query => `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, ...query }).toString()}`;
 
@@ -601,16 +610,57 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         expect(landing).toBe(`${ERROR_URL}?error=invalid`);
     });
 
-    it('refuses an ID token from a sign-in at the provider longer ago than allowed', async () => {
+    it('sends a user whose sign-in at the provider is too old back there to sign in again, and lands them where they wanted', async () => {
+        const subject: string = newSubject();
+        await createUser(`${subject}@example.com`, subject);
+        provider.identity = { subject };
         provider.authenticatedAt = new Date(Date.now() - 7200000);
+        const browser: TestBrowser = newBrowser(baseUrl);
 
         try {
-            const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl());
-            expect(landing).toBe(`${ERROR_URL}?error=invalid`);
+            const { landing } = await signIn(browser, authorizeUrl());
+            // straight back to the provider, asking for a new sign-in, where the user was refused
+            // as invalid before with nothing telling them to sign in at the provider again
+            const atProvider: URL = new URL(landing);
+            expect(atProvider.origin).toBe(provider.issuer);
+            expect(atProvider.searchParams.get('prompt')).toBe('login');
+            provider.authenticatedAt = undefined;
+            expect(await browser.follow(await browser.follow(landing))).toBe(REDIRECT_TO);
         }
         finally {
             provider.authenticatedAt = undefined;
         }
+    });
+
+    it('refuses the sign-in when the provider ignores being asked to have the user sign in again', async () => {
+        const subject: string = newSubject();
+        await createUser(`${subject}@example.com`, subject);
+        provider.identity = { subject };
+        provider.authenticatedAt = new Date(Date.now() - 7200000);
+        const browser: TestBrowser = newBrowser(baseUrl);
+
+        try {
+            const { landing } = await signIn(browser, authorizeUrl());
+            expect(await browser.follow(await browser.follow(landing))).toBe(`${ERROR_URL}?error=invalid`);
+        }
+        finally {
+            provider.authenticatedAt = undefined;
+        }
+    });
+
+    it('has to be told how the provider says when the user signed in', () => {
+        // @ts-expect-error a provider that does not say and one that does are both common, so neither is assumed
+        class SilentProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
+            readonly name: string = 'silent';
+
+            readonly clientId: string = CLIENT_ID;
+
+            readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+            readonly issuer: string = 'https://silent.example.com';
+        }
+
+        expect(SilentProviderAuthenticator).toBeDefined();
     });
 
     it('refuses to send the sign-in on to a page that is not one of the allowed redirects', async () => {
@@ -738,11 +788,11 @@ describe('BaseOidcAuthenticator — signing in to jwt', () => {
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp([JwtProviderAuthController, JwtRegistrationController], JwtAuthStrategy, oauthOptions);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Starts a sign-in the way a frontend does, with a PKCE verifier it keeps.
@@ -869,11 +919,11 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
             CookieAuthStrategy,
             createFederationOptions()
         );
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Asks the application's own route for the url that connects a provider, the way the frontend does.
@@ -1100,11 +1150,11 @@ describe('BaseOidcAuthenticator — connecting a provider to a jwt account', () 
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp([JwtProviderAuthController, ConnectionController], JwtAuthStrategy, createFederationOptions());
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('links the identity to the user whose access token asked for it', async () => {
         const subject: string = newSubject();
@@ -1152,11 +1202,11 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
             CookieAuthStrategy,
             createFederationOptions()
         );
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Connects the provider with apis to the account, as the user's browser does.

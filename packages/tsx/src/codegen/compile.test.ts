@@ -61,6 +61,18 @@ describe('compile', () => {
         expect(result.code).not.toContain('Other');
     });
 
+    it('drops a binding the template uses as a type only, which an es module could not import', () => {
+        // the way a page is usually written: the component type beside a hook, in one import. A
+        // commonjs module reads a missing export as undefined, an es module refuses to load at all
+        const source: string = 'import { $ts, TsxComponent } from \'zibri\';\n'
+            + 'type Props = { name: string };\n'
+            + 'export const Home: TsxComponent<Props> = ({ name }) => <h1>{$ts`Hello`} {name}</h1>;';
+        const result: CompileResult = compile(source);
+        assert(result.code);
+        expect(result.code).toContain('import { $ts } from "zibri";');
+        expect(result.code).not.toContain('TsxComponent');
+    });
+
     it('drops server-inlined context hook imports but keeps createContext', () => {
         // provideContext/useContext are lowered to $ssr methods, so their import bindings are dead
         // in the emitted module; keeping them would require a runtime export that does not exist.

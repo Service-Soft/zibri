@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 
 import { validateEntitiesRegistered } from './validate-entities-registered.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZibriApplication } from '../application/application';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -26,11 +27,11 @@ describe('validateEntitiesRegistered', () => {
         await server?.shutdown();
         server = undefined;
         GlobalRegistry['appData'].state = AppState.OFFLINE;
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('rejects app startup with a MissingEntitiesError when an entity is not registered in any data source', async () => {
         await expect(startTestServer({
             plugins: [new ScratchValidatePlugin()]
         })).rejects.toThrow(/Could not find data source for the following entities.*UnregisteredScratchEntity/s);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 });

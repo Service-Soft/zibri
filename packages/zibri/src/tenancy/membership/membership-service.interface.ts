@@ -40,6 +40,10 @@ export interface MembershipServiceInterface {
      */
     deleteMembership: (userId: string, tenantId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
+     * Stores the roles a user holds through their membership in a tenant.
+     */
+    updateRoles: (userId: string, tenantId: string, roles: string[], transaction: Transaction | undefined) => Promise<void>,
+    /**
      * Deletes every membership of the given users, in every tenant.
      *
      * Called by the repository of a user entity whenever it deletes users, in the same transaction.
@@ -51,6 +55,21 @@ export interface MembershipServiceInterface {
      * Every write to it is reported to `handleMembershipsChanged`.
      */
     isMembershipEntity: (entityClass: Newable<BaseEntity>) => boolean,
+    /**
+     * Finds the roles stored memberships hold other than the given ones and those of their tenant's
+     * own, in every tenant, eg. To refuse starting an application whose members hold a role that does
+     * not exist.
+     * @param known - The roles every tenant shares.
+     * @param findTenantRoles - Finds the roles of a tenant's own, asked only for the tenants of
+     * memberships holding a role every tenant does not share.
+     */
+    findUnknownRoles: (known: string[], findTenantRoles: (tenantId: string) => Promise<string[]>) => Promise<string[]>,
+    /**
+     * Whether a stored membership holds a role, eg. To refuse deleting it.
+     * @param role - The name of the role.
+     * @param tenantId - The tenant to look in, undefined for every tenant.
+     */
+    isRoleHeld: (role: string, tenantId: string | undefined) => Promise<boolean>,
     /**
      * Brings what follows the memberships of users in line with what is stored: which tenants'
      * websocket broadcasts their connections receive.

@@ -6,6 +6,7 @@ import { CacheService } from './cache.service';
 import { Cache } from './decorators/cache.decorator';
 import { CachedValue } from './store/cached-value.model';
 import { InMemoryCacheStore } from './store/in-memory.cache-store';
+import { TestTimeouts } from '../__testing__/constants';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -109,11 +110,12 @@ function createCachedValue<V>(value: V, tags: string[]): CachedValue<V> {
 
 // first, for the reason on startAndStopTestServerWithout
 describe('CacheService — starting', () => {
-    // every application has a cache, since the encryption key cache is one
+    // every application has a cache, since the encryption key cache is one, and one with users has
+    // roles, which are told about a change through the same row: whichever starts first names itself
     it('refuses to start without CacheInvalidation, and names it', async () => {
         await expect(startAndStopTestServerWithout([CacheInvalidation]))
-            .rejects.toThrow(/Error initializing CacheService[\S\s]*CacheInvalidation/);
-    }, 30000);
+            .rejects.toThrow(/Error initializing (CacheService|RoleService)[\S\s]*CacheInvalidation/);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('CacheService', () => {
@@ -123,11 +125,11 @@ describe('CacheService', () => {
     beforeAll(async () => {
         server = await startTestServer();
         cacheService = inject(ZIBRI_DI_TOKENS.CACHE_SERVICE) as CacheService;
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         cacheService.caches.length = 0;

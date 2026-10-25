@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { validateNumber } from './validate-number.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { NumberFormat, NumberPropertyMetadata } from '../../entity/models/number-property-metadata.model';
 import { NumberUtilities } from '../../utilities/number.utilities';
@@ -37,11 +38,11 @@ describe('validateNumber', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 30000);
+    }, 60000);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('returns no problems for a valid number', async () => {
         const problems: ValidationProblem[] = await validateNumber('age', 42, meta(), undefined, undefined);

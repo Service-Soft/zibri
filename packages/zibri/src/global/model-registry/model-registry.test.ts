@@ -5,7 +5,8 @@ import { DefaultDescriptor } from './default-descriptor';
 import { NestedDescriptor } from './model-descriptor';
 import { ModelRegistry } from './model.registry';
 import { restoreExcludeProperties } from './restore-exclude-properties.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
@@ -118,7 +119,8 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [
             createTestDataSource({
-                entities: [...defaultTestServerEntities, ModelRegistryTestItem, PropagationTestItem, DynamicOptionsTestItem]
+                entities: [...defaultTestServerEntities, ModelRegistryTestItem, PropagationTestItem, DynamicOptionsTestItem],
+                repositories: defaultTestServerRepositories
             })
         ]
     });
@@ -126,11 +128,11 @@ beforeAll(async () => {
     propagationTestItemRepo = inject(repositoryTokenFor(PropagationTestItem));
     dynamicOptionsTestItemRepo = inject(repositoryTokenFor(DynamicOptionsTestItem));
     hashService = inject(ZIBRI_DI_TOKENS.HASH_SERVICE);
-}, 15000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('model-registry descriptors — real repository round trip', () => {
     let repo: Repository<ModelRegistryTestItem, ModelRegistryTestItemCreateData>;

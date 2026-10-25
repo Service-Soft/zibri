@@ -11,6 +11,7 @@ import { FederatedRegistrationTicket } from '../../auth/authenticators/federated
 import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth-client-authentication.model';
 import { OAuthResponseMode } from '../../auth/authenticators/oauth/oauth-response-mode.type';
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
 import { CookieAuthRefreshSession } from '../../auth/strategies/cookie/cookie-auth-refresh-session.model';
 import { CookieAuthSession } from '../../auth/strategies/cookie/cookie-auth-session.model';
 import { CookieAuthStrategy } from '../../auth/strategies/cookie/cookie-auth.auth-strategy';
@@ -25,8 +26,9 @@ import { Controller } from '../../routing/decorators/controller.decorator';
 import { Newable } from '../../types/newable.type';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -36,12 +38,14 @@ const REDIRECT_TO: string = 'https://app.example.com/signed-in';
 
 let provider: FakeOAuthProvider;
 
-class FormPostProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class FormPostProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'form-post';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly responseMode: OAuthResponseMode = 'form_post';
 
@@ -74,6 +78,7 @@ describe('evaluation/03-auth-and-security H17 - a provider answering with a form
                 FederatedRegistrationTicket,
                 FederatedConnectionCode
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -97,12 +102,12 @@ describe('evaluation/03-auth-and-security H17 - a provider answering with a form
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await provider?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs a linked user in when the provider posts its answer to the callback', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'form-post@example.com', roles: [Roles.USER] });

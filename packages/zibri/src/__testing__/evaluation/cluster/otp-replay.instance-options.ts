@@ -1,5 +1,5 @@
 import { TOTP } from 'otpauth';
-import { createPostgresTestDataSource, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
+import { createPostgresTestDataSource, defaultClusterProviders, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
 import { OtpRegistration, OtpTwoFactorMethod } from '../../../auth/2fa/methods/otp/otp.two-factor-method';
 import { OTP_PERIOD_IN_SECONDS } from '../../../auth/2fa/methods/otp/otp.utilities';
@@ -22,10 +22,9 @@ import { JwtTestAuthController } from '../../mocks/controllers/jwt-test-auth.con
 import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
 import { TestMembership } from '../../mocks/entities/test-membership.entity';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/membership-repository';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
+import { TestRole } from '../../mocks/entities/test-role.entity';
+import { defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
+import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders } from '../../test-server/providers';
 
 /**
  * The data sources every instance of this scenario boots on.
@@ -40,7 +39,7 @@ import '../../test-server/user-repository'; // this import is needed so that the
  */
 const clusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed
-    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership] })
+    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership, TestRole], repositories: defaultTestServerRepositories })
 ];
 
 /**
@@ -138,7 +137,9 @@ const options: StartTestServerOptions = {
     dataSources: clusterDataSources,
     // the real auth controller, so the parent logs in the way a client does rather than through a
     // route written to make the test convenient
-    controllers: [ClusterOtpController, JwtTestAuthController]
+    controllers: [ClusterOtpController, JwtTestAuthController],
+    // the cluster's defaults, and the roles the users here hold
+    providers: [...defaultClusterProviders, ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles)]
 };
 
 export default options;

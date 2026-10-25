@@ -3,7 +3,8 @@ import { type Relation } from 'typeorm';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Repository } from './repository';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -69,14 +70,14 @@ let members: Repository<Member, MemberData & { name: string }, MemberData>;
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Member, Badge] })]
+        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Member, Badge], repositories: defaultTestServerRepositories })]
     });
     members = inject(repositoryTokenFor(Member));
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 describe('when a property\'s default fills it in', () => {
     it('fills in a property and a nested model a row is created without', async () => {

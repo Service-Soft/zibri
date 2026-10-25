@@ -1,3 +1,5 @@
+import { type PlatformPermission } from '../roles/platform-permission.type';
+
 /**
  * Where the routes of the authorization server answer, and what they allow.
  */
@@ -11,9 +13,9 @@ export type AuthorizationServerEndpoint = {
      */
     url: string,
     /**
-     * The roles that may ask whether a token is active.
+     * The permission to ask whether a token is active with.
      */
-    introspectionRoles: string[],
+    introspectionPermission: PlatformPermission,
     /**
      * The services besides the application that a client may ask for a token for.
      */

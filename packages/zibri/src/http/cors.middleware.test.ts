@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { CorsOrigin, corsMiddleware } from './cors.middleware';
 import { KnownHeader } from './known-header.enum';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -37,12 +38,12 @@ beforeAll(async () => {
         security: { cors: { origins: [allowedOrigin], credentials: true } }
     });
     baseUrl = await server.start();
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('corsMiddleware', () => {
 

@@ -21,9 +21,14 @@ export type DataSourceSubscription = {
  */
 export interface PubSubDataSourceInterface {
     /**
+     * The largest message this data source carries, in bytes, or undefined when it carries any.
+     */
+    readonly maxMessageBytes: number | undefined,
+    /**
      * Sends a message to every instance subscribed to the channel, including this one.
      * @param channel - The channel to publish on.
      * @param message - The payload.
+     * @throws When the message is larger than {@link PubSubDataSourceInterface.maxMessageBytes}.
      */
     publish: (channel: string, message: string) => Promise<void>,
     /**

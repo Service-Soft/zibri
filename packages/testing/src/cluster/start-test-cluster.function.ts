@@ -1,15 +1,16 @@
 import { ChildProcess, fork } from 'node:child_process';
 import { createRequire } from 'node:module';
 
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { ExecResult } from 'testcontainers';
-import { DataSourceInterface, DiContainer, FsPath, FsUtilities, initDiContainer, inject, Newable, PostgresDataSource } from 'zibri';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { ExecResult } from 'testcontainers';
+import { DataSourceInterface, DiContainer, FsPath, FsUtilities, initDiContainer, inject, Newable, optionalPeer, PostgresDataSource } from 'zibri';
 
 import { defaultClusterDataSources } from './cluster-data-sources';
 import { ClusterMarkRow } from './cluster-mark.model';
 import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANCE_OPTIONS_ENV, CLUSTER_MODULE_PATHS_ENV, CLUSTER_SCRATCH_PATH_ENV, ClusterInstanceMessage } from './cluster-message.model';
 import { clusterModulePaths } from './cluster-module-paths';
 import { createScratchDirectory, removeScratchDirectory } from '../scratch-directory.function';
+import { settleAfterFailure } from '../settle-after-failure.function';
 import { StartedDataSourceContainer, startDataSourceContainers } from '../start-data-source-containers.function';
 import { StartTestServerOptions } from '../start-test-server-options.model';
 
@@ -181,7 +182,15 @@ export class ClusterInstance {
  */
 function createSqlRunner(started: StartedDataSourceContainer): SqlRunner | undefined {
     const dataSource: DataSourceInterface = inject(started.dataSourceClass);
-    if (!(dataSource instanceof PostgresDataSource) || !(started.container instanceof StartedPostgreSqlContainer)) {
+    if (!(dataSource instanceof PostgresDataSource)) {
+        return undefined;
+    }
+    // loaded already: the container was started with it
+    const { StartedPostgreSqlContainer: PostgresContainer } = optionalPeer<typeof import('@testcontainers/postgresql')>(
+        '@testcontainers/postgresql',
+        'Running sql in a cluster\'s data source'
+    );
+    if (!(started.container instanceof PostgresContainer)) {
         return undefined;
     }
     const container: StartedPostgreSqlContainer = started.container;
@@ -440,9 +449,10 @@ export class StartedTestCluster {
             // and has to resolve both the way the caller would.
             cwd: process.cwd(),
             // jest's transform only exists inside the jest process, so the instance needs a
-            // typescript hook of its own. ts-node rather than swc: it is already a peer dependency,
-            // and it is the same compiler the framework is built with, so emitDecoratorMetadata
-            // behaves identically instead of merely similarly.
+            // typescript hook of its own. ts-node rather than swc: it is already an optional peer of
+            // the framework, and it is the same compiler the framework is built with, so
+            // emitDecoratorMetadata behaves identically instead of merely similarly. Checked for in
+            // startTestCluster, before anything is forked.
             // The module paths are preloaded rather than imported by the entry, because a worker
             // thread starts with the execArgv of the thread that created it and never runs the entry:
             // imported there, they reached the instance's main thread only, and every thread job
@@ -511,6 +521,10 @@ export type StartTestClusterOptions = {
 export async function startTestCluster(options: StartTestClusterOptions): Promise<StartedTestCluster> {
     const { instanceOptions, instances = 2, bootMode = 'sequential' }: StartTestClusterOptions = options;
 
+    // every instance is forked with `-r ts-node/register`, and one that cannot find it dies before
+    // it can say why - so the cluster asks first, where the error reaches the test
+    optionalPeer('ts-node', 'A test cluster');
+
     // loaded before the container is initialized, not after: @DataSource decorates at module load
     // and pushes onto GlobalRegistry.injectables, while initDiContainer reads that list once. A
     // module required afterwards is never registered, and injecting it fails with "no provider,
@@ -554,7 +568,7 @@ export async function startTestCluster(options: StartTestClusterOptions): Promis
     }
     catch (error) {
         // the containers are already running, and no cluster is ever returned that could stop them
-        await cluster.shutdown();
+        await settleAfterFailure('shut the cluster down', [cluster.shutdown()]);
         throw error;
     }
     return cluster;

@@ -1,15 +1,8 @@
 import { X509Certificate as PemCertificate } from 'node:crypto';
 import { isIP } from 'node:net';
 
-import { BasicConstraintsExtension,
-    ExtendedKeyUsageExtension,
-    Extension,
-    JsonGeneralName,
-    KeyUsageFlags,
-    KeyUsagesExtension,
-    SubjectAlternativeNameExtension,
-    X509Certificate,
-    X509CertificateGenerator } from '@peculiar/x509';
+import type { Extension, JsonGeneralName, X509Certificate } from '@peculiar/x509';
+import { optionalPeer } from 'zibri';
 
 import { FakeKeyPairOptions } from './fake-key-pair-options.model';
 import { FakeKeyPair } from './fake-key-pair.model';
@@ -40,6 +33,17 @@ const DAY_IN_MS: number = 86400000;
  * @returns The key and the certificate, PEM encoded.
  */
 export async function createFakeKeyPair(name: string, options: FakeKeyPairOptions = {}): Promise<FakeKeyPair> {
+    // an optional peer, loaded rather than imported, so a project that never makes a certificate
+    // need not install it
+    const {
+        BasicConstraintsExtension,
+        ExtendedKeyUsageExtension,
+        KeyUsageFlags,
+        KeyUsagesExtension,
+        SubjectAlternativeNameExtension,
+        X509Certificate: Certificate,
+        X509CertificateGenerator
+    } = optionalPeer<typeof import('@peculiar/x509')>('@peculiar/x509', 'A fake key pair');
     // the global web crypto rather than node's: @peculiar/x509 is typed against it
     const keys: CryptoKeyPair = await crypto.subtle.generateKey(ALGORITHM, true, ['sign', 'verify']);
     const names: JsonGeneralName[] = (options.hosts ?? []).map(host => ({ type: isIP(host) ? 'ip' : 'dns', value: host }));
@@ -66,7 +70,7 @@ export async function createFakeKeyPair(name: string, options: FakeKeyPairOption
         )
         : await X509CertificateGenerator.create({
             subject: name,
-            issuer: new X509Certificate(options.issuer.certificate).subject,
+            issuer: new Certificate(options.issuer.certificate).subject,
             notBefore,
             notAfter,
             signingAlgorithm: ALGORITHM,

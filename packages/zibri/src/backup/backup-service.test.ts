@@ -5,15 +5,17 @@ import { beforeAll, afterAll, describe, it, expect, jest } from '@jest/globals';
 import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupService } from './backup.service';
-import { testFileFolder } from '../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { PostgresBackupScope } from '../data-source/data-sources/postgres/postgres-backup-scope.model';
 import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../data-source/models/schema-management.model';
 import { Repository } from '../data-source/repository/repository';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -49,6 +51,7 @@ class FsBackupTransport extends BaseFsBackupTransport {
     encrypt: true
 })
 class DbDataSource extends PostgresDataSource {
+    override backupScope: PostgresBackupScope = 'schema';
     override rootPw: string = 'password';
     override rootUsername: string = 'postgres';
     override options: OmitStrict<PostgresOptions, 'type'> = {
@@ -59,6 +62,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
+    repositories: RepositoryClass[] = defaultTestServerRepositories;
     schemaManagement: SchemaManagement = 'synchronize';
 }
 
@@ -77,12 +81,12 @@ describe('Create and restore postgres backup', () => {
 
         // seed one row without `value`
         await itemRepository.create({ value: '42' });
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('should create and restore a backup', async () => {
         expect((await itemRepository.findAll()).length).toEqual(1);

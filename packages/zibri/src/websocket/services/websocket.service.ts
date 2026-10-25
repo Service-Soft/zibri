@@ -5,7 +5,7 @@ import type { Namespace, Server, ServerOptions, Socket } from 'socket.io';
 import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, WebsocketSendToChannelData, WebsocketServiceInterface } from './websocket-service.interface';
 import { ZibriApplication } from '../../application/application';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { BaseUser } from '../../auth/models/base-user.model';
+import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { AlsUtilities } from '../../context/als.utilities';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -76,7 +76,7 @@ import { WebsocketControllerRouteConfiguration } from '../models/websocket-contr
 import { LooseWebsocketEvent, WebsocketEvent } from '../models/websocket-event.enum';
 import { WEBSOCKET_MESSAGE_SEQUENCE_NAME, WebsocketMessageSequence, WebsocketMessageSequenceCreateData } from '../models/websocket-message-sequence.model';
 import { WebsocketMessage, CreateWebsocketMessageData, WebsocketRecipientType } from '../models/websocket-message.model';
-import { type WebsocketOptions } from '../models/websocket-options.model';
+import { type WebsocketOptions, type WebsocketOptionsInput } from '../models/websocket-options.model';
 import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete.model';
 import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model';
 import { WebsocketResponseHandler } from '../models/websocket-response.model';
@@ -333,6 +333,13 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 'Use one that implements PubSubDataSourceInterface, eg. a ValKeyDataSource.'
             ]);
         }
+        if (dataSource.maxMessageBytes != undefined) {
+            throw new InternalError([
+                `The data source "${options.adapterDataSource.name}" was configured as the websocket adapter,`,
+                `but it carries messages of at most ${dataSource.maxMessageBytes} bytes, which a broadcast can exceed.`,
+                'Use one that carries messages of any size, eg. a ValKeyDataSource.'
+            ]);
+        }
 
         const logger: LoggerInterface = this.logger;
 
@@ -367,13 +374,15 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // A websocket controller is one declaration and an adapter data source is the other: naming
         // one says this deployment carries broadcasts between its instances, which is a thing only
         // an application with a websocket server has any use for. A server that never handles an
-        // inbound event is a real shape - push only notifications are exactly that - and reading
-        // controllers alone left it with nowhere to say so.
+        // inbound event is a real shape - push only notifications are exactly that - and on one
+        // instance it declares neither, so it says so with `startServer`.
         //
         // The input rather than the options: the options are built from it, and fail for an
         // application that has websockets and did not say how long its messages are kept
+        const input: WebsocketOptionsInput | undefined = inject(ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT);
         const declaresWebsockets: boolean = app.options.websocketControllers.length > 0
-            || inject(ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT)?.adapterDataSource != undefined;
+            || input?.adapterDataSource != undefined
+            || input?.startServer === 'always';
         if (!declaresWebsockets) {
             this.logger.info('starts no socket.io server: nothing declares websockets');
             return;
@@ -439,7 +448,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
                 };
                 const context: WebsocketRequestContext = new WebsocketRequestContext(request, undefined, undefined, undefined);
 
-                const currentUser: BaseUser<string> | undefined = await this.authService.getCurrentUser(
+                const currentUser: CurrentUser | undefined = await this.authService.getCurrentUser(
                     context,
                     this.authService.strategies,
                     false
@@ -513,7 +522,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     private async onConnect(socket: Socket): Promise<void> {
         // eslint-disable-next-line typescript/no-unsafe-member-access
-        const currentUser: BaseUser<string> | undefined = socket.data.currentUser as BaseUser<string> | undefined;
+        const currentUser: CurrentUser | undefined = socket.data.currentUser as CurrentUser | undefined;
         // eslint-disable-next-line typescript/no-unsafe-member-access
         const resolvedVersion: Version = socket.data.resolvedVersion as Version;
 
@@ -654,7 +663,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         await connection.join(channels.map(channelRoomOf));
     }
 
-    private async recoverConnection(connection: SocketIOWebsocketConnection, currentUser: BaseUser<string> | undefined): Promise<void> {
+    private async recoverConnection(connection: SocketIOWebsocketConnection, currentUser: CurrentUser | undefined): Promise<void> {
         if (connection.recovered) {
             // socket.io restored the rooms and the buffered packets itself, which it can only do on
             // the instance that held the socket in the first place
@@ -1295,7 +1304,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
      */
     private async closeIfLoginEnded(connection: SocketIOWebsocketConnection): Promise<void> {
         const context: WebsocketRequestContext = new WebsocketRequestContext(connection.handshakeRequest, undefined, undefined, undefined);
-        const user: BaseUser<string> | undefined = await this.authService.getCurrentUser(context, this.authService.strategies, false);
+        const user: CurrentUser | undefined = await this.authService.getCurrentUser(context, this.authService.strategies, false);
         if (user != undefined && user.id === connection.userId) {
             await this.scheduleExpiryCheck(connection);
             return;
@@ -1564,7 +1573,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
             throw new InternalError([
                 'There is no websocket server to send through.',
                 'One is started for an application that registers a websocket controller,',
-                'or whose ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS name an adapterDataSource.'
+                'or whose ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT name an adapterDataSource or set startServer to \'always\'.'
             ]);
         }
         return this.socketServer;

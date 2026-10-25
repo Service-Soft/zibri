@@ -8,8 +8,9 @@ import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { CronJobEntity, CreateCronJobEntityData } from '../cron/cron-job-entity.model';
 import { Repository } from '../data-source/repository/repository';
@@ -24,7 +25,8 @@ import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 // in memory, so that what the cleanup leaves behind can be read without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const transport: EmailTransportInterface = {
@@ -98,11 +100,11 @@ describe('EmailCleanupCronJob, keeping failed mails for a day', () => {
 
     beforeAll(async () => {
         server = await startWith(Ms.DAY);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('deletes the failed mails of every tenant older than failedRetentionInMs, and keeps every other mail', async () => {
         const expired: Email = await store(EmailStatus.FAILED, 2 * Ms.DAY);
@@ -127,11 +129,11 @@ describe('EmailCleanupCronJob, keeping failed mails forever', () => {
 
     beforeAll(async () => {
         server = await startWith('forever');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps every failed mail, however old', async () => {
         const old: Email = await store(EmailStatus.FAILED, 365 * Ms.DAY);

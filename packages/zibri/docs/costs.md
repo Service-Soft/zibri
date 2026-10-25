@@ -4,7 +4,9 @@ What a repository call costs is how often it talks to the data source: a round t
 ## What holds on every data source
 - **A call costs the same number of round trips however many rows it reads or writes.** `createAll` with a thousand rows takes as many as with one, and so do `updateAll`, `upsertAll` and `deleteAll` whatever they match.
 - **`stream` reads in pages** of 500 rows, so it takes one more round trip for every page.
+- **A `create` or `createAll` given its ids with `allowId` reads once first**, to refuse an id a stored row holds.
 - **Relations are read once for the whole result**, not once per row. Asking for them adds a round trip or two to a call, whatever the number of rows.
+- **A page and its total are read together.** A page that holds no rows, past the last page or after the last row of a walk, reads its total in one more round trip.
 - **`findAll` without a `take` refuses to answer with more than 10,000 rows.** `updateAll` and `deleteAll` asked to return the rows count them first and refuse the same way, before anything is written.
 - **`deleteAll` reads only the ids of the rows it deletes**, unless it hands the rows to somebody: to you with `returnDeleted`, or to a before-save hook of your own, which runs for each deleted row. Then it reads every row and holds it in memory for as long as the call runs, so delete a very large set in parts.
 - **Updating an encrypted property that is bound to its row reads the matching rows** and writes each its own value, since every row needs a value encrypted for it. Setting `bindToRow: false` on the property makes it one write again.
@@ -12,7 +14,7 @@ What a repository call costs is how often it talks to the data source: a round t
 - **`count` and `exists` decrypt nothing**, and every row you receive is decrypted once. `deleteAll` decrypts the rows it reads, so only when it hands them to somebody.
 
 ## Per data source
-The round trips each call takes on the data sources zibri ships with. Measured on an entity with one unique property and a many to one relation, which is read only when the call asks for it.
+The round trips each call takes on the data sources Zibri ships with. Measured on an entity with one unique property and a many to one relation, which is read only when the call asks for it.
 
 | Call | Postgres | ValKey |
 |---|---|---|
@@ -20,11 +22,16 @@ The round trips each call takes on the data sources zibri ships with. Measured o
 | `findOne` | 1 | 2 |
 | `findAll` | 1 | 2 |
 | `findAll` with relations | 2 | 3 |
-| `findAllPaginated` | 6 | 2 |
-| `findAllAfter` | 6 | 2 |
+| `findAll` with a relation of a relation | 2 | 5 |
+| `findAllPaginated` | 1 | 2 |
+| `findAllPaginated` with relations | 1 | 3 |
+| `findAllPaginated` with a relation of a relation | 1 | 5 |
+| `findAllAfter` | 1 | 2 |
 | `stream` | 2 | 2 |
 | `count` | 1 | 2 |
 | `exists` | 1 | 2 |
+| `sum`, `average`, `minimum`, `maximum` | 1 | 2 |
+| `count` per group | 1 | 2 |
 | `create` | 1 | 7 |
 | `create` with relations | 3 | 9 |
 | `createAll` | 1 | 7 |
@@ -41,7 +48,7 @@ The round trips each call takes on the data sources zibri ships with. Measured o
 | `deleteAll` | 2 | 4 |
 | `deleteAll` returning the rows | 3 | 6 |
 
-On ValKey a filter that names neither the id, nor every property of a unique declaration, nor every property of an index group the entity declares, reads every row of the entity and is answered in your application, so its cost in memory and time grows with the table. An index group is named by plain values for each of its properties, or by a `oneOf` of plain values for a group of one; an index answers no leading part of itself here.
+On ValKey, a filter reads every row of the entity and is answered in your application, unless it names the id, every property of a unique declaration, or every property of an index group the entity declares. Its cost in memory and time then grows with the table. A filter names an index group with a plain value for each of its properties, or with a `oneOf` of plain values for a group of one property. A filter naming only some properties of an index group reads every row.
 
 ## See also
 - [Data Sources](./data-source.md) — the repository calls this page lists

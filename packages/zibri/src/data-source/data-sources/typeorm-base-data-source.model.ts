@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { EntityManager, EntitySchema, EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, QueryRunner, Table, TableColumn, TableColumnOptions, TableForeignKey, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
+import { EntityManager, EntitySchema, EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, QueryRunner, SelectQueryBuilder, Table, TableColumn, TableColumnOptions, TableForeignKey, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
 import { ConnectionMetadataBuilder } from 'typeorm/connection/ConnectionMetadataBuilder.js';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { ForeignKeyMetadata } from 'typeorm/metadata/ForeignKeyMetadata.js';
@@ -49,7 +49,7 @@ import { indexName, trigramIndexName } from '../index-name.function';
 import { MigratedEntityUtilities } from '../migration/migrated-entity.utilities';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';
-import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../migration/run-migrations.function';
+import { recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../migration/run-migrations.function';
 import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
 import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
 import { ColumnType } from '../models/column-type.model';
@@ -58,15 +58,22 @@ import { DataSourceOptions, ResolvedDataSourceOptions } from '../models/data-sou
 import { MergeEntityInput } from '../models/merge-entity-input.model';
 import { MigrationPropertyMetadata } from '../models/migration-property-metadata.model';
 import { RefusedValue } from '../models/refused-value.model';
+import { type RelatedNarrowing } from '../models/related-narrowing.model';
 import { RemovePropertyFromEntityInput } from '../models/remove-property-from-entity-input.model';
 import { RenameEntityInput } from '../models/rename-entity-input.model';
 import { ResolvedPropertyConversion } from '../models/resolved-property-conversion.model';
 import { SchemaManagement } from '../models/schema-management.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
+import { QueryFailedError } from '../query-failed.error';
 import { Repository } from '../repository/repository';
+import { RepositoryClass } from '../repository/repository-class.type';
 import { MistypedStoredValue } from '../stored-value-type-mismatch.error';
+import { RunInTransactionOptions } from '../transaction/run-in-transaction-options.model';
+import { TransactionDeadlockError } from '../transaction/transaction-deadlock.error';
+import { TransactionSerializationError } from '../transaction/transaction-serialization.error';
 import { Transaction } from '../transaction/transaction.model';
+import { TransactionUtilities } from '../transaction/transaction.utilities';
 import { TypeOrmTransaction } from '../transaction/typeorm-transaction.model';
 import { uniqueConstraintName } from '../unique-constraint-name.function';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
@@ -318,6 +325,9 @@ type UpsertStatement<T extends BaseEntity> = {
 export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> implements DataSourceInterface {
     abstract readonly entities: Newable<BaseEntity>[];
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    abstract readonly repositories: RepositoryClass[];
+
     /**
      * Who is responsible for making the database match the entities.
      *
@@ -394,7 +404,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         };
     }
 
-    private readonly repositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
+    private readonly builtRepositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -471,19 +481,39 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
 
     abstract validateBackupConfiguration(): void | Promise<void>;
     abstract createBackupData(): Readable | Promise<Readable>;
-    abstract restoreBackup(backupData: Readable): void | Promise<void>;
 
     /**
-     * Reads the properties a refused write collided on off a failed query.
+     * Finds the properties a refused write collided on, from the unique a failed query broke.
      *
      * Dialect specific, which is why it cannot live in the shared driver: postgres reports a unique
-     * violation as sql state 23505 and names the columns in its detail, mysql as error 1062 naming the
-     * key in its message. So both what a failed query has to be asked and where the answer sits differ
-     * per server, while what the driver does with the answer does not.
+     * violation as sql state 23505 naming the constraint, mysql as error 1062 naming the key. So both
+     * what a failed query has to be asked and where the answer sits differ per server, while what the
+     * driver does with the answer does not.
      * @param error - The error the query failed with.
+     * @param entityClass - The entity the query wrote, whose uniques the broken one is looked up among.
      * @returns The property names, or undefined when the query failed for some other reason.
      */
-    abstract violatedUniqueProperties(error: TOQueryFailedError): string[] | undefined;
+    abstract findViolatedUniqueProperties(error: TOQueryFailedError, entityClass: Newable<BaseEntity>): string[] | undefined;
+
+    /**
+     * Whether a query failed because the server ended its transaction to break a cycle of
+     * transactions waiting on each other.
+     *
+     * Dialect specific for the reason the unique violation is: postgres reports it as sql state 40P01.
+     * @param error - The error the query failed with.
+     * @returns Whether the transaction was ended for a deadlock.
+     */
+    abstract isDeadlock(error: TOQueryFailedError): boolean;
+
+    /**
+     * Whether a query failed because the server ended its transaction for reading rows that another
+     * one changed in a way its isolation level does not allow.
+     *
+     * Dialect specific for the reason the unique violation is: postgres reports it as sql state 40001.
+     * @param error - The error the query failed with.
+     * @returns Whether the transaction was ended for it.
+     */
+    abstract isSerializationFailure(error: TOQueryFailedError): boolean;
 
     /**
      * Reads what a failed query found in a json column that the model does not describe.
@@ -502,19 +532,56 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * Transforms the given Zibri where filter to typeorm's FindOptionsWhere.
      * @param filter - The filter to transform.
      * @param entityClass - The entity class that the where filter is for.
+     * @param related - What the rows of each entity the filter reaches through a relation are
+     * narrowed to, which every filter through a relation in it is narrowed by.
      * @returns TypeOrm's FindOptionsWhere.
      * @throws When the data source hasn't been initialized yet.
      */
-    whereFilterToFindOptionsWhere<T extends object>(
+    whereFilterToFindOptionsWhere<T extends BaseEntity>(
         filter: Where<T>,
-        entityClass: Newable<T>
+        entityClass: Newable<T>,
+        related?: RelatedNarrowing
     ): Where<T> extends WhereFilter<T>[] ? ToFindOptionsWhere<T>[] : ToFindOptionsWhere<T> {
         if (!this.whereFilterConverter) {
             throw new DataSourceInitializationError();
         }
-        return this.whereFilterConverter.convert(filter, entityClass) as Where<T> extends WhereFilter<T>[]
+        return this.whereFilterConverter.convert(filter, entityClass, related) as Where<T> extends WhereFilter<T>[]
             ? ToFindOptionsWhere<T>[]
             : ToFindOptionsWhere<T>;
+    }
+
+    /**
+     * The condition a join of an entity's rows carries so that it joins the rows the caller may see
+     * of them.
+     * @param target - The entity the join reads.
+     * @param alias - The alias the join reads it under.
+     * @param related - What the rows of each entity reached through a relation are narrowed to.
+     * @returns The condition and what it binds, undefined when the rows are not narrowed.
+     * @throws When the data source hasn't been initialized yet.
+     */
+    relationJoinCondition(
+        target: Newable<BaseEntity>,
+        alias: string,
+        related: RelatedNarrowing | undefined
+    ): ParameterizedSql | undefined {
+        if (!this.whereFilterConverter) {
+            throw new DataSourceInitializationError();
+        }
+        return this.whereFilterConverter.relationJoinCondition(target, alias, related);
+    }
+
+    /**
+     * Renders a statement as sql with the values it binds, ready to land inside another statement.
+     * @param statement - The statement.
+     * @param alias - Its alias, which the values it binds are renamed after.
+     * @returns The sql and the values.
+     * @throws When the data source hasn't been initialized yet.
+     */
+    toParameterizedSql<T extends BaseEntity>(statement: SelectQueryBuilder<T>, alias: string): ParameterizedSql {
+        if (!this.whereFilterConverter) {
+            throw new DataSourceInitializationError();
+        }
+        return this.whereFilterConverter.toParameterizedSql(statement, alias);
     }
 
     /**
@@ -567,22 +634,68 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             `Setting up the schema of "${this.constructor.name}"`,
             async () => await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
                 await this.runMigrations();
-
-                // after the migrations, which may have renamed or removed what a declaration covers,
-                // and only where the migrations own the schema: synchronizing makes the indexes and
-                // uniques match on its own, and an external owner is told what is missing instead
-                if (this.schemaManagement === 'migrations' && await this.reconcileKeys()) {
-                    await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
-                }
-                if (this.schemaManagement !== 'synchronize') {
-                    return;
-                }
-
-                await this.ds?.synchronize();
-                await this.afterSchemaSetup();
+                await this.reconcileSchema();
             })
         );
     }
+
+    /**
+     * Brings the indexes and uniques, and a synchronized schema's tables, in line with what the
+     * entities declare. Runs once the migrations have, while the schema lock is held.
+     * @throws When stored rows break a declared unique or check.
+     */
+    private async reconcileSchema(): Promise<void> {
+        // after the migrations, which may have renamed or removed what a declaration covers,
+        // and only where the migrations own the schema: synchronizing makes the indexes and
+        // uniques match on its own, and an external owner is told what is missing instead
+        if (this.schemaManagement === 'migrations' && await this.reconcileKeys()) {
+            await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
+        }
+        if (this.schemaManagement !== 'synchronize') {
+            return;
+        }
+
+        await this.ds?.synchronize();
+        await this.afterSchemaSetup();
+    }
+
+    /**
+     * Replaces what this data source stores with a backup of it, and brings what the backup holds in
+     * line with this version of the app.
+     *
+     * Every migration the backup has not recorded runs, and the indexes and uniques are made to match
+     * what the entities declare, before the restore is done. A backup taken by a newer version of the
+     * app is refused.
+     * @param backupData - The data {@link TypeOrmBaseDataSource.createBackupData} produced.
+     * @throws When the backup was taken by a newer version of the app, when a migration fails, or when
+     * the restored rows break a declared unique or check.
+     */
+    async restoreBackup(backupData: Readable): Promise<void> {
+        // the whole of it under the lock, so that an instance starting meanwhile neither migrates the
+        // schema while it is replaced nor finds it replaced and not yet migrated. A backup of an
+        // older release left as it was brought the older schema back under instances built for the
+        // newer one, which then failed on every column the backup did not have
+        await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
+            await this.applyBackup(backupData);
+            // under the migration timeout, as booting is, and only once the backup is in place:
+            // how long applying it takes is no migration's
+            await OperationLimitUtilities.runWithin(
+                this.migrationTimeoutInMs,
+                `Setting up the restored schema of "${this.constructor.name}"`,
+                async () => {
+                    await this.createMigrationTableIfNotExists();
+                    await runMigrationsAfterRestore(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
+                    await this.reconcileSchema();
+                }
+            );
+        });
+    }
+
+    /**
+     * Replaces what this data source stores with what a backup of it holds.
+     * @param backupData - The data {@link TypeOrmBaseDataSource.createBackupData} produced.
+     */
+    protected abstract applyBackup(backupData: Readable): Promise<void>;
 
     /**
      * Refuses a data source that names migrations as what manages its schema and then declares none.
@@ -621,6 +734,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      */
     protected abstract afterSchemaSetup(): Promise<void>;
 
+    // the one lock that is not a lease: a lease is a row in a table that this schema setup has not
+    // created yet. Protected, because everything else that needs one instance to go first takes a lease
     protected abstract schemaLock<T>(key: string, fn: () => Promise<T>): Promise<T>;
 
     /**
@@ -640,6 +755,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * @param rows - What to insert, and what to change when the identity is already held.
      * @param transaction - The transaction to run in.
      * @param reachable - The rows the changes may be applied to, or undefined for any row.
+     * @param related - What the rows of each entity `reachable` or a row's `where` reaches through a
+     * relation are narrowed to.
      * @returns The rows as they are after the statement, in the order they were given.
      * @throws When the entity declares no unique group covering the identity, or a row holding one is
      * not one `reachable` allows.
@@ -649,7 +766,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         identity: string[],
         rows: UpsertRow<T>[],
         transaction: Transaction | undefined,
-        reachable: Where<T> | undefined
+        reachable: Where<T> | undefined,
+        related?: RelatedNarrowing
     ): Promise<T[]> {
         if (!this.ds) {
             throw new DataSourceInitializationError();
@@ -668,12 +786,12 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
 
         const reachableIds: UpsertReachable | undefined = reachable == undefined
             ? undefined
-            : this.selectReachableIds(manager, entityClass, reachable, metadata.tableName, column('id'));
+            : this.selectReachableIds(manager, entityClass, reachable, metadata.tableName, column('id'), related);
         // each built once, whichever statement the row ends up in
         const conditions: Map<UpsertRow<T>, UpsertReachable> = new Map(rows.flatMap(
             (row): [UpsertRow<T>, UpsertReachable][] => row.where == undefined
                 ? []
-                : [[row, this.selectReachableIds(manager, entityClass, row.where, metadata.tableName, column('id'))]]
+                : [[row, this.selectReachableIds(manager, entityClass, row.where, metadata.tableName, column('id'), related)]]
         ));
         const conflict: UpsertConflictTarget = this.conflictTargetFor(entityClass, identity, column);
         const statementFor: (pending: UpsertRow<T>[]) => UpsertSql = pending => this.buildUpsertSql({
@@ -874,6 +992,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * @param tableName - The table the upsert writes to, which is how the statement names the row it
      * conflicted with.
      * @param idColumn - The id column of that table.
+     * @param related - What the rows of each entity the filter reaches through a relation are
+     * narrowed to.
      * @returns The statement and its parameters.
      */
     private selectReachableIds<T extends BaseEntity>(
@@ -881,7 +1001,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         entityClass: Newable<T>,
         reachable: Where<T>,
         tableName: string,
-        idColumn: string
+        idColumn: string,
+        related: RelatedNarrowing | undefined
     ): UpsertReachable {
         const escape: (name: string) => string = name => manager.connection.driver.escape(name);
         // asked about the one row the conflict landed on rather than about every row the filter
@@ -889,7 +1010,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         // keeps what the statement binds from growing with the rows the batch writes
         const [sql, params] = manager
             .createQueryBuilder(entityClass, 'reachable')
-            .setFindOptions({ where: this.whereFilterToFindOptionsWhere(reachable, entityClass) })
+            .setFindOptions({ where: this.whereFilterToFindOptionsWhere(reachable, entityClass, related) })
             .andWhere(`${escape('reachable')}.${escape(idColumn)} = ${escape(tableName)}.${escape(idColumn)}`)
             .select('reachable.id')
             .getQueryAndParameters();
@@ -976,12 +1097,38 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         await this.connectQueryRunner(runner);
         try {
             await runner.startTransaction(options?.isolationLevel);
-            return new TypeOrmTransaction(runner);
+            // a serializable transaction can learn it lost only once it commits
+            return new TypeOrmTransaction(runner, error => this.resolveConflictError(error));
         }
         catch (error) {
             await runner.release();
             throw error;
         }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async runInTransaction<R>(work: (transaction: Transaction) => Promise<R>, options: RunInTransactionOptions): Promise<R> {
+        return await TransactionUtilities.runInTransaction(this, work, options);
+    }
+
+    /**
+     * Resolves what a failed statement means when it was the store ending its transaction for a
+     * conflict with another one.
+     * @param error - What the statement failed with.
+     * @returns The conflict, or the error itself when it is none.
+     */
+    resolveConflictError(error: unknown): unknown {
+        if (!(error instanceof TOQueryFailedError)) {
+            return error;
+        }
+        const failed: TOQueryFailedError = error as TOQueryFailedError;
+        if (this.isDeadlock(failed)) {
+            return new TransactionDeadlockError({ cause: new QueryFailedError(failed) });
+        }
+        if (this.isSerializationFailure(failed)) {
+            return new TransactionSerializationError({ cause: new QueryFailedError(failed) });
+        }
+        return error;
     }
 
     /**
@@ -1042,7 +1189,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         }
 
         // eslint-disable-next-line stylistic/max-len
-        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.repositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
+        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.builtRepositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
         if (existingRepository) {
             return existingRepository;
         }
@@ -1065,7 +1212,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
             return res;
         }
         if (isChangeSetEntityNewable(cls)) {
@@ -1079,7 +1226,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
             return res;
         }
         const res: RepositoryTypeForEntity<T> = new Repository<T>(
@@ -1090,7 +1237,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             getDefaultBeforeSaveHook(),
             getDefaultBeforeReturnHook()
         ) as RepositoryTypeForEntity<T>;
-        this.repositories.set(cls, res as Repository<BaseEntity>);
+        this.builtRepositories.set(cls, res as Repository<BaseEntity>);
         return res;
     }
 
@@ -1669,7 +1816,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             // `IS TRUE`, because a check passes a row its condition is NULL for - a comparison of a
             // column holding none - where the filter it was declared as does not match that row
             checks: (entityMetadata.checks ?? []).map(check => {
-                const predicate: string = keyWhereToSql(cls, check);
+                const predicate: string = keyWhereToSql(cls, check.where);
                 return { name: checkConstraintName(entityMetadata.tableName, predicate), expression: `(${predicate}) IS TRUE` };
             })
         });
@@ -1688,8 +1835,8 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         }
         const entityMetadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entityClass);
         return entityMetadata?.checks?.find(
-            check => checkConstraintName(entityMetadata.tableName, keyWhereToSql(entityClass, check)) === name
-        );
+            check => checkConstraintName(entityMetadata.tableName, keyWhereToSql(entityClass, check.where)) === name
+        )?.where;
     }
 
     /**

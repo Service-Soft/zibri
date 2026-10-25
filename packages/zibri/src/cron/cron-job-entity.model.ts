@@ -55,6 +55,20 @@ export class CronJobEntity extends BaseEntity {
     cron!: CronExpressionString;
 
     /**
+     * The cron expression the job's class declared at the last start, or undefined when the row
+     * records none. A start whose class declares a different one takes the class's expression.
+     */
+    @Property.string({ required: false })
+    declaredCron?: CronExpressionString | null;
+
+    /**
+     * Whether the job's class declared it active at the last start, or undefined when the row records
+     * nothing. A start whose class declares otherwise takes the state the class declares.
+     */
+    @Property.boolean({ required: false })
+    declaredActive?: boolean | null;
+
+    /**
      * The time zone the cron expression is read in, eg. 'Europe/Berlin'.
      *
      * Half of a schedule: "03:00" names no moment on its own, and the same expression means different

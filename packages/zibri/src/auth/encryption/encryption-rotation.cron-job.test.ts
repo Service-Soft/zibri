@@ -11,7 +11,8 @@ import { type EncryptionServiceInterface } from './encryption-service.interface'
 import { EncryptionString } from './encryption.utilities';
 import { RetiredKeyUsage } from './retired-key-usage.model';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -28,15 +29,15 @@ describe('EncryptionRotationCronJob', () => {
     let failureRepository: Repository<EncryptionRotationFailure>;
 
     beforeAll(async () => {
-        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
         encryptionService = inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE);
         otpRepository = inject(repositoryTokenFor(OtpCredentials));
         failureRepository = inject(repositoryTokenFor(EncryptionRotationFailure));
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(async () => {
         // through the driver, because a broken row is one the repository refuses to read - and reading

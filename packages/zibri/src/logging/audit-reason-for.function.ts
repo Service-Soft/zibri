@@ -3,6 +3,7 @@ import { ErrorUtilities } from '../error-handling/error.utilities';
 import { AccountDeactivatedError } from '../error-handling/errors/account-deactivated.error';
 import { CredentialClonedError } from '../error-handling/errors/credential-cloned.error';
 import { CredentialReusedError } from '../error-handling/errors/credential-reused.error';
+import { PasswordLockedError } from '../error-handling/errors/password-locked.error';
 
 /**
  * Whether a thrown error means the attempt was refused, or means something broke.
@@ -24,6 +25,9 @@ export function auditReasonFor(error: unknown): AuditReason {
     }
     if (error instanceof AccountDeactivatedError) {
         return AuditReason.DEACTIVATED;
+    }
+    if (error instanceof PasswordLockedError) {
+        return AuditReason.LOCKED;
     }
     const errors: unknown[] = error instanceof AggregateError ? error.errors : [error];
     if (!errors.length) {

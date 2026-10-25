@@ -8,7 +8,8 @@ import { Property } from '../../entity/decorators/property.decorator';
 /**
  * Definition of a Email.
  */
-@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' } })
+// indexed as the queue reads it: the queued mails of a priority that are due
+@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' }, indexes: [['status', 'priority', 'retryAt']] })
 export class Email extends BaseEntity {
     /**
      * The tenant the mail was queued in, or null for one queued outside every tenant.

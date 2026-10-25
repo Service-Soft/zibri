@@ -7,9 +7,9 @@ export type ClientAccessTokenGrant = {
      */
     clientId: string,
     /**
-     * The roles the token may use.
+     * The permissions the token may use.
      */
-    roles: string[],
+    permissions: string[],
     /**
      * The tenant the client's api key is bound to, or undefined for a key acting in every tenant its
      * user is a member of.

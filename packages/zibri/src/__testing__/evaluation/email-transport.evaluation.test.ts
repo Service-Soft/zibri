@@ -11,6 +11,7 @@ import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
 import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -129,12 +130,12 @@ beforeAll(async () => {
     });
     emailRepository = inject(repositoryTokenFor(Email));
     emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await emailRepository.deleteAll({});

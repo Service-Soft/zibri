@@ -1,7 +1,7 @@
 import { CronExpressionString } from './cron-expression.utilities';
 import { CronJob } from './cron-job.model';
 import { CronUpdateData } from './cron.service';
-import { ShouldRunExecution } from './should-run-execution.type';
+import { RunExecution } from './run-execution.type';
 
 /**
  * Interface for a cron service.
@@ -37,11 +37,12 @@ export interface CronServiceInterface {
      */
     applyStoredChanges: () => Promise<void>,
     /**
-     * Decides whether this instance is the one that runs the given scheduled execution.
+     * Runs the given scheduled execution if this instance is the one that runs it, holding the claim
+     * on it for as long as the run lasts.
      *
      * Replace the cron service to elect differently, eg. Through a lock the rest of your
-     * infrastructure already has. Returning false everywhere stops the job running at all;
-     * returning true everywhere is the unsafe behavior this exists to prevent.
+     * infrastructure already has. Running nowhere stops the job running at all; running everywhere
+     * is the unsafe behavior this exists to prevent.
      */
-    shouldRunExecution: ShouldRunExecution
+    runExecution: RunExecution
 }

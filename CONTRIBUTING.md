@@ -33,7 +33,7 @@ Great Bug Reports tend to have:
 - Additional info (eg. why you think this might be happening, or workarounds you tried that did/did not work)
 
 # Writing code
-Read [CODE_STYLE.md](./CODE_STYLE.md) before your first change. It covers the conventions this repository follows for file naming, types, comments, documentation and tests, and applies to every package here.
+Read [CODE_STYLE.md](./CODE_STYLE.md) before your first change. It covers the conventions this repository follows for file naming, types, comments, documentation and tests, and applies to every package here. Before you write or change a page under `packages/zibri/docs/`, also read [DOCS_STYLE.md](./DOCS_STYLE.md).
 
 # Releasing
 `zibri`, `zibri-tsx`, `zibri-testing` and `zibri-cli` are released together, at one version.

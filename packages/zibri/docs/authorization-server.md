@@ -1,5 +1,5 @@
 # Issuing tokens to services
-A service calls your api, or another service of yours, with an access token your application issues: it exchanges its [api key](./api-keys.md) for a short-lived token at your token endpoint, the OAuth2 client credentials grant. The token acts as the user of the key, for the services it names. A service receiving a token asks your application whether it is active, and whoever holds a token can revoke it.
+A service calls your API, or another service of yours, with an access token your application issues: it exchanges its [API key](./api-keys.md) for a short-lived token at your token endpoint, the OAuth2 client credentials grant. The token acts as the user of the key, for the services it names. A service receiving a token asks your application whether it is active, and whoever holds a token can revoke it.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -31,7 +31,7 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authStrategies'> = {
 };
 ```
 
-The tokens are signed with the access token key of `ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT`, see [signing with a key pair](./auth.md#signing-with-a-key-pair). `JwtAuthStrategy` logs your users in, and `ApiKeyAuthStrategy` takes [api keys](./api-keys.md) sent in a header; register them when you use them.
+The tokens are signed with the access token key of `ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT`, see [signing with a key pair](./auth.md#signing-with-a-key-pair). `JwtAuthStrategy` logs your users in, and `ApiKeyAuthStrategy` takes [API keys](./api-keys.md) sent in a header; register them when you use them.
 
 Then define the routes, below the path you give them:
 
@@ -39,23 +39,21 @@ Then define the routes, below the path you give them:
 // src/controllers/authorization-server.controller.ts
 import { AuthorizationServerController, Controller } from 'zibri';
 
-import { Role } from '../models/role.enum';
+import { PlatformPermissions } from '../models/permissions';
 
 @Controller('/oauth2')
 export class CompanyAuthorizationServerController extends AuthorizationServerController({
-    introspectionRoles: [Role.TOKEN_INTROSPECTION],
+    introspectionPermission: PlatformPermissions.TOKENS_INTROSPECT,
     resources: ['https://reports.example.com']
 }) {}
 ```
 
 | Option | What it is |
 |---|---|
-| `introspectionRoles` | The roles a caller of `/introspect` holds, one of them at least. Required, not empty |
-| `resources` | The services, by url, tokens may be issued for besides your application. Required, `[]` for none |
+| `introspectionPermission` | The [platform permission](./roles-and-permissions.md#declaring-permissions) a platform role of a caller of `/introspect` carries. Required |
+| `resources` | The services tokens may be issued for besides your application, each by an absolute URL without a fragment. Required, `[]` for none |
 
-The issuer of every token is your application's `baseUrl`, so set it to the url your clients and services reach.
-
-The application refuses to start when it declares more than one such controller, when it declares no `ApiKey`, when not exactly one of its strategies issues the access tokens of clients, when `introspectionRoles` is empty, or when an entry of `resources` is not an absolute url without a fragment.
+The issuer of every token is your application's `baseUrl`, so set it to the URL your clients and services reach.
 
 ## The routes
 | Route | What it does |
@@ -65,10 +63,10 @@ The application refuses to start when it declares more than one such controller,
 | `POST /revoke` | Revokes a token |
 | `GET /.well-known/oauth-authorization-server` | What the authorization server is and where its routes are, at the root of your application |
 
-They read `application/x-www-form-urlencoded` bodies. `/token` and `/revoke` share the budget of the [builtin auth endpoints](./auth.md#how-often-a-caller-may-try).
+They read `application/x-www-form-urlencoded` bodies. `/token` and `/revoke` share the budget of the [built-in auth endpoints](./auth.md#how-often-a-caller-may-try).
 
 ## Issuing a token
-A client sends its api key's id as `client_id` and the key as `client_secret`, in the `Authorization` header:
+A client sends its API key's id as `client_id` and the key as `client_secret`, in the `Authorization` header:
 
 ```
 POST /oauth2/token HTTP/1.1
@@ -94,27 +92,27 @@ A token lasts as long as the access tokens of logins, `accessTokenExpiresInMs`, 
 | Parameter | What it is |
 |---|---|
 | `grant_type` | `client_credentials`. Required |
-| `scope` | The roles the token may use, separated by spaces. Each one is a role of the api key that its user has. Without it, the token may use all of them |
+| `scope` | The [permissions](./roles-and-permissions.md) the token may use, separated by spaces. Each one is a permission of the API key that a role of its user carries. Without it, the token may use all of them |
 | `resource` | A service the token is for, one of `resources` or your `baseUrl`. Send it more than once for several. Without it, the token is for your application |
 
-A request with the token acts as the key's user, holding those of the token's roles the user has right now, like a request with the key.
+A request with the token acts as the key's user, holding those of the token's permissions the user's roles carry right now, like a request with the key.
 
 A client sending a DPoP proof in the `DPoP` header is issued a token bound to its key: the answer's `token_type` is `DPoP`, and a request sends the token with the `DPoP` scheme and a proof of the key, see [binding tokens to a key](./dpop.md). A key created with `requireDpop: true` is issued tokens only for a proof.
 
 ## Clients
-A client is an api key. It authenticates in one of five ways:
+A client is an API key. It authenticates in one of five ways:
 
-| Method | The client sends | The api key |
+| Method | The client sends | The API key |
 |---|---|---|
 | `client_secret_basic` | `client_id` and `client_secret` in the `Authorization` header | a [key with a secret](./api-keys.md#creating-a-key) |
 | `client_secret_post` | `client_id` and `client_secret` in the body | a key with a secret |
-| `private_key_jwt` | a jwt it signed as `client_assertion`, with `client_assertion_type` `urn:ietf:params:oauth:client-assertion-type:jwt-bearer` | holds the public key, or the url of the client's JSON Web Key Set |
+| `private_key_jwt` | a JWT it signed as `client_assertion`, with `client_assertion_type` `urn:ietf:params:oauth:client-assertion-type:jwt-bearer` | holds the public key, or the URL of the client's JSON Web Key Set |
 | `tls_client_auth` | `client_id` in the body, beside a client certificate | the [client certificate strategy](./client-certificates.md) finds the key's user for the certificate |
 | `self_signed_tls_client_auth` | `client_id` in the body, beside a client certificate | holds the certificate, which may be self-signed |
 
 [Clients without a secret](./api-keys.md#clients-without-a-secret) shows how to create each kind of key.
 
-A jwt a client signs names the key's id as `iss` and `sub`, your `baseUrl`, the url of `/token` or the url of the route it calls as `aud`, and carries a `jti`. It expires at most an hour ahead, and is taken once.
+A JWT a client signs names the key's id as `iss` and `sub`, your `baseUrl`, the URL of `/token` or the URL of the route it calls as `aud`, and carries a `jti`. It expires at most an hour ahead, and is taken once.
 
 A token issued over a client certificate is bound to it: it carries the certificate's thumbprint as `cnf`, and a request sending it is taken only beside the same certificate. The certificate is read by the registered strategy implementing `ClientCertificateAuthStrategyInterface`, see [client certificates](./client-certificates.md).
 
@@ -125,11 +123,11 @@ A token names who it is for in `aud`: your `baseUrl`, or the services the client
 
 A service of yours checks a token in one of two ways:
 
-- **By the keys.** Sign with a [key pair](./auth.md#signing-with-a-key-pair) and declare `JwksController`. The service verifies the signature with the keys at the `jwks_uri` of the [metadata](#metadata), and checks that `iss` is your `baseUrl`, `aud` is its own url and the `typ` header is `at+jwt`.
-- **By asking.** The service calls `/introspect`, with a key of its own that has one of `introspectionRoles`.
+- **By the keys.** Sign with a [key pair](./auth.md#signing-with-a-key-pair) and declare `JwksController`. The service verifies the signature with the keys at the `jwks_uri` of the [metadata](#metadata), and checks that `iss` is your `baseUrl`, `aud` is its own URL and the `typ` header is `at+jwt`.
+- **By asking.** The service calls `/introspect`, with a key of its own that may use `introspectionPermission`.
 
 ## Introspection
-A caller authenticates the way a client does, or with any credential your application takes, such as an api key in the `x-api-key` header. The caller's roles have to include one of `introspectionRoles`; otherwise the answer is `403` with `insufficient_scope`.
+A caller authenticates the way a client does, or with any credential your application takes, such as an API key in the `x-api-key` header. One of the caller's own roles has to carry `introspectionPermission`, and a key the caller sends has to list it; otherwise the answer is `403` with `insufficient_scope`.
 
 ```
 POST /oauth2/introspect HTTP/1.1
@@ -155,7 +153,7 @@ token=eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
 }
 ```
 
-It answers for the tokens of every registered strategy implementing `TokenIntrospectingAuthStrategyInterface`: access tokens of clients and of logins, refresh tokens, and api keys. `scope` holds the roles a request with the token holds now, and `cnf` what the token is bound to. A token that does not verify, has expired or was revoked, or whose user is gone or [deactivated](./auth.md#deactivating-a-user), answers `{ "active": false }`.
+It answers for the tokens of every registered strategy implementing `TokenIntrospectingAuthStrategyInterface`: access tokens of clients and of logins, refresh tokens, and API keys. `scope` holds the permissions a request with the token may use now, in the tenant it is bound to or in any tenant of its user, and `cnf` what the token is bound to. A token that does not verify, has expired or was revoked, or whose user is gone or [deactivated](./auth.md#deactivating-a-user), answers `{ "active": false }`.
 
 ## Revocation
 Whoever holds a token revokes it, without authenticating:
@@ -171,7 +169,7 @@ A client that authenticates revokes only its own tokens, and is answered `400` w
 
 | Token | Revoking it |
 |---|---|
-| Api key | Revokes the key |
+| API key | Revokes the key |
 | Refresh token | Ends its login, like a logout |
 | Access token of a login | Ends its login |
 | Access token of a client | Revokes the token |
@@ -179,7 +177,7 @@ A client that authenticates revokes only its own tokens, and is answered `400` w
 Access tokens are revoked only while `ACCESS_TOKEN_REVOCATION` is `'immediately'`, see below. Otherwise revoking one answers `400` with `unsupported_token_type`.
 
 ## When access tokens stop working
-An access token is a jwt that your application verifies without reading anything, so by default it works until it expires: after a logout, after the client's api key is revoked, after it is revoked itself. Set `ACCESS_TOKEN_REVOCATION` to `'immediately'` and every check of an access token also reads whether what it was issued for still exists:
+An access token is a JWT that your application verifies without reading anything, so by default it works until it expires: after a logout, after the client's API key is revoked, after it is revoked itself. Set `ACCESS_TOKEN_REVOCATION` to `'immediately'` and every check of an access token also reads whether what it was issued for still exists:
 
 ```ts
 // src/providers.ts
@@ -191,9 +189,9 @@ defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useValue: 'imme
 | Access token of | Stops working when |
 |---|---|
 | A login | The login ends: a logout, ending the user's logins, a password reset, deactivating the user, or the token revoked |
-| A client | The api key is revoked or expires, or the token is revoked |
+| A client | The API key is revoked or expires, or the token is revoked |
 
-This covers every access token of `JwtAuthStrategy` and of `ClientAccessTokenAuthStrategy`. With `ClientAccessTokenAuthStrategy`, declare `JwtRevokedAccessToken` in the data source as well; the application refuses to start without it, and registers `JwtRevokedAccessTokenCleanupCronJob`. `'immediately'` needs `REVALIDATE_USER_ON_AUTH_CHECK`, see [what a credential is worth](./auth.md#what-a-credential-is-worth); the application refuses to start with it set to `false`.
+This covers every access token of `JwtAuthStrategy` and of `ClientAccessTokenAuthStrategy`. With `ClientAccessTokenAuthStrategy`, declare `JwtRevokedAccessToken` in the data source as well. `JwtRevokedAccessTokenCleanupCronJob` is registered for you. `'immediately'` needs `REVALIDATE_USER_ON_AUTH_CHECK` set to `true`, see [what a credential is worth](./auth.md#what-a-credential-is-worth).
 
 A service that checks tokens by the keys learns of none of this. It asks `/introspect` to find out.
 
@@ -218,16 +216,18 @@ A service that checks tokens by the keys learns of none of this. It asks `/intro
 
 It also lists the methods `/introspect` and `/revoke` take. `jwks_uri` is there when you declare `JwksController` or a class extending it, and names where that controller publishes the keys. `tls_client_certificate_bound_access_tokens` is `true` when a client certificate strategy is registered.
 
-Clients look for the metadata at the root of your `baseUrl`'s host. When your `baseUrl` has a path, eg. `https://example.com/api`, they ask `https://example.com/.well-known/oauth-authorization-server/api`. Forward that url to `{baseUrl}/.well-known/oauth-authorization-server` at your proxy.
+Clients look for the metadata at the root of your `baseUrl`'s host. When your `baseUrl` has a path, such as `https://example.com/api`, they ask `https://example.com/.well-known/oauth-authorization-server/api`. Forward that URL to `{baseUrl}/.well-known/oauth-authorization-server` at your proxy.
 
 ## Your own token format
 The authorization server issues its tokens through the one registered strategy implementing `ClientAccessTokenIssuingAuthStrategyInterface`, and reads nothing of them itself. A strategy of your own issuing tokens of another format, such as opaque tokens kept in your database, implements it, and is registered in place of `ClientAccessTokenAuthStrategy`:
 
 | Method | What it does |
 |---|---|
-| `issueClientAccessToken` | Issues a token to a client, for the roles, audience and bindings of the `ClientAccessTokenGrant` |
+| `issueClientAccessToken` | Issues a token to a client, for the permissions, audience and bindings of the `ClientAccessTokenGrant` |
 | `introspectToken` | Answers whether a token is one of its own that may be used right now, and what it says |
 | `revokeToken` | Revokes a token `introspectToken` answered as active |
+
+It reads its tokens as any strategy does, and answers what a request with one may do in `resolveCredentialLimits`: the token's `permissions`, and the `tenantId` of the grant.
 
 Any strategy implementing `TokenIntrospectingAuthStrategyInterface` is asked at `/introspect` and `/revoke` for the tokens it reads.
 
@@ -237,7 +237,7 @@ A refused request answers the way OAuth2 says errors look, and is never cached:
 ```json
 {
     "error": "invalid_scope",
-    "error_description": "The client may not use the roles admin."
+    "error_description": "The client may not use the permissions reports.delete."
 }
 ```
 
@@ -247,12 +247,12 @@ A refused request answers the way OAuth2 says errors look, and is never cached:
 | `invalid_client` | `401` | The client could not be authenticated. With `WWW-Authenticate: Basic` when it sent the `Authorization` header |
 | `unauthorized_client` | `400` | A client revokes a token that is not its own |
 | `unsupported_grant_type` | `400` | `grant_type` is not `client_credentials` |
-| `invalid_scope` | `400` | `scope` names a role the client may not use |
+| `invalid_scope` | `400` | `scope` names a permission the client may not use |
 | `invalid_target` | `400` | `resource` names a service tokens are not issued for |
 | `unsupported_token_type` | `400` | An access token is revoked while access tokens work until they expire |
 | `invalid_dpop_proof` | `400` | The DPoP proof is not valid, or a key requiring one sent none |
 | `use_dpop_nonce` | `400` | The DPoP proof carries no nonce your application issued. The answer carries one in `DPoP-Nonce` |
-| `insufficient_scope` | `403` | The caller of `/introspect` holds none of `introspectionRoles` |
+| `insufficient_scope` | `403` | The caller of `/introspect` may not use `introspectionPermission` |
 
 ## What gets recorded
 | `action` | `outcome` | Carries |
@@ -260,10 +260,18 @@ A refused request answers the way OAuth2 says errors look, and is never cached:
 | `auth.token.issued` | success / failure | `subject` (the client id), `userId` on success |
 | `auth.token.revoked` | success | `userId` |
 
-Revoking any token at `/revoke` is recorded as `auth.token.revoked`, and an introspection by a caller without one of `introspectionRoles` as `authz.check`. See [what gets recorded](./auth.md#what-gets-recorded).
+Revoking any token at `/revoke` is recorded as `auth.token.revoked`, and an introspection by a caller who may not use `introspectionPermission` as `authz.check` with `missing-permission`. See [what gets recorded](./auth.md#what-gets-recorded).
+
+## Requirements
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `ApiKey` | The authorization server is registered, since its clients are API keys |
+| `JwtRevokedAccessToken` | `ClientAccessTokenAuthStrategy` is registered and `ACCESS_TOKEN_REVOCATION` is not `'onExpiry'` |
 
 ## See also
-- [Api keys](./api-keys.md) — the clients, and creating keys without a secret
+- [API keys](./api-keys.md) — the clients, and creating keys without a secret
 - [Client certificates](./client-certificates.md) — clients authenticating with a certificate, and bound tokens
 - [Binding tokens to a key](./dpop.md) — tokens that work only beside a proof of the client's key
-- [Authentication & authorization](./auth.md) — signing with a key pair, and what a jwt has to prove
+- [Authentication & authorization](./auth.md) — signing with a key pair, and what a JWT has to prove

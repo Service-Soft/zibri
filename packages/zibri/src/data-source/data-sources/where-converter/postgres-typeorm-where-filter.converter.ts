@@ -1,4 +1,4 @@
-import { And, ArrayContainedBy, ArrayContains, Raw, FindOperator, DataSource as ToDataSource } from 'typeorm';
+import { And, ArrayContainedBy, ArrayContains, Equal, Raw, FindOperator, DataSource as ToDataSource } from 'typeorm';
 import { ColumnMetadata as ToColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 import { RelationMetadata as ToRelationMetadata } from 'typeorm/metadata/RelationMetadata.js';
 
@@ -9,6 +9,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
+import { denyAll, DenyAll } from '../../../entity/models/entity-scope.model';
 import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
 import { InternalError } from '../../../error-handling/internal-error.model';
@@ -23,6 +24,7 @@ import { parseFuzzyLikeFilter, SimilarityBound } from '../../models/where/fuzzy-
 import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filter.utilities';
 import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where } from '../../models/where/where-filter.model';
+import { WhereValueUtilities } from '../../models/where/where-value.utilities';
 
 const ALIAS: string = '$$COL$$';
 
@@ -115,6 +117,29 @@ type JsonbOperatorContext = {
  * Handler function for a single where-filter key inside of jsonb.
  */
 type JsonbOperatorHandler = (context: JsonbOperatorContext) => string;
+
+/**
+ * Where the rows of a relation to many rows are found, as a statement over them names them.
+ */
+type RelatedSide = {
+    /**
+     * The table holding one row per related row.
+     */
+    table: string,
+    /**
+     * The column of it naming the row the relation is read from.
+     */
+    ownColumn: string,
+    /**
+     * The column of it naming the related row.
+     */
+    targetColumn: string,
+    /**
+     * The condition narrowing the related rows to the ones the caller may see, as `AND ...`, empty
+     * when they are not narrowed.
+     */
+    narrowing: string
+};
 
 /**
  * Converter that transforms a Zibri WhereFilter into a TypeORM FindOptionsWhere for postgres.
@@ -283,6 +308,17 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    protected buildArrayEqualsOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown> {
+        if (!this.isStoredAsJson(metadata)) {
+            return Equal(values);
+        }
+        // as a json document: handed over as an array it would reach the column as array text, which
+        // json reads as something else
+        const parameters: TypeOrmParameters = this.createParameters();
+        return this.rawOnFilteredColumn(`${ALIAS} = ${this.toJsonbParameter(values, parameters)}`, parameters);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     protected buildArrayIncludesOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown> {
         if (!this.isStoredAsJson(metadata)) {
             return ArrayContains(values);
@@ -442,11 +478,15 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         if (metadata.type === 'array') {
+            const elementAlias: string = this.nextElementAlias();
             if (metadata.items.type !== 'object') {
-                throw new InternalError('The "where" operator on an array field requires an array of objects.');
+                const itemSql: string = this.buildJsonbItemCondition(elementAlias, value, metadata, 'item', parameters, `${ALIAS}[]`);
+                // a real array column, read as json so that an item is asked what a value inside a
+                // json column is asked. A column holding no value has no items, as to_jsonb keeps it NULL
+                const sql: string = `EXISTS (SELECT 1 FROM jsonb_array_elements(to_jsonb(${ALIAS})) AS ${elementAlias} WHERE ${itemSql})`;
+                return this.rawOnFilteredColumn(sql, parameters);
             }
             const itemMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.items.cls());
-            const elementAlias: string = this.nextElementAlias();
             const innerSql: string = this.buildJsonbCondition(
                 elementAlias,
                 value as Where<Record<string, unknown>>,
@@ -560,37 +600,11 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         value: number
     ): FindOperator<unknown> {
         const operator: string = this.lengthKeyToSqlOperator(lengthKey);
-
-        if (metadata.type === Relation.ONE_TO_MANY) {
-            const targetEntity: Newable<BaseEntity> = metadata.target();
-            const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
-            if (!targetMeta) {
-                throw new EntityMetadataMissingError(targetEntity, `used in ${entityClass.name}.${propertyName}`);
-            }
-            const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
-            const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
-            if (inverseProp?.type !== Relation.MANY_TO_ONE) {
-                throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
-            }
-            const fkColumn: string | undefined = inverseProp.joinColumn;
-            const rawSql: string = `(SELECT COUNT(*) FROM "${targetMeta.tableName}" `
-                + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$) ${operator} ${value}`;
-            return Raw(alias => rawSql.replaceAll('$alias$', alias));
-        }
-
-        // MANY_TO_MANY
-        const ormRelation: ToRelationMetadata | undefined = this.typeOrmDataSource
-            .getMetadata(entityClass)
-            .findRelationWithPropertyPath(propertyName);
-        const ownColumn: ToColumnMetadata | undefined = ormRelation?.junctionEntityMetadata?.columns[0];
-        if (ormRelation?.isManyToMany !== true || !ormRelation.junctionEntityMetadata || ownColumn == undefined) {
-            throw new InternalError(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
-        }
-        const junctionTable: string = ormRelation.junctionEntityMetadata.tableName;
-        const ownFkColumn: string = ownColumn.databaseName;
-        const rawSql: string = `(SELECT COUNT(*) FROM "${junctionTable}" `
-            + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$) ${operator} ${value}`;
-        return Raw(alias => rawSql.replaceAll('$alias$', alias));
+        const parameters: TypeOrmParameters = this.createParameters();
+        const side: RelatedSide = this.resolveRelatedSide(entityClass, propertyName, metadata, parameters);
+        const rawSql: string = `(SELECT COUNT(*) FROM "${side.table}" `
+            + `WHERE "${side.table}"."${side.ownColumn}" = $alias$${side.narrowing}) ${operator} ${value}`;
+        return this.rawOnRelation(rawSql, parameters);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -603,49 +617,12 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         if (entities.length === 0) {
             return Raw(() => 'TRUE');
         }
-
         const parameters: TypeOrmParameters = this.createParameters();
-
-        if (metadata.type === Relation.ONE_TO_MANY) {
-            const targetEntity: Newable<BaseEntity> = metadata.target();
-            const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
-            if (!targetMeta) {
-                throw new EntityMetadataMissingError(targetEntity, `used in ${entityClass.name}.${propertyName}`);
-            }
-            const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
-            const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
-            if (inverseProp?.type !== Relation.MANY_TO_ONE) {
-                throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
-            }
-            const fkColumn: string | undefined = inverseProp.joinColumn;
-            const ids: string = this.idParameters(entities, parameters);
-            const rawSql: string = `(SELECT COUNT(*) FROM "${targetMeta.tableName}" `
-                + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$ `
-                + `AND "${targetMeta.tableName}"."id" = ANY(${ids})) = ${entities.length}`;
-            return this.rawOnRelation(rawSql, parameters);
-        }
-
-        // MANY_TO_MANY
-        const ormRelation: ToRelationMetadata | undefined = this.typeOrmDataSource
-            .getMetadata(entityClass)
-            .findRelationWithPropertyPath(propertyName);
-        const ownColumn: ToColumnMetadata | undefined = ormRelation?.junctionEntityMetadata?.columns[0];
-        const targetColumn: ToColumnMetadata | undefined = ormRelation?.junctionEntityMetadata?.columns[1];
-        if (
-            ormRelation?.isManyToMany !== true
-            || !ormRelation.junctionEntityMetadata
-            || ownColumn == undefined
-            || targetColumn == undefined
-        ) {
-            throw new InternalError(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
-        }
-        const junctionTable: string = ormRelation.junctionEntityMetadata.tableName;
-        const ownFkColumn: string = ownColumn.databaseName;
-        const targetFkColumn: string = targetColumn.databaseName;
+        const side: RelatedSide = this.resolveRelatedSide(entityClass, propertyName, metadata, parameters);
         const ids: string = this.idParameters(entities, parameters);
-        const rawSql: string = `(SELECT COUNT(*) FROM "${junctionTable}" `
-            + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$ `
-            + `AND "${junctionTable}"."${targetFkColumn}" = ANY(${ids})) = ${entities.length}`;
+        const rawSql: string = `(SELECT COUNT(*) FROM "${side.table}" `
+            + `WHERE "${side.table}"."${side.ownColumn}" = $alias$ `
+            + `AND "${side.table}"."${side.targetColumn}" = ANY(${ids})${side.narrowing}) = ${entities.length}`;
         return this.rawOnRelation(rawSql, parameters);
     }
 
@@ -660,38 +637,108 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         if (entities.length === 0) {
             return Raw(() => 'FALSE');
         }
-
         const parameters: TypeOrmParameters = this.createParameters();
+        const side: RelatedSide = this.resolveRelatedSide(entityClass, propertyName, metadata, parameters);
+        const ids: string = this.idParameters(entities, parameters);
+        // the EXISTS is what leaves out a row without related rows, which is asked for with a
+        // length of 0 alone
+        const rawSql: string = `EXISTS (SELECT 1 FROM "${side.table}" `
+            + `WHERE "${side.table}"."${side.ownColumn}" = $alias$${side.narrowing}) `
+            + `AND NOT EXISTS (SELECT 1 FROM "${side.table}" `
+            + `WHERE "${side.table}"."${side.ownColumn}" = $alias$${side.narrowing} `
+            + `AND "${side.table}"."${side.targetColumn}" <> ALL(${ids}))`;
+        return this.rawOnRelation(rawSql, parameters);
+    }
 
-        if (metadata.type === Relation.ONE_TO_MANY) {
-            const targetEntity: Newable<BaseEntity> = metadata.target();
-            const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
-            if (!targetMeta) {
-                throw new EntityMetadataMissingError(targetEntity, `used in ${entityClass.name}.${propertyName}`);
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected buildRelationWhereOperator<T>(
+        entityClass: Newable<T>,
+        propertyName: string,
+        metadata: RelationMetadata<BaseEntity>,
+        where: Where<BaseEntity>
+    ): FindOperator<unknown> {
+        const parameters: TypeOrmParameters = this.createParameters();
+        const alias: string = this.nextElementAlias();
+        // the related rows the filter matches, named by a statement built the way every other filter
+        // is - so that a filter through a relation is answered the same as the same filter on the
+        // related entity itself, narrowing and all
+        const matching: ParameterizedSql = this.toParameterizedSql(this.selectIdsOf(metadata.target(), alias, where, this.related), alias);
+        Object.assign(parameters.values, matching.parameters);
+        if (metadata.type === Relation.MANY_TO_ONE || metadata.type === Relation.BELONGS_TO_ONE) {
+            // the row itself holds the key of its related row. Read through its own table rather
+            // than through the alias the statement reads it under, which only the id is known by
+            const ownMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(entityClass as Newable<BaseEntity>);
+            if (!ownMeta || metadata.joinColumn == undefined) {
+                throw new InternalError(`Could not resolve the foreign key of ${entityClass.name}.${propertyName}`);
             }
-            const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
-            const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
-            if (inverseProp?.type !== Relation.MANY_TO_ONE || !inverseProp.joinColumn) {
-                throw new InternalError(`Could not find inverse many-to-one relation "${metadata.inverseSide}" on ${targetEntity.name}`);
-            }
-            const fkColumn: string = inverseProp.joinColumn;
-            const ids: string = this.idParameters(entities, parameters);
-            // the EXISTS is what leaves out a row without related rows, which is asked for with a
-            // length of 0 alone
-            const rawSql: string = `EXISTS (SELECT 1 FROM "${targetMeta.tableName}" `
-                + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$) `
-                + `AND NOT EXISTS (SELECT 1 FROM "${targetMeta.tableName}" `
-                + `WHERE "${targetMeta.tableName}"."${fkColumn}" = $alias$ `
-                + `AND "${targetMeta.tableName}"."id" <> ALL(${ids}))`;
+            const self: string = this.nextElementAlias();
+            const rawSql: string = `EXISTS (SELECT 1 FROM "${ownMeta.tableName}" "${self}" WHERE "${self}"."id" = $alias$ `
+                + `AND "${self}"."${metadata.joinColumn}" IN (${matching.sql}))`;
             return this.rawOnRelation(rawSql, parameters);
         }
+        const side: RelatedSide = this.resolveRelatedSide(entityClass, propertyName, metadata, parameters);
+        // the statement narrows its rows already, so the side's narrowing is not asked a second time
+        const rawSql: string = `EXISTS (SELECT 1 FROM "${side.table}" `
+            + `WHERE "${side.table}"."${side.ownColumn}" = $alias$ AND "${side.table}"."${side.targetColumn}" IN (${matching.sql}))`;
+        return this.rawOnRelation(rawSql, parameters);
+    }
 
-        // MANY_TO_MANY
+    /**
+     * Where the rows of a relation whose key the related row holds are found: the table holding one
+     * row per related row, the column in it naming the row the relation is read from, the column
+     * naming the related row, and the condition narrowing the related rows to the ones the caller
+     * may see.
+     *
+     * For a one to many or has one relation that is the related entity's own table, for a many to
+     * many one the junction table - whichever side of it the relation is read from.
+     * @param entityClass - The entity the relation is read from.
+     * @param propertyName - The relation's property.
+     * @param metadata - The relation's metadata.
+     * @param parameters - Where the values the narrowing binds are collected.
+     * @returns The side.
+     * @throws When the relation's metadata cannot be resolved.
+     */
+    private resolveRelatedSide<T>(
+        entityClass: Newable<T>,
+        propertyName: string,
+        metadata: RelationMetadata<BaseEntity>,
+        parameters: TypeOrmParameters
+    ): RelatedSide {
+        const targetEntity: Newable<BaseEntity> = metadata.target();
+        const targetMeta: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(targetEntity);
+        if (!targetMeta) {
+            throw new EntityMetadataMissingError(targetEntity, `used in ${entityClass.name}.${propertyName}`);
+        }
+        if (metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.HAS_ONE) {
+            const targetProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
+            const inverseProp: PropertyMetadata | undefined = targetProps[metadata.inverseSide];
+            const inverseType: Relation = metadata.type === Relation.ONE_TO_MANY ? Relation.MANY_TO_ONE : Relation.BELONGS_TO_ONE;
+            if (inverseProp?.type !== inverseType || !inverseProp.joinColumn) {
+                throw new InternalError(`Could not find the inverse relation "${metadata.inverseSide}" on ${targetEntity.name}`);
+            }
+            return {
+                table: targetMeta.tableName,
+                ownColumn: inverseProp.joinColumn,
+                targetColumn: 'id',
+                narrowing: this.narrowingOf(targetEntity, `"${targetMeta.tableName}"."id"`, parameters)
+            };
+        }
+        if (metadata.type !== Relation.MANY_TO_MANY) {
+            throw new InternalError(`${entityClass.name}.${propertyName} holds the key of its related row itself.`);
+        }
+
+        // MANY_TO_MANY: the junction columns as this side reads them. The orm registers them on the
+        // side that owns the junction table only, so the other side reads them off that one, the
+        // other way round
         const ormRelation: ToRelationMetadata | undefined = this.typeOrmDataSource
             .getMetadata(entityClass)
             .findRelationWithPropertyPath(propertyName);
-        const ownColumn: ToColumnMetadata | undefined = ormRelation?.junctionEntityMetadata?.columns[0];
-        const targetColumn: ToColumnMetadata | undefined = ormRelation?.junctionEntityMetadata?.columns[1];
+        const ownColumn: ToColumnMetadata | undefined = ormRelation?.isOwning === true
+            ? ormRelation.joinColumns[0]
+            : ormRelation?.inverseRelation?.inverseJoinColumns[0];
+        const targetColumn: ToColumnMetadata | undefined = ormRelation?.isOwning === true
+            ? ormRelation.inverseJoinColumns[0]
+            : ormRelation?.inverseRelation?.joinColumns[0];
         if (
             ormRelation?.isManyToMany !== true
             || !ormRelation.junctionEntityMetadata
@@ -701,15 +748,40 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             throw new InternalError(`Could not resolve many-to-many relation metadata for ${entityClass.name}.${propertyName}`);
         }
         const junctionTable: string = ormRelation.junctionEntityMetadata.tableName;
-        const ownFkColumn: string = ownColumn.databaseName;
-        const targetFkColumn: string = targetColumn.databaseName;
-        const ids: string = this.idParameters(entities, parameters);
-        const rawSql: string = `EXISTS (SELECT 1 FROM "${junctionTable}" `
-            + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$) `
-            + `AND NOT EXISTS (SELECT 1 FROM "${junctionTable}" `
-            + `WHERE "${junctionTable}"."${ownFkColumn}" = $alias$ `
-            + `AND "${junctionTable}"."${targetFkColumn}" <> ALL(${ids}))`;
-        return this.rawOnRelation(rawSql, parameters);
+        return {
+            table: junctionTable,
+            ownColumn: ownColumn.databaseName,
+            targetColumn: targetColumn.databaseName,
+            narrowing: this.narrowingOf(targetEntity, `"${junctionTable}"."${targetColumn.databaseName}"`, parameters)
+        };
+    }
+
+    /**
+     * The condition narrowing the related rows a statement counts or looks for to the ones the
+     * caller may see, as `AND ...` to append to the statement.
+     *
+     * The rows are named by an inner select built the way every other filter is, so a narrowing is
+     * answered the same whether it narrows a read or a count.
+     * @param targetEntity - The related entity.
+     * @param column - The column of the statement naming the related row.
+     * @param parameters - Where the values the inner select binds are collected.
+     * @returns The condition, empty when the rows are not narrowed.
+     */
+    private narrowingOf(targetEntity: Newable<BaseEntity>, column: string, parameters: TypeOrmParameters): string {
+        const narrowing: Where<BaseEntity> | DenyAll | undefined = this.related?.get(targetEntity);
+        if (narrowing == undefined) {
+            return '';
+        }
+        if (narrowing === denyAll) {
+            return ' AND FALSE';
+        }
+        const alias: string = this.nextElementAlias();
+        const statement: ParameterizedSql = this.toParameterizedSql(
+            this.selectIdsOf(targetEntity, alias, narrowing, this.related),
+            alias
+        );
+        Object.assign(parameters.values, statement.parameters);
+        return ` AND ${column} IN (${statement.sql})`;
     }
 
     /**
@@ -722,7 +794,18 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
      * @returns The typeorm operator.
      */
     private rawOnRelation(sql: string, parameters: TypeOrmParameters): FindOperator<unknown> {
-        return Raw(alias => sql.replaceAll('$alias$', alias), parameters.values);
+        return Raw(alias => {
+            // the statement names this row inside a statement over other rows, which only a name
+            // qualified by the alias of this row does. An update or delete statement reads its rows
+            // under no alias, and the bare column name inside the inner statement names a column of
+            // the rows in there instead - which held the condition for every row of the table
+            if (!alias.includes('.')) {
+                throw new InternalError(
+                    `A condition through a relation is answered inside a select statement alone, which "${alias}" is not read by.`
+                );
+            }
+            return sql.replaceAll('$alias$', alias);
+        }, parameters.values);
     }
 
     private idParameters(entities: BaseEntity[], parameters: TypeOrmParameters): string {
@@ -777,15 +860,48 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
                 + this.buildJsonbOneOfCondition(elementAlias, val, propMeta.items, parameters, `${path}[]`) + '))';
         }
         if (propMeta?.type === 'array') {
-            if (propMeta.items.type !== 'object') {
-                throw new InternalError(`"where" on array field "${fieldKey}" requires object items`);
-            }
-            const itemMeta: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(propMeta.items.cls());
             const elementAlias: string = this.nextElementAlias();
+            const itemSql: string = propMeta.items.type === 'object'
+                ? this.buildJsonbCondition(
+                    elementAlias,
+                    val as Where<Record<string, unknown>>,
+                    MetadataUtilities.getModelProperties(propMeta.items.cls()),
+                    parameters,
+                    `${path}[]`
+                )
+                : this.buildJsonbItemCondition(elementAlias, val, propMeta, `${fieldKey}[]`, parameters, `${path}[]`);
             return `(${hasJsonValue(jsonPath)} AND EXISTS (SELECT 1 FROM jsonb_array_elements(${jsonPath}) AS ${elementAlias} WHERE `
-                + this.buildJsonbCondition(elementAlias, val as Where<Record<string, unknown>>, itemMeta, parameters, `${path}[]`) + '))';
+                + itemSql + '))';
         }
         throw new InternalError(`"where" operator used on a non-object, non-array JSONB field "${fieldKey}"`);
+    }
+
+    /**
+     * Builds the condition on one item of a list of values that are not objects.
+     * @param elementAlias - The item, as jsonb_array_elements names it.
+     * @param filter - What is asked of the item.
+     * @param metadata - The list the item is in.
+     * @param fieldKey - The name of the item, for error messages.
+     * @param parameters - Collects the values the condition binds.
+     * @param path - The path to the item, for the markers of its casts.
+     * @returns The sql condition.
+     */
+    private buildJsonbItemCondition(
+        elementAlias: string,
+        filter: unknown,
+        metadata: PropertyMetadata,
+        fieldKey: string,
+        parameters: TypeOrmParameters,
+        path: string
+    ): string {
+        return this.buildJsonbValueCondition(filter, {
+            jsonPath: elementAlias,
+            textPath: `(${elementAlias} #>> '{}')`,
+            fieldKey,
+            path,
+            propMeta: WhereValueUtilities.itemMetadata(metadata),
+            parameters
+        });
     }
 
     private buildJsonbFieldCondition(
@@ -811,9 +927,25 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         // the field name is bound as well, not just the values. A json key is not a sql identifier
         // and does not have to be spellable as one, so there is nothing to escape it as.
         const key: string = `${parameters.add(fieldKey)}::text`;
-        const jsonPath: string = `(${jsonbAlias}->${key})`;
-        const textPath: string = `(${jsonbAlias}->>${key})`;
-        const path: string = `${parentPath}.${fieldKey}`;
+        return this.buildJsonbValueCondition(filterValue, {
+            jsonPath: `(${jsonbAlias}->${key})`,
+            textPath: `(${jsonbAlias}->>${key})`,
+            fieldKey,
+            path: `${parentPath}.${fieldKey}`,
+            propMeta,
+            parameters
+        });
+    }
+
+    /**
+     * Builds the condition on one json value.
+     * @param filterValue - What is asked of the value.
+     * @param context - The value, and what the condition on it needs.
+     * @returns The sql condition.
+     * @throws When the filter asks for something no condition on the value can express.
+     */
+    private buildJsonbValueCondition(filterValue: unknown, context: OmitStrict<JsonbOperatorContext, 'value' | 'castPath'>): string {
+        const { jsonPath, textPath, fieldKey, path, propMeta, parameters } = context;
         const castPath: string = `${textPath}${this.getJsonbCast(propMeta, path)}`;
 
         if (filterValue === null) {
@@ -830,7 +962,13 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         if (Array.isArray(filterValue)) {
-            // exact array match
+            // several conditions mean any of them, unless the value is a list itself, which the array
+            // is then the one value to match exactly
+            if (propMeta?.type !== 'array') {
+                return filterValue.length
+                    ? '(' + filterValue.map(f => `(${this.buildJsonbValueCondition(f, context)})`).join(' OR ') + ')'
+                    : 'FALSE';
+            }
             const array: string = this.toJsonbParameter(filterValue, parameters);
             return `(${jsonPath} @> ${array} AND ${jsonPath} <@ ${array})`;
         }

@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { type Relation } from 'typeorm';
 
 import { Repository } from './repository';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -88,7 +89,8 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [
             createTestDataSource({
-                entities: [...defaultTestServerEntities, Author, Book, Reader, Bookmark, Parent, Child]
+                entities: [...defaultTestServerEntities, Author, Book, Reader, Bookmark, Parent, Child],
+                repositories: defaultTestServerRepositories
             })
         ]
     });
@@ -98,11 +100,11 @@ beforeAll(async () => {
     bookmarkRepo = inject(repositoryTokenFor(Bookmark));
     parentRepo = inject(repositoryTokenFor(Parent));
     childRepo = inject(repositoryTokenFor(Child));
-}, 15000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await bookmarkRepo.deleteAll({});

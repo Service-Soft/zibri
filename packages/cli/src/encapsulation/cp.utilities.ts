@@ -1,7 +1,21 @@
-import { execSync, ExecSyncOptions } from 'child_process';
+import { execSync, ExecSyncOptions, spawnSync, SpawnSyncReturns } from 'child_process';
 
 import { ChalkUtilities } from './chalk.utilities';
 import { exitGracefully, exitWithInterrupt, isErrorWithSignal, isExitPromptError } from '../utilities';
+
+/**
+ * How a program ended.
+ */
+export type ProcessResult = {
+    /**
+     * Its exit code, or undefined when it could not be started or was stopped by a signal.
+     */
+    status: number | undefined,
+    /**
+     * What it wrote to stdout, byte for byte.
+     */
+    stdout: Buffer
+};
 
 /**
  * Encapsulates functionality of the child_process package.
@@ -60,5 +74,22 @@ export abstract class CPUtilities {
         catch {
             return undefined;
         }
+    }
+
+    /**
+     * Runs a program without a shell, and hands back how it ended.
+     * An exit code other than 0 is an answer here rather than a failure, which is the difference to
+     * output: some programs say what they found that way.
+     * @param file - The program.
+     * @param args - Its arguments, passed as they are.
+     * @param cwd - Where it runs.
+     * @returns Its exit code and what it wrote to stdout.
+     */
+    static resolveResult(file: string, args: string[], cwd: string): ProcessResult {
+        const result: SpawnSyncReturns<Buffer> = spawnSync(file, args, { cwd, stdio: ['ignore', 'pipe', 'ignore'] });
+        if (result.error != undefined) {
+            return { status: undefined, stdout: Buffer.alloc(0) };
+        }
+        return { status: result.status ?? undefined, stdout: result.stdout };
     }
 }

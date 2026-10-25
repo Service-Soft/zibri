@@ -1,4 +1,4 @@
-import { BaseEntity, DataSource, Newable } from 'zibri';
+import { BaseEntity, DataSource, Newable, RepositoryClass } from 'zibri';
 
 import { InMemoryDataSource } from './in-memory-data-source.model';
 import { zibriFrameworkEntities } from '../framework-entities';
@@ -15,6 +15,11 @@ export type CreateInMemoryDataSourceOptions = {
      * declares beside them.
      */
     entities?: Newable<BaseEntity>[],
+    /**
+     * The application's repository classes, each declared with `@RepositoryFor` for one of the
+     * entities. None when it is not given.
+     */
+    repositories?: RepositoryClass[],
     /**
      * Whether the built class may exist without an application using it.
      *
@@ -36,12 +41,14 @@ export type CreateInMemoryDataSourceOptions = {
  * @param options - The application's entities, whether the class may go unused, and where its calls
  * are recorded.
  * @param options.entities - The application's own entities. The framework's are added for you.
+ * @param options.repositories - The application's repository classes.
  * @param options.allowOrphan - Whether the built class may exist without an application using it.
  * @param options.roundTrips - Where every call a repository makes on the store is recorded.
  * @returns A data source class, ready to hand to `startTestServer` or to an application.
  */
 export function createInMemoryDataSource({
     entities = [],
+    repositories = [],
     allowOrphan = false,
     roundTrips
 }: CreateInMemoryDataSourceOptions = {}): Newable<InMemoryDataSource> {
@@ -56,6 +63,7 @@ export function createInMemoryDataSource({
     @DataSource({ allowOrphan })
     class TestInMemoryDataSource extends InMemoryDataSource {
         override readonly entities: Newable<BaseEntity>[] = all;
+        override readonly repositories: RepositoryClass[] = repositories;
         protected override readonly roundTrips: RoundTripCounter | undefined = roundTrips;
     }
 

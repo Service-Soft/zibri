@@ -1,10 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { createInMemoryDataSource } from 'zibri-testing';
 
 import { RateLimited } from './decorators/rate-limited.decorator';
 import { RateLimiter } from './decorators/rate-limiter.decorator';
 import { TokenBucketRateLimiter, TokenBucketState } from './limiter/token-bucket.rate-limiter';
 import { RateLimitKeys } from './rate-limit-keys';
 import { InMemoryRateLimiterStore } from './stores/in-memory.rate-limiter-store';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -68,17 +72,20 @@ let baseUrl: string;
 beforeAll(async () => {
     server = await startTestServer({
         controllers: [RateLimitKeysController],
+        // in memory: what is under test reads the request, not the data source
+        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
+        providers: defaultTestServerProviders,
         // the only way two callers are distinguishable from one machine, and the setting the per
         // caller key depends on in every real deployment: without it both addresses below are the
         // same client as far as the application is concerned
         security: { trustProxy: true }
     });
     baseUrl = await server.start();
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 /**
  * Calls one of the limited routes as a given client.
@@ -100,6 +107,21 @@ describe('rate limit keys', () => {
         // a different caller, whose capacity the first one must not have spent. This is the whole
         // finding: with one shared bucket, whoever gets there first locks out everybody else.
         expect(await callAs('/per-caller', '203.0.113.2')).toBe(200);
+    });
+
+    it('counts every address of one IPv6 /64 as one caller', async () => {
+        expect(await callAs('/per-caller', '2001:db8:1:2::1')).toBe(200);
+        // another address of the same /64, which is the block one subscriber holds: the same caller
+        expect(await callAs('/per-caller', '2001:db8:1:2:ffff:ffff:ffff:9')).toBe(429);
+        // the next /64 is somebody else
+        expect(await callAs('/per-caller', '2001:db8:1:3::1')).toBe(200);
+    });
+
+    it('counts an IPv4 address arriving in its IPv6 form as that IPv4 address', async () => {
+        expect(await callAs('/per-caller', '::ffff:203.0.113.7')).toBe(200);
+        expect(await callAs('/per-caller', '203.0.113.7')).toBe(429);
+        // not by the /64 every such address shares, which would make all of IPv4 one caller
+        expect(await callAs('/per-caller', '::ffff:203.0.113.8')).toBe(200);
     });
 
     it('counts a limit against one bucket when the route asks for it', async () => {

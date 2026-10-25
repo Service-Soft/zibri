@@ -93,7 +93,7 @@ export class SmtpEmailTransport implements EmailTransportInterface {
             to: email.recipients,
             bcc: email.bcc ?? undefined,
             cc: email.cc ?? undefined,
-            attachments: email.attachments ?? undefined,
+            attachments: email.attachments?.map(a => ({ filename: a.filename, content: a.base64Content, encoding: 'base64' })),
             // nodemailer writes the url as `List-Unsubscribe: <url>`; the second header is what makes
             // it a one-click unsubscribe (RFC 8058) rather than a link the provider opens in a browser
             ...email.listUnsubscribeUrl == undefined

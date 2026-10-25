@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -42,6 +43,7 @@ describe('a transaction that is never committed or rolled back', () => {
     beforeAll(async () => {
         const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
             entities: [...defaultTestServerEntities, Item],
+            repositories: defaultTestServerRepositories,
             // small enough to fill, and a wait long enough to outlast the idle timeout below so that
             // what this measures is whether the connection comes back rather than which clock won
             poolSize: POOL_SIZE,
@@ -50,7 +52,7 @@ describe('a transaction that is never committed or rolled back', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
         repo = inject(repositoryTokenFor(Item));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     it('gives its connection back rather than holding it for the life of the process', async () => {
         // as many as the pool will hand out, each one the mistake this is about: started, used for
@@ -79,5 +81,5 @@ describe('a transaction that is never committed or rolled back', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 });

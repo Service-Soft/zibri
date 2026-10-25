@@ -6,7 +6,8 @@ import { EncryptionService } from './encryption.service';
 import { EncryptionString } from './encryption.utilities';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -21,7 +22,7 @@ import { Newable } from '../../types/newable.type';
  * Runs without a container, because what it counts is rows rather than statements.
  */
 
-const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities });
+const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
 describe('the rows encrypting creates', () => {
     let server: StartedTestServer | undefined;
@@ -39,13 +40,13 @@ describe('the rows encrypting creates', () => {
         encryption = inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE) as EncryptionService;
         strategies = inject(repositoryTokenFor(EncryptionStrategyEntity));
         keys = inject(repositoryTokenFor(EncryptionKey));
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterEach(async () => {
         await keys.deleteAll({});
         await strategies.deleteAll({});
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('creates one strategy and one key, however many values are encrypted', async () => {
         await encryption.encrypt('a');

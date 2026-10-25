@@ -5,6 +5,7 @@ import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { BaseUser } from '../models/base-user.model';
+import { ProviderAuthentication } from '../models/provider-authentication.model';
 
 /**
  * Interface for an auth strategy: how a request says who it is from.
@@ -62,6 +63,14 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      */
     resolveAuthenticatedAt: (context: HttpRequestContext | WebsocketRequestContext) => Promise<Date | undefined>,
     /**
+     * Resolves how the caller proved who they are at the provider their login went through.
+     *
+     * Read by \@Auth.require2fa on a route that takes a second factor presented at the provider in
+     * place of one presented here. Optional: leave it out for a credential that never comes from a
+     * provider's sign-in. Answer undefined when the login went through none, or the provider did not say.
+     */
+    resolveProviderAuthentication?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<ProviderAuthentication | undefined>,
+    /**
      * Resolves when the credential of the request stops being accepted on its own: the expiry of a
      * token, a key or a certificate. A socket that connected with the credential is checked again at
      * that time, and closed when the credential no longer resolves to its user.
@@ -73,8 +82,8 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * Resolves what the credential of the request may do beyond being its user.
      *
      * Optional: leave it out for a credential that acts with everything its user may do, which is
-     * every login. An api key implements it, because a key may use only some of its user's roles and
-     * may be bound to one tenant.
+     * every login. An api key implements it, because a key may use only some of its user's permissions
+     * and may be bound to one tenant.
      */
     resolveCredentialLimits?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<CredentialLimits | undefined>,
     /**

@@ -3,8 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { InvoiceNumberService } from './invoice-number.service';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -75,7 +76,7 @@ describe('name abbreviations', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
             plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,
@@ -94,11 +95,11 @@ describe('name abbreviations', () => {
         });
         invoiceNumberService = inject(InvoiceNumberService);
         numberInvoicesRepo = inject(repositoryTokenFor(NumberInvoices));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('suggests the first letters of a company name, or of first and last name', () => {
         expect(invoiceNumberService.getSuggestedNameAbbreviation(companyData)).toBe('GREATC');

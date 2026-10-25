@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { BodyMetadata } from '../../routing/decorators/body-metadata.model';
@@ -45,11 +46,11 @@ describe('copyClassProperties (via OmitClass/PickClass/PartialClass/Intersection
     beforeAll(async () => {
         server = await startTestServer({});
         validationService = inject(ValidationService);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     describe('OmitClass', () => {
         class BaseWithoutSecret extends OmitClass(Base, ['secret']) {}

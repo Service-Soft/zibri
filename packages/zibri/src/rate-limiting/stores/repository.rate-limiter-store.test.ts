@@ -5,7 +5,8 @@ import { RateLimitStateEntity } from './rate-limit-state-entity.model';
 import { InProcessRateLimiterLock } from './rate-limiter-lock.interface';
 import { BaseRateLimitState } from './rate-limiter-store.interface';
 import { RepositoryRateLimiterStore, RepositoryRateLimiterStoreOptions } from './repository.rate-limiter-store';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -57,13 +58,13 @@ async function countOn(store: RepositoryRateLimiterStore<CountingState>, key: st
 describe('RepositoryRateLimiterStore', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, RateLimitStateEntity] })]
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, RateLimitStateEntity], repositories: defaultTestServerRepositories })]
         });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps the state of each namespace apart, though they share a table and a key', async () => {
         const logins: RepositoryRateLimiterStore<CountingState> = createStore('logins');

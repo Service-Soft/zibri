@@ -1,7 +1,11 @@
 /* eslint-disable no-console */
 import { ChalkUtilities } from '../../encapsulation';
+import { SCAFFOLD_FEATURES } from '../../scaffold';
 import { BaseCommand } from '../base-command.model';
 import { Command } from '../command.enum';
+
+// the features as a command line names them, comma separated
+const FEATURE_LIST: string = SCAFFOLD_FEATURES.join(',');
 
 /**
  * Displays info on how to use the cli.
@@ -14,7 +18,19 @@ export class HelpCommand extends BaseCommand {
         console.log(this.getCommandLabel(Command.VERSION, Command.V), 'shows the currently used version');
         console.log(
             this.getCommandLabel(Command.NEW, Command.N),
-            'creates a new Zibri application, as "new [name] [github|none] [requireLogin|public]"'
+            `creates a new Zibri application, as "new [name] [github|none] [requireLogin|public] [${FEATURE_LIST}|none]"`
+        );
+        console.log(
+            this.getCommandLabel(Command.UPGRADE, Command.U),
+            'brings the project in this folder to what this version generates, as "upgrade [github|none] [requireLogin|public]"'
+        );
+        console.log(
+            this.getCommandLabel(Command.ADD, Command.A),
+            `adds features to the project in this folder, as "add <${FEATURE_LIST}>"`
+        );
+        console.log(
+            this.getCommandLabel(Command.REMOVE, Command.R),
+            `removes features from the project in this folder, as "remove <${FEATURE_LIST}>"`
         );
     }
 

@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthApiRequest, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
 import { BaseGitHubAuthenticator } from './base-github.authenticator';
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -42,7 +43,7 @@ const REGISTRATION_URL: string = 'https://app.example.com/register';
 
 let github: FakeOAuthProvider;
 
-class GitHubAuthenticator extends BaseGitHubAuthenticator<Roles, JwtUser> {
+class GitHubAuthenticator extends BaseGitHubAuthenticator<string, JwtUser> {
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
@@ -112,6 +113,7 @@ describe('BaseGitHubAuthenticator', () => {
                 FederatedConnectionCode,
                 OAuthProviderTokens
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -135,12 +137,12 @@ describe('BaseGitHubAuthenticator', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await github?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     const authorizeUrl: (query?: Record<string, string>) => string = query => `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, ...query }).toString()}`;
 

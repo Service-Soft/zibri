@@ -1,11 +1,14 @@
-# Authentication & Authorization
-The following guide will explain to you how the auth system in Zibri works and how you can extend it.
+# Authentication and authorization
+Signing users in, and deciding what each request may do. An authenticator checks who someone is, such as by email and password. An auth strategy carries the login from one request to the next, such as in a bearer token. The `@Auth` decorators guard your routes with the user the strategy resolves.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `BaseUserEntity` | function | Helper base class to extend your own user entity from |
-| `AuthService` | class | Manages the registered auth strategies and authenticators, and exposes generic auth checks |
+| `BaseUserEntity`, `BaseUser` | function, type | The base class your user entity extends, and what every user has: an email, their platform roles and when they were deactivated |
+| `BaseUserRepository`, `UserRepositoryInterface` | function, interface | The base class the repository of your user entity extends, and what the framework reads and writes users through |
+| `USER_ENTITY`, `USER_REPOSITORY` | constant | Mark an entity and a repository as the ones of users. `BaseUserEntity` and `BaseUserRepository` set them |
+| `UserAccount` | type | A user without their roles: what a stored user and the [`CurrentUser`](./roles-and-permissions.md#in-your-own-code) of a request have in common, and what the two factor methods take |
+| `AuthService`, `AuthServiceInterface` | class, interface | Manages the registered auth strategies and authenticators, logs users in and runs the auth checks. Replaceable through `ZIBRI_DI_TOKENS.AUTH_SERVICE` |
 | `AuthenticatorInterface` | interface | Contract for proving who someone is, such as by password |
 | `IdentityLinkingAuthenticatorInterface` | interface | Contract for an authenticator whose users sign in with an identity they have somewhere else, linked to them. See [connecting a provider](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account) |
 | `IdentityLinkingAuthenticators` | type | A list of such authenticator classes |
@@ -13,11 +16,14 @@ The following guide will explain to you how the auth system in Zibri works and h
 | `LinkedIdentity` | class | An identity linked to a user, with the name of the authenticator it is linked through |
 | `ProviderAccessAuthenticatorInterface` | interface | Contract for an authenticator that keeps a provider's tokens, so its apis can be called for a user. See [calling a provider's apis](./sign-in-through-a-provider.md#calling-a-providers-apis) |
 | `RefreshResolvingAuthenticatorInterface`, `isRefreshResolvingAuthenticator` | interface, function | Contract for an authenticator that has a say in every refresh of a login, such as a [directory](./sign-in-through-a-directory.md#a-disabled-entry), and tells one apart |
-| `AuthController` | function | Defines the routes a client logs in, refreshes, logs out, resets a password and enrols a second factor with. See [the auth routes](./auth-routes.md) |
+| `AuthController` | function | Defines the routes a client logs in, refreshes, logs out, resets a password and enrolls a second factor with. See [the auth routes](./auth-routes.md) |
 | `PasswordAuthenticator` | class | Builtin authenticator checking an email and password, used by default. Also resets a forgotten password |
 | `PasskeyAuthenticator` | class | Builtin authenticator signing users in with a passkey. See [passkeys](./passkeys.md) |
 | `BaseLdapAuthenticator`, `BaseActiveDirectoryAuthenticator` | class | Authenticators to extend, checking a password against a directory. See [sign-in through a directory](./sign-in-through-a-directory.md) |
 | `PasswordCredentials` | class | Entity storing the passwords `PasswordAuthenticator` checks |
+| `PasswordCredentialsCreateData` | class | What a password is stored with: the user's id and the password, hashed as it is stored |
+| `PasswordCredentialsDto` | class | What a login with a password takes: the email and the password |
+| `PasswordResetToken` | entity | A token confirming a password reset. Kept hashed |
 | `Authentication` | type | Who an authenticator authenticated, and when |
 | `DefaultAuth` | type | What a route with no `@Auth` decorator requires. Set on the application options, no default |
 | `AccountDeactivatedError` | class | What a login of a [deactivated user](#deactivating-a-user) is refused with |
@@ -25,6 +31,12 @@ The following guide will explain to you how the auth system in Zibri works and h
 | `LoginAuthStrategyInterface` | interface | Contract for an auth strategy that also starts, refreshes and ends logins |
 | `TokenIntrospectingAuthStrategyInterface`, `ClientAccessTokenIssuingAuthStrategyInterface`, `ClientCertificateAuthStrategyInterface` | interface | What a strategy can do besides saying who a request is from, see [what a strategy can do](#what-a-strategy-can-do) |
 | `JwtAuthStrategy` | class | Builtin auth strategy sending a Bearer token, used by default |
+| `JwtAuthData` | class | What a JWT login and its refresh answer: the access and refresh token, the user's id and their roles |
+| `JwtRefreshToken` | entity | A refresh token of a JWT login. Kept hashed |
+| `CookieAuthStrategy` | class | Builtin auth strategy keeping a login in session cookies, with a [CSRF token](#sending-the-csrf-token) |
+| `CookieAuthData` | class | What a cookie login and its refresh answer: the user's id and roles, the CSRF token, and when the session and the refresh session expire |
+| `CookieAuthSessionOptionsInput` | type | The name and the attributes of a session cookie, such as `sameSite` and `secure`, via `ZIBRI_DI_TOKENS.COOKIE_AUTH_SESSION_OPTIONS` and `ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_OPTIONS` |
+| `CookieAuthSession`, `CookieAuthRefreshSession` | entity | A session and a refresh session of a cookie login. Kept hashed |
 | `ApiKeyAuthStrategy` | class | Builtin auth strategy reading an api key of a user. See [api keys](./api-keys.md) |
 | `BaseClientCertificateAuthStrategy` | class | Auth strategy reading the client certificate a proxy forwards. See [client certificates](./client-certificates.md) |
 | `ClientAccessTokenAuthStrategy` | class | Builtin auth strategy reading the access tokens the authorization server issues to clients. See [issuing tokens to services](./authorization-server.md) |
@@ -45,9 +57,8 @@ The following guide will explain to you how the auth system in Zibri works and h
 | `PASSWORD_MAX_LENGTH` | constant | The longest password the builtin auth endpoints accept: 1024 characters |
 | `repositoryTokenFor` | function | Resolves the DI token for a given entity's repository |
 
-## Usage
-### Auth strategies and authenticators
-Zibris auth system has two parts.
+## Registering strategies and authenticators
+The auth system has two parts.
 
 An **authenticator** proves who someone is. `PasswordAuthenticator` checks an email and a password, and resets a forgotten password by email. A user can also [sign in through a provider](./sign-in-through-a-provider.md) such as Google or your company's Keycloak, [through a directory](./sign-in-through-a-directory.md) such as Active Directory, or [with a passkey](./passkeys.md).
 
@@ -58,8 +69,8 @@ An **auth strategy** says who a request is from. `JwtAuthStrategy` and `CookieAu
 
 `ApiKeyAuthStrategy` resolves the user of a request from an [api key](./api-keys.md) instead, `BaseClientCertificateAuthStrategy` from a [client certificate](./client-certificates.md), `ClientAccessTokenAuthStrategy` from an access token [issued to a service](./authorization-server.md), and `ProviderTokenAuthStrategy` from a token [your identity provider issued](./provider-tokens.md). None of them starts logins. `JwtAuthStrategy` takes only the access tokens of logins, so `@Auth.isLoggedIn([JwtAuthStrategy])` keeps a route to people. A route naming a strategy also takes the registered strategies extending it.
 
-#### What a strategy can do
-Besides saying who a request is from, a strategy can do more, which the framework asks for by an interface rather than by a class. Each interface has a function telling a strategy that implements it apart, and `AuthService.resolveStrategies` answers the registered strategies that do:
+### What a strategy can do
+A strategy can do more than say who a request is from. Each of these abilities is an interface, with a function telling a strategy that implements it apart. `AuthService.resolveStrategies` answers the registered strategies that implement one:
 
 | Interface | What the strategy does | Asked by | Builtin |
 |---|---|---|---|
@@ -93,53 +104,39 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authenticators' | 'auth
 A password reset ends every login of the user, in every registered strategy, and keeps their api keys. Every login goes through an authenticator, so the credentials of a login are typed by the authenticator and its answer by the strategy:
 
 ```ts
-import { AuthServiceInterface, JwtAuthData, PasswordCredentialsDto } from 'zibri';
+// src/services/log-in.function.ts
+import { AuthServiceInterface, JwtAuthData, JwtAuthStrategy, PasswordAuthenticator, PasswordCredentialsDto } from 'zibri';
 
 export async function logIn(authService: AuthServiceInterface, credentials: PasswordCredentialsDto): Promise<JwtAuthData<string>> {
     return await authService.login(PasswordAuthenticator, JwtAuthStrategy, credentials, undefined);
 }
 ```
 
-However, you will probably never use these strategies directly, as Zibri provides an AuthService that automatically manages these strategies in the background for you:
+## Writing a strategy of your own
+`AuthService` runs every check against the registered strategies. A route asking for a login passes with a user from any of them: a bearer token of `JwtAuthStrategy`, a session cookie of `CookieAuthStrategy`, or a strategy of your own.
 
-### AuthService
-The auth service is where the auth strategies are managed. It bundles all their functionality and provides generic methods to eg. check if there is a logged in user, with any of the auth strategies registered.
+A strategy turns a request into a user. The auth service answers every check with that user: whether they are logged in, hold a permission or own the resource. A strategy you write implements:
 
-So you could use the builtin JwtAuthStrategy (registered by default when no auth strategies have been provided) which sends a Bearer token with the currently logged in user data and another custom strategy that might use cookies/anything else to determine the currently logged in user and the AuthService is able to determine if a user is logged in, no matter which strategy he uses.
+| Member | What it answers |
+|---|---|
+| `hasCredential` | Whether the request carries its kind of credential, see [one credential per request](#one-credential-per-request) |
+| `resolveUser` | The user of the request |
+| `resolveAuthenticatedAt` | When its user logged in, which a route accepting a [recent login](./two-factor.md#accepting-a-recent-login-instead) reads. `undefined` when the strategy cannot say |
+| `resolveExpiresAt` | When its credential stops being accepted, read when a [websocket connection](./websocket.md#logins) made with it is checked again. `undefined` for a credential that does not expire |
+| `resolveProviderAuthentication` | For logins from a sign-in at a provider: how the user proved who they are there, which a route [counting the provider's second factor](./two-factor.md#accepting-the-providers-second-factor) reads |
 
-**A strategy's job is to turn a request into a user, and that is all.** Whether that user is logged
-in, holds a role or owns the resource being addressed are all the same question about the same
-person, so the auth service answers them itself. A strategy you write implements `resolveUser` and
-`hasCredential`, and inherits every check — which also means no strategy can disagree with another
-about what "has this role" means. It also implements `resolveAuthenticatedAt`, the time its user
-logged in, which a route accepting a [recent login](./two-factor.md#accepting-a-recent-login-instead)
-reads. Answer `undefined` when your strategy cannot say. And it implements `resolveExpiresAt`, the
-time its credential stops being accepted, when a [websocket connection](./websocket.md#logins) made
-with it is checked again. Answer `undefined` for a credential that does not expire. A strategy that
-starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them.
-Where it ends a login itself, such as on a logout, it calls `disconnectEndedLogins` on the websocket
-service with the user and the transaction, so the connections of that login are closed. Before a
-refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction,
-and continues the login as the user it answers: an authenticator such as a
-[directory](./sign-in-through-a-directory.md#a-disabled-entry) may update the user or refuse the refresh.
+A strategy that starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them. Where it ends a login itself, such as on a logout, it calls `disconnectEndedLogins` on the websocket service with the user and the transaction, so the connections of that login close. Before a refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction, and continues the login as the user it answers. An authenticator such as a [directory](./sign-in-through-a-directory.md#a-disabled-entry) may update the user there, or refuse the refresh.
 
-The user is resolved **once per request**, however many checks a route carries — a route requiring a
-login, a role and ownership costs one lookup, not three, and `@CurrentUser` shares it. What is shared
-is the answer for one set of strategies, so a `@CurrentUser` naming a narrower set than the checks
-did is resolved on its own — the point of naming one is that a credential the parameter excludes
-must not be able to fill it.
+The user is resolved once per request, however many checks a route carries, and `@CurrentUser` shares that lookup. A `@CurrentUser` naming a narrower set of strategies than the checks is resolved on its own, so a credential it excludes never fills it.
 
-### What an undecorated route requires
-Every application has to say what a route carrying no `@Auth` decorator gets. There is no default,
-so this is a required option:
+## What an undecorated route requires
+Every application says what a route carrying no `@Auth` decorator gets. `defaultAuth` has no default, see [why some options have no default](./faq.md#why-do-some-options-have-no-default):
 
 ```ts
 // src/index.ts
-import { Auth, Controller, CookieAuthSessionOptionsInput, defineProvider, Get, HttpMethod, JwtAuthOptionsInput, Ms, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
+import { ZibriApplication } from 'zibri';
 
 import { applicationOptions } from './application-options';
-import { MySharedAuthRateLimiter } from './rate-limiters';
-import { secrets } from './secrets';
 
 const app: ZibriApplication = new ZibriApplication({
     ...applicationOptions,
@@ -147,229 +144,134 @@ const app: ZibriApplication = new ZibriApplication({
 });
 ```
 
-`'public'` lets such a route through unauthenticated. `'requireLogin'` refuses it to anyone who is
-not logged in, so forgetting a decorator on a new endpoint costs a `401` the first time you call it
-rather than an endpoint anyone on the internet can reach.
+`'public'` lets such a route through unauthenticated. `'requireLogin'` refuses it to anyone who is not logged in, so a forgotten decorator answers `401` instead of opening the endpoint to everyone.
 
-**There is no default on purpose.** An api that is open by design and an api that guards everything
-are both perfectly ordinary, and picking either one for you would make "you forgot to say" look
-exactly like "you said this". Making it a required option asks the question once, at the only place
-where it can be answered, and the compiler asks it rather than a warning in a log nobody reads.
-
-Under `'requireLogin'`, a route that really is public says so with `@Auth.skip()` — on the route or
-on the whole controller:
+Under `'requireLogin'`, a public route says so with `@Auth.skip()`, on the route or on the whole controller:
 
 ```ts
+// src/controllers/status.controller.ts
+import { Auth, Controller, Get } from 'zibri';
+
 @Auth.skip()
 @Controller('/status')
 export class StatusController {
     @Get('/health')
     async health(): Promise<unknown> {
-        // reachable by anyone, whatever the application declared
         return { ok: true };
     }
 }
 ```
 
-`@Auth.isLoggedIn.skip()` opts out of it too, since that is precisely what it says.
+`@Auth.isLoggedIn.skip()` opts out of it too.
 
-The generated OpenApi spec says the same thing: a route protected only by the default is documented
-as requiring authentication, and only the routes that opted out are documented as public.
+The generated OpenAPI spec documents a route protected only by the default as requiring authentication, and only the routes that opted out as public.
 
-Under `'public'` a bare `@Auth.skip()` has nothing to skip, and Zibri warns about it — a decorator
-that makes a route look guarded while doing nothing is worth removing. A controller shipped in a
-library is the exception: it cannot know which default the application picked, and has to state its
-own posture either way. It says so with `@Auth.skip({ allowRedundant: true })`, which is what the
-builtin auth controllers use.
+Under `'public'`, a bare `@Auth.skip()` has nothing to skip, and the application logs a warning for it. A controller shipped in a library cannot know which default the application picked, so it states its own posture with `@Auth.skip({ allowRedundant: true })`, which logs nothing. The builtin auth controllers use it.
 
-Both that warning and the refusal below happen while the route is registered, so they appear once,
-at boot, for every route the application declares — not once per request that reaches one.
+A route, and a controller, carries either `@Auth.skip()` or checks. A check never sits beside its own skip either, such as `@Auth.hasPermission(…)` above `@Auth.hasPermission.skip()`.
 
-### Declarations that contradict each other
+## Protecting manually registered routes
 
-`@Auth.skip()` beside a check, on the same route or on the same controller, says two things at once:
-run this check, and check nothing. So does a check beside its own skip, such as `@Auth.hasRole([…])`
-above `@Auth.hasRole.skip()`. There is no reading of either pair a request could be served under, and
-an application that registers such a route does not start:
-
-```
-InvalidDecoratorCombinationError: InvoiceController.list was decorated with @Auth.hasRole,@Auth.skip
-```
-
-Booting is when a deployment can still be stopped, which is why this is a startup failure rather than
-a 500 for whoever calls the route first.
-
-Two values, deliberately. Every other check — a role, ownership, a second factor — resolves a user
-first, so `'requireLogin'` is implied by all of them, and whether a route's own decorators replace
-the application wide default or combine with it is a question that cannot be answered wrong. An
-application wide *role* would make that question real, and every answer to it is defensible.
-
-### Protecting manually registered routes
-
-A route registered directly on the router with `registerRoute` is covered by the same default. It
-carries no decorators, so it states its posture as data instead:
+A route registered directly on the router with `registerRoute` is covered by the same default. It carries no decorators, so it states its posture as data instead:
 
 ```ts
+// src/routes/status.route.ts
+import { HttpMethod, inject, ZIBRI_DI_TOKENS } from 'zibri';
+
 inject(ZIBRI_DI_TOKENS.ROUTER).registerRoute({
     httpMethod: HttpMethod.GET,
     route: '/status',
-    // the same checks the decorators express. Leave `auth` out to let `defaultAuth` decide,
-    // which is what an undecorated controller route does.
     auth: { skip: true },
     handler: () => 'ok'
 });
 ```
 
-`auth` takes `isLoggedIn`, `isNotLoggedIn`, `hasRole`, `hasPlatformRole` and `require2fa` — the metadata the matching
-decorators produce — plus `skip`, which is `@Auth.skip()` for a route that has no method to put it
-on. Whichever way a route was written down, the same checks run in the same order and answer with the
-same statuses, and the OpenAPI spec documents it the same way.
+Without `auth`, `defaultAuth` decides, as on an undecorated controller route. `auth` takes `isLoggedIn`, `isNotLoggedIn`, `hasPermission`, `hasPlatformPermission` and `require2fa`, the metadata the matching decorators produce. It also takes `skip`, which is `@Auth.skip()` for a route that has no method to put it on. The same checks run in the same order and answer with the same statuses as on a decorated route, and the OpenAPI spec documents the route the same way.
 
-**Static assets are the exception.** Files in `assets/public` are mounted as express middleware
-rather than as routes and are served at `/assets` to anyone, whatever `defaultAuth` says — that is
-what the folder is for, and a stylesheet a login page needs has to load before there is a login.
-Anything a login should gate belongs behind a route rather than in that folder.
+Files in `assets/public` are served at `/assets` to anyone, whatever `defaultAuth` says, since a login page needs its stylesheet before there is a login. Put anything a login should gate behind a route.
 
-**The OpenApi surface answers anonymously unless the application says otherwise.** `/explorer`, the
-scripts it loads and `/explorer/spec/:version` are public whatever `defaultAuth` says, because a
-browser reaches the explorer by navigating to it and a navigation carries no `Authorization` header:
-a login requirement there is not an explorer only your callers can open, it is one nobody can.
+The OpenAPI explorer and its documents answer anonymously by default, whatever `defaultAuth` says, see [restricting the explorer](./open-api.md#restricting-the-explorer).
 
-An api whose endpoint map is not for everyone says so in one place. `ZIBRI_DI_TOKENS.OPEN_API_AUTH`
-takes the same configuration a manually registered route takes, so the surface can require a login,
-require a role, or simply fall back to whatever the application declared:
+## What a refusal answers
+A refused request gets a `401` when the caller could not be identified, and a `403` when they could and the answer is still no:
 
-```typescript
-providers: [
-    // behind the application's default, whatever it is
-    defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_AUTH, useFactory: () => ({}) }),
-    // or behind a role, regardless of the default
-    defineProvider({
-        token: ZIBRI_DI_TOKENS.OPEN_API_AUTH,
-        useFactory: () => ({ hasPlatformRole: { allowedRoles: [Roles.ADMIN] } })
-    })
-]
-```
-
-Reaching it in a browser then depends on the strategy: a cookie session rides along with the
-navigation, a bearer token cannot. Under a token-only strategy the spec stays readable by anything
-that can set a header — a code generator, a client library — and the explorer page does not.
-
-### What a refusal answers
-A refused request gets a `401` when the framework could not establish who the caller is, and a `403`
-when it could and the answer is still no:
-
-| Check | Status | Why |
+| Check | Status | Meaning |
 |---|---|---|
-| `@Auth.isLoggedIn` / the `'requireLogin'` default | `401` | nobody was resolved, so a credential is the thing that is missing |
+| `@Auth.isLoggedIn` / the `'requireLogin'` default | `401` | nobody was resolved, so a credential is missing |
 | a request for a [tenant](./tenancy.md#the-tenant-of-a-request) | `403` | the caller is known and is no member of the tenant |
-| `@Auth.hasRole` / `@Auth.hasPlatformRole` | `403` | the caller is known and lacks the role |
+| `@Auth.hasPermission` / `@Auth.hasPlatformPermission` | `403` | the caller is known and none of their roles carries the [permission](./roles-and-permissions.md) |
 | `@Auth.isNotLoggedIn` | `403` | the caller is known, and that is the reason it is refused |
 | `@Auth.require2fa` | `401` | a second factor is a further credential the caller can still present |
 
-The split matters because clients act on it. Every mainstream http client and SPA auth library reads
-a `401` as *"this credential is stale — refresh it and retry"*, so answering a missing role with one
-sends it into a refresh loop that succeeds at refreshing and never at the request. A `403` says the
-credential is fine and retrying is pointless, which is the only thing the client can usefully do
-something about.
+Clients act on the difference. HTTP clients and SPA auth libraries read a `401` as a stale credential to refresh and retry, and a `403` as a final answer.
 
-Row level restrictions are not in this table because they are not route checks. An entity that
-declares a `scope` narrows every query on it to the rows the caller may see, so a row outside that is
-`404` — the same answer as for a row that does not exist, which is what keeps a guarded route from
-telling anyone which ids are real. A scope may also refuse the request outright, with whatever it
-throws. See [restricting which rows a caller may see](./data-source.md#restricting-which-rows-a-caller-may-see).
+Row level restrictions are not route checks. An entity that declares a `scope` narrows every query on it to the rows the caller may see. A row outside that answers `404`, the same as a row that does not exist, so a guarded route does not reveal which ids exist. A scope may also refuse the request outright, with whatever it throws. See [restricting which rows a caller may see](./data-source.md#restricting-which-rows-a-caller-may-see).
 
-`@Auth.require2fa` sits on the `401` side deliberately: a caller who has not presented a second
-factor still has one to present, so this really is a request for a further credential rather than a
-verdict on the caller — the reading [RFC 9470](https://www.rfc-editor.org/rfc/rfc9470.html) gives
-step-up authentication.
+`@Auth.require2fa` answers `401` because the caller still has a second factor to present. This is the reading [RFC 9470](https://www.rfc-editor.org/rfc/rfc9470.html) gives step-up authentication.
 
 Your own handlers get the same two: throw `UnauthorizedError` or `ForbiddenError` from
 [error handling](./error-handling.md).
 
-### One credential per request
-`hasCredential` asks whether a request carries your kind of credential at all — a header being
-there, a cookie being set — without looking anything up. It is what selects the strategy that runs,
-so registering three strategies costs one lookup per request rather than three.
+## One credential per request
+`hasCredential` answers whether a request carries your kind of credential at all, such as a header being there or a cookie being set, without looking anything up. It selects the strategy that runs, so only that strategy looks anything up.
 
-Exactly one strategy may claim a request. None means nobody is logged in; **more than one is
-refused with a 401**, before anything is read:
+Exactly one strategy may claim a request. None means nobody is logged in. More than one is refused with a `401`, before anything is read:
 
 > This request carries more than one credential (jwt, cookie). Send exactly one.
 
-A client sending both a bearer token and a session cookie is either confused or attacking. Resolving
-it either way would mean one identity satisfies the check while the handler acts as the other — a
-browser attaches its cookie to every request, so whoever supplies the second credential would decide
-which of the two a route sees.
+Answer `hasCredential` from presence, never validity. A token that fails to verify still claims the request, so a junk header cannot pair with someone else's cookie and have the cookie win.
 
-Answer it from presence, never validity. A token that fails to verify still claims the request;
-saying "no credential" for it would let a junk header pair with someone else's cookie and have the
-cookie win.
+## Naming the session cookie
+A `Cookie` header may carry the same name more than once, and the browser sends the most specific first: a cookie set on `app.example.com` arrives ahead of one set on `example.com`. The first one is kept, so a cookie set for the parent domain, such as by a sibling subdomain, does not replace yours.
 
-### A cookie sent twice
-A `Cookie` header may carry the same name more than once, and the browser sends them most-specific
-first: a cookie set on `app.example.com` arrives ahead of one set on `example.com`. **Zibri keeps the
-first.**
-
-That ordering is the only thing separating the two. Anything able to write a cookie for the parent
-domain — a sibling subdomain, or script injected anywhere under it — can send a second `sessionId`,
-and it is signed by its own real login, so no signature check rejects it. Ordering is what stops it
-from deciding who the request is.
-
-That is a defence you get for free, not one to rely on. If your api shares a registrable domain with
-anything you do not control, give the cookie a `__Host-` name so the browser refuses to set it from a
-parent domain at all:
+If your api shares a registrable domain with anything you do not control, give the cookie a `__Host-` name. The browser then refuses to set it from a parent domain:
 
 ```ts
+// src/providers.ts
+import { CookieAuthSessionOptionsInput, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.COOKIE_AUTH_SESSION_OPTIONS,
     useFactory: (): CookieAuthSessionOptionsInput => ({ name: '__Host-sessionId', sameSite: 'strict' })
 })
 ```
 
-A `__Host-` cookie has to be `Secure`, `Path=/` and carry no `Domain`, so it only works over https —
-which is also the only place a session cookie belongs.
+A `__Host-` cookie has to be `Secure`, `Path=/` and carry no `Domain`, so it works over HTTPS only.
 
-Malformed cookies are ignored rather than rejected. `Cookie: a=%` is not valid percent encoding, but
-it is not the request's fault and it is not worth an error: the raw value is used as it stands.
+A malformed cookie, such as `Cookie: a=%` with its invalid percent encoding, is not an error: its raw value is used as it stands.
 
-### Session cookie flags
-`httpOnly` and `signed` are always on and are not configurable. `sameSite` defaults to `lax`, `path`
-to `/`.
+## Setting the session cookie flags
+`httpOnly` and `signed` are always on. `sameSite` defaults to `lax`, `path` to `/`. The cookies are signed with the secret of `ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET`, which `CookieAuthStrategy` requires.
 
-`secure` is decided per request from whether the connection was https — `req.secure`, which honours
-the forwarded protocol for as many hops as `security.trustProxy` declares. The `X-Forwarded-Proto`
-header is never read on its own, because the client controls it.
+`secure` follows whether the connection was HTTPS: `req.secure`, which honors the forwarded protocol for as many hops as `security.trustProxy` declares. The `X-Forwarded-Proto` header is never read on its own, because the client controls it.
 
-If your api is https-only, say so instead of relying on that:
+If your api is HTTPS only, set it:
 
 ```ts
+// src/providers.ts
+import { CookieAuthSessionOptionsInput, defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.COOKIE_AUTH_SESSION_OPTIONS,
     useFactory: (): CookieAuthSessionOptionsInput => ({ name: 'sessionId', path: '/', sameSite: 'lax', secure: true })
 })
 ```
 
-An explicit `true` always wins, so a missing or wrong `trustProxy` cannot downgrade the cookie to one
-the browser will send over plain http. `false` turns the flag off outright — useful for local
-development, and nowhere else.
+An explicit `true` always wins, so a missing or wrong `trustProxy` cannot downgrade the cookie to one the browser sends over plain HTTP. `false` turns the flag off. Use it for local development only.
 
-### Cross-site request forgery
-The browser attaches your session cookie to every request to your api, including ones another site
-caused. The csrf token is what tells your front end's requests apart from those: it goes in the
-`x-csrf-token` header, which another origin cannot set unless your CORS configuration lets it.
+## Sending the CSRF token
+The browser attaches your session cookie to every request to your api, including ones another site caused. The CSRF token tells your frontend's requests apart from those. It goes in the `x-csrf-token` header, named by `ZIBRI_DI_TOKENS.CSRF_TOKEN_HEADER`, which another origin cannot set unless your CORS configuration lets it.
 
-**Checked on unsafe methods only.** `GET`, `HEAD` and `OPTIONS` are exempt. The check also only runs
-on routes that resolve the session — if a route never asks who you are, the token was not what
-authorized it.
+The token is checked on unsafe methods only: `GET`, `HEAD` and `OPTIONS` are exempt. It is also checked only on routes that resolve the session.
 
-**Getting the token.** `login` and `refresh-login` return it in the response body. It is also
-reissued whenever the session rotates, which includes the rotation that happens inside an ordinary
-request once the session cookie expires. That reissue arrives on the `x-csrf-token` *response*
-header, because that response belongs to whichever route you were calling. Read it off every
-response and keep the most recent:
+`login` and `refresh-login` return the token in the response body. A client holding only the cookies, such as after a page reload, reads the token of its login from [`GET /auth/csrf-token`](./auth-routes.md#the-routes).
+
+Each token belongs to one refresh session. A refresh that rotates the session issues a new one, and the previous one stops being accepted.
+
+The session cookie expires after `COOKIE_AUTH_SESSION_EXPIRES_IN_MS`, a day by default. The next request carrying the refresh cookie renews the session inside that request, whichever route it calls. It answers with new cookies, and with the new token in the `x-csrf-token` response header. A client reads the token off every response and keeps the most recent:
 
 ```ts
+// src/csrf-token.ts, in the browser
 let csrfToken: string | undefined = undefined;
 
 export function rememberCsrfToken(response: Response): void {
@@ -380,50 +282,36 @@ export function rememberCsrfToken(response: Response): void {
 }
 ```
 
-A client that only ever reads the login response will work until its first rotation and then start
-getting 401s, so wire up the header before you rely on long-lived sessions.
+From another origin, naming your origin in the CORS configuration is enough. The `x-csrf-token` header is listed in both `Access-Control-Allow-Headers` and `Access-Control-Expose-Headers`, so the token can be sent and read back.
 
-**Each token belongs to one refresh session.** Rotation issues a new one and the previous one stops
-being accepted, which bounds how long a leaked token is worth anything to whoever leaked it.
-
-From another origin this needs no extra configuration beyond naming your origin: the framework lists
-its own headers in both `Access-Control-Allow-Headers` and `Access-Control-Expose-Headers`, so the
-token can be sent and read back.
-
-**Routes that never resolve a session** — every undecorated route under `defaultAuth: 'public'`, and
-anything carrying `@Auth.skip()` under either setting — do not check the token. On those, and on every
-other route, a request that changes something and carries cookies is refused when a page on another
-origin sent it, unless your CORS configuration lets that origin send credentials. See
+Routes that never resolve a session do not check the token: every undecorated route under `defaultAuth: 'public'`, and anything carrying `@Auth.skip()` under either setting. On those, and on every other route, a request that changes something and carries cookies is refused when a page on another origin sent it, unless your CORS configuration lets that origin send credentials. See
 [app settings](./app-settings.md#what-a-request-from-a-disallowed-origin-does).
 
-### What a jwt has to prove
+## What a jwt has to prove
 A token is accepted only when all of this holds:
 
-| Checked | Why |
+| Checked | What it ensures |
 |---|---|
 | Signature, against the key for that kind of token | It came from you and nobody edited it |
-| `alg` is the algorithm of that key | The algorithm is pinned rather than read off the token |
+| `alg` is the algorithm of that key | The algorithm comes from the key, never from the token |
 | Not expired | `exp`, from the lifetimes above |
-| `iss` matches your application's `baseUrl` | Another application sharing your secret is still not you |
-| `aud` of an access token is your `baseUrl` | A token issued for [another service](./authorization-server.md#services-receiving-tokens) is not for you |
+| `iss` matches your application's `baseUrl` | A token of another application sharing your secret is refused |
+| `aud` of an access token is your `baseUrl` | A token issued for [another service](./authorization-server.md#services-receiving-tokens) is refused |
 | The `typ` header is `at+jwt` for an access token, `JWT` for a refresh token | One kind of token is never taken as the other |
-| The payload has the shape that kind of token carries | A signature says a token is authentic, not that it is the *right* token |
+| The payload has the shape that kind of token carries | An authentic token of the wrong kind is refused |
 | A token bound to a DPoP key comes with the `DPoP` scheme and a proof of that key, see [binding tokens to a key](./dpop.md) | A token that leaked without the key is worth nothing |
 
-**The issuer is your `baseUrl` from the application options**, without a trailing slash, and every
-access token names it as its audience too. Nothing to configure — but that makes the url part of
-your token contract in two directions. Changing `baseUrl` invalidates every token already issued, so
-treat it as a forced logout. And every replica of the application verifies against its own
-`baseUrl`, so all of them have to boot with the same one: a url derived per pod — from a hostname, a
-container id, an ordinal — means a token minted by one replica is refused by every other, and behind
-a load balancer that reads as callers being randomly logged out. Set it to the public url of the
-deployment, alongside the secrets.
+The issuer is your `baseUrl` from the application options, without a trailing slash, and every access token names it as its audience too. There is nothing to configure.
 
-**Everything the strategy needs comes from one token,** `JWT_AUTH_OPTIONS_INPUT`. Only the access
-token key and the refresh token secret have no default, because a framework that shipped one would
-give every application the same signing key:
+> [!WARNING]
+> Changing `baseUrl` invalidates every token already issued, which logs everybody out. Every replica verifies against its own `baseUrl`, so all of them boot with the same one: the public URL of the deployment. With a URL derived per pod, such as from a hostname or a container id, each replica refuses the tokens of the others, and callers behind a load balancer are logged out at random.
+
+Everything the strategy needs comes from one token, `JWT_AUTH_OPTIONS_INPUT`. The access token key and the refresh token secret have no default, since a shipped default would give every application the same signing key:
 
 ```ts
+// src/providers.ts
+import { defineProvider, JwtAuthOptionsInput, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
     useFactory: (): JwtAuthOptionsInput => ({
@@ -435,24 +323,17 @@ defineProvider({
 
 `requireDpop`, `false` by default, binds every login to a [DPoP key](./dpop.md) when `true`.
 
-The access token key is held by the jwt service, `ZIBRI_DI_TOKENS.JWT_SERVICE`, which signs and
-verifies the access tokens of every strategy issuing them, `ClientAccessTokenAuthStrategy` included.
+The jwt service, `ZIBRI_DI_TOKENS.JWT_SERVICE`, holds the access token key. It signs and verifies the access tokens of every strategy issuing them, `ClientAccessTokenAuthStrategy` included.
 
-**Every key has to be a different value.** Which key verifies a token is the only thing that tells
-an access token from a refresh token. Give both the same secret and a refresh token — 30 days, meant
-to be spent once — verifies as a bearer credential for its whole life. The strategy refuses to start
-when any two of the configured keys match.
+Every key has a different value: the key that verifies a token is what tells an access token from a refresh token.
 
-#### Signing with a key pair
-A string is a shared secret, and every service that verifies your access tokens has to hold it — which
-means every one of them can also mint them. Give `accessTokenKey` a key pair instead, and a verifier
-needs only the public key:
+### Signing with a key pair
+A string is a shared secret: every service that verifies your access tokens holds it, and so can also mint them. Give `accessTokenKey` a key pair instead, and a verifier needs only the public key:
 
 ```ts
+// src/providers.ts
 import { readFileSync } from 'node:fs';
-import { JwksController, JwtAsymmetricKey } from 'zibri';
-
-import { AppAuthController } from './controllers/auth.controller';
+import { JwtAsymmetricKey } from 'zibri';
 
 const accessTokenKey: JwtAsymmetricKey = {
     algorithm: 'ES256',
@@ -470,27 +351,28 @@ const accessTokenKey: JwtAsymmetricKey = {
 | `EdDSA` | Edwards curve, Ed25519 |
 | `RS256` | RSA, at least 2048 bits. For verifiers that accept nothing else |
 
-The strategy refuses to start when a key does not fit its algorithm, or when the key it signs with is
-not a private key. Refresh tokens are only ever verified by your application, so `refreshTokenSecret`
-stays a shared secret.
+Only your application verifies refresh tokens, so `refreshTokenSecret` stays a shared secret.
 
-Each token names its key in the `kid` header, the key's RFC 7638 thumbprint, so there is nothing to
-configure. Declare `JwksController` and your public keys are served as a JSON Web Key Set at
-`/.well-known/jwks.json`, current key first, for any verifier to fetch:
+Each token names its key in the `kid` header, the key's RFC 7638 thumbprint. Declare `JwksController` and your public keys are served as a JSON Web Key Set at `/.well-known/jwks.json`, current key first, for any verifier to fetch:
 
 ```ts
+// src/application-options.ts
+import { JwksController } from 'zibri';
+
+import { AppAuthController } from './controllers/auth.controller';
+
 controllers: [AppAuthController, JwksController]
 ```
 
-It refuses to start when every access token key is a shared secret, since there is nothing to
-publish. To publish them at another path, extend it, eg. `@Controller('/keys', { versions: 'all' })`
-on a class extending `JwksController` publishes them at `/keys/jwks.json`.
+`JwksController` requires a key pair among the access token keys. To publish the keys at another path, extend it: `@Controller('/keys', { versions: 'all' })` on a class extending `JwksController` publishes them at `/keys/jwks.json`.
 
-#### Replacing a key
-A key is replaced by moving the old one aside rather than overwriting it:
+### Replacing a key
+Replace a key by moving the old one to the previous keys. An unset variable is left out of them:
 
 ```ts
-// an unset variable is not a secret, so it is left out rather than passed on as undefined
+// src/providers.ts
+import { JwtAuthOptionsInput } from 'zibri';
+
 function previous(key: string): string[] {
     const value: string | undefined = process.env[key];
     return value == undefined ? [] : [value];
@@ -504,84 +386,113 @@ const rotatingSecrets = (): JwtAuthOptionsInput => ({
 });
 ```
 
-New tokens are always signed with the current key. A previous one only ever verifies, so tokens
-issued before the change keep working until they expire and nobody is logged out by a rotation. It
-matters most for the refresh secret, which is a live login: replacing it without a window signs out
-everyone who is not holding a valid access token at that moment.
+New tokens are always signed with the current key. A previous key only verifies, so tokens issued before the change work until they expire, and a rotation logs nobody out.
 
-A previous key pair only verifies, so its public key is enough, and `JwksController` keeps publishing
-it after the current one. The algorithm can change with the key: moving from a shared secret to a key
-pair, or from `RS256` to `ES256`, is a rotation like any other.
+> [!WARNING]
+> Replacing the refresh token secret without keeping the old one in `previousRefreshTokenSecrets` logs out everyone who does not hold a valid access token at that moment.
 
-**Drop a previous key once it is older than the lifetime of the tokens it signed** — an hour for
-access tokens, 30 days for refresh tokens by default. Until then it is a second key that can mint
-nothing but still verifies everything it ever signed, which is exactly as long as you want it to
-exist and no longer.
+A previous key pair only verifies, so its public key is enough, and `JwksController` keeps publishing it after the current one. The algorithm can change with the key: moving from a shared secret to a key pair, or from `RS256` to `ES256`, is a rotation like any other.
 
-### What a credential is worth
-Checks are decided on the account as it is right now, not on what the credential said when it was
-issued. Delete a user or take a role away and the next request is refused, rather than the first one
-after their token happens to expire.
+Drop a previous key once it is older than the lifetime of the tokens it signed: an hour for access tokens, 30 days for refresh tokens by default.
 
-That costs a lookup per request. A deployment that would rather not pay it can say so:
+## What a credential is worth
+Checks are decided on the account as it is right now, not on what the credential said when it was issued. Delete a user or take a role away, and their next request is refused.
+
+That costs a lookup per request. Turn it off:
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({ token: ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK, useFactory: () => false })
 ```
 
-Then a strategy that can name its caller from the request alone — `JwtAuthStrategy` can, from the
-token payload — answers checks without reading anything. **The trade is real: revocation then takes
-until the access token expires**, so shorten `accessTokenExpiresInMs` to whatever window you are
-willing to give a terminated account. Strategies that cannot answer without a lookup ignore the
-setting and stay authoritative, and `@CurrentUser` always gives you the stored user either way.
+Then a strategy that can name its caller from the request alone, as `JwtAuthStrategy` does from the token payload, answers checks without reading anything. Strategies that cannot answer without a lookup ignore the setting, and `@CurrentUser` always gives you the stored user.
 
-The account being read does not say whether the login is still there: by default an access token
-works until it expires, after a logout as well. Set `ACCESS_TOKEN_REVOCATION` to `'immediately'` and
-every check of an access token also reads whether its login still exists, so a logout, ending the
-user's logins or a password reset take its access tokens away at once:
+> [!WARNING]
+> With `REVALIDATE_USER_ON_AUTH_CHECK` set to `false`, a revoked account keeps working until its access token expires. Shorten `accessTokenExpiresInMs` to the window you accept for a terminated account.
+
+Reading the account does not say whether the login still exists: by default an access token works until it expires, after a logout as well. Set `ACCESS_TOKEN_REVOCATION` to `'immediately'`, and every check of an access token also reads whether its login still exists. A logout, ending the user's logins and a password reset then take its access tokens away at once:
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useValue: 'immediately' })
 ```
 
-`'immediately'` needs `REVALIDATE_USER_ON_AUTH_CHECK`, and the application refuses to start with that
-set to `false`. It covers the tokens [issued to services](./authorization-server.md#when-access-tokens-stop-working)
-too.
+`'immediately'` requires `REVALIDATE_USER_ON_AUTH_CHECK` to be `true`. It covers the tokens
+[issued to services](./authorization-server.md#when-access-tokens-stop-working) too.
 
-### How often a caller may try
-The builtin auth endpoints — login, the three password reset routes — are rate limited **per
-caller**, sharing one budget of 20 attempts per 10 minutes. A person who mistypes a password twice
-and then asks for a reset stays well inside it; unlimited attempts would make the login endpoint both
-a way in and a way to keep the event loop busy, since checking a password runs a deliberately slow
-hash. Exceeding it answers `429`.
+## How often a caller may try
+The builtin auth endpoints, login and the three password reset routes, are rate limited per caller. They share one budget of 20 attempts per 10 minutes. A caller is an IPv4 address or an IPv6 /64, the block one subscriber holds. A login that succeeds costs nothing of the budget, so the budget counts wrong passwords, whichever accounts they were for. Exceeding it answers `429`.
 
 Tune the numbers without replacing anything:
 
 ```ts
+// src/providers.ts
+import { defineProvider, Ms, RateLimitStoreFailurePolicy, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.AUTH_RATE_LIMIT_OPTIONS,
-    useFactory: () => ({ maxAttempts: 20, windowInMs: Ms.MINUTE * 15 })
+    useFactory: () => ({
+        maxAttempts: 20,
+        windowInMs: Ms.MINUTE * 15,
+        onStoreFailure: RateLimitStoreFailurePolicy.ALLOW
+    })
 })
 ```
 
-**The default limiter keeps its counts in memory, so the limit is per instance** — three replicas
-allow three times as much. That is the honest default: sharing the counts means a round trip on the
-login path and a data source that has to be up for anyone to log in at all. If you want an exact
-limit across a deployment, replace the limiter itself with one built on `RepositoryRateLimiterStore`:
+The limiter keeps counts for 100 000 callers at once, or `maxKeys`. `onStoreFailure` says what a
+caller it has no room for gets: `ALLOW` lets them in and counts it on the limiter's error metric,
+`REJECT` answers `503`. It defaults to `ALLOW`.
+
+> [!NOTE]
+> The default limiter keeps its counts in memory, so the limit is per instance: three replicas allow three times as much.
+
+For an exact limit across a deployment, replace the limiter with one built on `RepositoryRateLimiterStore`:
 
 ```ts
-defineProvider({ token: ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, useClass: MySharedAuthRateLimiter })
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { SharedAuthRateLimiter } from './services/shared-auth-rate-limiter';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, useClass: SharedAuthRateLimiter })
 ```
 
-See [rate limiting](./rate-limiting.md), and note that a per caller limit is only as good as the
-client address — behind a proxy, set `security.trustProxy`.
+See [rate limiting](./rate-limiting.md). A caller is told apart by their address, so behind a proxy, set `security.trustProxy`.
 
-### How long a password may be
+## Locking an account after too many wrong passwords
+With `passwordFailureLimit` in your app options, an account is locked once that many wrong passwords
+in a row were presented for it, from wherever they came:
+
+```ts
+// src/application-options.ts
+import { Ms, ZibriApplicationOptions } from 'zibri';
+
+export const lockingOptions: Pick<ZibriApplicationOptions, 'passwordFailureLimit'> = {
+    passwordFailureLimit: { maxFailures: 10, lockForMs: Ms.MINUTE * 30 }
+};
+```
+
+`maxFailures` is a whole number from 1 to 100. `passwordFailureLimit` defaults to `false`, which locks nothing.
+
+Declare `PasswordFailureStreak` in your data source.
+
+While the account is locked, the right password is refused like a wrong one, with `401` and the same
+message. The lock passes after `lockForMs`, and a [confirmed password reset](#asking-for-a-password-reset)
+lifts it before then. A correct password ends the streak, so ten wrong ones spread over a year lock
+nothing. Every lock is recorded as `auth.password.locked`, and a login refused by one as
+`auth.login` with `reason: locked`.
+
+## How long a password may be
 Login and confirming a password reset accept passwords of up to `PASSWORD_MAX_LENGTH` (1024)
 characters. A longer one answers `400`. Put a lower or the same limit on your own password fields, such as
 registration, so that every password a user can set is one they can log in with:
 
 ```ts
+// src/models/register-data.model.ts
 import { PASSWORD_MAX_LENGTH, Property } from 'zibri';
 
 export class RegisterData {
@@ -593,7 +504,7 @@ export class RegisterData {
 }
 ```
 
-### Deactivating a user
+## Deactivating a user
 `AuthService.deactivateUser` takes a user's access away and keeps the user: their logins end, their api keys are revoked, and until `reactivateUser` they cannot log in, by password, provider, directory or passkey alike, and no request acts as them. A login of a deactivated user answers `403` with an `AccountDeactivatedError`. A reactivated user logs in again; their api keys stay revoked.
 
 `deactivatedAt` on the user holds when they were deactivated. `BaseUserEntity` declares it, and your user repository writes it in `updateDeactivatedAt`, see [creating and registering user models](#creating-and-registering-user-models).
@@ -602,18 +513,19 @@ With `ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK` set to `false`, an access t
 
 `AuthService.endAccess` ends a user's logins and revokes their api keys too, but leaves them able to log in again. A [directory](./sign-in-through-a-directory.md#a-disabled-entry) does this to a user whose entry was disabled.
 
-### What gets recorded
-Auth failures answer with an `ExternalError`, and the error handler does not log those — a 401 is the
-api working, not breaking. So the auth subsystem records its own trail through
-[`logger.audit`](./logging.md#the-audit-trail):
+## What gets recorded
+Auth failures answer with an `ExternalError`, which the error handler does not log. The auth
+subsystem records its own events in the [audit trail](./audit.md) instead:
 
 | `action` | `outcome` | Carries |
 |---|---|---|
-| `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./sign-in-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user) |
+| `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./sign-in-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user), `reason: locked` for a [locked account](#locking-an-account-after-too-many-wrong-passwords) |
+| `auth.login.pending` | success | `subject`, `userId`, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) |
 | `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back, `reason: deactivated` when the user's [entry in a directory](./sign-in-through-a-directory.md#a-disabled-entry) was disabled |
-| `auth.logout` | success / failure | — |
+| `auth.logout` | success / failure | `userId` on success, `reason: refused` when what was presented names no login, `reason: error` when the login could not be ended and is still live |
 | `auth.password-reset.requested` | success / failure | `subject`, `userId` when a reset actually went out |
-| `auth.password-reset.confirmed` | success / failure | — |
+| `auth.password-reset.confirmed` | success / failure | Nothing else |
+| `auth.password.locked` | success | `userId`, see [locking an account](#locking-an-account-after-too-many-wrong-passwords) |
 | `auth.2fa` | failure | `userId` |
 | `auth.identity.linked` | success / failure | `userId` on success, see [connecting a provider](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account) |
 | `auth.identity.unlinked` | success / failure | `userId` |
@@ -629,31 +541,19 @@ api working, not breaking. So the auth subsystem records its own trail through
 | `auth.access.ended` | success / failure | `userId`, see [deactivating a user](#deactivating-a-user) |
 | `authz.check` | failure | `userId`, and which check said no |
 
-Three of these are worth a note.
+A failed login records the submitted address in the clear, so one client trying many accounts and many clients trying one account both show. A recorded subject says what was submitted, not that the account exists.
 
-**Failed logins record the address that was tried**, in the clear. One client against many accounts
-and many clients against one account are different attacks and neither is visible without it. A
-recorded subject says what was submitted, not that the account exists.
+A password reset request is recorded, although the endpoint tells the caller nothing. An address nobody holds is recorded as `failure` / `no-such-subject`: nothing was reset. A run of those against a list of addresses is someone probing for accounts.
 
-**Password reset requests are recorded even though the endpoint tells the caller nothing.** The reply
-is the same whether or not the address is known, on purpose — which leaves the trail as the only
-place that says an address was asked about at all. An address nobody holds is recorded as
-`failure` / `no-such-subject`: nothing was reset, and a run of those against a list of addresses is
-what probing for accounts looks like from the inside.
+`reason` separates refused from broken. `refused` means the credential was rejected. `error` means something failed while deciding, such as a user store that is down.
 
-**`reason` separates refused from broken.** A user store that is down refuses every login exactly the
-way a wrong password does. `refused` means the credential was rejected; `error` means something
-failed while deciding, and a trail that cannot tell them apart reads an outage as an attack.
+The events come from `AuthService`, so a strategy of your own is audited too. For such a strategy:
 
-The events come from `AuthService`, not from the strategies, so a custom auth strategy is audited
-without having to remember to be. Two things it cannot know for you: `subject` is read from an
-`email` field on the credentials, so a strategy that names its users some other way records none
-rather than a wrong one, and reuse of a spent refresh credential is only visible inside the strategy
-that detects it — throw `CredentialReusedError` and it is recorded as `token-reused` while the
-response stays an ordinary 401.
+- `subject` is read from an `email` field on the credentials. A strategy that names its users another way records no subject.
+- Reuse of a spent refresh credential is visible only inside the strategy that detects it. Throw `CredentialReusedError`, and it is recorded as `token-reused` while the response stays an ordinary `401`.
 
-### How long a login lasts
-Two credentials, with two different jobs:
+## How long a login lasts
+The lifetimes, and where to set them:
 
 | Token | Default | Where to set it |
 |---|---|---|
@@ -663,91 +563,82 @@ Two credentials, with two different jobs:
 | Cookie refresh session | 30 days | `COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS` |
 | Password reset token | 5 minutes | `PASSWORD_RESET_TOKEN_EXPIRES_IN_MS` |
 
-The refresh credential is the one worth thinking about: it is a live login for its whole lifetime, so
-its length is how long a stolen one is worth stealing. 30 days is the usual "stay signed in" window —
-shorten it for anything administrative:
+A refresh credential is a live login for its whole lifetime, so its length is how long a stolen one stays useful. 30 days is the usual "stay signed in" window. Shorten it for anything administrative:
 
 ```ts
+// src/providers.ts
+import { defineProvider, JwtAuthOptionsInput, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { secrets } from './secrets';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
     useFactory: (): JwtAuthOptionsInput => ({ ...secrets, refreshTokenExpiresInMs: Ms.DAY * 7 })
 })
 ```
 
-Shortening the **access** token instead is what limits the damage of a revoked account still being
-able to act — see [what a credential is worth](#what-a-credential-is-worth).
+Shortening the access token instead limits how long a revoked account can still act, see [what a credential is worth](#what-a-credential-is-worth).
 
-### Asking for a password reset
-`POST /auth/request-password-reset` answers the same way whatever you send it: an address that exists,
-one that does not, and one that already has a reset in flight are indistinguishable. That is
-deliberate — the route is unauthenticated, so anything that told the three apart would turn it into a
-way to ask whether somebody holds an account here.
+A refresh credential is spent by the refresh that presents it, and the login carries on with the
+one that refresh answers. A credential a refresh just spent is still accepted for a grace:
+`refreshTokenReuseGraceInMs` on `JWT_AUTH_OPTIONS_INPUT` and
+`COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS`, 30 seconds by default. Within it, every tab
+that presents the spent credential gets one of its own in the same login. Past it, presenting a
+spent credential ends the login everywhere and is recorded as `token-reused`. `0` accepts no spent
+credential.
 
-Two consequences worth knowing before you build a UI on it:
+## Asking for a password reset
+`POST /auth/request-password-reset` answers the same whatever you send it: an address that exists, one that does not, and one that already has a reset in flight are indistinguishable. The route is unauthenticated, so any difference would tell anyone whether an address holds an account.
 
-- **A success does not mean an email was sent.** Say "if that address is registered, check your
-  inbox" rather than "we sent you an email".
-- **While a reset token is still live, asking again does nothing.** The account already has a usable
-  link in its inbox, and mailing a second one on demand would make the endpoint a way to fill
-  somebody's mailbox. Tokens last 5 minutes by default.
+For your UI:
 
-### Creating and registering user models
-Another crucial part of the auth system are users. They need to contain at least an email and an array of roles: the roles of the user's own, which `@Auth.hasPlatformRole` checks. The roles a user holds in a tenant live on their [membership](./tenancy.md#members-and-their-roles) in it. A password is actually not required, as some strategies might use third party providers like google etc.
+- A success does not mean an email was sent. Say "if that address is registered, check your inbox", not that an email went out.
+- While a reset token is still live, asking again sends nothing. Tokens last 5 minutes by default.
 
-Zibri provides a helper class you can easily extend from:
+## Creating and registering user models
+A user holds at least an email and an array of roles: their own roles, whose permissions `@Auth.hasPlatformPermission` checks, each one [declared](./roles-and-permissions.md) as a platform role. The roles a user holds in a tenant live on their [membership](./tenancy.md#members-and-their-roles) in it. A password is optional, since a user who signs in through a provider has none.
+
+Extend `BaseUserEntity`:
 
 ```ts
 // src/models/user.model.ts
-import { Entity, Property, BaseUserEntity } from 'zibri';
-
-import { Company } from './company.model';
-import { Roles } from './roles.enum';
+import { BaseUserEntity, Entity } from 'zibri';
 
 @Entity({ tenant: 'shared' })
-export class User extends BaseUserEntity(Roles) {
+export class User extends BaseUserEntity() {
     // your custom properties that your users should have
 }
 ```
 
-For the builtin user service you now also need to register a user repository, so that a user can be found by email over multiple data source entities (used eg. by the default JwtAuthStrategy):
+Users are read through the repository of the user entity: a user is found by email through it, for example by `JwtAuthStrategy`, and their deactivation and roles are written through it. Extend `BaseUserRepository`, declare it with `@RepositoryFor`, and list it in the `repositories` of the data source, see [writing a repository of your own](./data-source.md#writing-a-repository-of-your-own):
 
 ```ts
 // src/repositories/user.repository.ts
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InjectRepository, LoggerInterface, Repository, Transaction, UserRepo, UserRepositoryInterface, ZIBRI_DI_TOKENS } from 'zibri';
+import { BaseUserRepository, RepositoryFor } from 'zibri';
 
 import { UserCreateData } from '../models';
+import { User } from '../models/user.model';
 
-// The whole "extends Repository<User, UserCreateData>" is not required, but in most cases it makes a lot of sense
-@UserRepo()
-export class UserRepository extends Repository<User, UserCreateData>
-    implements UserRepositoryInterface<Roles, User> {
-
-    constructor(
-        @InjectRepository(User)
-        repo: Repository<User>,
-        @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        logger: LoggerInterface
-    ) {
-        super(User, repo, logger, repo.dataSource, getDefaultBeforeSaveHook(), getDefaultBeforeReturnHook());
-    }
-
-    async findByEmail(email: string): Promise<User> {
-        return await this.findOne({ where: { email } });
-    }
-
-    async updateDeactivatedAt(id: string, deactivatedAt: Date | null, transaction: Transaction | undefined): Promise<void> {
-        await this.updateById(id, { deactivatedAt }, { transaction });
-    }
-}
+@RepositoryFor(User)
+export class UserRepository extends BaseUserRepository<User, UserCreateData>() {}
 ```
 
-`updateDeactivatedAt` stores when a user was [deactivated](#deactivating-a-user). `BaseUserEntity` declares the `deactivatedAt` column it writes.
+`UserCreateData` is what a user is created with. `BaseUserRepository` implements `UserRepositoryInterface`: `findByEmail`, `updateDeactivatedAt`, which stores when a user was [deactivated](#deactivating-a-user), and `updateRoles`, which stores the [roles](./roles-and-permissions.md#managing-roles) a user is given or loses. Override one to read or write a user differently. A user entity that soft deletes passes the repository it extends, such as `BaseUserRepository<User>(SoftDeleteRepository)`.
+
+Deleting a user deletes their [memberships](./tenancy.md#members-and-their-roles) with them, and the roles written on a user are checked against the roles of the application.
+
+`BaseUserEntity` and `BaseUserRepository` mark their classes as the ones of users, with `USER_ENTITY` and `USER_REPOSITORY`. A user entity or user repository of your own declares the mark itself: `static readonly [USER_ENTITY]: true = true` on the entity, and a getter `get [USER_REPOSITORY](): true` on the repository. An application with several user entities lists a user repository for each.
 
 A user logs in with a password once `PasswordCredentials` holds one for them. A registration route creates both in one transaction:
 
 ```ts
 // src/controllers/register.controller.ts
 import { Auth, Body, Controller, inject, PasswordCredentials, PasswordCredentialsCreateData, Post, Repository, repositoryTokenFor, Response, Transaction } from 'zibri';
+
+import { RegisterData } from '../models/register-data.model';
+import { Roles } from '../models/roles.enum';
+import { User } from '../models/user.model';
+import { UserRepository } from '../repositories/user.repository';
 
 @Auth.skip()
 @Controller('/users')
@@ -764,7 +655,6 @@ export class UserController {
         const transaction: Transaction = await users.dataSource.startTransaction();
         try {
             const user: User = await users.create({ email: data.email, roles: [Roles.USER] }, { transaction });
-            // stored hashed automatically
             await credentials.create({ userId: user.id, password: data.password }, { transaction });
             await transaction.commit();
         }
@@ -776,7 +666,23 @@ export class UserController {
 }
 ```
 
+The password is stored hashed.
+
 A user repository that does not hold the user throws a `NotFoundError`, which `findOne` already does for you. Any other http error below 500 counts the same way. Every other error means the repository could not be asked: when no repository found the user and one of them failed like that, a login answers 500 and is audited as an `error` rather than as a refusal.
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `jose` | Signing and verifying JWTs. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `PasswordCredentials`, `PasswordResetToken` | `PasswordAuthenticator` is registered |
+| `PasswordFailureStreak` | `PasswordAuthenticator` is registered and `passwordFailureLimit` is not `false` |
+| `JwtRefreshToken` | `JwtAuthStrategy` is registered |
+| `CookieAuthSession`, `CookieAuthRefreshSession` | `CookieAuthStrategy` is registered |
 
 ## See also
 - [The auth routes](./auth-routes.md) — logging in, refreshing, logging out, resetting a password and enrolling a second factor over http

@@ -1,6 +1,6 @@
-import { BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Entity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, NumberInvoices, OmitClass, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
+import { AuditEntry, BaseEntity, BackupEntity, BackupResourceEntity, CacheInvalidation, Change, ChangeSet, CronJobEntity, Email, EncryptionKey, EncryptionRotationFailure, EncryptionRotationProgress, EncryptionStrategyEntity, Entity, Event, EventSubscriberRegistration, EventSubscriberRun, HashStrategyEntity, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, LoginTicket, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MigrationEntity, Newable, NumberInvoices, OmitClass, OtpCredentials, PasswordCredentials, PasswordResetToken, ThreadJobEntity, TwoFactorFailureStreak, WebsocketChannel, WebsocketMessage, WebsocketMessageSequence } from 'zibri';
 
-import { Company, Membership, Test, User } from '../../models';
+import { Membership, Role, Tenant, Test, User } from '../../models';
 
 @Entity({ tenant: 'shared' })
 class Test2 extends OmitClass(MigrationEntity, ['ranAt']) {}
@@ -17,15 +17,17 @@ export const entities: Newable<BaseEntity>[] = [
     Test,
     User,
     Membership,
+    Role,
     Test2,
     JwtRefreshToken,
     PasswordCredentials,
     PasswordResetToken,
-    Company,
+    Tenant,
     MailingList,
     MailingListSubscriber,
     MailingListSubscriptionConfirmationToken,
     Log,
+    AuditEntry,
     Change,
     ChangeSet,
     Invoice,
@@ -33,6 +35,7 @@ export const entities: Newable<BaseEntity>[] = [
     InvoiceRecipientAbbreviation,
     OtpCredentials,
     TwoFactorFailureStreak,
+    LoginTicket,
     BackupEntity,
     BackupResourceEntity,
     Email,

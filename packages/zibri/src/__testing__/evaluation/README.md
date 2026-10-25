@@ -4,16 +4,19 @@ Executable versions of the findings in [`/evaluation`](../../../../evaluation/RE
 
 ## What these are
 
-Every test here asserts the **fixed** behavior, not the current one. They are therefore **expected
-to fail today**. Each one turning green means one finding from the evaluation is closed.
+Every test here asserts the **fixed** behavior, not the behavior at the time it was written. Each one
+was written red, and turning green meant one finding from the evaluation was closed. Every finding
+they hold is closed now, so they are regression tests.
 
 This is deliberate: a test that encodes a known bug as the expected result is worse than no test,
 because it locks the bug in.
 
 ## Running them
 
-They are excluded from `npm test` so the pipeline keeps signalling real regressions rather than a
-constant wall of known gaps:
+CI runs them, and the cluster suites below, as part of `test:ci`
+([round-2 07 §T1](../../../../../evaluation/round-2/07-di-packaging-tooling.md)), and
+`ci-workflows.test.ts` fails when a test file is reached by no CI job. A test added here for an open
+finding is red in CI until the finding closes. To run them alone:
 
 ```sh
 npm run test:evaluation -w zibri              # all of them
@@ -439,7 +442,7 @@ independent replicas these tests are about. Applications *following* one another
 work, which is what lets `bootstrap` boot one per test.
 
 `../cluster/start-test-cluster.function.ts` boots N instances as forked processes against one shared
-set of data sources. They live in `./cluster/` and run separately, because they cost containers and
+set of data sources. They live in `./cluster/` and run in band, because they cost containers and
 real wall clock time:
 
 ```sh
@@ -451,7 +454,7 @@ npm run test:cluster -w zibri
 | `cluster/baseline.cluster.test.ts` | none — the control | **green**, and everything else depends on it |
 | `cluster/cron.cluster.test.ts` | [04 §1.1](../../../../evaluation/04-infrastructure-subsystems.md) | **green** — closed, now a regression test |
 | `cluster/events.cluster.test.ts` | [04 §1.4–1.5](../../../../evaluation/04-infrastructure-subsystems.md) | **green** — closed, now a regression test |
-| `cluster/heterogeneous-events.cluster.test.ts` | [04 §1.4b](../../../../evaluation/04-infrastructure-subsystems.md) | **red** — open finding, confirmed in both directions |
+| `cluster/heterogeneous-events.cluster.test.ts` | [04 §1.4b](../../../../evaluation/04-infrastructure-subsystems.md) | **green** — closed, now a regression test |
 | `cluster/migrations.cluster.test.ts` | [01 §C2](../../../../evaluation/01-data-layer.md) | **green** — closed, now a regression test |
 | `cluster/caching.cluster.test.ts` | [04 §1.9](../../../../evaluation/04-infrastructure-subsystems.md) | **green** — closed, now a regression test |
 | `cluster/websocket.cluster.test.ts` | [04 §1.10](../../../../evaluation/04-infrastructure-subsystems.md) | **green** — closed, now a regression test |

@@ -1,8 +1,20 @@
-import { IsRequiredValidationProblem, NoShapeFitsValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from './validation-problem.model';
+import {
+    IsRequiredValidationProblem,
+    NoShapeFitsValidationProblem,
+    RelationsNotAllowedValidationProblem,
+    TypeMismatchValidationProblem,
+    UnknownKeyValidationProblem,
+    ValidationProblem
+} from './validation-problem.model';
 import { ValidationServiceInterface } from './validation-service.interface';
+import { type CustomValidationRule } from './custom-validation.model';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { CheckConstraintViolationError } from '../data-source/check-constraint-violation.error';
+import { WhereFilterEvaluator } from '../data-source/data-sources/where-converter/where-filter.evaluator';
 import { BaseEntity } from '../entity/base-entity.model';
+import { type EntityCheck } from '../entity/models/entity-check.model';
+import { LocaleCode } from '../localization/models/locale-code.model';
 import { namedShapeOf, NamedShape } from './functions/shape-problems.function';
 import { validateBoolean } from './functions/validate-boolean.function';
 import { validateDate } from './functions/validate-date.function';
@@ -19,7 +31,6 @@ import { Relation } from '../entity/models/relation.enum';
 import { ValidationError } from '../error-handling/errors/validation.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { MimeType } from '../http/mime-type.enum';
-import { $ts } from '../localization/translate.function';
 import { chooseShape, ShapeChoice } from '../parsing/functions/parse-one-of.function';
 import { BodyMetadata, BodyShapeMetadata } from '../routing/decorators/body-metadata.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
@@ -75,6 +86,8 @@ type PropertyValidationFunction = (
  */
 @Injectable({ register: 'onUse' })
 export class ValidationService implements ValidationServiceInterface {
+
+    private readonly whereFilterEvaluator: WhereFilterEvaluator = new WhereFilterEvaluator();
 
     private readonly pathParamValidationFunctions: Record<PathParamMetadata['type'], PathParamValidationFunction> = {
         string: (param, meta, parentKey, entity) => validateString(meta.name, param, meta, parentKey, entity),
@@ -205,7 +218,7 @@ export class ValidationService implements ValidationServiceInterface {
      * @returns The same problems, with the body itself under `body`.
      */
     private problemsOfBodyItself(problems: ValidationProblem[]): ValidationProblem[] {
-        return problems.map(problem => problem.key === '' ? { key: 'body', message: problem.message } : problem);
+        return problems.map(problem => problem.key === '' ? { key: 'body', code: problem.code, message: problem.message } : problem);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -231,7 +244,7 @@ export class ValidationService implements ValidationServiceInterface {
         if (!allowAdditionalProperties) {
             for (const key of unknownKeys) {
                 const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
-                res.push({ key: fullKey, message: $ts`this key is unknown` });
+                res.push(new UnknownKeyValidationProblem(fullKey));
             }
         }
         await Promise.all(
@@ -434,18 +447,74 @@ export class ValidationService implements ValidationServiceInterface {
             const unknownKeys: string[] = keysOfBody.filter(k => !keysOfModel.includes(k));
 
             for (const k of unknownKeys) {
-                res.push({ key: fullKey ? `${fullKey}.${k}` : k, message: $ts`this key is unknown` });
+                res.push(new UnknownKeyValidationProblem(fullKey ? `${fullKey}.${k}` : k));
             }
         }
 
+        // the object itself is what its properties are on, so it is what a function of theirs (such as
+        // `required`) is given - the outermost value only for the properties at the top
         await Promise.all(
             ObjectUtilities.entries(objectProperties).map(async ([propertyKey, m]) => {
                 const childProperty: unknown = (property as Record<string, unknown>)[propertyKey];
                 const errors: ValidationProblem[]
-                    = await this.validateProperty(propertyKey, childProperty, m, fullKey || undefined, entity);
+                    = await this.validateProperty(propertyKey, childProperty, m, fullKey || undefined, property);
                 res.push(...errors);
             })
         );
-        return res;
+        // the checks and the custom rules only once the properties are what they are declared as,
+        // since that is what comparing them takes
+        if (res.length) {
+            return res;
+        }
+        return [
+            ...this.resolveCheckProblems(fullKey, property as Record<string, unknown>, metadata.cls()),
+            ...this.resolveCustomProblems(fullKey, property as Record<string, unknown>, metadata.cls())
+        ];
+    }
+
+    /**
+     * The problems of an object with the custom rules of its class.
+     * @param fullKey - The key of the object.
+     * @param value - The object, its properties valid.
+     * @param cls - Its class.
+     * @returns What the rules find, each under the key of the property it names, or of the object.
+     */
+    private resolveCustomProblems(fullKey: string, value: object, cls: Newable<unknown>): ValidationProblem[] {
+        const rules: CustomValidationRule<object>[] = MetadataUtilities.resolveCustomValidations(cls);
+        if (!rules.length) {
+            return [];
+        }
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        return rules.flatMap(rule => rule(value, context)).map(({ property, code, message }) => ({
+            key: property == undefined ? fullKey : (fullKey ? `${fullKey}.${property}` : property),
+            code,
+            message
+        }));
+    }
+
+    /**
+     * The problems of an object with the checks of the entity its class is, extends or is derived from.
+     *
+     * A check is judged only when the object holds every property it compares. A property an update
+     * leaves out keeps its stored value, which only the data source knows - it judges the check
+     * then, as it judges every write.
+     * @param fullKey - The key of the object.
+     * @param value - The object, its properties valid.
+     * @param cls - Its class.
+     * @returns A problem for every check the object breaks, under the key of the object.
+     */
+    private resolveCheckProblems(fullKey: string, value: Record<string, unknown>, cls: Newable<unknown>): ValidationProblem[] {
+        const checks: EntityCheck[] = MetadataUtilities.resolveModelChecks(cls);
+        if (!checks.length) {
+            return [];
+        }
+        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
+        const locale: LocaleCode = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(context);
+        return checks
+            .filter(check => CheckConstraintViolationError.resolveProperties(check.where).every(p => value[p] !== undefined))
+            // the evaluator the data sources judge a row with, so a body and the row it becomes are
+            // never judged apart
+            .filter(check => !this.whereFilterEvaluator.matchesCheck(value, check.where, cls))
+            .map(check => ({ key: fullKey, code: check.code, message: check.message.getValue(locale) }));
     }
 }

@@ -37,7 +37,6 @@ import { type BaseWebsocketConnection } from '../../../websocket/models/connecti
 import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
 import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
 import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
-import { FederatedSession } from '../../authenticators/federated/federated-session.model';
 import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
 import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
 import { OAuth2ErrorCode } from '../../authorization-server/oauth2-error-code.enum';
@@ -47,6 +46,8 @@ import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
+import { EndedLogin } from '../../models/ended-login.model';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
@@ -133,6 +134,7 @@ implements AuthControllerStrategyInterface<
     private readonly refreshTokenSigningKey: JwtKey;
     private readonly refreshTokenVerificationKeys: JwtKey[];
     private readonly refreshTokenExpiresInMs: number;
+    private readonly refreshTokenReuseGraceInMs: number;
     private readonly requireDpop: boolean;
 
     // read when used rather than injected, so that an application without the entity is told to
@@ -175,6 +177,7 @@ implements AuthControllerStrategyInterface<
         this.refreshTokenSigningKey = JwtUtilities.resolveSigningKey(refreshTokenSecret);
         this.refreshTokenVerificationKeys = refreshTokenVerificationKeys;
         this.refreshTokenExpiresInMs = options.refreshTokenExpiresInMs;
+        this.refreshTokenReuseGraceInMs = options.refreshTokenReuseGraceInMs;
     }
 
     /**
@@ -223,7 +226,7 @@ implements AuthControllerStrategyInterface<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async startLogin(authentication: Authentication<UserType>, transaction: Transaction | undefined): Promise<JwtAuthData<RoleType>> {
-        const { user, authenticatedAt, federatedSession } = authentication;
+        const { user, authenticatedAt, federatedSession, providerAuthentication } = authentication;
         // every token of this login carries the time from here on, refreshes included, and so does
         // the family its refresh tokens share, which the access tokens name as the login
         const authTime: number = Math.floor(authenticatedAt.getTime() / Ms.SECOND);
@@ -236,7 +239,13 @@ implements AuthControllerStrategyInterface<
                 $ts`A login is bound to a DPoP key, which the request carries no proof of.`
             );
         }
-        const accessTokenValue: string = await this.generateAccessToken(user, authTime, familyId, dpopKeyThumbprint);
+        const accessTokenValue: string = await this.generateAccessToken(
+            user,
+            authTime,
+            familyId,
+            dpopKeyThumbprint,
+            providerAuthentication
+        );
         const refreshTokenValue: string = await this.generateRefreshToken(user, authTime);
         await this.createRefreshToken(
             user,
@@ -244,6 +253,7 @@ implements AuthControllerStrategyInterface<
             familyId,
             FederatedSessionUtilities.toColumns(federatedSession),
             dpopKeyThumbprint,
+            providerAuthentication,
             transaction
         );
 
@@ -280,24 +290,20 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async logout(data: OmitStrict<JwtRefreshLoginData, 'transaction'>): Promise<FederatedSession | undefined> {
-        try {
-            // hashed to be searched for, because that is how it is stored. Has to name the same
-            // strategy the property does, or the column is written one way and read another.
-            const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne(
-                { where: { value: await this.hashService.hash(data.refreshToken, { strategy: Sha256HashStrategy }) }, required: false }
-            );
-            if (!refreshToken) {
-                return undefined;
-            }
-            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
-            await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
-            return FederatedSessionUtilities.fromColumns(refreshToken);
-        }
-        catch {
-            // ignore
+    async logout(data: OmitStrict<JwtRefreshLoginData, 'transaction'>): Promise<EndedLogin | undefined> {
+        // hashed to be searched for, because that is how it is stored. Has to name the same
+        // strategy the property does, or the column is written one way and read another.
+        const refreshToken: JwtRefreshToken | undefined = await this.refreshTokenRepository.findOne(
+            { where: { value: await this.hashService.hash(data.refreshToken, { strategy: Sha256HashStrategy }) }, required: false }
+        );
+        if (!refreshToken) {
             return undefined;
         }
+        // not caught: a store that fails here leaves the login live, which is for the caller to
+        // record rather than for this to hide behind the answer of a login that was ended
+        await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+        await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
+        return { userId: refreshToken.userId, federatedSession: FederatedSessionUtilities.fromColumns(refreshToken) };
     }
 
     private async createRefreshToken(
@@ -306,6 +312,7 @@ implements AuthControllerStrategyInterface<
         familyId: string,
         federatedSession: FederatedSessionColumns,
         dpopKeyThumbprint: string | undefined,
+        providerAuthentication: ProviderAuthentication | undefined,
         transaction: Transaction | undefined
     ): Promise<JwtRefreshToken> {
         const data: JwtRefreshTokenCreateDto = {
@@ -315,6 +322,7 @@ implements AuthControllerStrategyInterface<
             blacklisted: false,
             expirationDate: new Date(Date.now() + this.refreshTokenExpiresInMs),
             dpopKeyThumbprint,
+            providerAuthentication,
             ...federatedSession
         };
         return await this.refreshTokenRepository.create(data, { transaction });
@@ -330,7 +338,8 @@ implements AuthControllerStrategyInterface<
             user,
             rotated.authTime,
             rotated.refreshToken.familyId,
-            rotated.refreshToken.dpopKeyThumbprint ?? undefined
+            rotated.refreshToken.dpopKeyThumbprint ?? undefined,
+            rotated.refreshToken.providerAuthentication ?? undefined
         );
 
         return {
@@ -373,9 +382,11 @@ implements AuthControllerStrategyInterface<
         if (!refreshToken) {
             throw new UnauthorizedError($ts`Invalid refresh token.`);
         }
-        if (refreshToken.blacklisted) {
-            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId }, { transaction });
-            await this.websocketService.disconnectEndedLogins([refreshToken.userId], transaction);
+        if (refreshToken.blacklisted && !this.isWithinReuseGrace(refreshToken)) {
+            // outside the request's transaction: the refusal below rolls it back, and a family ended
+            // inside it came back with the rollback - reuse was detected and ended nothing
+            await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
+            await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
             throw new CredentialReusedError($ts`Invalid refresh token.`);
         }
         if (new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
@@ -396,22 +407,28 @@ implements AuthControllerStrategyInterface<
         // no lock, so two requests carrying the same token both get this far - the condition on the
         // write is what decides between them. Whoever changes the row rotates it; the other finds
         // nothing to update, because by then the token really is spent.
-        try {
-            await this.refreshTokenRepository.updateById(
-                refreshToken.id,
-                { blacklisted: true },
-                { transaction, where: { blacklisted: false } }
-            );
-        }
-        catch (error) {
-            if (!(error instanceof NotFoundError)) {
-                throw error;
+        //
+        // A token replaced within the grace is already claimed, and nothing is claimed again: the
+        // caller is a second tab that refreshed with the same token as the first one did, and it is
+        // minted a token of its own in the same family. The grace runs from the first replacement
+        if (!refreshToken.blacklisted) {
+            try {
+                await this.refreshTokenRepository.updateById(
+                    refreshToken.id,
+                    { blacklisted: true, replacedAt: new Date() },
+                    { transaction, where: { blacklisted: false } }
+                );
             }
-            // deliberately no family delete. Reuse of an *already* blacklisted token is caught by the
-            // check above and does destroy the family, which is what reuse detection is for. Losing
-            // this race is a client with two requests in flight, and logging that user out would turn
-            // its own retry into an attack on itself.
-            throw new UnauthorizedError($ts`Invalid refresh token.`);
+            catch (error) {
+                if (!(error instanceof NotFoundError)) {
+                    throw error;
+                }
+                // deliberately no family delete. Reuse of an *already* blacklisted token is caught by
+                // the check above and does destroy the family, which is what reuse detection is for.
+                // Losing this race is a client with two requests in flight, and logging that user out
+                // would turn its own retry into an attack on itself.
+                throw new UnauthorizedError($ts`Invalid refresh token.`);
+            }
         }
 
         const authTime: number = encoded.payload.auth_time;
@@ -422,9 +439,11 @@ implements AuthControllerStrategyInterface<
                 user,
                 refreshTokenValue,
                 refreshToken.familyId,
-                // the session at a provider stays with the login, like its time and its key
+                // the session at a provider stays with the login, like its time, its key and how the
+                // user proved who they are there
                 FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(refreshToken)),
                 refreshToken.dpopKeyThumbprint ?? undefined,
+                refreshToken.providerAuthentication ?? undefined,
                 transaction
             ),
             value: refreshTokenValue,
@@ -508,6 +527,17 @@ implements AuthControllerStrategyInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveProviderAuthentication(
+        context: HttpRequestContext | WebsocketRequestContext
+    ): Promise<ProviderAuthentication | undefined> {
+        const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
+        if (token == undefined || (token.payload.amr == undefined && token.payload.acr == undefined)) {
+            return undefined;
+        }
+        return { methods: token.payload.amr ?? [], contextClass: token.payload.acr };
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         const token: LoginAccessToken<RoleType> | undefined = await this.findRequestLoginToken(context);
         return token == undefined ? undefined : new Date(token.verified.expiresAt * Ms.SECOND);
@@ -522,10 +552,11 @@ implements AuthControllerStrategyInterface<
             if (user == undefined || !live) {
                 return { active: false };
             }
+            // what a request with the token holds now, in whichever tenant it acts
+            const held: string[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveUserPermissions(user, undefined);
             return {
                 active: true,
-                // what a request with the token holds now
-                scope: user.roles.join(' '),
+                scope: held.join(' '),
                 username: user.email,
                 token_type: accessToken.payload.cnf?.jkt == undefined ? 'Bearer' : 'DPoP',
                 exp: accessToken.verified.expiresAt,
@@ -628,10 +659,24 @@ implements AuthControllerStrategyInterface<
             where: { value: await this.hashService.hash(token, { strategy: Sha256HashStrategy }) },
             required: false
         });
-        if (refreshToken == undefined || refreshToken.blacklisted || new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
+        if (
+            refreshToken == undefined
+            || (refreshToken.blacklisted && !this.isWithinReuseGrace(refreshToken))
+            || new Date(refreshToken.expirationDate).getTime() <= Date.now()
+        ) {
             return undefined;
         }
         return refreshToken;
+    }
+
+    /**
+     * Whether a spent token is still accepted: a rotation replaced it less than the grace ago.
+     * @param refreshToken - The stored token.
+     * @returns True inside the grace.
+     */
+    private isWithinReuseGrace(refreshToken: JwtRefreshToken): boolean {
+        return refreshToken.replacedAt != undefined
+            && Date.now() - new Date(refreshToken.replacedAt).getTime() < this.refreshTokenReuseGraceInMs;
     }
 
     private async findRequestLoginToken(
@@ -663,7 +708,8 @@ implements AuthControllerStrategyInterface<
         user: UserType,
         authTime: number,
         familyId: string,
-        dpopKeyThumbprint: string | undefined
+        dpopKeyThumbprint: string | undefined,
+        providerAuthentication: ProviderAuthentication | undefined
     ): Promise<string> {
         const payload: JwtAccessTokenPayload<RoleType, UserType> = {
             id: user.id,
@@ -671,7 +717,11 @@ implements AuthControllerStrategyInterface<
             email: user.email,
             auth_time: authTime,
             sid: familyId,
-            ...dpopKeyThumbprint == undefined ? {} : { cnf: { jkt: dpopKeyThumbprint } }
+            ...dpopKeyThumbprint == undefined ? {} : { cnf: { jkt: dpopKeyThumbprint } },
+            // under the claims OpenID Connect gives them, so whatever reads the token by the published
+            // keys finds them where the standard puts them
+            ...providerAuthentication == undefined ? {} : { amr: providerAuthentication.methods },
+            ...providerAuthentication?.contextClass == undefined ? {} : { acr: providerAuthentication.contextClass }
         };
 
         try {

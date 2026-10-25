@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { WriteAroundReadAsideCache } from './write-around-read-aside.cache';
-import { flushMicrotasks } from '../../../__testing__/constants';
+import { flushMicrotasks, TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -36,11 +36,11 @@ describe('ReadAsideCache', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await inject(ReadAsideTestCache).store.clear();

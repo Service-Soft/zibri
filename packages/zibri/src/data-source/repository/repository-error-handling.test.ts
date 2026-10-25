@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { Repository } from './repository';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -29,14 +30,14 @@ describe('Repository error handling', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Widget] })]
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Widget], repositories: defaultTestServerRepositories })]
         });
         widgetRepo = inject(repositoryTokenFor(Widget));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await widgetRepo.deleteAll({});

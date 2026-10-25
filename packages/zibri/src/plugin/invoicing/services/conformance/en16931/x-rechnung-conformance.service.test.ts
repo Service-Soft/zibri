@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { XRechnungConformanceService } from './x-rechnung-conformance.service';
-import { testFileFolder } from '../../../../../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../../../../../__testing__/constants';
 import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../../data-source/repository/repository';
@@ -101,7 +101,7 @@ describe('generateXml', () => {
         await FsUtilities.mkdir(testFileFolder);
         server = await startTestServer({
             plugins: [new ZibriInvoicingPlugin()],
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({ token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT, useValue: invoicingOptions }),
@@ -111,11 +111,11 @@ describe('generateXml', () => {
 
         repo = inject(repositoryTokenFor(Invoice));
         conformanceService = inject(XRechnungConformanceService);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('should create the expected result', async () => {
         const invoice: Invoice = await createInvoice({

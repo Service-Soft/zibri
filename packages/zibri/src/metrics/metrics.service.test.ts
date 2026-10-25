@@ -5,6 +5,7 @@ import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
 import { MetricsSnapshot } from './metrics-service.interface';
 import { PrometheusMetricsService } from './metrics.service';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { inject } from '../di/inject.function';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
@@ -88,11 +89,11 @@ describe('PrometheusMetricsService', () => {
         server = await startTestServer({ controllers: [MetricsIntegrationController] });
         baseUrl = await server.start();
         service = inject(PrometheusMetricsService);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     describe('getCounter / getGauge / getHistogram', () => {
         it('reuses the same underlying registration on repeated calls with the same name instead of registering a duplicate', async () => {

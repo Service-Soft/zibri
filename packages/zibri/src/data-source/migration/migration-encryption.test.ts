@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource, zibriFrameworkEntities } from 'zibri-testing';
 
 import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
@@ -17,6 +18,7 @@ import { Newable } from '../../types/newable.type';
 import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { DataSource } from '../decorators/data-source.decorator';
 import { Repository } from '../repository/repository';
+import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
 
 /**
@@ -63,6 +65,7 @@ function vaultDataSource(): Newable<InMemoryDataSource> {
     @DataSource()
     class VaultDataSource extends InMemoryDataSource {
         override readonly entities: Newable<BaseEntity>[] = [...new Set([...zibriFrameworkEntities, ...defaultTestServerEntities, Vault])];
+        override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
         override readonly migrations: Newable<Migration>[] = [SeedVaultMigration];
     }
     return VaultDataSource;
@@ -94,7 +97,7 @@ describe('a migration writing an encrypted property', () => {
         // the strategies were loaded by the first encryption rather than by onAppInit, which had not run
         expect(stored?.secret).toMatch(/^aes-256-gcm\./);
         expect(read?.secret).toBe('opened');
-    }, 15_000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a strategy that is not usable in migrations, naming it and the migration', async () => {
         await expect(startTestServer({
@@ -104,5 +107,5 @@ describe('a migration writing an encrypted property', () => {
                 defineProvider({ token: ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES, useValue: [StartedOnlyStrategy] })
             ]
         })).rejects.toThrow('"SeedVaultMigration" uses the encryption strategy "aes-256-gcm"');
-    }, 15_000);
+    }, TestTimeouts.inMemory.start);
 });

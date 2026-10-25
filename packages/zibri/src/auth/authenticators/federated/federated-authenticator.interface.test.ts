@@ -12,14 +12,16 @@ import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedRegistration } from './federated-registration.model';
 import type { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import type { FederatedRoute } from './federated-route.type';
+import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
 import { FederatedSignInRequest } from './federated-sign-in-request.model';
 import { FederatedSignInResult } from './federated-sign-in-result.model';
 import { FederatedSignInError } from './federated-sign-in.error';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -57,7 +59,7 @@ type DirectSignIn = {
  * A provider of the test's own, which signs in whoever `signsIn` names as soon as it is asked. It
  * implements the interface itself rather than extending `BaseFederatedAuthenticator`.
  */
-class DirectAuthenticator implements FederatedAuthenticatorInterface<Roles, JwtUser>, AuthControllerAuthenticatorInterface<Roles, JwtUser, FederatedCredentials> {
+class DirectAuthenticator implements FederatedAuthenticatorInterface<string, JwtUser>, AuthControllerAuthenticatorInterface<string, JwtUser, FederatedCredentials> {
     readonly name: string = 'direct';
 
     readonly credentialsModel: Newable<FederatedCredentials> = FederatedHandoverCredentials;
@@ -128,6 +130,10 @@ class DirectAuthenticator implements FederatedAuthenticatorInterface<Roles, JwtU
         return Promise.reject(new NotFoundError($ts`Nothing can be logged out at.`));
     }
 
+    async resolveBackChannelLogout(): Promise<FederatedSessionMatch> {
+        return Promise.reject(new NotFoundError($ts`Nothing can be logged out at.`));
+    }
+
     async resolveRegistration(): Promise<FederatedRegistration> {
         return Promise.reject(new NotFoundError($ts`Nobody registers.`));
     }
@@ -191,7 +197,7 @@ function defineAuthController(authenticator: Newable<DirectAuthenticator>): Newa
  * @returns The server and the url it listens at.
  */
 async function startApp(authenticator: Newable<DirectAuthenticator>): Promise<[StartedTestServer, string]> {
-    const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, allowOrphan: true });
+    const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true });
     const server: StartedTestServer = await startTestServer({
         baseUrl: PUBLIC_URL,
         dataSources: [dataSourceClass],
@@ -238,11 +244,11 @@ describe('FederatedAuthenticatorInterface — an authenticator of the applicatio
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp(DirectAuthenticator);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs in through the routes of the auth controller', async () => {
         const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
@@ -273,10 +279,10 @@ describe('FederatedAuthenticatorInterface — starting', () => {
     it('refuses to start when a url an authenticator of the application\'s own gives out reaches no route', async () => {
         await expect(startThenShutDown(LostDirectAuthenticator))
             .rejects.toThrow(/LostDirectAuthenticator[\S\s]*http:\/\/zibri\.test\/nowhere\/callback/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start when the route answering a url an authenticator of the application\'s own gives out takes another method', async () => {
         await expect(startThenShutDown(RedirectedSoapLogoutDirectAuthenticator))
             .rejects.toThrow(/RedirectedSoapLogoutDirectAuthenticator[\S\s]*http:\/\/zibri\.test\/auth\/federated\/direct\/logout\/soap[\S\s]*GET[\S\s]*POST/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 });

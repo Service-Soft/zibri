@@ -7,5 +7,11 @@ export enum Command {
     VERSION = 'version',
     V = 'v',
     NEW = 'new',
-    N = 'n'
+    N = 'n',
+    UPGRADE = 'upgrade',
+    U = 'u',
+    ADD = 'add',
+    A = 'a',
+    REMOVE = 'remove',
+    R = 'r'
 }

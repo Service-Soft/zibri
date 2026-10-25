@@ -4,6 +4,7 @@ import os from 'node:os';
 import { inject } from '../inject.function';
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
 import { AssetService } from '../../assets/asset.service';
+import { AuditService } from '../../audit/audit.service';
 import { TwoFactorService } from '../../auth/2fa/two-factor.service';
 import { AuthRateLimiter } from '../../auth/auth.rate-limiter';
 import { AuthService } from '../../auth/auth.service';
@@ -18,6 +19,7 @@ import { HashService } from '../../auth/hash/hash.service';
 import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { RoleService } from '../../auth/roles/role.service';
 import { ScimService } from '../../auth/scim/scim.service';
 import { ApiKeyService } from '../../auth/strategies/api-key/api-key.service';
 import { AccessTokenRevocation } from '../../auth/strategies/jwt/access-token-revocation.type';
@@ -50,6 +52,8 @@ import { MultithreadingService } from '../../multithreading/services/multithread
 import { OpenApiService } from '../../open-api/open-api.service';
 import { CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { Parser } from '../../parsing/parser';
+import { WakeUpService } from '../../polling/wake-up.service';
+import { RateLimitStoreFailurePolicy } from '../../rate-limiting/limiter/rate-limiter-config.model';
 import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
 import { Router } from '../../routing/router';
 import { MembershipService } from '../../tenancy/membership/membership.service';
@@ -64,7 +68,7 @@ import { ValidationService } from '../../validation/validation.service';
 import { VersioningService } from '../../versioning/versioning.service';
 import { WebsocketOptions, WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { WebsocketService } from '../../websocket/services/websocket.service';
-import { DiTokenProviderRecord } from '../models/di-token.model';
+import { DefaultDiProviderRecord } from '../models/default-di-provider-record.model';
 import { DiVariants } from '../models/di-variant.model';
 
 const allThreads: number = os.availableParallelism();
@@ -77,7 +81,13 @@ const availableThreads: number = allThreads - reserveThreadsLibUv - reserveThrea
 const maxThreads: number = Math.max(1, availableThreads - 1);
 const maxPriorityThreads: number = availableThreads <= 1 ? 0 : 1;
 
-export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> = {
+// the memory this process may use, split evenly between its workers and its main thread: what the
+// container allows where there is one (constrainedMemory is 0 without a limit), the machine otherwise
+const bytesPerMb: number = 1024 * 1024;
+const usableMemoryInMb: number = Math.floor((process.constrainedMemory() || os.totalmem()) / bytesPerMb);
+const workerHeapShareInMb: number = Math.max(1, Math.floor(usableMemoryInMb / (maxThreads + maxPriorityThreads + reserveThreadsMain)));
+
+export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS> = {
     ZIBRI_PACKAGE_ROOT: { useFactory: () => resolveZibriRoot() },
     ROUTER: { useClass: Router },
     LOGGER: { useClass: Logger },
@@ -97,6 +107,9 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // quiet on a 100ms window, so each line would still be written on its own.
     LOGGER_FLUSH_INTERVAL_MS: { useFactory: () => Ms.SECOND },
     ACCESS_LOG: { useFactory: () => false },
+    AUDIT_SERVICE: { useClass: AuditService },
+    AUDIT_RETENTION_IN_MS: { useFactory: () => undefined },
+    AUDIT_MAX_REFUSALS_PER_MINUTE: { useFactory: () => 1000 },
     LOGGER_CLEANUP_AFTER_MS: {
         useFactory: () => ({
             [LogLevel.DEBUG]: Ms.WEEK * 2,
@@ -155,6 +168,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
         })
     },
     LEASE_SERVICE: { useClass: LeaseService },
+    WAKE_UP_SERVICE: { useClass: WakeUpService },
     TENANT_SERVICE: { useClass: TenantService },
     MEMBERSHIP_SERVICE: { useClass: MembershipService },
     // how long a shutting down instance waits for work it holds a lease on before taking the lease
@@ -162,10 +176,22 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     LEASE_DRAIN_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
     AUTH_SERVICE: { useClass: AuthService },
     REVALIDATE_USER_ON_AUTH_CHECK: { useFactory: () => true },
+    // undefined for an application that provides none, which is the one whose roles carry nothing
+    PERMISSIONS: { useFactory: () => undefined },
+    ROLE_SERVICE: { useClass: RoleService },
     ACCESS_TOKEN_REVOCATION: { useFactory: (): AccessTokenRevocation => 'onExpiry' },
     AUTHORIZATION_SERVER_SERVICE: { useClass: AuthorizationServerService },
     AUTH_RATE_LIMITER: { useClass: AuthRateLimiter, variants: [DiVariants.RATE_LIMITER] },
-    AUTH_RATE_LIMIT_OPTIONS: { useFactory: () => ({ maxAttempts: 20, windowInMs: Ms.MINUTE * 10 }) },
+    AUTH_RATE_LIMIT_OPTIONS: {
+        // let through rather than refused: a full store means more networks than it has room for
+        // tried to get in, and refusing would lock every newcomer out at the one gate everybody
+        // passes. Visible as the limiter's error metric and the store's own report
+        useFactory: () => ({
+            maxAttempts: 20,
+            windowInMs: Ms.MINUTE * 10,
+            onStoreFailure: RateLimitStoreFailurePolicy.ALLOW
+        })
+    },
     TWO_FACTOR_SERVICE: { useClass: TwoFactorService },
     // the wait after the first wrong code, doubling with each one after it - so a typo costs a
     // second, and a guesser is down to a few dozen codes a year
@@ -175,12 +201,15 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     // loosening that has to be stated rather than the default
     REQUIRE_2FA_REAUTH: { useFactory: () => false },
     REQUIRE_2FA_REAUTH_WINDOW_IN_MS: { useFactory: () => Ms.MINUTE * 5 },
+    // none, for the same reason: which of a provider's factors the application trusts is its to say
+    REQUIRE_2FA_PROVIDER_FACTORS: { useFactory: () => false },
     OTP_HEADER: { useFactory: () => 'x-authorization-otp' },
     OTP_VALIDATION_WINDOW_IN_MS: { useFactory: () => 30_000 },
     OTP_LENGTH: { useFactory: () => 6 },
     PASSKEY_HEADER: { useFactory: () => 'x-authorization-passkey' },
     EMAIL_CODE_HEADER: { useFactory: () => 'x-authorization-email-code' },
     SMS_CODE_HEADER: { useFactory: () => 'x-authorization-sms-code' },
+    LOGIN_TICKET_HEADER: { useFactory: () => 'x-login-ticket' },
     SMS_CODE_LIMITS: { useFactory: () => undefined },
     RECOVERY_CODE_HEADER: { useFactory: () => 'x-authorization-recovery-code' },
     API_KEY_HEADER: { useFactory: () => 'x-api-key' },
@@ -207,6 +236,10 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
                 // stolen one is worth stealing. 30 days is the usual "stay signed in" window; 100
                 // was a third of a year.
                 refreshTokenExpiresInMs: 30 * Ms.DAY,
+                // long enough for every tab a browser has open to refresh with the same token once
+                // the access token lapsed, and short enough that a stolen token has to be spent
+                // within half a minute of its owner spending it
+                refreshTokenReuseGraceInMs: Ms.SECOND * 30,
                 requireDpop: false,
                 ...input
             };
@@ -217,7 +250,10 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     CRON_REGISTRATION_LEASE_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     EMAIL_SERVICE: { useClass: EmailService },
     SMS_SERVICE: { useFactory: () => undefined },
-    EMAIL_RATE_LIMITER: { useClass: EmailRateLimiter, variants: [DiVariants.RATE_LIMITER] },
+    // registered on use, by EmailService as it starts, which adds it to the rate limiters: built at
+    // every boot, it would read an EMAIL_CONFIG that an application replacing the email service has
+    // no reason to provide
+    EMAIL_RATE_LIMITER: { useClass: EmailRateLimiter, register: 'onUse' },
     EMAIL_CONFIG: { useFactory: () => undefined },
     // no default, the same way EMAIL_CONFIG has none: every transport needs something only the
     // deployment knows - an smtp host and credentials, or an api key - so there is nothing to
@@ -260,9 +296,14 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
             defaultTimeoutMs: Ms.HOUR,
             defaultTimeoutPriorityMs: Ms.MINUTE * 5,
             jobClaimInMs: Ms.SECOND * 30,
+            maxAttempts: 3,
+            workerResourceLimits: { maxOldGenerationSizeMb: workerHeapShareInMb },
             enableTsWorkerFiles: true
         })
     },
+    // none, for the reason the event retention has none: how long a finished job's row is kept is
+    // the application's to say
+    THREAD_JOB_RETENTION_IN_MS: { useFactory: () => undefined },
     MULTITHREADING_SERVICE: { useClass: MultithreadingService },
     WEBSOCKET_SERVICE: { useClass: WebsocketService },
     // handlerInMs bounds this server's own code, the way the http one does. Thirty seconds for the
@@ -282,6 +323,7 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
             return {
                 timeoutInMs: Ms.SECOND * 5,
                 handlerInMs: Ms.SECOND * 30,
+                startServer: 'whenDeclared',
                 isAllowedToConnect: () => true,
                 maxReplayedMessages: 1000,
                 ...input
@@ -341,6 +383,9 @@ export const ZIBRI_DI_PROVIDERS: DiTokenProviderRecord<typeof ZIBRI_DI_TOKENS> =
     COOKIE_AUTH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY },
     // the cookie equivalent of the refresh token above, and the same reasoning
     COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: { useValue: Ms.DAY * 30 },
+    // for the reason the jwt strategy's refreshTokenReuseGraceInMs gives: a request that was on the
+    // wire with the old cookies when another one rotated them must not end the login
+    COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS: { useValue: Ms.SECOND * 30 },
     HASH_SERVICE: { useClass: HashService },
     // scrypt first, and it is the one an unqualified hash uses. Sha256HashStrategy is here so that a
     // property can ask for it by name - it is deterministic, so the service refuses it as the

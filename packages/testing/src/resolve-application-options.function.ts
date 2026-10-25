@@ -85,8 +85,11 @@ export function resolveApplicationOptions(
         // the same, for ZibriApplication's own PasswordAuthenticator fallback
         authenticators: options.authenticators ?? base.authenticators ?? [],
         twoFactorMethods: options.twoFactorMethods ?? base.twoFactorMethods ?? [],
+        // never, as the one answer a test that is about something else can run on
+        twoFactorAtLogin: options.twoFactorAtLogin ?? base.twoFactorAtLogin ?? 'never',
         // false rather than undefined, which is what ZibriApplication falls back to anyway
         twoFactorFailureLimit: options.twoFactorFailureLimit ?? base.twoFactorFailureLimit ?? false,
+        passwordFailureLimit: options.passwordFailureLimit ?? base.passwordFailureLimit ?? false,
         cronJobs: options.cronJobs ?? base.cronJobs ?? [],
         additionalLifecycleServices: options.additionalLifecycleServices
             ?? base.additionalLifecycleServices

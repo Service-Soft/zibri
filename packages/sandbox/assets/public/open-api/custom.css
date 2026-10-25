@@ -19,13 +19,13 @@ body {
     color: #00b4d8;
 }
 
-.zibri-roles-container {
+.zibri-permissions-container {
     flex: 1;
     display: flex;
     justify-content: end;
 }
 
-.zibri-role-badge {
+.zibri-permission-badge {
     background-color: #1a1a26;
     border: 1px solid whitesmoke;
     padding-left: 8px;

@@ -3,17 +3,17 @@ import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServe
 import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../../data-source/repository/repository';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
 import { defineProvider } from '../../../di/models/di-provider.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
-import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
 
 /**
@@ -90,6 +90,7 @@ class ShutdownValKeyDataSource extends ValKeyDataSource {
         keyPrefix: 'cluster-shutdown'
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;
+    readonly repositories: RepositoryClass[] = [];
 }
 
 /**
@@ -171,7 +172,7 @@ class ClusterShutdownController {
         catch (error) {
             // the replica holding this is killed on purpose, so a failure on the way out is
             // expected. Logged rather than swallowed, because a failure anywhere else is not.
-            inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).warn(
+            inject(ZIBRI_DI_TOKENS.LOGGER).warn(
                 `could not finish the section: ${error instanceof Error ? error.message : error}`
             );
         }
@@ -183,7 +184,7 @@ const options: StartTestServerOptions = {
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark] }), ShutdownValKeyDataSource],
+    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark], repositories: defaultTestServerRepositories }), ShutdownValKeyDataSource],
     // spread rather than replaced: providers is the same field startTestServer takes, where what is
     // passed is what is used, so all the defaults have to be kept here
     providers: [

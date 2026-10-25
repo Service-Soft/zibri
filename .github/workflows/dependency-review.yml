@@ -14,13 +14,15 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            # the policy the audit job checks, so the two cannot drift apart: the allowed licenses, and
-            # the packages whose license was confirmed by hand because their manifest does not say it
+            # the policy the audit job checks, so the two cannot drift apart: the allowed licenses, the
+            # packages whose license was confirmed by hand because their manifest does not say it, and the
+            # packages allowed a license of their own. The action can only exempt a package from the
+            # license check as a whole, so for those last ones the audit job is what holds the license
             - name: read the license policy
               id: policy
               run: |
                 echo "allowed=$(node -p "require('./.github/license-policy.json').allowed.join(', ')")" >> "$GITHUB_OUTPUT"
-                echo "exceptions=$(node -p "Object.keys(require('./.github/license-policy.json').exceptions).map(key => 'pkg:npm/' + key.replace(/^@/, '%40')).join(', ')")" >> "$GITHUB_OUTPUT"
+                echo "exceptions=$(node -p "const policy = require('./.github/license-policy.json'); [...Object.keys(policy.exceptions), ...Object.keys(policy.allowedFor)].map(key => 'pkg:npm/' + key.replace(/^@/, '%40')).join(', ')")" >> "$GITHUB_OUTPUT"
             - uses: actions/dependency-review-action@v4
               with:
                 # the bar the audit job fails at

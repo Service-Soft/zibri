@@ -1,71 +1,72 @@
 # Versioning
-Zibri uses the `package.json` as the single source of truth for versioning concerns.
-
-It's used for [Handling migrations](./data-source.md#handling-migrations) and to check against endpoints supported versions.
+The version of your application is the one in its `package.json`. It decides which [migrations](./data-source.md#handling-migrations) run, and which endpoints a request for a version reaches.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `SupportedVersionsOptions` | type | Type of the `versions` option on controllers/routes |
+| `Version` | type | One version of the application: its `value`, such as `1.0.0` |
 | `VersioningServiceInterface` | interface | Resolves the correct version/endpoint for an incoming request |
 
-## Usage
-### Defining supported versions on endpoints
-Supported versions can be defined with the same syntax you would use inside your package.json:
+## Defining supported versions on endpoints
+Supported versions are written as version ranges, the way your `package.json` writes them:
 
 ```ts
-// src/controllers/validated.controller.ts
-import { Controller, defineProvider, FsUtilities, Get, ZIBRI_DI_TOKENS } from 'zibri';
+// src/controllers/task.controller.ts
+import { Controller, Get } from 'zibri';
 
-@Controller('/some', { versions: ['^1.0.0'] })
-class ValidatedController {
-    @Get('/endpoint-v1')
-    getEndpoint(): { ok: boolean } {
-        return { ok: true };
+@Controller('/tasks', { versions: ['^1.0.0'] })
+export class TaskController {
+    @Get('/summary')
+    getSummary(): { open: number } {
+        return { open: 3 };
     }
 
-    @Get('/endpoint-v2', { versions: ['^2'] })
-    getEndpointV2(): { ok: boolean } {
-        return { ok: true };
+    @Get('/board', { versions: ['^2'] })
+    getBoard(): { columns: string[] } {
+        return { columns: ['open', 'done'] };
     }
 
-    @Get('/endpoint-latest', { versions: ['^latest'] })
-    getEndpointLatest(): { ok: boolean } {
-        return { ok: true };
+    @Get('/activity', { versions: ['^latest'] })
+    getActivity(): { events: string[] } {
+        return { events: [] };
     }
 }
 ```
 
-As you can see, versions can either be defined on the controller or on the route level.
+Versions are defined on the controller or on the route.
 
-There is also the special `'latest'` version, which resolves to the current highest major version. By default controllers and routes support the version `'^latest'`.
+The version `'latest'` is the current highest major version. Controllers and routes support `'^latest'` by default.
 
-### Validation
-Zibri aims to provide really strong guard rails when it comes to versioning. You might have already noticed the `versions` folder in your project, which `zi new` creates. Each version is saved inside it, together with the routes it was configured with at that point in time. This allows for some really strong validation when the version inside the `package.json` is bumped.
+## Checking a new version against the earlier ones
+The `versions` folder of your project, which `zi new` creates, holds each version with the routes it served. When you raise the version in `package.json`, the routes of the new version are checked against what the earlier ones recorded.
 
-The folder belongs to your project, so commit it and ship it with whatever you deploy — the release after this one is checked against what this one recorded. An application whose `versions` folder is absent stops at startup and names the path it looked in, and an empty folder is what it takes as permission to record a first version. [deployment.md](./deployment.md) describes where it sits in a deployment.
+Commit the folder, and ship it with what you deploy: the next release is checked against what this one recorded. The folder is required, and an empty one lets the application record a first version. [deployment.md](./deployment.md) describes where the folder sits in a deployment.
 
-The folder sits beside your `package.json`, so it stays put no matter which directory the app was started from. Point it somewhere else with the `VERSIONS_PATH` token:
+The folder sits beside your `package.json`, whichever directory the application is started from. Point it somewhere else with the `VERSIONS_PATH` token:
 
 ```ts
+// src/providers.ts
+import { defineProvider, FsUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.VERSIONS_PATH,
-    useFactory: () => FsUtilities.getPath('/var/lib/my-app/versions')
+    useFactory: () => FsUtilities.getPath('/var/lib/task-tracker/versions')
 })
 ```
 
-Let's say you start with version `'1.0.0'` (the default) and later on change it to `'2.0.0'`. Now Zibri can complain about any endpoint that previously used `'latest'`, `'^latest'` or `'~latest'`, because latest now means something else, so it should have something like `['^1.0.0', '^latest']` as the supported versions defined. Otherwise, any user of version `'1.0.0'` would get an error that the endpoints they spoke to just fine now no longer exist.
+An application at version `'1.0.0'`, the default, moves to `'2.0.0'`. Every endpoint that supported `'latest'`, `'^latest'` or `'~latest'` is reported, because `latest` then means `2`. Give it `['^1.0.0', '^latest']`, so a client of version `'1.0.0'` keeps reaching it.
 
-### Version resolution
-Versions are resolved by reading from a custom query parameter (`'version'` by default), then a custom header (`'x-version'` by default). The provided value can either be:
-- a concrete version, like `'1.0.0'`
-- a json date, like `'2026-05-29T07:44:06.186Z'`
+## Resolving the version of a request
+The version of a request is read from a query parameter, `'version'` by default, then from a header, `'x-version'` by default. Its value is either:
+- a version, like `'1.0.0'`
+- a JSON date, like `'2026-05-29T07:44:06.186Z'`
 
-Zibris versioning service then handles resolving the correct version and endpoint for that header. Or throwing an error when it could not be found.
+The versioning service resolves the version and the endpoint that serves it, and throws an error when there is none.
 
-What version is resolved by the date is defined inside of the version files: They contain a startsAt and endsAt timestamp.
+A date resolves to the version whose `startsAt` and `endsAt` in its version file enclose it.
 
-### Version files
+## Version files
 Each file holds the version, its startsAt and endsAt timestamps, and the routes it served. A route's versions name their shape, as described in [A value of several shapes](./models.md#a-value-of-several-shapes):
 
 ```json
@@ -74,7 +75,7 @@ Each file holds the version, its startsAt and endsAt timestamps, and the routes 
     "startsAt": "2026-05-27T08:11:12.332Z",
     "routes": [
         { "key": "GET /explorer", "versions": { "shape": "All", "value": "all" } },
-        { "key": "GET /tests/", "versions": { "shape": "Matchers", "value": ["^latest"] } }
+        { "key": "GET /tasks/", "versions": { "shape": "Matchers", "value": ["^latest"] } }
     ]
 }
 ```

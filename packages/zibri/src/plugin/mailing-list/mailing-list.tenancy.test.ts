@@ -15,7 +15,8 @@ import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing
 import { MailingList } from './models/mailing-list.model';
 import { MailingListServiceInterface } from './services/mailing-list-service.interface';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -63,7 +64,8 @@ describe('mailing lists across tenants', () => {
             plugins: [new ZibriMailingListPlugin()],
             dataSources: [
                 createInMemoryDataSource({
-                    entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken]
+                    entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken],
+                    repositories: defaultTestServerRepositories
                 })
             ],
             providers: [
@@ -95,11 +97,11 @@ describe('mailing lists across tenants', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('opens the page a link in an email leads to in the tenant the link names, with that tenant\'s lists only', async () => {
         const ofAcme: MailingListSubscriber = await createSubscribedList(ACME, 'Acme-News');

@@ -25,7 +25,7 @@ import { RateLimitStateEntity } from '../../../../rate-limiting/stores/rate-limi
 import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
 import { validateEntitiesRegistered } from '../../../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../../../models/base-user.model';
+import { UserAccount } from '../../../models/user-account.model';
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 
@@ -112,7 +112,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async requestRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: RequestData
     ): Promise<void> {
@@ -132,7 +132,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async confirmRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: CodeConfirmRegisterData
     ): Promise<void> {
@@ -162,17 +162,17 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
+    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
         await this.deleteCredentials({ userId: user.id, channel: this.channel });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
+    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         return await this.findConfirmedCredentials(user.id) != undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validate<Role extends string, UserType extends BaseUser<Role>>(
+    async validate<UserType extends UserAccount>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {
@@ -191,7 +191,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
      * @throws {ForbiddenError} When the user has not enrolled this method.
      * @throws {TooManyRequestsError} When a code was sent to the user a moment ago.
      */
-    async startSecondFactor<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
+    async startSecondFactor<UserType extends UserAccount>(user: UserType): Promise<void> {
         const credentials: TwoFactorCodeCredentials | undefined = await this.findConfirmedCredentials(user.id);
         if (credentials == undefined) {
             throw new ForbiddenError($ts`This account has no second factor of this kind.`);
@@ -214,7 +214,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
      * @param destination - What the user supplied when enrolling, if the method asks for anything.
      * @param code - The code to send.
      */
-    protected abstract deliver(user: BaseUser<string>, destination: string | undefined, code: string): Promise<void>;
+    protected abstract deliver(user: UserAccount, destination: string | undefined, code: string): Promise<void>;
 
     /**
      * What is kept as the destination of the codes.
@@ -288,7 +288,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
         }
     }
 
-    private async sendCode(user: BaseUser<string>, credentials: TwoFactorCodeCredentials): Promise<void> {
+    private async sendCode(user: UserAccount, credentials: TwoFactorCodeCredentials): Promise<void> {
         const options: ResolvedTwoFactorCodeOptions = this.resolveOptions();
         // 0 up to 10^digits, padded so a code starting with zeros is as likely as any other
         const code: string = randomInt(0, 10 ** options.digits).toString()

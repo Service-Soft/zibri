@@ -1,5 +1,5 @@
 import { RouteParamMetadata } from './route-param-metadata.model';
-import { BaseUser } from '../auth/models/base-user.model';
+import { type CurrentUser } from '../auth/decorators/current-user.decorator';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -71,7 +71,7 @@ async function parseRouteParams(
 
     // 5) CurrentUser decorator
     if (metadata.currentUser) {
-        const currentUser: BaseUser<string> | undefined = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
+        const currentUser: CurrentUser | undefined = await context.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
         params[metadata.currentUser.index] = currentUser;
     }
 

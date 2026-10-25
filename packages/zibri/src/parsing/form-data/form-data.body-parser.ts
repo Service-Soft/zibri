@@ -30,18 +30,19 @@ import { resolveMaxBodySize } from '../../routing/decorators/body.decorator';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { ObjectUtilities } from '../../utilities/object.utilities';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { BodyParser } from '../decorators/body-parser.decorator';
 import { parseFormField } from '../functions/parse-form-field.function';
 
+// maps rather than objects, so that a part named after a member of every object, like `constructor`
+// or `__proto__`, is a field of its own rather than a lookup that finds something else
 // eslint-disable-next-line jsdoc/require-jsdoc
 type ParsedForm = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    fields: Record<string, string | string[]>,
+    fields: Map<string, string | string[]>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    filesMap: Record<string, File[]>
+    filesMap: Map<string, File[]>
 };
 
 /**
@@ -197,17 +198,16 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         this.addStringValuesToMap(request, multiPartMap);
         this.addFilesToMap<T>(request, multiPartMap, properties);
 
-        const res: Partial<Record<keyof T, unknown>> = {};
-        for (const [key, value] of multiPartMap) {
-            if (typeof value === 'string' || isTextList(value)) {
+        // built from entries, so a field named `__proto__` is a property of the value rather than
+        // a change to what the value is, and validation reports it like any other unknown key
+        return Object.fromEntries([...multiPartMap].map(([key, value]) => [
+            key,
+            typeof value === 'string' || isTextList(value)
                 // own properties only: a field named `constructor` would otherwise read a member of
                 // every object as its property
-                res[key] = parseFormField(value, Object.hasOwn(properties, key) ? properties[key as string] : undefined);
-                continue;
-            }
-            res[key] = value;
-        }
-        return res as T;
+                ? parseFormField(value, Object.hasOwn(properties, key) ? properties[key as string] : undefined)
+                : value
+        ])) as T;
     }
 
     private addFilesToMap<T extends object>(
@@ -215,8 +215,8 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
         values: Map<keyof T, FormDataValue>,
         properties: Record<string, PropertyMetadata>
     ): void {
-        for (const [key, files] of ObjectUtilities.entries(request.filesMap)) {
-            const property: PropertyMetadata | undefined = properties[key];
+        for (const [key, files] of request.filesMap) {
+            const property: PropertyMetadata | undefined = Object.hasOwn(properties, key) ? properties[key] : undefined;
             if (property == undefined) {
                 // a file field the model does not declare, which any caller is free to send. There
                 // is no metadata to say whether it is one file or a list, so it goes on under its
@@ -266,11 +266,8 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
     }
 
     private addStringValuesToMap<T extends object>(request: ParsedForm, values: Map<keyof T, FormDataValue>): void {
-        if (request.fields == undefined || typeof request.fields !== 'object') {
-            return;
-        }
-        for (const key in request.fields) {
-            values.set(key as keyof T, request.fields[key]);
+        for (const [key, value] of request.fields) {
+            values.set(key as keyof T, value);
         }
     }
 
@@ -312,8 +309,8 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                 }
             });
 
-            const fields: Record<string, string | string[]> = {};
-            const filesMap: Record<string, File[]> = {};
+            const fields: Map<string, string | string[]> = new Map();
+            const filesMap: Map<string, File[]> = new Map();
             const filePromises: Promise<void>[] = [];
 
             let received: BigNumber = NumberUtilities.new(0);
@@ -366,19 +363,17 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                     return;
                 }
 
-                const cur: string | string[] | undefined = Object.prototype.hasOwnProperty.call(fields, name)
-                    ? fields[name]
-                    : undefined;
+                const cur: string | string[] | undefined = fields.get(name);
                 if (cur != undefined) {
                     if (Array.isArray(cur)) {
                         cur.push(val);
                     }
                     else {
-                        fields[name] = [cur, val];
+                        fields.set(name, [cur, val]);
                     }
                 }
                 else {
-                    fields[name] = val;
+                    fields.set(name, val);
                 }
             });
 
@@ -430,8 +425,9 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
                         size,
                         path: destination
                     };
-                    filesMap[fieldname] = filesMap[fieldname] ?? [];
-                    filesMap[fieldname].push(meta);
+                    const files: File[] = filesMap.get(fieldname) ?? [];
+                    files.push(meta);
+                    filesMap.set(fieldname, files);
                 });
 
                 filePromises.push(pipeline(fileStream, writeStream).catch(error => {

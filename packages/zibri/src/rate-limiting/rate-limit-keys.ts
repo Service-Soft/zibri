@@ -1,5 +1,7 @@
+import { isIPv4, isIPv6 } from 'node:net';
+
 import { type AuthServiceInterface } from '../auth/auth-service.interface';
-import { BaseUser } from '../auth/models/base-user.model';
+import { type CurrentUser } from '../auth/decorators/current-user.decorator';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -37,6 +39,8 @@ export abstract class RateLimitKeys {
      *
      * Over http this is only ever as good as the address: an application behind a proxy has to set
      * `security.trustProxy`, or every request appears to come from that proxy and shares one bucket.
+     * An IPv4 address is one caller. An IPv6 address is counted by its /64, the block one subscriber
+     * holds, so every address of it is one caller.
      * A websocket is counted per connection rather than per address, because that is what a
      * websocket caller *is* - and reconnecting to escape a limit costs a handshake every time.
      * @returns The key.
@@ -46,7 +50,45 @@ export abstract class RateLimitKeys {
         if (!(context instanceof HttpRequestContext)) {
             return context?.connection ? `connection:${context.connection.id}` : GLOBAL_KEY;
         }
-        return context.request.ip ?? GLOBAL_KEY;
+        return context.request.ip == undefined ? GLOBAL_KEY : RateLimitKeys.networkOf(context.request.ip);
+    }
+
+    /**
+     * The network an address is counted as.
+     *
+     * An IPv6 address on its own would be one of 2^64 keys one machine holds, so it is its /64. An
+     * IPv4 address arriving in its IPv6 form, as a dual stack socket presents it, is the IPv4
+     * address: the /64 of that form is every IPv4 address there is.
+     * @param ip - The address.
+     * @returns The IPv4 address, or the /64 of an IPv6 address.
+     */
+    private static networkOf(ip: string): string {
+        const unmapped: string = ip.replace(/^::ffff:/i, '');
+        if (isIPv4(unmapped)) {
+            return unmapped;
+        }
+        if (!isIPv6(ip)) {
+            return ip;
+        }
+        return `${RateLimitKeys.leadingGroupsOf(ip, 4).join(':')}::/64`;
+    }
+
+    /**
+     * The first groups of an IPv6 address, each written out in full.
+     * @param ip - The address, compressed or not.
+     * @param count - How many groups.
+     * @returns The groups.
+     */
+    private static leadingGroupsOf(ip: string, count: number): string[] {
+        // without a zone, which names the interface rather than the network
+        const address: string = ip.split('%')[0] ?? ip;
+        const [head = '', tail = ''] = address.split('::');
+        const headGroups: string[] = head ? head.split(':') : [];
+        const tailGroups: string[] = tail ? tail.split(':') : [];
+        // a dotted quad at the end stands for two groups
+        const groupsIn: (groups: string[]) => number = groups => groups.length + groups.filter(g => g.includes('.')).length;
+        const zeros: string[] = Array.from({ length: 8 - groupsIn(headGroups) - groupsIn(tailGroups) }, () => '0');
+        return [...headGroups, ...zeros, ...tailGroups].slice(0, count).map(group => group.padStart(4, '0'));
     }
 
     /**
@@ -63,7 +105,7 @@ export abstract class RateLimitKeys {
             return GLOBAL_KEY;
         }
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-        const user: BaseUser<string> | undefined = await authService.getCurrentUser(context, authService.strategies, false);
+        const user: CurrentUser | undefined = await authService.getCurrentUser(context, authService.strategies, false);
         return user ? `user:${user.id}` : RateLimitKeys.perConnection();
     }
 }

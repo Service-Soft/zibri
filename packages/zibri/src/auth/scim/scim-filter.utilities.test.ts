@@ -4,7 +4,7 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { ScimErrorType } from './scim-error-type.enum';
 import { ScimFilter } from './scim-filter.model';
 import { ScimFilterUtilities } from './scim-filter.utilities';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 
 const anna: Record<string, unknown> = {
@@ -29,7 +29,7 @@ describe('ScimFilterUtilities', () => {
 
     // an application around the pure logic, for the translated messages of the errors it throws
     beforeAll(async () => {
-        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
     });
 
     afterAll(async () => {

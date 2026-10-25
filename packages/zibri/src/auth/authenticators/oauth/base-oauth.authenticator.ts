@@ -8,6 +8,7 @@ import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './oauth-prov
 import { OAuthResponseMode } from './oauth-response-mode.type';
 import { OpenIdClient } from './open-id-client.type';
 import { ZibriApplication } from '../../../application/application';
+import { type AuditServiceInterface } from '../../../audit/audit-service.interface';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../../../data-source/unique-constraint-violation.error';
@@ -26,6 +27,7 @@ import { BaseUser } from '../../models/base-user.model';
 import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
 import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
 import { FederatedIdentity } from '../federated/federated-identity.model';
+import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
 import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
 import { FederatedSignInStart } from '../federated/federated-sign-in-start.model';
 import { FederatedSignInError } from '../federated/federated-sign-in.error';
@@ -96,12 +98,20 @@ export abstract class BaseOAuthAuthenticator<
         return inject(repositoryTokenFor(OAuthProviderTokens));
     }
 
-    private get leaseService(): LeaseServiceInterface {
+    /**
+     * What a provider's one-time things are spent through, across every instance.
+     * @returns The lease service.
+     */
+    protected get leaseService(): LeaseServiceInterface {
         return inject(ZIBRI_DI_TOKENS.LEASE_SERVICE);
     }
 
     private get logger(): LoggerInterface {
         return inject(ZIBRI_DI_TOKENS.LOGGER);
+    }
+
+    private get auditService(): AuditServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE);
     }
 
     override init(app: ZibriApplication): void {
@@ -222,7 +232,7 @@ export abstract class BaseOAuthAuthenticator<
             return;
         }
         await this.identityRepository.updateById(identity.id, { signIn: false }, { transaction });
-        this.logger.audit({ action: AuditAction.IDENTITY_SIGN_IN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
+        this.auditService.record({ action: AuditAction.IDENTITY_SIGN_IN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
     }
 
     /**
@@ -244,10 +254,15 @@ export abstract class BaseOAuthAuthenticator<
      * Has the provider prove who signed in, from its answer to a sign-in this browser started.
      * @param answer - Everything the provider sent the browser back with.
      * @param exchange - What the answer is checked and exchanged with.
-     * @returns Who signed in and when, and the tokens the code was exchanged for.
+     * @returns Who signed in and when, and the tokens the code was exchanged for. Or that the user
+     * signed in at the provider longer ago than `maxAgeInSeconds` allows, which starts the sign-in
+     * again asking the provider for a fresh one.
      * @throws FederatedSignInError when the provider cannot be reached or does not prove who signed in.
      */
-    protected abstract resolveSignIn(answer: URLSearchParams, exchange: OAuthCodeExchange): Promise<OAuthProviderSignIn>;
+    protected abstract resolveSignIn(
+        answer: URLSearchParams,
+        exchange: OAuthCodeExchange
+    ): Promise<OAuthProviderSignIn | FederatedReauthentication>;
 
     /**
      * Hands tokens back to the provider, so they stop working there as well.
@@ -368,17 +383,24 @@ export abstract class BaseOAuthAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async verifyAnswer(answer: URLSearchParams, context: FederatedAnswerContext): Promise<FederatedSignIn> {
-        const signIn: OAuthProviderSignIn = await this.resolveSignIn(answer, {
+    protected async verifyAnswer(
+        answer: URLSearchParams,
+        context: FederatedAnswerContext
+    ): Promise<FederatedSignIn | FederatedReauthentication> {
+        const signIn: OAuthProviderSignIn | FederatedReauthentication = await this.resolveSignIn(answer, {
             state: context.state,
             codeVerifier: this.deriveFromBinding(context.binding, 'pkce'),
             nonce: this.deriveFromBinding(context.binding, 'nonce'),
             maxAgeInSeconds: Math.floor(context.maxAuthenticationAgeInMs / 1000),
             action: context.action
         });
+        if ('reauthenticate' in signIn) {
+            return signIn;
+        }
         return {
             identity: signIn.identity,
-            tokens: context.apiScopes.length ? this.toKeptTokens(signIn.tokens, context.apiScopes) : undefined
+            tokens: context.apiScopes.length ? this.toKeptTokens(signIn.tokens, context.apiScopes) : undefined,
+            session: signIn.session
         };
     }
 
@@ -407,7 +429,7 @@ export abstract class BaseOAuthAuthenticator<
         transaction: Transaction | undefined
     ): Promise<void> {
         await this.writeTokens(identity, tokens, transaction);
-        this.logger.audit({
+        this.auditService.record({
             action: AuditAction.PROVIDER_ACCESS_GRANTED,
             outcome: AuditOutcome.SUCCESS,
             userId: identity.userId,
@@ -497,7 +519,7 @@ export abstract class BaseOAuthAuthenticator<
     private async unlinkUnusedIdentity(identity: FederatedIdentity, transaction: Transaction | undefined): Promise<void> {
         await this.unlinkIdentity(identity.userId, identity.id, transaction);
         // recorded here, since the unlink of AuthService that records it is not the one that ran
-        this.logger.audit({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
+        this.auditService.record({ action: AuditAction.IDENTITY_UNLINKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
     }
 
     private async removeTokens(
@@ -513,7 +535,7 @@ export abstract class BaseOAuthAuthenticator<
             await this.tokensRepository.deleteById(tokens.id, { transaction });
         }
         await this.identityRepository.updateById(identity.id, { grantedScopes: [] }, { transaction });
-        this.logger.audit({
+        this.auditService.record({
             action: AuditAction.PROVIDER_ACCESS_REVOKED,
             outcome: AuditOutcome.SUCCESS,
             userId: identity.userId,

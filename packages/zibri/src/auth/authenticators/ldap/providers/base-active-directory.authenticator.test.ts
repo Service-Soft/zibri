@@ -4,7 +4,7 @@ import { createInMemoryDataSource, FakeLdapDirectory, FakeLdapEntry, InMemoryDat
 import { BaseActiveDirectoryAuthenticator } from './base-active-directory.authenticator';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -71,7 +71,7 @@ let directory: FakeLdapDirectory;
  */
 const firstSignIns: LdapEntry[] = [];
 
-class CompanyActiveDirectory extends BaseActiveDirectoryAuthenticator<Roles, JwtUser> {
+class CompanyActiveDirectory extends BaseActiveDirectoryAuthenticator<string, JwtUser> {
     readonly name: string = 'company-ad';
 
     readonly netbiosName: string = 'ZIBRI';
@@ -197,6 +197,7 @@ beforeAll(async () => {
     });
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, LdapIdentity],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     server = await startTestServer({

@@ -1,9 +1,11 @@
 import { Readable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
+import { setTimeout as sleep } from 'node:timers/promises';
 
-import type { Batch, GlideClient, GlideClientConfiguration, GlideString, PubSubMsg, Script } from '@valkey/valkey-glide';
+import type { Batch, GlideClient, GlideClientConfiguration, GlideReturnType, GlideString, PubSubMsg, Script } from '@valkey/valkey-glide';
 
 import { scanValKeyKeys } from './scan-val-key-keys.function';
+import { ValKeyBackupMode } from './val-key-backup-mode.model';
 import { valKeyGlide } from './val-key-glide.function';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { ChangeSetRepository } from '../../../change-sets/change-set-repository';
@@ -27,6 +29,7 @@ import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
+import { Ms } from '../../../utilities/ms';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
@@ -37,7 +40,7 @@ import { registerRepositoryProvidersFor } from '../../entity-ownership.function'
 import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../hooks/hooks.default';
 import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
 import { Migration } from '../../migration/migration.model';
-import { recordKeyReconciliation, revertMigrationsAfter, runMigrations } from '../../migration/run-migrations.function';
+import { recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
 import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
 import { ChangePropertyOfEntityInput } from '../../models/change-property-of-entity-input.model';
 import { ConvertedValue } from '../../models/converted-value.model';
@@ -48,7 +51,11 @@ import { RemovePropertyFromEntityInput } from '../../models/remove-property-from
 import { RenameEntityInput } from '../../models/rename-entity-input.model';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
 import { Repository } from '../../repository/repository';
+import { RepositoryClass } from '../../repository/repository-class.type';
+import { RunInTransactionOptions } from '../../transaction/run-in-transaction-options.model';
+import { TransactionDeadlockError } from '../../transaction/transaction-deadlock.error';
 import { Transaction } from '../../transaction/transaction.model';
+import { TransactionUtilities } from '../../transaction/transaction.utilities';
 import { ValKeyTransaction, ValKeyTransactionGrants } from '../../transaction/val-key-transaction.model';
 import { ValueConversionUtilities } from '../../value-conversion.utilities';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
@@ -123,6 +130,25 @@ type UpdateStoredRowsResult = {
 const LOCK_KEY_PREFIX: string = 'zibri.lock:';
 
 /**
+ * Namespace for what a transaction is waiting for, by its token: the lock key it is queueing on.
+ */
+const LOCK_WAIT_KEY_PREFIX: string = 'zibri.lock-wait:';
+
+/**
+ * How long what a transaction waits for is kept without being written again.
+ *
+ * A few attempts long, since every attempt writes it again: a waiter that stopped - given up, ended,
+ * gone with its instance - stops appearing in anybody's walk shortly after.
+ */
+const LOCK_WAIT_TTL_IN_MS: number = 500;
+
+/**
+ * How many holders a walk for a cycle follows at most, which bounds the script however long a chain
+ * of waiting transactions grows.
+ */
+const MAX_LOCK_WAIT_HOPS: number = 64;
+
+/**
  * Namespace a backup is restored into before it is swapped in.
  *
  * A whole segment of the key rather than a suffix, so it cannot collide with an entity: a table name
@@ -155,6 +181,31 @@ const LOCKS_PER_SCRIPT: number = 1000;
 const DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS: number = 10000;
 
 /**
+ * How long to wait before subscribing again on a new client, once the one subscribed failed.
+ */
+const RESUBSCRIBE_DELAY_IN_MS: number = Ms.SECOND;
+
+/**
+ * How long to wait for the server to confirm a subscription.
+ */
+const SUBSCRIBE_TIMEOUT_IN_MS: number = 5 * Ms.SECOND;
+
+/**
+ * What one attempt at taking locks came to.
+ */
+type LockAttempt = {
+    /**
+     * How many of the locks it took, which are always the first ones.
+     */
+    taken: number,
+    /**
+     * The tokens of the callers waiting on each other in a cycle with this one, this one's first,
+     * empty when it waits in none.
+     */
+    cycle: string[]
+};
+
+/**
  * The lua scripts a lock needs, each once it has been built.
  */
 type LockScripts = {
@@ -183,13 +234,39 @@ type LockScripts = {
 const lockScripts: LockScripts = {};
 
 /**
+ * The scripts a backup is read with.
+ */
+type BackupScripts = {
+    /**
+     * Reads every key at one moment.
+     */
+    snapshot?: Script
+};
+
+/**
+ * How many keys a backup read as a walk asks for at a time.
+ */
+const BACKUP_WALK_BATCH_SIZE: number = 250;
+
+/**
  * Takes the given locks in the order they are given, and stops at the first one somebody else holds.
- * Answers how many it took, which are always the first ones.
+ * Answers how many it took, which are always the first ones, as the first entry of a list.
  *
  * Stopping rather than skipping is what keeps the order: a caller holds a prefix of its keys and
  * waits on the next one, exactly as it would taking them one by one, so two callers that sort their
  * keys the same way can never each hold what the other waits on. A key this caller already holds
  * counts as taken.
+ *
+ * That holds within one claim only. A transaction claims as it writes, so two of them writing two
+ * rows in opposite orders each hold one and wait on the other. A caller naming the key of what it
+ * waits for (ARGV[3]) has it written there while it waits and removed once it took everything; and
+ * when it stops, the script follows the chain from the lock it stopped at - its holder, the lock that
+ * holder waits for, that lock's holder - and answers the tokens on the way after the count when the
+ * chain comes back to the caller. In one script, so the chain is read as it stands at one moment, and
+ * a cycle it finds is one every transaction on it is waiting in. Each of them finds the same one.
+ *
+ * The keys a walk reads are only known as it goes, so they are not declared - which a single valkey
+ * server allows, and which is why this data source connects to one rather than to a cluster.
  * @returns The script.
  */
 function acquireLockScript(): Script {
@@ -197,8 +274,25 @@ function acquireLockScript(): Script {
         'for i = 1, #KEYS do '
         + 'local holder = redis.call("get", KEYS[i]) '
         + 'if not holder then redis.call("set", KEYS[i], ARGV[1], "PX", ARGV[2]) '
-        + 'elseif holder ~= ARGV[1] then return i - 1 end '
-        + 'end return #KEYS'
+        + 'elseif holder ~= ARGV[1] then '
+        + 'if ARGV[3] == "" then return { i - 1 } end '
+        + 'redis.call("set", ARGV[3], KEYS[i], "PX", ARGV[4]) '
+        + 'local cycle = { i - 1, ARGV[1] } '
+        + 'local key = KEYS[i] '
+        + `for hop = 1, ${MAX_LOCK_WAIT_HOPS} do `
+        + 'local blocker = redis.call("get", key) '
+        + 'if not blocker then return { i - 1 } end '
+        + 'if blocker == ARGV[1] then return cycle end '
+        + 'for j = 3, #cycle do if cycle[j] == blocker then return { i - 1 } end end '
+        + 'cycle[#cycle + 1] = blocker '
+        + 'key = redis.call("get", ARGV[5] .. blocker) '
+        + 'if not key then return { i - 1 } end '
+        + 'end '
+        + 'return { i - 1 } '
+        + 'end '
+        + 'end '
+        + 'if ARGV[3] ~= "" then redis.call("del", ARGV[3]) end '
+        + 'return { #KEYS }'
     );
     return lockScripts.acquire;
 }
@@ -242,6 +336,33 @@ function renewLockScript(): Script {
 }
 
 /**
+ * The script a backup is read as a snapshot with, once it has been built - for the reason the lock
+ * scripts are kept.
+ */
+const backupScripts: BackupScripts = {};
+
+/**
+ * Reads every key matching a pattern as it stands at one moment, and answers its name, what `DUMP`
+ * makes of it and how long it has left to live, in turn.
+ *
+ * One script, because a script runs with nothing else in between: a transaction committed while it
+ * runs is applied before it or after it, whole. The keys are only known once it runs, so they are
+ * not declared, which a single valkey server allows.
+ * @returns The script.
+ */
+function backupSnapshotScript(): Script {
+    backupScripts.snapshot ??= new (valKeyGlide().Script)(
+        'local res = {} '
+        + 'for _, key in ipairs(redis.call("keys", ARGV[1])) do '
+        + 'local payload = redis.call("dump", key) '
+        // eslint-disable-next-line cspell/spellchecker
+        + 'if payload then res[#res + 1] = key res[#res + 1] = payload res[#res + 1] = redis.call("pttl", key) end '
+        + 'end return res'
+    );
+    return backupScripts.snapshot;
+}
+
+/**
  * A base valkey data source definition.
  *
  * Entities are stored as hashes, all ids of an entity are kept in a set next to them so that finding
@@ -258,7 +379,23 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
     abstract readonly entities: Newable<BaseEntity>[];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    abstract readonly repositories: RepositoryClass[];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly maxMessageBytes: number | undefined = undefined;
+
+    /**
+     * How a backup of this data source is read. Has to be set when the data source is marked with
+     * \@Backup.
+     *
+     * `'snapshot'` when a backup has to hold every transaction whole, and the server may pause for as
+     * long as reading every key takes. `'walk'` when the server has to go on answering while a large
+     * store is backed up.
+     */
+    readonly backupMode: ValKeyBackupMode | undefined;
 
     /**
      * The configuration options of the data source.
@@ -313,7 +450,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         return this.client;
     }
 
-    private readonly repositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
+    private readonly builtRepositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -337,10 +474,12 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
         registerRepositoryProvidersFor(this.constructor as Newable<DataSourceInterface>, this);
 
-        this.client = await valKeyGlide().GlideClient.createClient({
+        const client: GlideClient = await valKeyGlide().GlideClient.createClient({
             ...clientOptions,
             addresses: [{ host: host ?? 'localhost', port: port ?? 6379 }]
         });
+        await this.validateServerIsStandalone(client);
+        this.client = client;
 
         // migrations rewrite stored values, so several instances running them together is the same
         // race a sql data source has with its schema, minus the ddl
@@ -350,6 +489,25 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
             }
         });
+    }
+
+    /**
+     * Validates that the server is a single valkey server rather than a node of a cluster.
+     * @param client - The client connected to it, closed when it is a node of a cluster.
+     * @throws When the server runs in cluster mode.
+     */
+    private async validateServerIsStandalone(client: GlideClient): Promise<void> {
+        // a node of a cluster answers only the keys of its own slots, and one write puts a row, its
+        // id set, its index entries and its locks into one batch or one script, which a cluster
+        // refuses across slots - starting anyway fails on the first write that spans two of them
+        const info: string = await client.info([valKeyGlide().InfoOptions.Cluster]);
+        if (/^cluster_enabled:1\s*$/m.test(info)) {
+            client.close();
+            throw new InternalError([
+                `The valkey server of "${this.constructor.name}" runs in cluster mode.`,
+                'A valkey data source connects to one server: a standalone one, or the primary of a primary with replicas.'
+            ]);
+        }
     }
 
     /**
@@ -381,6 +539,51 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async subscribe(channel: string, onMessage: (message: string) => void): Promise<DataSourceSubscription> {
+        const namespacedChannel: string = `${this.keyPrefix}:${channel}`;
+        let subscriber: GlideClient | undefined = await this.resolveSubscriber(namespacedChannel);
+        const closing: AbortController = new AbortController();
+
+        // glide hands messages over by resolving a promise rather than by calling back, so reading
+        // them is a loop that parks until the next one arrives
+        const listen: () => Promise<void> = async () => {
+            while (subscriber != undefined && !closing.signal.aborted) {
+                try {
+                    const msg: PubSubMsg = await subscriber.getPubSubMessage();
+                    if (!closing.signal.aborted) {
+                        onMessage(msg.message.toString());
+                    }
+                }
+                catch (error) {
+                    if (closing.signal.aborted) {
+                        return;
+                    }
+                    // glide reconnects a dropped connection and subscribes it again by itself; what
+                    // rejects here is a client that was closed, and a closed one never opens again.
+                    // Returning used to leave this instance publishing to the others while hearing
+                    // none of them (round-2 02 §S11, 03 §H18)
+                    this.logger.error(new InternalError('a subscription to valkey failed, subscribing again', { cause: error }));
+                    subscriber.close();
+                    subscriber = await this.resolveSubscriberAgain(namespacedChannel, closing.signal);
+                }
+            }
+        };
+        void listen();
+
+        return {
+            unsubscribe: async () => {
+                closing.abort();
+                subscriber?.close();
+                await Promise.resolve();
+            }
+        };
+    }
+
+    /**
+     * Opens a client of its own subscribed to the given channel.
+     * @param namespacedChannel - The channel, with the key prefix.
+     * @returns The subscribed client.
+     */
+    private async resolveSubscriber(namespacedChannel: string): Promise<GlideClient> {
         // eslint-disable-next-line unusedImports/no-unused-vars
         const { host, port, keyPrefix, ...clientOptions } = this.fullOptions;
 
@@ -390,37 +593,40 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             ...clientOptions,
             addresses: [{ host: host ?? 'localhost', port: port ?? 6379 }]
         });
-        await subscriber.subscribeLazy([`${this.keyPrefix}:${channel}`]);
+        // the blocking form: the lazy one returns before the server confirmed, and a message published
+        // in between never arrives
+        await subscriber.subscribe([namespacedChannel], SUBSCRIBE_TIMEOUT_IN_MS);
+        return subscriber;
+    }
 
-        let listening: boolean = true;
-
-        // glide hands messages over by resolving a promise rather than by calling back, so reading
-        // them is a loop that parks until the next one arrives
-        const listen: () => Promise<void> = async () => {
-            while (listening) {
-                try {
-                    const msg: PubSubMsg = await subscriber.getPubSubMessage();
-                    if (listening) {
-                        onMessage(msg.message.toString());
-                    }
+    /**
+     * Subscribes to the given channel on a new client, once the one subscribed failed, retrying until
+     * it works or the subscription is ended.
+     *
+     * What was published while there was none is not delivered: a channel is fan out, not a queue,
+     * and whatever uses one keeps the state it is about somewhere it can read again.
+     * @param namespacedChannel - The channel, with the key prefix.
+     * @param closing - Aborted when the subscription is ended.
+     * @returns The subscribed client, or undefined when the subscription was ended first.
+     */
+    private async resolveSubscriberAgain(namespacedChannel: string, closing: AbortSignal): Promise<GlideClient | undefined> {
+        while (!closing.aborted) {
+            try {
+                await sleep(RESUBSCRIBE_DELAY_IN_MS, undefined, { signal: closing });
+                const subscriber: GlideClient = await this.resolveSubscriber(namespacedChannel);
+                if (closing.aborted) {
+                    subscriber.close();
+                    return undefined;
                 }
-                catch (error) {
-                    if (listening) {
-                        this.logger.error(new InternalError('a subscription to valkey failed', { cause: error }));
-                    }
-                    return;
+                return subscriber;
+            }
+            catch (error) {
+                if (!closing.aborted) {
+                    this.logger.warn('could not subscribe to valkey again yet, retrying', { error });
                 }
             }
-        };
-        void listen();
-
-        return {
-            unsubscribe: async () => {
-                listening = false;
-                subscriber.close();
-                await Promise.resolve();
-            }
-        };
+        }
+        return undefined;
     }
 
     /**
@@ -489,7 +695,11 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * @param timeoutInMs - How long to queue on one lock before giving up.
      * @param held - Where each lock goes as soon as it is taken, so that locks taken before a wait
      * are already being kept alive while it lasts, and are handed back when it runs out.
-     * @throws When a wait ran out, which is also how a deadlock ends.
+     * @param endsDeadlocks - Whether this caller says what it waits for and may be ended to break a
+     * cycle of callers waiting on each other: a transaction, which claims as it writes. A caller taking
+     * all its locks in one go can never be part of one.
+     * @throws TransactionDeadlockError when this caller is the one a cycle it waits in ends.
+     * @throws When a wait ran out.
      */
     private async acquireLocks(
         client: GlideClient,
@@ -497,43 +707,107 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         token: string,
         holdInMs: number,
         timeoutInMs: number,
-        held: Set<string>
+        held: Set<string>,
+        endsDeadlocks: boolean
     ): Promise<void> {
         const lockKeys: string[] = [...new Set(keys)].sort().map(key => `${LOCK_KEY_PREFIX}${key}`);
-        // one group after the other rather than together: taking them in order is the point, and a
-        // later group taken while an earlier one waits would be holding keys out of it
-        for (const group of PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT)) {
-            let waiting: string[] = group;
-            let deadline: number = Date.now() + timeoutInMs;
-            while (waiting.length) {
-                // each lock carries a time to live, so an instance that dies holding it does not lock
-                // the others out for good - it only delays them by that much
-                const taken: number = Number(
-                    await client.invokeScript(acquireLockScript(), { keys: waiting, args: [token, `${holdInMs}`] })
-                );
-                for (const lockKey of waiting.slice(0, taken)) {
-                    held.add(lockKey);
-                }
-                waiting = waiting.slice(taken);
-                if (!waiting.length) {
-                    break;
-                }
-                // the timeout is how long one lock may keep this waiting, as it was when they were
-                // taken one call each, so any progress starts it again
-                if (taken > 0) {
-                    deadline = Date.now() + timeoutInMs;
-                }
-                if (Date.now() > deadline) {
-                    throw new InternalError(
-                        `Could not acquire the lock "${waiting[0]?.slice(LOCK_KEY_PREFIX.length)}" within ${timeoutInMs}ms`
-                        + ' - another instance is still holding it'
-                    );
-                }
-                await new Promise<void>(resolve => {
-                    setTimeout(resolve, LOCK_RETRY_IN_MS);
-                });
+        const waitKey: string = endsDeadlocks ? `${LOCK_WAIT_KEY_PREFIX}${token}` : '';
+        try {
+            // one group after the other rather than together: taking them in order is the point, and
+            // a later group taken while an earlier one waits would be holding keys out of it
+            for (const group of PromiseUtilities.resolveChunks(lockKeys, LOCKS_PER_SCRIPT)) {
+                await this.acquireLockGroup(client, group, token, holdInMs, timeoutInMs, held, waitKey);
             }
         }
+        catch (error) {
+            // no longer waiting, so no longer part of anybody's chain - it would lapse on its own a
+            // moment later, and in that moment another walk could still follow it
+            if (waitKey) {
+                await client.del([waitKey]);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Takes one group of locks, queueing until all of them are taken.
+     * @param client - The client to take them through.
+     * @param group - The namespaced keys, sorted.
+     * @param token - The token that says whose they are.
+     * @param holdInMs - How long a lock lives before it lapses.
+     * @param timeoutInMs - How long to queue on one lock before giving up.
+     * @param held - Where each lock goes as soon as it is taken.
+     * @param waitKey - Where to say what this caller waits for, empty for a caller that does not.
+     * @throws TransactionDeadlockError when this caller is the one a cycle it waits in ends.
+     * @throws When a wait ran out.
+     */
+    private async acquireLockGroup(
+        client: GlideClient,
+        group: string[],
+        token: string,
+        holdInMs: number,
+        timeoutInMs: number,
+        held: Set<string>,
+        waitKey: string
+    ): Promise<void> {
+        let waiting: string[] = group;
+        let deadline: number = Date.now() + timeoutInMs;
+        while (waiting.length) {
+            const { taken, cycle }: LockAttempt = await this.attemptLocks(client, waiting, token, holdInMs, waitKey);
+            for (const lockKey of waiting.slice(0, taken)) {
+                held.add(lockKey);
+            }
+            waiting = waiting.slice(taken);
+            if (!waiting.length) {
+                return;
+            }
+            // the one of the cycle every transaction on it names, so exactly one of them ends and the
+            // others go on once it has handed back what it held - the way postgres picks one
+            if (cycle.length && [...cycle].sort().at(-1) === token) {
+                throw new TransactionDeadlockError();
+            }
+            // the timeout is how long one lock may keep this waiting, as it was when they were taken
+            // one call each, so any progress starts it again
+            if (taken > 0) {
+                deadline = Date.now() + timeoutInMs;
+            }
+            if (Date.now() > deadline) {
+                throw new InternalError(
+                    `Could not acquire the lock "${waiting[0]?.slice(LOCK_KEY_PREFIX.length)}" within ${timeoutInMs}ms`
+                    + ' - another instance is still holding it'
+                );
+            }
+            await new Promise<void>(resolve => {
+                setTimeout(resolve, LOCK_RETRY_IN_MS);
+            });
+        }
+    }
+
+    /**
+     * Takes as many of the given locks as are free, in order, once.
+     * @param client - The client to take them through.
+     * @param lockKeys - The namespaced keys, sorted.
+     * @param token - The token that says whose they are.
+     * @param holdInMs - How long a lock lives before it lapses.
+     * @param waitKey - Where to say what this caller waits for, empty for a caller that does not.
+     * @returns How many it took, and the tokens of a cycle this caller waits in, if it waits in one.
+     */
+    private async attemptLocks(
+        client: GlideClient,
+        lockKeys: string[],
+        token: string,
+        holdInMs: number,
+        waitKey: string
+    ): Promise<LockAttempt> {
+        // each lock carries a time to live, so an instance that dies holding it does not lock the
+        // others out for good - it only delays them by that much
+        const answer: unknown = await client.invokeScript(acquireLockScript(), {
+            keys: lockKeys,
+            args: [token, `${holdInMs}`, waitKey, `${LOCK_WAIT_TTL_IN_MS}`, LOCK_WAIT_KEY_PREFIX]
+        });
+        const parts: unknown[] = Array.isArray(answer) ? answer.map((part: unknown) => part) : [answer];
+        const [taken, ...cycle]: unknown[] = parts;
+        return { taken: Number(taken), cycle: cycle.map(member => String(member)) };
     }
 
     /**
@@ -567,7 +841,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 if (!released) {
                     kept ??= inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).keepAlive(lease, holdInMs);
                 }
-                await this.acquireLocks(client, keys, token, holdInMs, timeoutInMs, held);
+                await this.acquireLocks(client, keys, token, holdInMs, timeoutInMs, held, true);
                 // the transaction can end while this is queueing, because its idle timeout ends it
                 // from a timer rather than from whoever is writing. What it held went back as it
                 // ended, and what this took arrived after that - so it goes back on its own
@@ -609,7 +883,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         // neither can tell "my lock" from "a lock", and a holder whose key had already lapsed would
         // go on to free the one that replaced it.
         const token: string = UUIDUtilities.generate();
-        await this.acquireLocks(client, [key], token, holdInMs, timeoutInMs, new Set());
+        await this.acquireLocks(client, [key], token, holdInMs, timeoutInMs, new Set(), false);
 
         return {
             name: key,
@@ -654,7 +928,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         }
 
         // eslint-disable-next-line stylistic/max-len
-        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.repositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
+        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.builtRepositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
         if (existingRepository) {
             return existingRepository;
         }
@@ -672,7 +946,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
             return res;
         }
         if (isChangeSetEntityNewable(cls)) {
@@ -686,7 +960,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
             return res;
         }
 
@@ -698,7 +972,7 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             getDefaultBeforeSaveHook(),
             getDefaultBeforeReturnHook()
         ) as RepositoryTypeForEntity<T>;
-        this.repositories.set(cls, res as Repository<BaseEntity>);
+        this.builtRepositories.set(cls, res as Repository<BaseEntity>);
         return res;
     }
 
@@ -723,6 +997,11 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS,
             this.logger
         );
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async runInTransaction<R>(work: (transaction: Transaction) => Promise<R>, options: RunInTransactionOptions): Promise<R> {
+        return await TransactionUtilities.runInTransaction(this, work, options);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -835,11 +1114,18 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     validateBackupConfiguration(): void {
-        // a valkey backup only needs the connection that the data source already has
+        // beyond this, a valkey backup only needs the connection that the data source already has
+        if (this.backupMode == undefined) {
+            throw new InternalError(
+                'Invalid data source marked with @Backup: backupMode is not set.'
+                + ' Set \'snapshot\' to read every key at one moment, pausing the server while it does,'
+                + ' or \'walk\' to read them a batch at a time while the server goes on answering.'
+            );
+        }
     }
 
     /**
-     * Creates a backup of every key of this data source.
+     * Creates a backup of every key of this data source, read the way {@link backupMode} says.
      *
      * Each line of the returned stream is one json encoded key, as produced by the DUMP command.
      * @returns A readable stream of the backup data.
@@ -851,23 +1137,79 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
             throw new DataSourceInitializationError();
         }
         const pattern: string = `${this.keyPrefix}:*`;
+        const entries: AsyncGenerator<ValKeyBackupEntry> = this.backupMode === 'walk'
+            ? this.walkBackupEntries(client, pattern)
+            : this.snapshotBackupEntries(client, pattern);
 
         return Readable.from((async function* generateBackupData(): AsyncGenerator<string> {
-            for (const key of await scanValKeyKeys(client, pattern)) {
-                const payload: Awaited<ReturnType<GlideClient['dump']>> = await client.dump(key);
-                if (payload == undefined) {
-                    continue;
-                }
-                // eslint-disable-next-line cspell/spellchecker
-                const ttlMs: number = await client.pttl(key);
-                const entry: ValKeyBackupEntry = {
-                    key,
-                    ttlMs: ttlMs > 0 ? ttlMs : 0,
-                    payload: Buffer.from(payload).toString('base64')
-                };
+            for await (const entry of entries) {
                 yield `${JsonUtilities.stringify(entry)}\n`;
             }
         })());
+    }
+
+    /**
+     * Reads every key of the backup at one moment.
+     * @param client - The client to read with.
+     * @param pattern - The keys to read.
+     * @yields Each key, with what it holds and how long it has left to live.
+     */
+    private async* snapshotBackupEntries(client: GlideClient, pattern: string): AsyncGenerator<ValKeyBackupEntry> {
+        const reply: GlideReturnType = await client.invokeScript(backupSnapshotScript(), {
+            args: [pattern],
+            decoder: valKeyGlide().Decoder.Bytes
+        });
+        const values: GlideReturnType[] = Array.isArray(reply) ? reply : [];
+        for (let i: number = 0; i + 2 < values.length; i += 3) {
+            const key: GlideReturnType | undefined = values[i];
+            if (!Buffer.isBuffer(key)) {
+                throw new InternalError('Could not back up a key: valkey answered no name of it.');
+            }
+            yield this.toBackupEntry(key.toString('utf8'), values[i + 1], values[i + 2]);
+        }
+    }
+
+    /**
+     * Reads the keys of the backup a batch at a time.
+     * @param client - The client to read with.
+     * @param pattern - The keys to read.
+     * @yields Each key still there by the time its batch is read, with what it holds and how long it
+     * has left to live.
+     */
+    private async* walkBackupEntries(client: GlideClient, pattern: string): AsyncGenerator<ValKeyBackupEntry> {
+        for (const keys of PromiseUtilities.resolveChunks(await scanValKeyKeys(client, pattern), BACKUP_WALK_BATCH_SIZE)) {
+            // one request per batch rather than two per key, without making it one moment
+            const batch: Batch = new (valKeyGlide().Batch)(false);
+            for (const key of keys) {
+                batch.dump(key);
+                // eslint-disable-next-line cspell/spellchecker
+                batch.pttl(key);
+            }
+            const replies: GlideReturnType[] = await client.exec(batch, true, { decoder: valKeyGlide().Decoder.Bytes }) ?? [];
+            for (const [i, key] of keys.entries()) {
+                const payload: GlideReturnType | undefined = replies[i * 2];
+                // deleted since it was found
+                if (payload == undefined) {
+                    continue;
+                }
+                yield this.toBackupEntry(key, payload, replies[(i * 2) + 1]);
+            }
+        }
+    }
+
+    /**
+     * Turns what valkey answered about one key into an entry of the backup.
+     * @param key - The key.
+     * @param payload - What `DUMP` made of it.
+     * @param ttlMs - What `PTTL` answered for it.
+     * @returns The entry.
+     * @throws When valkey answered something else.
+     */
+    private toBackupEntry(key: string, payload: GlideReturnType | undefined, ttlMs: GlideReturnType | undefined): ValKeyBackupEntry {
+        if (!Buffer.isBuffer(payload) || typeof ttlMs !== 'number') {
+            throw new InternalError(`Could not back up the key "${key}": valkey answered no dump of it.`);
+        }
+        return { key, ttlMs: ttlMs > 0 ? ttlMs : 0, payload: payload.toString('base64') };
     }
 
     /**
@@ -881,9 +1223,14 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
      * The swap is one batch: everything that was there is removed and everything staged takes its
      * place, so no reader sees half of the old state and half of the new one. Keys which did not
      * exist when the backup was created therefore do not survive the restore.
+     *
+     * Once swapped in, what the backup holds is brought in line with this version of the app: every
+     * migration it has not recorded runs, and the indexes and uniques are built as the entities
+     * declare them. A backup taken by a newer version of the app is refused.
      * @param backupData - The backup data to restore.
      * @throws When the data source has not been initialized yet, or when the backup could not be
-     * read - in which case nothing has been changed.
+     * read - in which case nothing has been changed. When the backup was taken by a newer version of
+     * the app, when a migration fails, or when the restored rows break a declared unique or check.
      */
     async restoreBackup(backupData: Readable): Promise<void> {
         const client: GlideClient | undefined = this.client;
@@ -910,6 +1257,23 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
         if (await client.exec(batch, true) == undefined) {
             throw new InternalError('The restored backup could not be swapped in.');
         }
+
+        // a row and what is kept about it are only as consistent as the backup was taken, and a walk
+        // takes them at different moments. Under the schema lock, so that no instance starting up
+        // reconciles or migrates them at the same time. Not around the swap: the lock is a key under
+        // the prefix, which the swap deletes
+        await this.schemaLock(SCHEMA_LOCK_KEY, async () => {
+            let changed: boolean = false;
+            for (const entity of this.entities) {
+                changed = await new ValKeyRepositoryDriver(entity, client, this.keyPrefix, this).rebuildStoredKeys() || changed;
+            }
+            // after the keys are rebuilt, since the migrations read through them. A backup of an
+            // older release left as it was kept the values the newer one migrated away from
+            await runMigrationsAfterRestore(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
+            if (await this.reconcileKeys() || changed) {
+                await recordKeyReconciliation(this.constructor as Newable<DataSourceInterface>);
+            }
+        });
     }
 
     /**

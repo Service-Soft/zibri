@@ -10,6 +10,7 @@ import { testFileFolder } from '../../__testing__/constants';
 import { diffFileContents } from '../../__testing__/diff-file-contents.function';
 import { AUTHORED_CODE_PATHS,
     CLI_ROOT,
+    EVERY_FEATURE,
     GENERATED_FILE_PATHS,
     NEEDS_A_REAL_INSTALL,
     NOT_IN_VERSION_CONTROL,
@@ -82,7 +83,7 @@ describe('NewCommand (sandbox parity, without installing)', () => {
         // no ci workflow: the sandbox lives inside this repository, whose own workflows are the ones
         // GitHub runs, so it has none of its own to compare against. new.command.test.ts reads the
         // generated one and the heavy suite runs it
-        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none', 'public']));
+        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none', 'public', EVERY_FEATURE]));
     }, PARITY_TIMEOUT_MS);
 
     afterAll(async () => {
@@ -96,26 +97,9 @@ describe('NewCommand (sandbox parity, without installing)', () => {
             : FsUtilities.createFile(RECORDED_DIFFS_PATH, recording));
     }, PARITY_TIMEOUT_MS);
 
-    it('creates every folder its own webpack config copies', async () => {
-        const config: string = await FsUtilities.readFile(path.join(appDir, 'webpack.config.js') as Path);
-        const copied: string[][] = [...config.matchAll(/from: path\.resolve\(__dirname, ([^)]+)\)/g)]
-            .map(match => match[1].split(',').map(segment => segment.trim().replaceAll('\'', '')));
-
-        expect(copied.length).toBeGreaterThan(0);
-
-        const missing: string[] = [];
-        for (const segments of copied) {
-            if (!await FsUtilities.exists(path.join(appDir, ...segments) as Path)) {
-                missing.push(segments.join('/'));
-            }
-        }
-
-        // copy-webpack-plugin refuses a `from` that does not exist unless it is told not to, and the
-        // generated config does not tell it - so a folder the generator names and never creates is a
-        // project whose very first `npm run build` fails. Nothing compiled the scaffold, so nothing
-        // said so.
-        expect(missing).toEqual([]);
-    }, PARITY_TIMEOUT_MS);
+    // whether it creates every folder its webpack config copies is asked of the config itself, which
+    // zibri ships: resolve-webpack-configuration.function.test.ts, against packages/sandbox - which
+    // the cases below hold equal to what this writes
 
     it('generates code that parses', () => {
         // syntax only. Types would need the install this suite stubs out, and would answer a much

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -35,18 +36,19 @@ let dataSource: PostgresDataSource;
 
 // the same class twice, the way spreading the defaults and then naming one of them again lists it
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, TwiceListedNote, TwiceListedNote]
+    entities: [...defaultTestServerEntities, TwiceListedNote, TwiceListedNote],
+    repositories: defaultTestServerRepositories
 });
 
 describe('an entity listed twice in one data source', () => {
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('is one entity, with each of its indices created once', async () => {
         const rows: { indexname: string }[] = await dataSource.query(TwiceListedNote).connection.query(

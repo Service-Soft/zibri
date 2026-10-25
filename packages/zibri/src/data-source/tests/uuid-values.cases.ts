@@ -103,6 +103,22 @@ export function describeUuidValues(dataSourceName: string, repositoriesOf: () =>
             expect((await repositoriesOf().items.findById(id)).label).toBe('chosen');
         });
 
+        it('refuses a chosen id a row already holds, rather than writing over that row', async () => {
+            const stored: UuidItem = await repositoriesOf().items.create({ label: 'first' });
+
+            // was saved rather than inserted, which rewrote the stored row with the new values past
+            // every check an update makes
+            await expect(repositoriesOf().items.create({ id: stored.id, label: 'second' }, { allowId: true }))
+                .rejects.toMatchObject({ name: 'UniqueConstraintViolationError', properties: ['id'] });
+            await expect(repositoriesOf().items.createAll(
+                [{ label: 'fresh' }, { id: stored.id.toUpperCase(), label: 'second' }],
+                { allowId: true }
+            )).rejects.toThrow(UniqueConstraintViolationError);
+
+            expect((await repositoriesOf().items.findById(stored.id)).label).toBe('first');
+            expect(await repositoriesOf().items.count({ where: { label: 'fresh' } })).toBe(0);
+        });
+
         it('stores the foreign key of a related row named in upper case in lower case', async () => {
             const owner: UuidOwner = await repositoriesOf().owners.create({ name: 'owner' });
 

@@ -1,7 +1,12 @@
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Property } from '../../entity/decorators/property.decorator';
-import { AnyEnum } from '../../types/any-enum.type';
 import { Newable } from '../../types/newable.type';
+
+/**
+ * Marks an entity whose rows are the memberships of users in a tenant, as a static member of its
+ * class. `BaseMembershipEntity()` sets it.
+ */
+export const MEMBERSHIP_ENTITY: unique symbol = Symbol('zibri.membership-entity');
 
 /**
  * Common properties shared by all memberships: a user belonging to a tenant.
@@ -16,7 +21,8 @@ export type BaseMembership<Role extends string> = BaseEntity & {
      */
     userId: string,
     /**
-     * The roles the user holds in the tenant, which `@Auth.hasRole` checks.
+     * The roles the user holds in the tenant, which `@Auth.hasRole` checks. Each is one
+     * `ZIBRI_DI_TOKENS.ROLES_AND_PERMISSIONS` declares at the tenant level.
      */
     roles: Role[],
     /**
@@ -29,14 +35,16 @@ export type BaseMembership<Role extends string> = BaseEntity & {
 
 // eslint-disable-next-line jsdoc/require-returns
 /**
- * Defines a base membership entity class with the specified roles.
- * @param roleValue - The enum that is used for defining the roles a user holds in a tenant.
+ * Defines a base membership entity class, whose roles are typed as the given ones.
+ *
+ * Which roles a membership may hold is what `ZIBRI_DI_TOKENS.ROLES_AND_PERMISSIONS` declares at the
+ * tenant level: writing any other is refused.
  */
-export function BaseMembershipEntity<Role extends string>(
-    roleValue: AnyEnum<Role>
-): Newable<BaseMembership<Role>> {
+export function BaseMembershipEntity<Role extends string = string>(): Newable<BaseMembership<Role>> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     class Temp extends BaseEntity implements BaseMembership<Role> {
+        // eslint-disable-next-line jsdoc/require-jsdoc
+        static readonly [MEMBERSHIP_ENTITY]: true = true;
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.string({ format: 'uuid' })
         tenantId!: string;
@@ -44,7 +52,7 @@ export function BaseMembershipEntity<Role extends string>(
         @Property.string({ format: 'uuid' })
         userId!: string;
         // eslint-disable-next-line jsdoc/require-jsdoc
-        @Property.array({ items: { type: 'string', enum: roleValue } })
+        @Property.array({ items: { type: 'string' } })
         roles!: Role[];
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Property.date({ required: false })

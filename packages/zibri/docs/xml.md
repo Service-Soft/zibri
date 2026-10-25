@@ -14,10 +14,9 @@ Zibri reads and writes xml the same way it reads and writes json: a [model](./mo
 | `XmlString` | type | Text that is a well formed xml document |
 | `XmlGenerateOptions` | type | How `generateFrom` lays a document out |
 | `XmlParseOptions` | type | How strictly `parseFrom` reads a document |
-| `MimeType.XML` | enum member | Declares a body as xml, and a response that can be written as xml |
+| `MimeType.XML` | enum | Declares a body as xml, and a response that can be written as xml |
 
-## Usage
-### Describing a document
+## Describing a document
 A model describes an element. Each property is a child element named after the property:
 
 ```ts
@@ -78,7 +77,7 @@ export class Order {
 
 Elements and attributes are matched by their name without a namespace prefix, so `<o:Order xmlns:o="urn:example:orders">` is read as `Order` too.
 
-### Namespaces
+## Using namespaces
 A model whose elements are in another namespace than the document's names it with `@XmlNamespace`, and the root declares the prefix it is written with:
 
 ```ts
@@ -112,7 +111,7 @@ export class Envelope {
 - A namespace with a prefix is written with it, the root's own included. The root's namespace without a prefix is the document's default namespace.
 - A model in a namespace the root declares no prefix for cannot be written.
 
-### Mixed content
+## Describing mixed content
 Text with elements in between, like `Hello <x id="name"/>!`, is a property marked with `@XmlMixed`. It is declared as a list of `oneOf`: the one shape of text holds a piece of text, and every other shape is a model, written as the element named like the shape:
 
 ```ts
@@ -141,12 +140,14 @@ export class Message {
 - A model with mixed content declares no other child elements and no `@XmlText`. Attributes are fine.
 - An attribute of the `xml` namespace keeps its prefix, like `xml:space` above.
 
-### Receiving an xml body
+## Receiving an xml body
 Declare a body as xml with `type: MimeType.XML`:
 
 ```ts
 // src/controllers/order.controller.ts
 import { Body, Controller, MimeType, Post } from 'zibri';
+
+import { Order } from '../models/order.model';
 
 @Controller('/orders')
 export class OrderController {
@@ -163,7 +164,9 @@ A websocket event takes an xml body the same way, sent as a string:
 
 ```ts
 // src/controllers/order.websocket-controller.ts
-import { WebsocketBody, WebsocketController, WebsocketRoute } from 'zibri';
+import { MimeType, WebsocketBody, WebsocketController, WebsocketRoute } from 'zibri';
+
+import { Order } from '../models/order.model';
 
 @WebsocketController()
 export class OrderWebsocketController {
@@ -189,14 +192,16 @@ export class SignedOrderController {
 }
 ```
 
-It accepts the same media types, is refused the same way when it is not well formed, and is held to the same `maxSize`.
+A raw body accepts the same media types and the same `maxSize`. A document that is not well formed is refused the same way.
 
-### Answering with xml
-A response declared with `Response.object`, `Response.paginated` or `Response.keysetPage` names the formats it can be written in with `mimeTypes`. The request's `Accept` header picks one. Between formats the request weighs equally, the one it names first is taken, and when it names none or accepts anything, the first one the response lists is taken:
+## Answering with xml
+A response declared with `Response.object`, `Response.paginated` or `Response.keysetPage` names the formats it can be written in with `mimeTypes`. The request's `Accept` header picks one: the format it weighs highest. Of two formats it weighs the same, the one it names first is taken. Without an `Accept` header, or with `*/*`, the first format the response lists is taken:
 
 ```ts
 // src/controllers/order-lookup.controller.ts
-import { Get, Response } from 'zibri';
+import { Controller, Get, MimeType, Response } from 'zibri';
+
+import { Order } from '../models/order.model';
 
 @Controller('/order-lookup')
 export class OrderLookupController {
@@ -212,11 +217,13 @@ The handler returns the data of the model either way. As xml, it is written as t
 
 An xml response is one model, which is the root element of the document. A list is a model holding it. A page is written as a `PaginationResult` or `KeysetPage` element, with one `items` element per item.
 
-`Response.empty` takes `mimeTypes` too, and answers json and xml by default. Every json and empty response of a route names the same formats, and the application refuses to start otherwise:
+`Response.empty` takes `mimeTypes` too, and answers json and xml by default. Every json and empty response of a route names the same formats:
 
 ```ts
 // src/controllers/order-by-id.controller.ts
 import { Controller, Get, MimeType, Param, Response } from 'zibri';
+
+import { Order } from '../models/order.model';
 
 @Controller('/order-by-id')
 export class OrderByIdController {
@@ -232,18 +239,20 @@ export class OrderByIdController {
 
 An error is answered with xml when the request prefers it, on any route. See [error handling](./error-handling.md#how-the-global-error-handler-processes-an-error).
 
-### Writing a document
+## Writing a document
 `XmlUtilities.generateFrom` writes the data of a model as its document, an `XmlString`. The data has the type of the model, and it is validated against the model before it is written:
 
 ```ts
 // src/services/order.service.ts
 import { HttpClientInterface, HttpClientResponse, inject, MimeType, XmlString, XmlUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
+import { Order } from '../models/order.model';
+
 export async function sendOrder(order: Order): Promise<HttpClientResponse<Order>> {
     const xml: XmlString = await XmlUtilities.generateFrom(Order, order);
 
     const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
-    return await http.post('https://some-api.com/orders', xml, {
+    return await http.post('https://supplier.example.com/orders', xml, {
         requestBodyType: MimeType.XML,
         responseBody: { modelClass: Order, type: MimeType.XML }
     });
@@ -258,12 +267,14 @@ The example also reads the response as xml: a `responseBody` with `type: MimeTyp
 
 The http client sends an `XmlString` as an xml body. A document you write some other way becomes one with `XmlUtilities.resolveXmlString`, which throws an `InternalError` for text that is not a well formed xml document.
 
-### Reading a document
+## Reading a document
 `XmlUtilities.parseFrom` reads a document as the data of a model, the way an xml body is read, and validates it:
 
 ```ts
 // src/services/order-import.service.ts
 import { XmlUtilities } from 'zibri';
+
+import { Order } from '../models/order.model';
 
 export async function readOrder(xml: string): Promise<Order> {
     return await XmlUtilities.parseFrom(Order, xml);
@@ -271,6 +282,11 @@ export async function readOrder(xml: string): Promise<Order> {
 ```
 
 A document that is not well formed, or does not have the structure of the model, throws an `InternalError`. Values that break the rules of the model throw a `ValidationError`. An element of the root that the model does not declare is reported too, unless you pass `{ allowAdditionalProperties: true }`.
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `saxes` | Reading xml bodies and documents. You install it |
 
 ## See also
 - [Models](./models.md) — the `@Property` decorators that say what each value is

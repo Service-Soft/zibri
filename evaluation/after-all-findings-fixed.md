@@ -15,3 +15,8 @@
 - the backup system needs to somehow deal with datasource migrations
 - the backup system should also be in a state where it is never possible that a "RestoreNotUndoneError" can be thrown
 - Is it possible to automatically link/unlink deleted entities when eg. updating a non deleted entity and including the deleted entities id in their hasOne/oneToMany relation?
+- validate at startup that all hasRole/hasPermission decorators only name roles and permissions that actually exist
+- check if a "conversion" from sso permissions to project internal ones would be helpful
+- if not already present: Add a test that checks the size of a compiled production app, so we can see how small a single pod can be and how fast it can start etc.
+Im aware that zibri isn't really a microservice framework but these performance numbers should at least be decent/okayish
+- Currently, entity validation happens at multiple places, because eg. a JwtRefreshToken entity is only required when the strategy initializes. I want to combine all required entities into a single startup error, instead of manually adding entities to a datasource, just to then start the api and get a new error of missing entities that werent mentioned before

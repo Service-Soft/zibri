@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -53,7 +54,7 @@ describe('JwtAuthStrategy — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing JwtAuthStrategy[\S\s]*JwtRefreshToken/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('AuthController / JwtAuthStrategy — real HTTP flow', () => {
@@ -92,11 +93,11 @@ describe('AuthController / JwtAuthStrategy — real HTTP flow', () => {
         credentialsRepo = inject(repositoryTokenFor(PasswordCredentials));
         resetTokenRepo = inject(repositoryTokenFor(PasswordResetToken));
         emailRepo = inject(repositoryTokenFor(Email));
-    }, 20000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await emailRepo.deleteAll({});

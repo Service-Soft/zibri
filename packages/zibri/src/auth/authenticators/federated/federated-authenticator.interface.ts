@@ -8,6 +8,7 @@ import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedRegistration } from './federated-registration.model';
 import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import { FederatedRoute } from './federated-route.type';
+import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSession } from './federated-session.model';
 import { FederatedSignInRequest } from './federated-sign-in-request.model';
 import { FederatedSignInResult } from './federated-sign-in-result.model';
@@ -79,7 +80,12 @@ export interface FederatedAuthenticatorInterface<
      * Reads the SOAP envelope the provider sent the `logout/soap` route server to server, exactly as
      * it arrived, and answers which logins end and the envelope to answer with.
      */
-    resolveSoapLogout: (envelope: string) => Promise<FederatedSoapLogout>
+    resolveSoapLogout: (envelope: string) => Promise<FederatedSoapLogout>,
+    /**
+     * Reads the logout token the provider sent the `logout/back-channel` route server to server, and
+     * answers which logins end.
+     */
+    resolveBackChannelLogout: (token: string) => Promise<FederatedSessionMatch>
 }
 
 /**
@@ -101,7 +107,8 @@ export function isFederatedAuthenticator(value: unknown): value is FederatedAuth
         'resolveMetadata',
         'createLogoutUrl',
         'readProviderLogout',
-        'resolveSoapLogout'
+        'resolveSoapLogout',
+        'resolveBackChannelLogout'
     ];
     return keys.every(key => key in value);
 }

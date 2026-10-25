@@ -5,6 +5,7 @@ import { HashString } from './hash.utilities';
 import { HashStrategyEntity, HashStrategyStatus } from './strategies/hash-strategy-entity.model';
 import { ScryptHashStrategy } from './strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from './strategies/sha256.hash-strategy';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -21,7 +22,7 @@ describe('HashService — starting', () => {
 
         await expect(start).rejects.toThrow('Error initializing HashService');
         await expect(start).rejects.toThrow(/HashStrategyEntity/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('HashService', () => {
@@ -33,11 +34,11 @@ describe('HashService', () => {
         server = await startTestServer();
         strategyRepository = inject(repositoryTokenFor(HashStrategyEntity));
         hashService = inject(ZIBRI_DI_TOKENS.HASH_SERVICE) as HashService;
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     test('creates strategy metadata on first hash', async () => {
         const strategiesBeforeHash: HashStrategyEntity[] = await strategyRepository.findAll();

@@ -7,9 +7,10 @@ import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, FakeSamlAnswe
 import { BaseSamlAuthenticator } from './base-saml.authenticator';
 import { SamlIdentityProvider } from './saml-identity-provider.model';
 import { SamlKeyPair } from './saml-key-pair.model';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -22,6 +23,7 @@ import { KnownHeader } from '../../../http/known-header.enum';
 import { MimeType } from '../../../http/mime-type.enum';
 import { Body } from '../../../routing/decorators/body.decorator';
 import { Controller } from '../../../routing/decorators/controller.decorator';
+import { Get } from '../../../routing/decorators/get.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
@@ -54,6 +56,7 @@ const REGISTRATION_URL: string = 'https://app.example.com/register';
 const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
 const SIGNED_OUT_URL: string = 'https://app.example.com/signed-out';
 const MAX_AUTHENTICATION_AGE_IN_MS: number = 3600000;
+const MFA_CONTEXT: string = 'urn:oasis:names:tc:SAML:2.0:ac:classes:TimeSyncToken';
 
 let idp: FakeSamlProvider;
 let strictIdp: FakeSamlProvider;
@@ -64,7 +67,7 @@ let postOnlyIdp: FakeSamlProvider;
 let signingKey: FakeKeyPair;
 let decryptionKey: FakeKeyPair;
 
-class CompanyAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+class CompanyAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     readonly name: string = 'company';
 
     readonly entityId: string = SP_ENTITY_ID;
@@ -79,7 +82,7 @@ class CompanyAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
 }
 
 // signs its requests and has the assertions encrypted to it, with the provider given by hand
-class StrictAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+class StrictAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     readonly name: string = 'strict';
 
     readonly entityId: string = SP_ENTITY_ID;
@@ -98,7 +101,7 @@ class StrictAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
     override readonly decryptionKey: SamlKeyPair = decryptionKey;
 }
 
-class PostAnsweringAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+class PostAnsweringAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     readonly name: string = 'post-answering';
 
     readonly entityId: string = SP_ENTITY_ID;
@@ -113,7 +116,7 @@ class PostAnsweringAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
 }
 
 // signs what it sends, which for a provider taking posted forms is the answer inside the form
-class PostOnlyAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+class PostOnlyAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     readonly name: string = 'post-only';
 
     readonly entityId: string = SP_ENTITY_ID;
@@ -129,8 +132,25 @@ class PostOnlyAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
     override readonly signingKey: SamlKeyPair = signingKey;
 }
 
+// asks the identity provider for a second factor
+class StepUpAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
+    readonly name: string = 'step-up';
+
+    readonly entityId: string = SP_ENTITY_ID;
+
+    override readonly requestedAuthnContext: string[] = [MFA_CONTEXT];
+
+    get issuer(): string {
+        return idp.entityId;
+    }
+
+    get identityProvider(): SamlIdentityProvider {
+        return { metadataUrl: idp.metadataUrl };
+    }
+}
+
 // trusts the metadata of the fake provider for an entity it is not
-class ElsewhereAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+class ElsewhereAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     readonly name: string = 'elsewhere';
 
     readonly entityId: string = SP_ENTITY_ID;
@@ -144,19 +164,38 @@ class ElsewhereAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
 
 // the auth routes of the identity providers, logging in with cookies or with jwts. Orphans for the
 // cases that boot with the other
+const authenticators: Newable<BaseSamlAuthenticator<string, JwtUser>>[] = [
+    CompanyAuthenticator,
+    StrictAuthenticator,
+    PostAnsweringAuthenticator,
+    PostOnlyAuthenticator,
+    StepUpAuthenticator,
+    ElsewhereAuthenticator
+];
+
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
 class CookieSamlAuthController extends AuthController({
         strategies: [CookieAuthStrategy],
-        authenticators: [CompanyAuthenticator, StrictAuthenticator, PostAnsweringAuthenticator, PostOnlyAuthenticator, ElsewhereAuthenticator],
+        authenticators,
         twoFactorMethods: [OtpTwoFactorMethod]
     }) {}
 
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
 class JwtSamlAuthController extends AuthController({
         strategies: [JwtAuthStrategy],
-        authenticators: [CompanyAuthenticator, StrictAuthenticator, PostAnsweringAuthenticator, PostOnlyAuthenticator, ElsewhereAuthenticator],
+        authenticators,
         twoFactorMethods: [OtpTwoFactorMethod]
     }) {}
+
+// a route counting the second factor presented at the identity provider
+@Controller('/guarded', { allowOrphan: true })
+class GuardedController {
+    @Auth.require2fa({ providerFactors: { contextClasses: [MFA_CONTEXT] } })
+    @Get('/mfa')
+    mfa(): { ok: boolean } {
+        return { ok: true };
+    }
+}
 
 @Auth.skip({ allowRedundant: true })
 @Controller('/register', { allowOrphan: true })
@@ -353,6 +392,7 @@ async function startApp(strategy: typeof CookieAuthStrategy | typeof JwtAuthStra
             FederatedRegistrationTicket,
             FederatedConnectionCode
         ],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const federationOptions: FederationOptions = {
@@ -366,7 +406,7 @@ async function startApp(strategy: typeof CookieAuthStrategy | typeof JwtAuthStra
         baseUrl: PUBLIC_URL,
         dataSources: [dataSourceClass],
         authStrategies: [strategy],
-        authenticators: [CompanyAuthenticator, StrictAuthenticator, PostAnsweringAuthenticator, PostOnlyAuthenticator, ElsewhereAuthenticator],
+        authenticators,
         controllers,
         providers: [
             ...defaultTestServerProviders,
@@ -451,12 +491,12 @@ describe('BaseSamlAuthenticator', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startApp(CookieAuthStrategy, [CookieSamlAuthController, RegistrationController]);
-    }, 30000);
+        server = await startApp(CookieAuthStrategy, [CookieSamlAuthController, RegistrationController, GuardedController]);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs a linked user in, asking for a persistent NameID, and reads the metadata once', async () => {
         await createLinkedUser();
@@ -612,6 +652,33 @@ describe('BaseSamlAuthenticator', () => {
         await signIn(newBrowser(), authorizeUrl('company', { reauthenticate: 'true' }));
 
         expect(idp.requests.at(-1)?.forceAuthn).toBe(true);
+    });
+
+    it('takes the class of authentication the assertion names as the second factor, across a refresh', async () => {
+        const user: JwtUser = await createLinkedUser();
+        idp.identity = { ...idp.identity, authnContextClassRef: MFA_CONTEXT };
+        const browser: TestBrowser = newBrowser();
+        expect((await signIn(browser, authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
+
+        expect((await browser.open(`${baseUrl}/guarded/mfa`)).status).toBe(200);
+        await rotateLogin(browser, user.id);
+        expect((await browser.open(`${baseUrl}/guarded/mfa`)).status).toBe(200);
+
+        // a password alone
+        await createLinkedUser();
+        const other: TestBrowser = newBrowser();
+        expect((await signIn(other, authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
+        expect((await other.open(`${baseUrl}/guarded/mfa`)).status).toBe(401);
+    });
+
+    it('asks the identity provider for the classes of authentication the authenticator names', async () => {
+        await createLinkedUser();
+
+        await signIn(newBrowser(), authorizeUrl('step-up'));
+        expect(idp.requests.at(-1)?.requestedAuthnContext).toEqual([MFA_CONTEXT]);
+
+        await signIn(newBrowser(), authorizeUrl('company'));
+        expect(idp.requests.at(-1)?.requestedAuthnContext).toEqual([]);
     });
 
     it('signs its requests and reads an encrypted assertion, for a provider that asks for both', async () => {
@@ -925,11 +992,11 @@ describe('BaseSamlAuthenticator with the jwt strategy', () => {
 
     beforeAll(async () => {
         server = await startApp(JwtAuthStrategy, [JwtSamlAuthController]);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * A login handed over to the frontend.

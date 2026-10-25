@@ -5,9 +5,10 @@ import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { AuthController } from './auth-controller.model';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -46,7 +47,7 @@ class PinCredentials {
 /**
  * An authenticator of the application's own, which the login route logs in with by its credentials model.
  */
-class PinAuthenticator implements AuthControllerAuthenticatorInterface<Roles, JwtUser, PinCredentials> {
+class PinAuthenticator implements AuthControllerAuthenticatorInterface<string, JwtUser, PinCredentials> {
     readonly name: string = 'pin';
 
     readonly credentialsModel: Newable<PinCredentials> = PinCredentials;
@@ -127,6 +128,7 @@ async function startApp(
 ): Promise<[StartedTestServer, string]> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -201,22 +203,22 @@ describe('AuthController — starting', () => {
     it('refuses two controllers it defined, since a provider sends the browser back to one url', async () => {
         await expect(startThenShutDown([TwoWaysAuthController, SecondAuthController]))
             .rejects.toThrow(/TwoWaysAuthController, SecondAuthController are all defined by AuthController/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses options that name fewer strategies than the application registers', async () => {
         await expect(startThenShutDown([JwtOnlyAuthController]))
             .rejects.toThrow(/JwtOnlyAuthController[\S\s]*auth strategies that log in JwtAuthStrategy[\S\s]*JwtAuthStrategy, CookieAuthStrategy/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses options that name other two factor methods than the application registers', async () => {
         await expect(startThenShutDown([NoTwoFactorAuthController]))
             .rejects.toThrow(/NoTwoFactorAuthController[\S\s]*two factor methods none[\S\s]*OtpTwoFactorMethod/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses an authenticator that does not declare what a route given it reads', async () => {
         await expect(startThenShutDown([HalfSignUpAuthController], HalfSignUpAuthenticator))
             .rejects.toThrow(/HalfSignUpAuthenticator[\S\s]*register route[\S\s]*SignUpAuthenticatorInterface/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('AuthController — a login of several strategies and authenticators', () => {
@@ -256,11 +258,11 @@ describe('AuthController — a login of several strategies and authenticators', 
         user = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: EMAIL, roles: [Roles.USER] });
         await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
             .create({ password: PASSWORD, userId: user.id });
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('logs in with the strategy and the authenticator the request names', async () => {
         const jwt: Response = await post('/auth/login?authenticator=password&strategy=jwt', { email: EMAIL, password: PASSWORD });
@@ -351,14 +353,14 @@ describe('AuthController — a route left out with OmitClass', () => {
     let baseUrl: string;
 
     beforeAll(async () => {
-        const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, allowOrphan: true });
+        const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true });
         server = await startTestServer({ dataSources: [dataSourceClass], controllers: [NoResetAuthController] });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('answers the routes it keeps, and none of the ones left out', async () => {
         const reset: Response = await fetch(`${baseUrl}/auth/request-password-reset`, {

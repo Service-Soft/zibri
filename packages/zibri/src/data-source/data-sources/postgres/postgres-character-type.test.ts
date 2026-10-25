@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Logger } from '../../../logging/logger';
@@ -9,6 +9,7 @@ import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { SchemaManagement } from '../../models/schema-management.model';
+import { RepositoryClass } from '../../repository/repository-class.type';
 
 /**
  * The database a data source built now connects to.
@@ -39,6 +40,8 @@ class CharacterTypeDataSource extends PostgresDataSource {
     };
 
     entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
 }

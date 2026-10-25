@@ -317,7 +317,12 @@ export class DiContainer {
         // the counter first, so the ordinary case does not pay for an async local storage lookup on
         // what is the framework's hottest call. It can only be above zero while an application is
         // initializing, which is the only time an asynchronous factory runs at all.
-        if (this.asyncFactoriesRunning > 0) {
+        //
+        // Only an awaited value is refused, resolved or not: whether it is there yet depends on the
+        // order things are registered in. Anything else is built on demand in any order - and
+        // refusing it refused the framework's own calls too, such as a repository reaching for its
+        // tracer, so no factory could read through a repository it declared.
+        if (this.asyncFactoriesRunning > 0 && this.providers.get(token)?.useAsyncFactory != undefined) {
             const factory: string | undefined = AlsUtilities.getCurrentAsyncFactory();
             if (factory != undefined) {
                 throw new InjectInsideAsyncFactoryError(factory, token);
@@ -413,7 +418,7 @@ export class DiContainer {
                     await this.resolveAsync(dependency, [...chain, token]);
                 }
             }
-            return this.inject(token);
+            return this.injectAwaitingWhatItReaches(token, chain);
         }
 
         // a plain argument rather than a stack on the container: the container drives this walk, so
@@ -438,6 +443,32 @@ export class DiContainer {
         }
         finally {
             this.asyncFactoriesRunning--;
+        }
+    }
+
+    /**
+     * Injects a token that is not built asynchronously itself, awaiting first whatever asynchronous
+     * value building it turns out to reach for.
+     * @param token - The token to inject.
+     * @param chain - The asynchronous providers being awaited above this one, outermost first.
+     * @returns The injected value.
+     */
+    private async injectAwaitingWhatItReaches<T>(token: DiToken<T>, chain: DiToken<unknown>[]): Promise<T> {
+        // a field initializer, a constructor body or a sync factory body can reach for an awaited
+        // value too, and none of them can be read without running them - so the attempt is how the
+        // edge is found. The value is awaited and the build runs again: what the attempt built on the
+        // way is cached and handed back rather than built twice, but code that ran before the failing
+        // line runs once more. Each round awaits a different token, since an awaited one is cached,
+        // and one already being awaited above is the cycle `resolveAsync` names.
+        try {
+            return this.inject(token);
+        }
+        catch (error) {
+            if (!(error instanceof UnresolvedAsyncProviderError)) {
+                throw error;
+            }
+            await this.resolveAsync(error.token, [...chain, token]);
+            return this.injectAwaitingWhatItReaches(token, chain);
         }
     }
 
@@ -474,11 +505,14 @@ export class DiContainer {
             return scope.get(provider.token) as T;
         }
 
-        // the outermost frame rather than the nearest one, because it is what decides how long
-        // everything under it is kept: a transient built for a singleton is discarded as a value and
-        // held as a field all the same
-        const holder: DiProvider<unknown> | undefined = this.constructing.at(0);
-        if (holder != undefined && holder.scope !== 'request' && holder.scope !== 'transient') {
+        // any frame that is kept for the application, not only the nearest or the outermost one. The
+        // nearest can be a transient that a kept class holds as a field all the same, and the
+        // outermost can be a request scoped class whose dependency is built for the first time
+        // underneath it - and then kept, with this request's value inside
+        const holder: DiProvider<unknown> | undefined = [...this.constructing]
+            .reverse()
+            .find(p => p.scope !== 'request' && p.scope !== 'transient');
+        if (holder != undefined) {
             throw new CapturedRequestScopeError(provider.token, holder.token);
         }
 

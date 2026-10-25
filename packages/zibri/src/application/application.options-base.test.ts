@@ -5,6 +5,7 @@ import { createInMemoryDataSource,
     StartedTestServer,
     startTestServer } from 'zibri-testing';
 
+import { TestTimeouts } from '../__testing__/constants';
 import { ZibriApplicationOptions } from './application-options.model';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -54,6 +55,7 @@ const applicationOptions: ZibriApplicationOptions = {
     controllers: [ShippedController],
     websocketControllers: [],
     defaultAuth: 'public',
+    twoFactorAtLogin: 'never',
     dataSources: [dataSourceClass],
     providers: defaultTestProviders
 };
@@ -75,7 +77,7 @@ describe('a test server built from an application\'s own options', () => {
 
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ from: 'the application' });
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('replaces the key the test names and inherits every other one', async () => {
         // the whole point of the precedence: naming the controllers says nothing about the version,
@@ -95,7 +97,7 @@ describe('a test server built from an application\'s own options', () => {
         // gets one controller
         const shipped: Response = await fetch(`${baseUrl}/shipped`);
         expect(shipped.status).toBe(404);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('inherits the auth posture the application chose', async () => {
         // the key worth covering over http rather than against the merge: a test that silently got
@@ -110,7 +112,7 @@ describe('a test server built from an application\'s own options', () => {
         const res: Response = await fetch(`${baseUrl}/shipped`);
 
         expect(res.status).toBe(401);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('takes what neither the call nor the application names from the harness', () => {
         const resolved: ZibriApplicationOptions = resolveApplicationOptions(
@@ -147,5 +149,5 @@ describe('a test server built from an application\'s own options', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
 
         await expect(server.start()).resolves.toMatch(/^http:\/\//);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 });

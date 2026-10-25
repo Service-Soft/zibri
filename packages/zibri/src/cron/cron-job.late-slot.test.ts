@@ -5,7 +5,8 @@ import { CronExpression, CronExpressionString } from './cron-expression.utilitie
 import { CronJobEntity } from './cron-job-entity.model';
 import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronService } from './cron.service';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -57,7 +58,8 @@ class NotCatchingUpCronJob extends CountingCronJob {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, CronJobEntity]
+    entities: [...defaultTestServerEntities, CronJobEntity],
+    repositories: defaultTestServerRepositories
 });
 
 describe('A cron job reaching a slot late inside a running process', () => {
@@ -91,11 +93,11 @@ describe('A cron job reaching a slot late inside a running process', () => {
         }
         // the jitter before a tick starts is at most a second, and the next slot is three away
         await new Promise(resolve => setTimeout(resolve, 1500));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('runs the slot while it is no later than catchUpWithinMs', () => {
         expect(catchingUp.ticks).toBe(1);

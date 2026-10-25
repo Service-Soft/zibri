@@ -20,6 +20,8 @@ export class OptimisticLockDescriptor {
      * @param entityClass - The class to read the declarations from.
      */
     update(entityClass: Newable<unknown>): void {
+        // per property and not a version counter per row: two people editing different properties of
+        // one row do not collide, and a condition can name a property the write only read
         this.keys.clear();
 
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);

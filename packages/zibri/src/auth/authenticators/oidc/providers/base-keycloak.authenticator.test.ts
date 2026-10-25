@@ -5,7 +5,7 @@ import { createInMemoryDataSource, InMemoryDataSource, TestBrowser } from 'zibri
 import { BaseKeycloakAuthenticator } from './base-keycloak.authenticator';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -122,7 +122,7 @@ let keycloakUrl: string = '';
 // generated before the realm is imported, which names the public half as the key of its client
 let privateKey: CryptoKey;
 
-class KeycloakAuthenticator extends BaseKeycloakAuthenticator<Roles, JwtUser> {
+class KeycloakAuthenticator extends BaseKeycloakAuthenticator<string, JwtUser> {
     readonly realm: string = REALM;
 
     readonly clientId: string = CLIENT_ID;
@@ -137,7 +137,7 @@ class KeycloakAuthenticator extends BaseKeycloakAuthenticator<Roles, JwtUser> {
     }
 }
 
-class KeycloakKeyAuthenticator extends BaseKeycloakAuthenticator<Roles, JwtUser> {
+class KeycloakKeyAuthenticator extends BaseKeycloakAuthenticator<string, JwtUser> {
     override readonly name: string = 'keycloak-key';
 
     readonly realm: string = REALM;
@@ -154,7 +154,7 @@ class KeycloakKeyAuthenticator extends BaseKeycloakAuthenticator<Roles, JwtUser>
 }
 
 // the realm as a SAML identity provider, read from the metadata Keycloak publishes
-class KeycloakSamlAuthenticator extends BaseSamlAuthenticator<Roles, JwtUser> {
+class KeycloakSamlAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     readonly name: string = 'keycloak-saml';
 
     readonly entityId: string = SAML_CLIENT_ID;
@@ -181,7 +181,7 @@ class ApiController {
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): { id: string } {
         return { id: user.id };
     }
@@ -469,6 +469,7 @@ describe('BaseKeycloakAuthenticator', () => {
                 FederatedRegistrationTicket,
                 FederatedConnectionCode
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({

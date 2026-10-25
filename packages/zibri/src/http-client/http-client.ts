@@ -495,11 +495,12 @@ export class HttpClient implements HttpClientInterface {
             IsArray
         >
     > {
+        // a list is one value per item, the form a zibri route and a client built from its document read
         const queryString: string | undefined = options?.query
             ? new URLSearchParams(
                 ObjectUtilities.entries(options.query)
                     .filter(([, v]) => v != undefined)
-                    .map(([k, v]) => [k, String(v)])
+                    .flatMap(([k, v]): [string, string][] => (Array.isArray(v) ? v : [v]).map(item => [k, String(item)]))
             ).toString()
             : undefined;
         const urlWithParams: string = queryString ? `${url}?${queryString}` : url;
@@ -1177,8 +1178,9 @@ export class HttpClient implements HttpClientInterface {
         for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
             received = NumberUtilities.add(received, chunk.byteLength);
             if (received.isGreaterThan(maxSize)) {
-                // cancels the underlying source, so the rest of the answer is never transferred
-                await response.body.cancel();
+                // leaving the loop cancels the underlying source, so the rest of the answer is never
+                // transferred. Not cancelled by hand: the loop holds the stream locked, and a cancel
+                // on a locked stream is refused
                 throw new ContentTooLargeError();
             }
             chunks.push(chunk);
@@ -1196,13 +1198,26 @@ export class HttpClient implements HttpClientInterface {
     ): Promise<HttpClientError> {
         // Read the body once as text: response.json() consumes the body stream even when parsing
         // fails, which would make a subsequent response.text() throw "Body has already been read".
+        // Counted against the deployment's ceiling rather than the limit the call's declared body
+        // allows: a failure's body is whatever the upstream or a proxy in front of it chose to send,
+        // and the ceiling is the memory the deployment is willing to spend on one answer
         let responseBody: unknown;
-        const rawText: string = await response.text();
         try {
-            responseBody = JsonUtilities.parse(rawText);
+            const rawText: string = await this.readTextWithin(response, fileSizeToBytes(this.clientOptions.defaultMaxResponseSize));
+            try {
+                responseBody = JsonUtilities.parse(rawText);
+            }
+            catch {
+                responseBody = rawText;
+            }
         }
-        catch {
-            responseBody = rawText;
+        catch (error) {
+            if (!(error instanceof ContentTooLargeError)) {
+                throw error;
+            }
+            // the status is what a caller, a retry and the circuit breaker act on; a body past the
+            // ceiling is left out rather than turning a 502 into a size error
+            responseBody = undefined;
         }
 
         const options: HttpClientErrorOptions = {

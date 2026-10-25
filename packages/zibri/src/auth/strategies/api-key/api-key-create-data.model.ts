@@ -1,10 +1,11 @@
 import { ApiKeyClientAuthentication } from './api-key-client-authentication.model';
+import { type Permission } from '../../roles/permission.type';
+import { type PlatformPermission } from '../../roles/platform-permission.type';
 
 /**
  * What a new api key is created with.
  */
 export type ApiKeyCreateData<
-    RoleType extends string,
     ClientAuthentication extends ApiKeyClientAuthentication | undefined = ApiKeyClientAuthentication | undefined
 > = {
     /**
@@ -12,10 +13,11 @@ export type ApiKeyCreateData<
      */
     name: string,
     /**
-     * The roles the key may use. Each one has to be a role of the user, of their own or through a
-     * membership - in the tenant the key is bound to, when it is bound to one.
+     * The permissions the key may use, of either level. Each one has to be carried by a role of the
+     * user, of their own or through a membership - in the tenant the key is bound to, when it is bound
+     * to one.
      */
-    roles: RoleType[],
+    permissions: (Permission | PlatformPermission)[],
     /**
      * The tenant the key is bound to, or undefined for a key that acts in every tenant its user is a
      * member of.

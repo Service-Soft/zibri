@@ -11,10 +11,11 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -33,6 +34,7 @@ class ResourceNameFsBackupTransport extends BaseFsBackupTransport {
 @DataSource()
 class ResourceNameDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, BackupEntity, BackupResourceEntity];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 @Backup({ name: 'settings', transports: [ResourceNameFsBackupTransport], encrypt: false })
@@ -66,7 +68,7 @@ describe('BackupService — a resource with a name of its own', () => {
     beforeAll(async () => {
         await FsUtilities.rm(backupFolder);
         server = await startTestServer({ dataSources: [ResourceNameDataSource] });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

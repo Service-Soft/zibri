@@ -1,4 +1,3 @@
-import { AuditEvent, AuditOutcome } from './audit-event.model';
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogBuffer } from './log-buffer';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
@@ -17,16 +16,18 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { ErrorUtilities } from '../error-handling/error.utilities';
 import { GlobalRegistry } from '../global/global-registry';
+import { LifecyclePhase } from '../global/lifecycle-phase.enum';
 import { OnAppInit } from '../global/on-app-init.interface';
-import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { HttpRequest } from '../http/http-request.model';
 import { KnownHeader } from '../http/known-header.enum';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
+import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { TraceContextUtilities } from '../tracing/trace-context.utilities';
 import { TraceSpanContext } from '../tracing/trace-span-context.model';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { OmitStrict } from '../types/omit-strict.type';
 import { resolveCallSites } from '../utilities/resolve-call-sites.function';
+import { UrlUtilities } from '../utilities/url.utilities';
 import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
@@ -53,7 +54,7 @@ function resolveOrigin(): string {
  * Default logger implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
-export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
+export class Logger implements LoggerInterface, OnAppInit {
 
     /**
      * Entries waiting to be written.
@@ -72,6 +73,11 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
      * The timer waiting to start the next drain, if entries are queued and none is running.
      */
     private pending: NodeJS.Timeout | undefined;
+
+    /**
+     * How many entries were dropped since the logger was built.
+     */
+    private droppedTotal: number = 0;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS)
@@ -100,6 +106,28 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
         if (inject(ZIBRI_DI_TOKENS.ACCESS_LOG)) {
             this.registerAccessLog(app);
         }
+        this.registerDroppedEntriesMetric();
+    }
+
+    /**
+     * Counts the dropped entries in `log_entries_dropped_total`.
+     *
+     * Reported when the metrics are read rather than when an entry is dropped, so that writing logs
+     * never waits on, or fails with, the metrics.
+     */
+    private registerDroppedEntriesMetric(): void {
+        const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+        let reported: number = 0;
+        metricsService.addCollector({
+            name: 'dropped log entries',
+            minIntervalInMs: 0,
+            collect: () => {
+                const total: number = this.droppedTotal;
+                metricsService.getCounter('log_entries_dropped_total').increase({}, total - reported);
+                reported = total;
+                return Promise.resolve();
+            }
+        });
     }
 
     /**
@@ -130,30 +158,23 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
                 // response has closed, and the middleware above wrote the resolved context onto the
                 // headers for exactly this reader
                 const trace: TraceSpanContext | undefined = TraceContextUtilities.findSpanContext(req.headers);
+                // without the query string, as the spans do: it is where a link puts a token or a
+                // secret, and a log row is kept for weeks and read by everyone with the table
+                const url: string = UrlUtilities.withoutQuery(req.originalUrl);
                 const request: LogRequestContext = {
                     traceId: trace?.traceId,
                     spanId: trace?.spanId,
                     method: req.method,
-                    url: req.originalUrl,
+                    url,
                     status: res.statusCode,
                     durationInMs: performance.now() - start,
                     userAgent: req.headers[KnownHeader.USER_AGENT] ?? '',
                     clientIp: req.ip ?? req.socket?.remoteAddress ?? ''
                 };
-                this.log(LogLevel.INFO, `${req.method} ${req.originalUrl} ${res.statusCode}`, { request });
+                this.log(LogLevel.INFO, `${req.method} ${url} ${res.statusCode}`, { request });
             });
             next();
         }, MiddlewarePhase.OBSERVABILITY);
-    }
-
-    /**
-     * Writes whatever is still queued before the application goes away.
-     *
-     * OnAppShutdown rather than afterAppShutdown, because the data sources close in the latter and
-     * the db transport has nowhere to write once they have.
-     */
-    async onAppShutdown(): Promise<void> {
-        await this.flush();
     }
 
     /**
@@ -213,16 +234,6 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
         this.log(LogLevel.CRITICAL, error.message, { ...context, error });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    audit(event: AuditEvent): void {
-        // info rather than debug so that the default db transport keeps it, and warn rather than
-        // error for a failure because error() wants an Error and a refused login is not one - a
-        // rule keys on metadata.audit.action, not on the level.
-        const level: LogLevel = event.outcome === AuditOutcome.SUCCESS ? LogLevel.INFO : LogLevel.WARN;
-        const suffix: string = event.reason == undefined ? '' : ` (${event.reason})`;
-        this.log(level, `${event.action} ${event.outcome}${suffix}`, { metadata: { audit: event } });
-    }
-
     private log(level: LogLevel, message: string, context: LogContextInput | undefined): void {
         if (!this.transports.find(t => t.config.level <= level)) {
             return;
@@ -249,15 +260,19 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
                 // no duration: this line is being written while the request is still being handled,
                 // so the only honest answer is the one the access log gives once it has closed
                 method: requestContext.request.method,
-                url: requestContext.request.originalUrl,
+                // without the query string, for the reason the access log leaves it out
+                url: UrlUtilities.withoutQuery(requestContext.request.originalUrl),
                 userAgent: requestContext.request.headers[KnownHeader.USER_AGENT] ?? '',
                 clientIp: requestContext.request.ip ?? requestContext.request.socket?.remoteAddress ?? ''
             };
         }
         const log: Log = {
             id: UUIDUtilities.generate(),
-            // read now, for the reason the request is: the entry is written later, outside the tenant
-            tenantId: AlsUtilities.getCurrentTenant(),
+            // read now, for the reason the request is: the entry is written later, outside the tenant.
+            // Null rather than undefined for no tenant, since the write fills an undefined one with
+            // the tenant it runs in - which is whichever entry happened to start it
+            // eslint-disable-next-line unicorn/no-null
+            tenantId: AlsUtilities.getCurrentTenant() ?? null,
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
             message,
@@ -312,6 +327,7 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
             while (this.buffer.size) {
                 const batch: Log[] = this.buffer.takeAll();
                 const dropped: number = this.buffer.takeDropped();
+                this.droppedTotal += dropped;
                 if (dropped) {
                     // reported alongside the entries that survived rather than queued, which would
                     // race with the very pressure that caused it
@@ -335,8 +351,16 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
      * @param batch - The entries to write, oldest first.
      */
     private async write(batch: Log[]): Promise<void> {
+        // a transport registered after startup writes once the application has initialized, until
+        // it is offline - the shutdown included: the data sources close as its last phase, and the
+        // application marks itself offline before it flushes what that phase logged. Judged by the
+        // init having finished rather than by the state alone, because the state says "shutting
+        // down" for an application that failed to initialize as well, which has no data source to
+        // write to
+        const laterTransportsWrite: boolean = GlobalRegistry.isLifecyclePhaseFinished(LifecyclePhase.AFTER_APP_INIT)
+            && !GlobalRegistry.isAppOffline();
         await Promise.all(this.transports.map(async transport => {
-            if (transport.config.register !== 'directly' && !GlobalRegistry.isAppInitialized() && !GlobalRegistry.isAppStarted()) {
+            if (transport.config.register !== 'directly' && !laterTransportsWrite) {
                 return;
             }
             const logs: Log[] = batch.filter(l => transport.config.level <= l.level);
@@ -367,6 +391,9 @@ export class Logger implements LoggerInterface, OnAppInit, OnAppShutdown {
     private droppedNotice(count: number): Log {
         return {
             id: UUIDUtilities.generate(),
+            // of no tenant, since it counts the entries of every tenant
+            // eslint-disable-next-line unicorn/no-null
+            tenantId: null,
             createdAt: new Date(),
             cleanupAt: new Date(Date.now() + this.cleanupAfterMs[LogLevel.WARN]),
             message: `dropped ${count} log entries because the write queue was full`,

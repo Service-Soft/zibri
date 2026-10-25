@@ -1,4 +1,5 @@
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
+import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PaginationResult } from '../../open-api/pagination-result.model';
 import { TraceSpanAttributeName } from '../../tracing/trace-span-attributes.model';
@@ -7,6 +8,8 @@ import { TraceSpanInterface } from '../../tracing/trace-span.interface';
 import { TracingUtilities } from '../../tracing/tracing.utilities';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
+import { AggregateRow } from '../models/aggregate.model';
+import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
@@ -40,101 +43,106 @@ type StoreOperationAttributes = {
  *
  * Every method forwards. What is added is the span around it.
  */
-export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryDriverInterface<T> {
+export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepositoryDriver<T> {
     constructor(
-        private readonly inner: RepositoryDriverInterface<T>,
+        inner: RepositoryDriverInterface<T>,
         private readonly entityClass: Newable<T>
-    ) {}
+    ) {
+        super(inner);
+    }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
+    override async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         return await this.traced('save', async span => {
-            const res: T[] = await this.inner.save(data, transaction, reload);
+            const res: T[] = await super.save(data, transaction, reload);
             span.recordAttribute(returnedRows, res.length);
             return res;
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+    override async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         return await this.traced('insert', async span => {
-            const res: T[] = await this.inner.insert(data, transaction);
+            const res: T[] = await super.insert(data, transaction);
             span.recordAttribute(returnedRows, res.length);
             return res;
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+    override async updateEach(
+        rows: DeepPartial<T>[],
+        where: Where<T>,
+        transaction: Transaction | undefined,
+        related?: RelatedNarrowing
+    ): Promise<T[]> {
         return await this.traced('updateEach', async span => {
-            const res: T[] = await this.inner.updateEach(rows, where, transaction);
+            const res: T[] = await super.updateEach(rows, where, transaction, related);
             span.recordAttribute(returnedRows, res.length);
             return res;
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async find(options: DriverFindOptions<T>): Promise<T[]> {
+    override async find(options: DriverFindOptions<T>): Promise<T[]> {
         return await this.traced('find', async span => {
-            const res: T[] = await this.inner.find(options);
+            const res: T[] = await super.find(options);
             span.recordAttribute(returnedRows, res.length);
             return res;
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
+    override async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         return await this.traced('findOne', async span => {
-            const res: T | undefined = await this.inner.findOne(options);
+            const res: T | undefined = await super.findOne(options);
             span.recordAttribute(returnedRows, res == undefined ? 0 : 1);
             return res;
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async count(options: DriverFindOptions<T>): Promise<number> {
-        return await this.traced('count', async () => await this.inner.count(options));
+    override async count(options: DriverFindOptions<T>): Promise<number> {
+        return await this.traced('count', async () => await super.count(options));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
-        return await this.traced('findAndCount', async span => {
-            const res: PaginationResult<T> = await this.inner.findAndCount(options);
-            span.recordAttribute(returnedRows, res.items.length);
-            return res;
-        });
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
-        await this.traced('remove', async span => {
-            span.recordAttribute(returnedRows, ids.length);
-            await this.inner.remove(ids, transaction);
-        });
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
-        return await this.traced('findIds', async span => {
-            const res: string[] = await this.inner.findIds(options);
+    override async aggregate(options: DriverAggregateOptions<T>): Promise<AggregateRow[]> {
+        return await this.traced('aggregate', async span => {
+            const res: AggregateRow[] = await super.aggregate(options);
             span.recordAttribute(returnedRows, res.length);
             return res;
         });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
-        return await this.traced('updateAll', async () => await this.inner.updateAll(options));
+    override async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+        return await this.traced('findAndCount', async span => {
+            const res: PaginationResult<T> = await super.findAndCount(options);
+            span.recordAttribute(returnedRows, res.items.length);
+            return res;
+        });
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async upsert(
+    override async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+        await this.traced('remove', async span => {
+            span.recordAttribute(returnedRows, ids.length);
+            await super.remove(ids, transaction);
+        });
+    }
+
+    override async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+        return await this.traced('findIds', async span => {
+            const res: string[] = await super.findIds(options);
+            span.recordAttribute(returnedRows, res.length);
+            return res;
+        });
+    }
+
+    override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
+        return await this.traced('updateAll', async () => await super.updateAll(options));
+    }
+
+    override async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
         transaction: Transaction | undefined,
-        reachable: Where<T> | undefined
+        reachable: Where<T> | undefined,
+        related?: RelatedNarrowing
     ): Promise<T[]> {
-        return await this.traced('upsert', async () => await this.inner.upsert(identity, rows, transaction, reachable));
+        return await this.traced('upsert', async () => await super.upsert(identity, rows, transaction, reachable, related));
     }
 
     /**
@@ -147,14 +155,14 @@ export class TracedRepositoryDriver<T extends BaseEntity> implements RepositoryD
      * @param options - What to read.
      * @yields Each row the store answers with.
      */
-    async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
+    override async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         const span: TraceSpanInterface = TracingUtilities.startSpan(this.spanName('stream'), {
             kind: TraceSpanKind.CLIENT,
             attributes: this.attributesOf('stream')
         });
         let rows: number = 0;
         try {
-            for await (const row of this.inner.stream(options)) {
+            for await (const row of super.stream(options)) {
                 rows++;
                 yield row;
             }

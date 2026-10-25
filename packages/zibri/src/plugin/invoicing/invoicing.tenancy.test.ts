@@ -10,8 +10,9 @@ import { Invoice } from './models/invoice.model';
 import { NumberInvoices } from './models/number-invoices.model';
 import { XRechnungConformanceService } from './services/conformance/en16931/x-rechnung-conformance.service';
 import { InvoiceNumberService } from './services/invoice-number.service';
+import { TestTimeouts } from '../../__testing__/constants';
 import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -101,18 +102,18 @@ async function issueInvoice(): Promise<Invoice> {
 describe('invoicing across tenants', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
             plugins: [new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,
                 companyInfoProvider(tenantId => companyNamed(tenantId === ACME ? 'Acme' : 'Globex'))
             ]
         });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('numbers the invoices of each tenant on their own', async () => {
         const ofAcme: Invoice = await inTenant(ACME, issueInvoice);

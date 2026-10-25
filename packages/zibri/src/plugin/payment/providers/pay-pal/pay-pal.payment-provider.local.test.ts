@@ -2,8 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { PayPalPaymentProvider, PayPalPaymentProviderPaymentData } from './pay-pal.payment-provider';
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { LocalPayPalCall, LocalPayPalServer } from '../../../../__testing__/local-pay-pal-server';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -80,7 +81,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
         localPayPalUrl = await localPayPal.start();
         server = await startTestServer({
             plugins: [new ZibriPaymentPlugin()],
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Payment] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Payment], repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -99,12 +100,12 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
         // eslint-disable-next-line typescript/no-unsafe-assignment
         payments = inject(ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.PAYMENT_SERVICE);
         repository = inject(repositoryTokenFor(Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData>));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await localPayPal.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(() => {
         localPayPal.losesCaptureAnswers = false;

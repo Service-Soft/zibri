@@ -1,9 +1,10 @@
-import { And, Equal, FindOperator, ILike, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
+import { And, Equal, FindOperator, ILike, IsNull, LessThan, LessThanOrEqual, Like, MoreThan, MoreThanOrEqual, Not, Or, Raw, SelectQueryBuilder, FindOptionsWhere as ToFindOptionsWhere, FindOptionsWhereProperty as ToFindOptionsWhereProperty, DataSource as ToDataSource } from 'typeorm';
 
 import { ParameterizedSql } from './parameterized-sql.model';
 import { TypeOrmParameters } from './typeorm-parameters';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata, RelationMetadata } from '../../../entity/decorators/property.decorator';
+import { denyAll, DenyAll } from '../../../entity/models/entity-scope.model';
 import { isRelationMetadata } from '../../../entity/models/is-relation-metadata.function';
 import { OneOfPropertyMetadata } from '../../../entity/models/one-of-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
@@ -13,10 +14,13 @@ import { Newable } from '../../../types/newable.type';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
+import { RelatedNarrowing } from '../../models/related-narrowing.model';
 import { ArrayWhereFilter } from '../../models/where/array-where-filter.model';
 import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model';
-import { ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
+import { WhereValueUtilities } from '../../models/where/where-value.utilities';
+import { RelatedNarrowingUtilities } from '../../scopes/related-narrowing.utilities';
+import { ScopedWhere, ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
 
 // eslint-disable-next-line typescript/typedef
 const lengthWhereFilterKeys = [
@@ -26,6 +30,11 @@ const lengthWhereFilterKeys = [
     'lengthLesserThan',
     'lengthLesserThanEquals'
 ] as const satisfies (keyof ExcludeStrict<ArrayWhereFilter<object>, null | object[]>)[];
+
+/**
+ * What separates a statement's condition from the rest of it.
+ */
+const WHERE: string = ' WHERE ';
 
 /**
  * Handler function for a single where-filter key.
@@ -57,13 +66,23 @@ export abstract class TypeOrmWhereFilterConverter {
         // at all rather than every row that has a value.
         // and a row holding no value is not the value named, which `column != value` alone answers
         // with null rather than yes
-        not: (value) => value === null ? Not(IsNull()) : Or(IsNull(), Not(value)),
+        not: (value, metadata) => {
+            if (value === null) {
+                return Not(IsNull());
+            }
+            const differs: FindOperator<unknown> = Array.isArray(value) && metadata.type === 'array'
+                ? Not(this.buildArrayEqualsOperator(value, metadata))
+                // a related row is named by its id, which is what the column holds
+                : Not(WhereValueUtilities.unwrapRelation(value, metadata));
+            return Or(IsNull(), differs);
+        },
         like: (value) => Like(value),
         oneOf: (value, metadata, nestedProperties, entityClass, property) => {
             if (!Array.isArray(value)) {
                 throw new InternalError('The "oneOf" property of the where filter needs to be an array.');
             }
-            const listed: unknown[] = value.filter(v => v !== null);
+            const listed: unknown[] = value.filter(v => v !== null)
+                .map(v => WhereValueUtilities.unwrapRelation(v, metadata));
             const equalsListed: FindOperator<unknown> = this.equalsOneOf(listed, entityClass, property);
             // null equals nothing in sql, `IN (NULL)` included, so a null in the list is asked for on
             // its own - which is what an in process evaluation of the same list answers
@@ -73,7 +92,8 @@ export abstract class TypeOrmWhereFilterConverter {
             if (!Array.isArray(value)) {
                 throw new InternalError('The "notOneOf" property of the where filter needs to be an array.');
             }
-            const listed: unknown[] = value.filter(v => v !== null);
+            const listed: unknown[] = value.filter(v => v !== null)
+                .map(v => WhereValueUtilities.unwrapRelation(v, metadata));
             const notListed: FindOperator<unknown> = Not(this.equalsOneOf(listed, entityClass, property));
             // a row holding no value is not one of the values listed unless null is, the way `not`
             // answers it. `NOT IN` answers it with null either way, and keeps no row at all once
@@ -144,6 +164,16 @@ export abstract class TypeOrmWhereFilterConverter {
      */
     private parameterIndex: number = 0;
 
+    /**
+     * What the rows of each entity the filter being converted reaches through a relation are
+     * narrowed to.
+     *
+     * Held for the length of one conversion rather than passed down, because the conversion is
+     * synchronous and reaches every relation through the same few methods. A conversion started
+     * inside another one, for a filter narrowing a related entity, carries the same narrowing.
+     */
+    protected related: RelatedNarrowing | undefined;
+
     constructor(protected readonly typeOrmDataSource: ToDataSource) {}
 
     /**
@@ -170,14 +200,42 @@ export abstract class TypeOrmWhereFilterConverter {
      * Converts the given zibri filter to a typeorm filter.
      * @param filter - The zibri filter to convert.
      * @param entityClass - The entity class to search for by this filter.
+     * @param related - What the rows of each entity the filter reaches through a relation are
+     * narrowed to, which every filter through a relation in it is narrowed by.
      * @returns The typeorm filter.
      */
-    convert<T extends object>(
+    convert<T extends BaseEntity>(
+        filter: Where<T>,
+        entityClass: Newable<T>,
+        related?: RelatedNarrowing
+    ): ToFindOptionsWhere<T> | ToFindOptionsWhere<T>[] {
+        const previous: RelatedNarrowing | undefined = this.related;
+        this.related = related ?? previous;
+        try {
+            return this.convertNarrowed(filter, entityClass);
+        }
+        finally {
+            this.related = previous;
+        }
+    }
+
+    /**
+     * Converts a filter under the narrowing {@link convert} set.
+     * @param filter - The zibri filter to convert.
+     * @param entityClass - The entity class to search for by this filter.
+     * @returns The typeorm filter.
+     */
+    private convertNarrowed<T extends BaseEntity>(
         filter: Where<T>,
         entityClass: Newable<T>
     ): ToFindOptionsWhere<T> | ToFindOptionsWhere<T>[] {
+        // before the alternatives are distributed, since a narrowing can be several branches itself
+        const narrowed: ScopedWhere<T> = RelatedNarrowingUtilities.narrowFilter(filter, entityClass, this.related);
+        if (narrowed.matchesNothing || narrowed.where == undefined) {
+            return this.matchesNoRow();
+        }
         const properties: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
-        const written: WhereFilter<T>[] = Array.isArray(filter) ? filter : [filter];
+        const written: WhereFilter<T>[] = ScopeWhereUtilities.branchesOf(narrowed.where);
         const branches: WhereFilter<T>[] = written.flatMap(f => this.distributeRelationAlternatives(f, properties));
         if (!Array.isArray(filter) && branches.length === 1 && branches[0] != undefined) {
             return this.singleWhereFilterToFindOptionsWhere(branches[0], properties, entityClass);
@@ -186,13 +244,105 @@ export abstract class TypeOrmWhereFilterConverter {
     }
 
     /**
-     * One branch of a filter as the branches it is an OR of, once every OR inside a filter on a
-     * relation to one entity is moved to the top.
+     * The condition a join of an entity's rows carries so that it joins the rows the caller may see
+     * of them, over the alias the join reads them under.
      *
-     * A relation to one entity is filtered through nested find options, and typeorm ORs only at the
-     * top level: an array in there was read as an object whose keys are its indexes. `{ owner: { where:
-     * [a, b] } }` is the same question as `[{ owner: { where: a } }, { owner: { where: b } }]`, with the
-     * rest of the branch on both - so that is what it is turned into, to any depth.
+     * Rendered the way every other filter is, by a statement the orm builds over that alias, which
+     * is then cut down to its condition - so a narrowing is answered the same whether it narrows a
+     * read or a join. A narrowing that reaches through a relation has joins of its own that a
+     * condition cannot carry, so that statement is kept whole and the joined rows are asked to be
+     * among the ones it selects.
+     * @param target - The entity the join reads.
+     * @param alias - The alias the join reads it under.
+     * @param related - What the rows of each entity reached through a relation are narrowed to.
+     * @returns The condition and what it binds, undefined when the rows are not narrowed.
+     */
+    relationJoinCondition(
+        target: Newable<BaseEntity>,
+        alias: string,
+        related: RelatedNarrowing | undefined
+    ): ParameterizedSql | undefined {
+        const narrowing: Where<BaseEntity> | DenyAll | undefined = related?.get(target);
+        if (narrowing == undefined) {
+            return undefined;
+        }
+        if (narrowing === denyAll) {
+            return { sql: 'FALSE', parameters: {} };
+        }
+        const select: SelectQueryBuilder<BaseEntity> = this.selectIdsOf(target, alias, narrowing, related);
+        const statement: ParameterizedSql = this.toParameterizedSql(select, alias);
+        const at: number = statement.sql.indexOf(WHERE);
+        if (at === -1) {
+            // a narrowing every row satisfies renders to no condition at all
+            return undefined;
+        }
+        if (select.expressionMap.joinAttributes.length) {
+            return { sql: `${alias}.id IN (${statement.sql})`, parameters: statement.parameters };
+        }
+        return { sql: statement.sql.slice(at + WHERE.length), parameters: statement.parameters };
+    }
+
+    /**
+     * A statement the orm builds that selects the ids of the rows of an entity a filter matches.
+     * @param target - The entity.
+     * @param alias - The alias the statement reads it under.
+     * @param where - The filter.
+     * @param related - What the rows of each entity the filter reaches through a relation are
+     * narrowed to.
+     * @returns The statement, not yet rendered.
+     */
+    protected selectIdsOf(
+        target: Newable<BaseEntity>,
+        alias: string,
+        where: Where<BaseEntity>,
+        related: RelatedNarrowing | undefined
+    ): SelectQueryBuilder<BaseEntity> {
+        return this.typeOrmDataSource
+            .createQueryBuilder(target, alias)
+            .setFindOptions({ where: this.convert(where, target, related) })
+            .select(`${alias}.id`);
+    }
+
+    /**
+     * Renders a statement as sql with the values it binds, ready to land inside another statement.
+     *
+     * The orm numbers the values it binds per statement, and the statement this lands in numbers
+     * its own the same way, so they are renamed after the alias the statement reads under.
+     * @param statement - The statement.
+     * @param alias - Its alias.
+     * @returns The sql and the values.
+     */
+    toParameterizedSql<T extends BaseEntity>(statement: SelectQueryBuilder<T>, alias: string): ParameterizedSql {
+        const prefix: string = `${alias}_`;
+        const parameters: Record<string, unknown> = {};
+        for (const [name, value] of Object.entries(statement.getParameters())) {
+            parameters[name.startsWith('orm_param_') ? `${prefix}${name}` : name] = value;
+        }
+        return {
+            sql: statement.getQuery().replaceAll(/:orm_param_(\d+)\b/g, `:${prefix}orm_param_$1`),
+            parameters
+        };
+    }
+
+    /**
+     * The find options no row matches, for a filter nothing can satisfy.
+     * @returns The find options.
+     */
+    private matchesNoRow<T extends BaseEntity>(): ToFindOptionsWhere<T> {
+        // on the id every entity has: the orm's find options are mapped over the entity, so a
+        // condition written for the base is not one it can show to hold for every entity
+        return { id: Raw(() => 'FALSE') } as ToFindOptionsWhere<T>;
+    }
+
+    /**
+     * One branch of a filter as the branches it is an OR of, once every OR on a relation is moved to
+     * the top.
+     *
+     * A condition on a relation is answered by a statement over the related rows, built for one
+     * condition. A list of them is the same question as one branch per condition, with the rest of
+     * the branch on each: `{ owner: [a, b], done: false }` is `[{ owner: a, done: false }, { owner: b,
+     * done: false }]`. A list inside a `where` needs no moving, since the statement over the related
+     * rows reads it as a filter of its own.
      * @param branch - The branch as the caller wrote it.
      * @param properties - The property metadata of the entity the branch filters.
      * @returns The branches it is an OR of. Just the branch when nothing in it has to move.
@@ -203,23 +353,13 @@ export abstract class TypeOrmWhereFilterConverter {
     ): WhereFilter<T>[] {
         let res: Record<string, unknown>[] = [{ ...branch }];
         for (const [key, condition] of Object.entries(branch)) {
-            const metadata: PropertyMetadata | undefined = properties[key];
-            if (!this.isToOneRelation(metadata) || !ScopeWhereUtilities.isConditionObject(condition) || condition['where'] == undefined) {
+            if (!isRelationMetadata(properties[key]) || !Array.isArray(condition)) {
                 continue;
             }
-            const where: unknown = condition['where'];
-            const nested: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(metadata.target());
-            const alternatives: unknown[] = (Array.isArray(where) ? where : [where])
-                .flatMap((w: WhereFilter<Record<string, unknown>>) => this.distributeRelationAlternatives(w, nested))
-                .map(w => ({ ...condition, where: w }));
-            res = res.flatMap(r => alternatives.map(alternative => ({ ...r, [key]: alternative })));
+            res = res.flatMap(r => condition.map((alternative: unknown) => ({ ...r, [key]: alternative })));
         }
         // the same keys as the branch it came from, each holding one of the conditions it allowed
         return res as WhereFilter<T>[];
-    }
-
-    private isToOneRelation(metadata: PropertyMetadata | undefined): metadata is RelationMetadata<BaseEntity> {
-        return isRelationMetadata(metadata) && metadata.type !== Relation.ONE_TO_MANY && metadata.type !== Relation.MANY_TO_MANY;
     }
 
     /**
@@ -292,25 +432,28 @@ export abstract class TypeOrmWhereFilterConverter {
                 );
             }
             let nestedProperties: Record<string, PropertyMetadata> | undefined;
+            let condition: WhereFilterProperty<T[typeof key]> | WhereFilterProperty<T[typeof key]>[] = prop;
 
-            if (propertyMetadata.type === Relation.ONE_TO_MANY || propertyMetadata.type === Relation.MANY_TO_MANY) {
-                this.processRelationFilter(key, prop, propertyMetadata, entityClass, res, extraRawConditions);
-                continue;
-            }
-
-            if (propertyMetadata.type === 'object') {
-                nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.cls());
-            }
-            else if (
-                propertyMetadata.type === Relation.HAS_ONE
-                || propertyMetadata.type === Relation.BELONGS_TO_ONE
-                || propertyMetadata.type === Relation.MANY_TO_ONE
-            ) {
+            if (isRelationMetadata(propertyMetadata)) {
                 nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.target());
+                const remaining: WhereFilterProperty<T[typeof key]> | undefined = this.answerOverRelatedRows(
+                    String(key),
+                    prop,
+                    propertyMetadata,
+                    entityClass,
+                    extraRawConditions
+                );
+                if (remaining === undefined) {
+                    continue;
+                }
+                condition = remaining;
+            }
+            else if (propertyMetadata.type === 'object') {
+                nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.cls());
             }
 
             res[key] = this.propertyToFindOperator(
-                prop,
+                condition,
                 propertyMetadata,
                 nestedProperties,
                 entityClass as Newable<T[Extract<keyof T, string>]>,
@@ -329,58 +472,59 @@ export abstract class TypeOrmWhereFilterConverter {
         return res;
     }
 
-    private processRelationFilter<T extends Object>(
+    /**
+     * Answers the keys of a condition on a relation that a statement over the related rows answers,
+     * and hands back the keys it does not.
+     *
+     * A `where` through a relation asks for a related row matching it, which a statement over the
+     * related rows asks exactly. A join asks something else: joined with no related row it holds
+     * nulls, and a filter a null satisfies - `not`, `notLike`, `null` - is satisfied by the row that
+     * has nothing related. The length and membership keys of a relation to many rows are statements
+     * over the related rows as well.
+     * @param key - The relation's property.
+     * @param condition - The condition on it, as the caller wrote it.
+     * @param metadata - The relation's metadata.
+     * @param entityClass - The entity the relation is read from.
+     * @param extraRawConditions - Where the statements are collected.
+     * @returns The condition without the keys answered, or undefined when nothing is left of it.
+     */
+    private answerOverRelatedRows<P>(
         key: string,
-        prop: WhereFilterProperty<T[Extract<keyof T, string>]> | WhereFilterProperty<T[Extract<keyof T, string>]>[],
-        propertyMetadata: RelationMetadata<BaseEntity>,
-        entityClass: Newable<T>,
-        res: ToFindOptionsWhere<T>,
+        condition: WhereFilterProperty<P> | WhereFilterProperty<P>[],
+        metadata: RelationMetadata<BaseEntity>,
+        entityClass: Newable<unknown>,
         extraRawConditions: FindOperator<unknown>[]
-    ): void {
-        const filterObj: Record<string, unknown> = prop as Record<string, unknown>;
-
-        for (const lengthKey of lengthWhereFilterKeys) {
-            if (lengthKey in filterObj && typeof filterObj[lengthKey] === 'number') {
+    ): WhereFilterProperty<P> | undefined {
+        if (!ScopeWhereUtilities.isConditionObject(condition)) {
+            // a value or null, which is asked of the row itself. A list was distributed into branches
+            return condition as WhereFilterProperty<P>;
+        }
+        const res: Record<string, unknown> = { ...condition };
+        if (metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY) {
+            for (const lengthKey of lengthWhereFilterKeys) {
+                const length: unknown = res[lengthKey];
+                if (typeof length === 'number') {
+                    extraRawConditions.push(this.buildRelationLengthRawOperator(entityClass, key, metadata, lengthKey, length));
+                    // eslint-disable-next-line typescript/no-dynamic-delete
+                    delete res[lengthKey];
+                }
+            }
+            if (Array.isArray(res['includes'])) {
+                extraRawConditions.push(this.buildRelationIncludesOperator(entityClass, key, metadata, res['includes'] as BaseEntity[]));
+                delete res['includes'];
+            }
+            if (Array.isArray(res['isIncludedIn'])) {
                 extraRawConditions.push(
-                    this.buildRelationLengthRawOperator(
-                        entityClass, key, propertyMetadata, lengthKey, filterObj[lengthKey]
-                    )
+                    this.buildRelationIsIncludedInOperator(entityClass, key, metadata, res['isIncludedIn'] as BaseEntity[])
                 );
-                // eslint-disable-next-line typescript/no-dynamic-delete
-                delete filterObj[lengthKey];
+                delete res['isIncludedIn'];
             }
         }
-
-        // 2) includes / isIncludedIn
-        if ('includes' in filterObj && Array.isArray(filterObj['includes'])) {
-            extraRawConditions.push(
-                this.buildRelationIncludesOperator(
-                    entityClass, key, propertyMetadata, filterObj['includes'] as BaseEntity[]
-                )
-            );
-            delete filterObj['includes'];
+        if (res['where'] != undefined) {
+            extraRawConditions.push(this.buildRelationWhereOperator(entityClass, key, metadata, res['where'] as Where<BaseEntity>));
+            delete res['where'];
         }
-        if ('isIncludedIn' in filterObj && Array.isArray(filterObj['isIncludedIn'])) {
-            extraRawConditions.push(
-                this.buildRelationIsIncludedInOperator(
-                    entityClass, key, propertyMetadata, filterObj['isIncludedIn'] as BaseEntity[]
-                )
-            );
-            delete filterObj['isIncludedIn'];
-        }
-
-        // 3) Remaining element filters (e.g. where)
-        if (ObjectUtilities.keys(filterObj).length) {
-            const targetEntity: Newable<BaseEntity> = propertyMetadata.target();
-            const nestedProps: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(targetEntity);
-            (res as Record<string, unknown>)[key] = this.propertyToFindOperator(
-                filterObj as WhereFilterProperty<T> | WhereFilterProperty<T>[],
-                propertyMetadata,
-                nestedProps,
-                entityClass,
-                key
-            );
-        }
+        return ObjectUtilities.keys(res).length ? res as WhereFilterProperty<P> : undefined;
     }
 
     /**
@@ -444,6 +588,9 @@ export abstract class TypeOrmWhereFilterConverter {
             // eslint-disable-next-line typescript/no-unsafe-return
             return IsNull();
         }
+        if (Array.isArray(property) && propertyMetadata.type === 'array') {
+            return this.buildArrayEqualsOperator(property, propertyMetadata) as FindOperator<T>;
+        }
         if (
             typeof property === 'string'
             || typeof property === 'bigint'
@@ -451,7 +598,6 @@ export abstract class TypeOrmWhereFilterConverter {
             || typeof property === 'boolean'
             || property instanceof Date
             || property instanceof BigNumber
-            || (Array.isArray(property) && propertyMetadata.type === 'array')
         ) {
             return Equal(property as T);
         }
@@ -518,6 +664,17 @@ export abstract class TypeOrmWhereFilterConverter {
     protected abstract equalsOneOf(values: unknown[], entityClass: Newable<unknown>, property: string): FindOperator<unknown>;
 
     /**
+     * Builds the operator matching an array that is exactly the given one.
+     *
+     * Abstract because an array is stored the way the dialect stores it, and an array of objects may
+     * not be an array column at all.
+     * @param values - The values, in order.
+     * @param metadata - The array property.
+     * @returns A typeorm FindOperator, matching no row without an array.
+     */
+    protected abstract buildArrayEqualsOperator(values: unknown[], metadata: PropertyMetadata): FindOperator<unknown>;
+
+    /**
      * Builds the operator matching an array that holds every one of the given values.
      *
      * Abstract because an array is stored the way the dialect stores it, and an array of objects may
@@ -574,5 +731,20 @@ export abstract class TypeOrmWhereFilterConverter {
         propertyName: string,
         metadata: RelationMetadata<BaseEntity>,
         entities: BaseEntity[]
+    ): FindOperator<unknown>;
+
+    /**
+     * Builds the operator matching a row with a related row that matches a filter.
+     * @param entityClass - The entity the relation is read from.
+     * @param propertyName - The relation's property.
+     * @param metadata - The relation's metadata.
+     * @param where - The filter on the related rows, narrowed to the ones the caller may see.
+     * @returns A typeorm FindOperator, matching no row without a related row.
+     */
+    protected abstract buildRelationWhereOperator<T>(
+        entityClass: Newable<T>,
+        propertyName: string,
+        metadata: RelationMetadata<BaseEntity>,
+        where: Where<BaseEntity>
     ): FindOperator<unknown>;
 }

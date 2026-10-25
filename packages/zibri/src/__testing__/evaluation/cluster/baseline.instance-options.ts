@@ -1,4 +1,4 @@
-import { ClusterMark, clusterInstanceId, createPostgresTestDataSource, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
+import { ClusterMark, clusterInstanceId, createPostgresTestDataSource, defaultClusterProviders, defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../../auth/decorators/auth.decorator';
@@ -15,10 +15,9 @@ import { JwtTestAuthController } from '../../mocks/controllers/jwt-test-auth.con
 import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
 import { TestMembership } from '../../mocks/entities/test-membership.entity';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/membership-repository';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
+import { TestRole } from '../../mocks/entities/test-role.entity';
+import { defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
+import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders } from '../../test-server/providers';
 
 /**
  * The data sources every instance of this scenario boots on.
@@ -33,7 +32,7 @@ import '../../test-server/user-repository'; // this import is needed so that the
  */
 const clusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed
-    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership] })
+    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership, TestRole], repositories: defaultTestServerRepositories })
 ];
 
 /**
@@ -131,7 +130,9 @@ const options: StartTestServerOptions = {
     dataSources: clusterDataSources,
     // the real auth controller, so the parent logs in the way a client does and the token it gets
     // back is the one the framework actually issues
-    controllers: [BaselineController, JwtTestAuthController]
+    controllers: [BaselineController, JwtTestAuthController],
+    // the cluster's defaults, and the roles the users here hold
+    providers: [...defaultClusterProviders, ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles)]
 };
 
 export default options;

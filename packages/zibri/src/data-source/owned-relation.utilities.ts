@@ -43,10 +43,9 @@ export class OwnedRelationUtilities {
             if (!isRelationMetadata(inverse)) {
                 continue;
             }
-            if ((inverse.type !== Relation.MANY_TO_ONE && inverse.type !== Relation.BELONGS_TO_ONE) || inverse.joinColumn == undefined) {
+            if (inverse.type !== Relation.MANY_TO_ONE && inverse.type !== Relation.BELONGS_TO_ONE) {
                 throw new InternalError(
-                    `The relation "${entityClass.name}.${key}" needs "${target.name}.${metadata.inverseSide}" `
-                    + 'to be a to one relation with "joinColumn" set.'
+                    `The relation "${entityClass.name}.${key}" needs "${target.name}.${metadata.inverseSide}" to be a to one relation.`
                 );
             }
 

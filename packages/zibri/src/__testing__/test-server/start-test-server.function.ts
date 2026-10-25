@@ -7,6 +7,8 @@ import './membership-repository'; // and this one for the membership repository 
 import { defaultTestServerPlugins } from './plugins';
 import { defaultTestServerProviders } from './providers';
 // eslint-disable-next-line eslintImport/no-unassigned-import
+import './role-repository'; // the roles users and memberships hold,
+// eslint-disable-next-line eslintImport/no-unassigned-import
 import './user-repository'; // this import is needed so that the DI system can pick up the user repository.
 
 export { StartedTestServer } from 'zibri-testing';

@@ -1,5 +1,5 @@
 # Cron
-Cron jobs in Zibri use the node-cron package and its cron syntax under the hood.
+A cron job runs a piece of work on a schedule. The schedule is a cron expression, with an optional first field for seconds, and `CronExpression` builds one for you.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -9,23 +9,25 @@ Cron jobs in Zibri use the node-cron package and its cron syntax under the hood.
 | `CronFailurePolicy` | type | What a job does when its ticks throw, see [when a tick throws](#when-a-tick-throws) |
 | `CronRetryOptions` | type | How a job runs a failed slot again |
 | `CronBackOffOptions` | type | How a job that keeps failing skips slots |
-| `CronExpression` | class | Builder for cron expression strings (eg. `CronExpression.every(1, 'seconds').build()`) |
-| `ShouldRunExecution` | type | The election contract a cron service provides |
+| `CronExpression` | class | Builder for cron expression strings (such as `CronExpression.every(1, 'seconds').build()`) |
+| `RunExecution` | type | The election contract a cron service provides: runs an execution on the instance that holds its claim |
 | `CronJobEntity` | entity | The stored state of a cron job |
+| `CronJobState` | enum | `ACTIVE`, `INACTIVE` or `STOPPED_ON_ERROR`: whether a job is on the schedule, and why not, see [what a job is doing](#what-a-job-is-doing) |
 | `CronSyncCronJob` | cron job | Applies what other instances changed about a job. Registered for you |
+| `PollingCronJob` | class | Base class for a job that looks for work kept in a data source, see [polling for work](#polling-for-work) |
+| `WakeUpServiceInterface` | interface | Tells the instances that something a poll looks for changed |
+| `WakeUpListener` | type | Listens for the wake ups of one topic, returned by `WakeUpServiceInterface.listen` |
+| `WakeUpService` | class | Default implementation of `WakeUpServiceInterface` |
+| `ZIBRI_DI_TOKENS.WAKE_UP_SERVICE` | DI token | The wake up service |
 | `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` | DI token | How long a claim is held. Defaults to five minutes |
 | `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` | DI token | How long one instance may take to register its jobs at boot. Defaults to thirty seconds |
 
-## Usage
-### Defining a cron job
-To define a job it needs to extend the `CronJob` class. Below is a simple example that just logs to the console each second:
+## Defining a cron job
+A job extends `CronJob`. This one logs its name every second, once it is active:
 
 ```ts
 // src/cron/status.cron-job.ts
-import { CronExpression, CronJob, defineProvider, inject, Injectable, Ms, ZIBRI_DI_TOKENS, InitialCronConfig, ZibriApplication } from 'zibri';
-
-import { version } from '../package.json';
-import { providers } from '../providers';
+import { CronExpression, CronJob, InitialCronConfig, inject, Injectable, ZIBRI_DI_TOKENS } from 'zibri';
 
 @Injectable()
 export class StatusCronJob extends CronJob {
@@ -36,16 +38,21 @@ export class StatusCronJob extends CronJob {
     };
 
     async onTick(): Promise<void> {
-        await inject(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
+        inject(ZIBRI_DI_TOKENS.LOGGER).info(`is running ${this.name}`);
     }
 }
 ```
 
-### Registering the cron job
-For Zibri to be actual able to pickup the cron job and start it automatically you need to provide its class at the `index.ts`:
+## Registering the cron job
+Add the job class to `cronJobs` in `index.ts`, and it starts with the application:
 
 ```ts
 // src/index.ts
+import { ZibriApplication } from 'zibri';
+
+import { version } from '../package.json';
+import { StatusCronJob } from './cron/status.cron-job';
+import { providers } from './providers';
 // ...
 
 const app: ZibriApplication = new ZibriApplication({
@@ -66,61 +73,69 @@ const app: ZibriApplication = new ZibriApplication({
     cronJobs: [StatusCronJob],
     version,
     defaultAuth: 'public',
+    twoFactorAtLogin: 'never',
     providers
 });
 // ...
 ```
 
-### Behaviour
+## Storing the configuration of a job
 
-The job is first initialized with the given initial config.
-Which in this case means that
+The job starts with its initial config. Here that means:
 - its name is 'Status'
 - it *would* run every second
 - but is not active yet.
 
-At that first startup, the cron job is saved as a cron job entity in a data source.
-After that you can programmatically change its configuration, like putting it on the schedule or changing the cron expression.
+At its first start, the job is saved as a cron job entity in a data source. From then on you change its configuration through the cron service, for example to put it on the schedule or to change its cron expression.
 
-**Who owns which value.** The schedule and whether the job is running are yours to change while the app runs, so the stored row wins for those — a change you make through the cron service survives every restart, and editing `cron` in the class afterwards has no effect. `runOnInit` and `onFailure` describe what the job *does* rather than when, so the class stays the single source of truth for them: every start brings the row back in line with what it declares, and `onFailure` is read from the class alone. Set `syncToDataSource: false` to keep the whole configuration in the class, at the cost of the row that records `lastRun` and the last error.
+The schedule and whether the job is on it can change in two places: in the class, and through the cron service while the app runs. The newer change wins. A start whose class declares a different `cron` or `active` than at the last start takes the value of the class and logs the change. Otherwise the row keeps what the cron service set, across every restart. The class wins for `runOnInit`, `timezone`, `catchUpWithinMs` and `onFailure`: every start brings the row back in line with what the class declares, and `onFailure` is read from the class alone. Set `syncToDataSource: false` to keep the whole configuration in the class. The job then has no row to record `lastRun` and the last error.
 
-**Changing a job while the app runs.** `cronService.enable()`, `disable()` and `changeCron()` change a job on every instance: the row's `source` is `'code'` for a job declared as a class, and `cronService.update()` refuses such a job, since its class declares the rest. Every instance reads the row before each run of a job, so a job disabled, stopped or rescheduled on one instance is skipped from its next run on all of them, and a job runs only at the times of its new schedule. `CronSyncCronJob`, registered for you on every instance, reads the rows every five seconds and puts enabled jobs back on the schedule and moves rescheduled ones. This is how a job that misbehaves is turned off without a deploy, also from its own `onError`.
+### Changing a job while the app runs
+
+`cronService.enable()`, `disable()` and `changeCron()` change a job on every instance. The row's `source` is `'code'` for a job declared as a class, and `cronService.update()` refuses such a job, since its class declares the rest.
+
+Every instance reads the row before each run of a job. A job disabled, stopped or rescheduled on one instance is skipped from its next run on all of them, and runs only at the times of its new schedule. `CronSyncCronJob`, registered for you on every instance, reads the rows at its next tick once another instance changed one, and at least every 30 seconds otherwise. It puts enabled jobs back on the schedule and moves rescheduled ones. Use this to turn off a job that misbehaves without a deploy, also from its own `onError`. A job with `syncToDataSource: false` has no row, so the cron service changes it only on the instance it is called on.
 
 A job runs outside every [tenant](./tenancy.md#work-outside-a-request), and every tenant shares it.
 
-### What a job is doing
+## What a job is doing
 
 A job is in one of three states, readable as `job.state`:
 
 | State | Meaning |
 |---|---|
 | `ACTIVE` | On the schedule |
-| `INACTIVE` | Off the schedule because that is what was asked for — in `initialConfig`, or through `cronService.disable()` |
+| `INACTIVE` | Off the schedule because that is what was asked for, in `initialConfig` or through `cronService.disable()` |
 | `STOPPED_ON_ERROR` | Off the schedule because its ticks threw as often in a row as its `onFailure.stopAfterFailures` allows |
 
-`active: false` in `initialConfig` says where the job begins; from then on the state is what the row records.
+`active: false` in `initialConfig` takes the job off the schedule, at its first start and at every start after you change `active`. Between two such changes the state is what the row records.
 
-The last two are both "off", and keeping them apart is what lets the next start treat them differently. A job **somebody** turned off stays off — nothing puts it back but `cronService.enable()`. A job the **framework** stopped records where to return to, and the next start puts it there: whatever made that start happen — a deploy, a failover, a configuration change — is the same class of event that would have fixed the failure. The `errorMessage` survives the recovery, so what went wrong is still readable afterwards.
+A job you turned off stays off until `cronService.enable()`. A job stopped on error returns to the state it had at the next start of the application. Its `errorMessage` stays, so what went wrong is still readable afterwards.
 
-### Which clock a schedule is read on
+## Which clock a schedule is read on
 
-An expression like `0 3 * * *` names no moment on its own — "03:00" is a different instant in every zone, and a different one in summer than in winter. So a job's schedule is the expression *and* the time zone it is read in.
+A schedule is a cron expression and the time zone it is read in. `0 3 * * *` fires at 03:00 in that zone.
 
-The zone defaults to **UTC**, not to whatever the machine is set to. A local zone is part of the environment, which would make the same job fire at one moment on a laptop and another in production, and move by an hour twice a year anywhere observing daylight saving.
+The zone defaults to UTC, whatever zone the machine is set to, so a job fires at the same moment on every machine.
 
 Change it for the whole deployment through the localize options:
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
     useValue: { defaultTimezone: 'Europe/Berlin' }
 })
 ```
 
-Or per job, which is what lets one deployment run the same work on the schedule each of its tenants expects:
+Or per job, for example to run the same work on the schedule each of your tenants expects:
 
 ```ts
 // src/cron/nightly-invoices.cron-job.ts
+import { CronExpression, CronJob, InitialCronConfig, Injectable } from 'zibri';
+
 @Injectable()
 export class NightlyInvoicesCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
@@ -133,28 +148,29 @@ export class NightlyInvoicesCronJob extends CronJob {
 }
 ```
 
-`Timezone` is a union of the IANA zone names, so a typo is a compile error rather than a job that never fires.
+`Timezone` is a union of the IANA zone names, so a typo is a compile error.
 
-### Running at startup
+## Running at startup
 
 `runOnInit` is off by default. Turn it on and the job runs once when the app starts, in addition to its schedule.
 
-For a `distributed` job that startup run is elected the same way a scheduled one is, so a deployment of ten pods runs it once and not ten times. The claim is keyed on the slot the run is happening ahead of, which every replica of one rolling deploy computes identically — and separately from that slot's own claim, so running early does not cancel the scheduled run. That claim is held until the slot arrives, so a pod that becomes ready an hour into a slow deploy still finds it taken. A pod restarting a week later sees a different slot and runs again, which is the point of the option.
+For a `distributed` job, one instance runs that startup run ahead of each upcoming slot. A deployment of ten pods runs it once. A pod that becomes ready later in the same rolling deploy finds it taken, even an hour later. The scheduled run of that slot still happens. A pod that starts after the slot has passed runs it again.
 
-For a job with `distributed: false` it runs on every instance, because that is what per-instance work means.
+For a job with `distributed: false` it runs on every instance.
 
-### Catching up a run that was missed
+## Catching up a run that was missed
 
-A slot that passes while nothing is running is simply gone — a deployment down from 02:00 to 04:00 skips its 03:00 job and the next one is tomorrow. Whether that matters is a property of the work, so it is something a job asks for:
+A slot that passes while no instance is running is skipped: a deployment down from 02:00 to 04:00 skips its 03:00 job, and the next run is tomorrow. Set `catchUpWithinMs` on a job whose work is still worth doing later:
 
 ```ts
 // src/cron/catching-up.cron-job.ts
+import { CronExpression, CronJob, InitialCronConfig, Injectable, Ms } from 'zibri';
+
 @Injectable()
 export class CatchingUpCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'Nightly invoices',
         cron: CronExpression.daily().at(3, 'hours').build(),
-        // still worth running at 06:00 when the outage clears — but not a week later
         catchUpWithinMs: Ms.DAY
     };
 
@@ -162,19 +178,21 @@ export class CatchingUpCronJob extends CronJob {
 }
 ```
 
-On start, the job runs **once** for the most recent slot it missed — not once per slot the outage covered, so a week of downtime owes one invoice run rather than seven. `catchUpWithinMs` is also how far back it looks: anything older is left alone, because past some age a make-up run stops being a service and becomes a surprise.
+The invoice run is still worth doing at 06:00 when the outage clears, up to a day after its slot.
 
-The same limit covers a slot a running process reaches late, for example while a long synchronous computation blocks it: a slot no later than `catchUpWithinMs` still runs, and of several such slots only the most recent one.
+On start, the job runs once for the most recent slot it missed. A week of downtime owes one invoice run, not seven. `catchUpWithinMs` is also how far back it looks: an older slot stays missed.
 
-Left unset, a missed slot stays missed, and so does a slot reached more than a second late. The app logger warns about each slot left out this way. That is right for work that is only about the moment it was scheduled for — collecting this minute's metrics is not worth doing later.
+The same limit covers a slot a running process reaches late, for example while a long synchronous computation blocks it. A slot no later than `catchUpWithinMs` still runs, and of several such slots only the most recent one.
 
-A job that has never run catches up nothing: there is no point to measure "since" from, and treating a whole schedule as outstanding would fire every job on the first boot of every new environment.
+Left unset, a missed slot stays missed, and so does a slot reached more than a second late. The app logger warns about each slot left out this way. Leave it unset for work that only matters at its moment, such as collecting this minute's metrics.
 
-Across replicas the make-up run is claimed exactly like the real one it stands in for, so if any instance did run that slot, nothing happens.
+A job that has never run catches up nothing, so a new environment does not fire every job on its first boot.
 
-### When a tick throws
+Across replicas, one instance runs the make-up run, and none does when an instance already ran that slot.
 
-The error is logged and recorded on the job's row as `errorMessage`, and the next tick runs as usual. A failure that clears on its own — an smtp server refusing connections for a minute, a database mid-failover — costs you one execution.
+## When a tick throws
+
+The error is logged and recorded on the job's row as `errorMessage`, and the next tick runs as usual. A failure that clears on its own, such as an SMTP server refusing connections for a minute or a database in a failover, costs you one execution.
 
 `onFailure` says what else happens. Each part is off when you leave it out:
 
@@ -188,13 +206,9 @@ export class CarefulInvoicesCronJob extends CronJob {
         name: 'Careful invoices',
         cron: CronExpression.daily().at(3, 'hours').build(),
         onFailure: {
-            // run a failed slot again after 30 s, 60 s and 120 s
             retry: { attempts: 3, delayInMs: 30 * Ms.SECOND },
-            // while failing, skip 1, then 3, then 7 slots, at most 15
             backOff: { maxSkippedSlots: 15 },
-            // off the schedule after 5 failures in a row
             stopAfterFailures: 5,
-            // and back on it an hour after its last run
             restartAfterMs: Ms.HOUR
         }
     };
@@ -202,6 +216,8 @@ export class CarefulInvoicesCronJob extends CronJob {
     async onTick(): Promise<void> {}
 }
 ```
+
+This job runs a failed slot again after 30, 60 and 120 seconds. While it keeps failing, it skips 1, then 3, then 7 slots, at most 15. After 5 failures in a row it is off the schedule, and an hour after its last run it is back on it.
 
 | Option | What it does |
 |---|---|
@@ -212,30 +228,31 @@ export class CarefulInvoicesCronJob extends CronJob {
 
 Failures are counted in a row across every instance, as `consecutiveFailures` on the job's row, and a slot whose retries all failed counts once. A tick that succeeds sets the count back to 0 and ends a back off.
 
-### Running more than one instance
+## Running more than one instance
 
-A scheduled job is work your deployment owes **once**, not once per replica. Three pods would otherwise mean a nightly invoice run bills every customer three times.
+One instance runs each scheduled execution of a job. This is on by default. Each execution is claimed through a [lease](./leases.md) on the job and its scheduled time. The instance that wins runs the job, and every other instance skips. An instance whose start was jittered into the next second still competes for the slot it was scheduled for.
 
-Zibri handles this for you, and it is on by default. Before running a job, every instance takes a [lease](./leases.md) on that execution, keyed `cron:<job name>:<scheduled time>`. Exactly one instance can hold a key, so the data source decides the winner and every other instance skips. The key names one *execution*, not the job as a whole, so an instance whose start was jittered into the next second still competes for the tick it was scheduled for.
+The claim stays after the job finishes, so an instance arriving later does not run the same slot again.
 
-The grant is **retained** rather than handed back when the job finishes — it is not only the exclusion but the record that this tick has been dealt with. Handing it back would let a replica arriving a moment later win the same key and run the job a second time.
-
-A claim is held for `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` (five minutes by default). This exists so that an instance which *dies* mid-run does not block that job forever — once the claim expires another instance takes the execution over.
-
-> **This is the one lease Zibri does not renew underneath you.** node-cron owns the job body and only asks the framework *who should run*, so there is no work here to renew across. Everywhere else the grant follows the work; here the work has to fit the grant. Raise it for jobs that legitimately run longer than the default, or a second instance may pick up an execution while the first is still working on it:
+The claim is renewed for as long as the job runs, so the lease puts no deadline on your code. `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS`, five minutes by default, is how long an execution whose instance died mid-run waits before another instance takes it over, and how long a finished execution stays claimed. An instance that starts while a run is under way finds the slot held, and does not [catch it up](#catching-up-a-run-that-was-missed) beside the run.
 
 ```ts
+// src/providers.ts
+import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({ token: ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS, useFactory: () => Ms.MINUTE * 30 })
 ```
 
-To elect differently — through a lock your infrastructure already provides, say — replace the cron service and implement `shouldRunExecution`. Returning `true` everywhere restores the unsafe once-per-replica behavior; returning `false` everywhere stops the job running at all.
+To elect through something else, such as a lock your infrastructure provides, replace the cron service and implement `runExecution`. It runs the execution it is handed on the instance that holds the claim, for as long as the run lasts.
 
-#### Jobs that must run everywhere
+### Jobs that must run everywhere
 
-Not every job is work the deployment owes once. Some act on state that belongs to the instance itself and that nothing else can see. Those set `distributed: false` and run on every instance:
+Some jobs act on state that belongs to one instance, which no other instance can see. Those set `distributed: false` and run on every instance:
 
 ```ts
 // src/cron/clear-local-cache.cron-job.ts
+import { CronExpression, CronJob, InitialCronConfig, Injectable } from 'zibri';
+
 @Injectable()
 export class ClearLocalCacheCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
@@ -248,30 +265,95 @@ export class ClearLocalCacheCronJob extends CronJob {
 }
 ```
 
-The test is **who owns the state the job touches**. A shared data source, a payment provider, an outbound mail queue → leave it `true`, or three replicas do it three times. This process's memory, this container's filesystem → `false`, or two of your three replicas are never cleaned up.
+| `distributed` | When the job touches |
+|---|---|
+| `true` | Shared state: a shared data source, a payment provider, an outbound mail queue. With `false`, three replicas do the work three times |
+| `false` | State of the instance: this process's memory, this container's filesystem. With `true`, two of three replicas are never cleaned up |
 
-Zibri's own jobs follow the same rule: `CollectMetricsCronJob` (each instance has its own registry and host), `FormDataBodyParserCleanupCronJob` (each container has its own temp folder) and `RateLimitingCleanupCronJob` (the default limiter store is in memory) are `distributed: false`. Everything that cleans up rows in a data source is not.
+The framework's own jobs follow the same rule. These run on every instance:
 
-#### What `distributed: true` does not promise
+| Job | What it acts on |
+|---|---|
+| `CollectMetricsCronJob` | The instance's own registry and host |
+| `FormDataBodyParserCleanupCronJob` | The container's temp folder |
+| `BackupStagingCleanupCronJob` | The container's backup staging folder |
+| `RateLimitingCleanupCronJob` | The default limiter store, in memory |
+| `CacheExpiryCleanupCronJob` | The instance's local caches |
+| `CacheInvalidationCronJob` | Work for its own instance |
+| `EventDispatchCronJob` | Work for its own instance |
+| `RunQueuedThreadJobsCronJob` | Work for its own instance |
+| `CronSyncCronJob` | The jobs of its own instance |
 
-It elects one replica per **scheduled execution**. It does not mean only one execution is running at a time.
+All of them except `FormDataBodyParserCleanupCronJob`, `BackupStagingCleanupCronJob` and `CacheExpiryCleanupCronJob` also set `syncToDataSource: false`. Every job that cleans up rows in a data source is distributed.
 
-The claim is keyed by the job and the slot it fired for, so the next slot is a different claim that another replica may win freely — including while this one is still working. A job whose `onTick` can outlive its own interval will therefore overlap itself, and the second run reads the same not-yet-updated rows as the first.
+### Runs that outlast their interval
 
-If that is possible for your job, claim the individual work items it processes rather than relying on the slot. `SendQueuedEmailsCronJob` is the worked example: it claims each mail before sending it, because a slow smtp server makes a send outlast the interval easily. See [leases.md](./leases.md).
+`distributed: true` elects one instance per scheduled execution. The next slot is a separate claim, which another instance may win while this one is still working. A job whose `onTick` can outlast its interval overlaps itself, and the second run reads the same rows as the first, before the first updated them.
+
+For such a job, claim each work item it processes, see [leases](./leases.md). `SendQueuedEmailsCronJob` claims each mail before it sends it, since a slow SMTP server can make a send outlast the interval.
+
+## Polling for work
+
+A job that looks for work kept in a data source, in rows any instance may add, extends `PollingCronJob`. Its schedule is how often it looks at most. Every look that finds nothing makes the next one later, up to every 30 seconds, and a tick it skips costs nothing, not even the claim of its slot. Whoever adds work wakes it, and it looks again at its next tick.
+
+```ts
+// src/cron/send-invoices.cron-job.ts
+import { BaseEntity, CronExpression, inject, InitialCronConfig, Injectable, Newable, PollingCronJob, Repository, repositoryTokenFor, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { Invoice, InvoiceStatus } from '../models';
+
+@Injectable()
+export class SendInvoicesCronJob extends PollingCronJob {
+    readonly initialConfig: InitialCronConfig = {
+        name: 'Send invoices',
+        cron: CronExpression.every(5, 'seconds').build()
+    };
+
+    protected readonly wakeUpTopic: string = 'invoices';
+
+    protected readonly polledEntity: Newable<BaseEntity> = Invoice;
+
+    protected async poll(): Promise<boolean> {
+        const invoices: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
+        const due: Invoice[] = await invoices.findAll({ where: { status: InvoiceStatus.DUE }, take: 50 });
+        // send them, each under a claim of its own
+        return due.length > 0;
+    }
+}
+
+// where an invoice falls due
+export async function markDue(invoice: Invoice): Promise<void> {
+    const invoices: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
+    await invoices.updateById(invoice.id, { status: InvoiceStatus.DUE });
+    await inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE).wake(invoices.dataSource, 'invoices');
+}
+```
+
+`poll` returns whether it found anything, and a poll that did looks again at the next tick. A wake up travels through the data source `polledEntity` is kept in. It reaches every instance when that data source carries messages between them, as a `PostgresDataSource` and a `ValKeyDataSource` do. On one that carries none, the job looks at every tick of its schedule. `wakeAt` wakes the job of this instance at a time, for work that falls due later.
+
+Work nobody announces, such as work an instance that stopped existing left unfinished, is found at the pace of an idle poll, within about 30 seconds.
 
 ## Configuration
-Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `distributed`, `syncToDataSource`) is set on the job class itself — see "Defining a cron job" above. There is no separate global configuration object.
-<br>
-Cluster-wide behaviour is configured through DI: `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` for how long a claim is held, `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` for how long one instance may take to register its jobs at boot, or `ZIBRI_DI_TOKENS.CRON_SERVICE` to replace election entirely.
+Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `distributed`, `syncToDataSource`) is set on the job class itself, see [defining a cron job](#defining-a-cron-job).
+
+Behavior across instances is configured through DI: `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` for how long a claim is held, `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` for how long one instance may take to register its jobs at boot, or `ZIBRI_DI_TOKENS.CRON_SERVICE` to replace election entirely.
 
 ### Registering jobs when several instances boot together
 
-Nothing to configure, but worth knowing it happens. A job's row is looked up by name and created when it is missing, and every instance does that for the same names — so registration runs under a lease and the instances take their turn. The first one through creates the rows and the rest find them already there.
+Instances that boot together register their jobs one at a time, under a lease. The first one creates the rows, and the others find them. This also holds when the table is empty: on the first deploy, after a restore, and in every fresh environment.
 
-Without it they would all look, all find nothing, and all insert; `name` is unique, so the instances that lost would not merely skip the row, they would **fail to boot**. Only visible when the table is empty, which is the first deploy, a restore, and every fresh environment.
+Raise `CRON_REGISTRATION_LEASE_IN_MS` if one instance cannot register all of your jobs in thirty seconds. An instance that dies mid-registration blocks the others for at most the lease.
 
-Raise `CRON_REGISTRATION_LEASE_IN_MS` if you have enough jobs that one instance cannot get through them in thirty seconds. An instance that dies mid-registration does not block the others past the lease.
+## Requirements
+| Package | Used for |
+|---|---|
+| `node-cron` | Running each job at the times of its cron expression |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `CronJobEntity` | Every application |
 
 ## See also
 - [Replication](./replication.md) — running more than one instance, and what else changes when you do

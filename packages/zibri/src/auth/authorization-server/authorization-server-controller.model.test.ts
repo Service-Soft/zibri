@@ -8,11 +8,13 @@ import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, 
 
 import { AuthorizationServerController } from './authorization-server-controller.model';
 import { IntrospectionResponse } from './introspection-response.model';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders, TestServerRole } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -35,6 +37,9 @@ import { PasswordAuthenticator } from '../authenticators/password/password.authe
 import { Auth } from '../decorators/auth.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { BaseUser } from '../models/base-user.model';
+import { definePlatformPermissions } from '../roles/define-permissions.function';
+import { type Permission } from '../roles/permission.type';
+import { type PlatformPermission } from '../roles/platform-permission.type';
 import { ApiKeyAuthenticationMethod } from '../strategies/api-key/api-key-authentication-method.enum';
 import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
 import { ApiKey } from '../strategies/api-key/api-key.model';
@@ -47,6 +52,7 @@ import { ClientAccessTokenGrant } from '../strategies/client-access-token-grant.
 import { ClientAccessTokenIssuingAuthStrategyInterface } from '../strategies/client-access-token-issuing-auth-strategy.interface';
 import { BaseClientCertificateAuthStrategy } from '../strategies/client-certificate/base-client-certificate.auth-strategy';
 import { ClientCertificateHeaderFormat } from '../strategies/client-certificate/client-certificate-header-format.type';
+import { CredentialLimits } from '../strategies/credential-limits.model';
 import { IssuedClientAccessToken } from '../strategies/issued-client-access-token.model';
 import { AccessTokenRevocation } from '../strategies/jwt/access-token-revocation.type';
 import { JwksController } from '../strategies/jwt/jwks.controller';
@@ -61,7 +67,7 @@ import { JwtUtilities } from '../strategies/jwt/jwt.utilities';
  */
 type Me = {
     id: string,
-    roles: Roles[]
+    platformPermissions: string[]
 };
 
 /**
@@ -80,18 +86,18 @@ class MachineController {
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): Me {
-        return { id: user.id, roles: user.roles };
+        return { id: user.id, platformPermissions: user.platformPermissions };
     }
 
-    @Auth.hasPlatformRole([Roles.ADMIN])
+    @Auth.hasPlatformPermission(TestPlatformPermissions.ADMIN)
     @Get('/admin')
     admin(): { ok: boolean } {
         return { ok: true };
     }
 
-    // a route for people only, which a client's token cannot reach whatever its roles
+    // a route for people only, which a client's token cannot reach whatever it may do
     @Auth.isLoggedIn([JwtAuthStrategy])
     @Get('/people-only')
     peopleOnly(): { ok: boolean } {
@@ -99,8 +105,19 @@ class MachineController {
     }
 }
 
+/**
+ * The permission a resource server introspects with.
+ */
+const { TOKENS_INTROSPECT } = definePlatformPermissions(['tokens.introspect'] as const);
+
+/**
+ * The roles of the test server, the platform admin carrying the permission to introspect.
+ */
+const roles: TestServerRole[] = defaultTestServerRoles
+    .map(role => role.name === Roles.ADMIN && role.level === 'platform' ? { ...role, permissions: [...role.permissions, TOKENS_INTROSPECT] } : role);
+
 @Controller('/oauth2')
-class TestAuthorizationServerController extends AuthorizationServerController({ introspectionRoles: [Roles.ADMIN], resources: [REPORTS] }) {}
+class TestAuthorizationServerController extends AuthorizationServerController({ introspectionPermission: TOKENS_INTROSPECT, resources: [REPORTS] }) {}
 
 /**
  * The authority client certificates are issued by, made before any application starts.
@@ -111,7 +128,7 @@ let authority: FakeKeyPair;
  * Takes the certificate from the proxy on this machine, which is where the test's requests come from,
  * and finds the user by the email address in its common name.
  */
-class LocalProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<Roles, JwtUser> {
+class LocalProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<string, JwtUser> {
     readonly header: string = 'Client-Cert';
     readonly headerFormat: ClientCertificateHeaderFormat = 'rfc9440';
     readonly trustedProxies: string[] = ['127.0.0.1', '::1'];
@@ -147,6 +164,7 @@ async function startApp(
 ): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, ...entities],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     return await startTestServer({
@@ -158,7 +176,14 @@ async function startApp(
             ...authStrategies.some(strategy => strategy === JwtAuthStrategy) ? [JwtTestAuthController] : [],
             ...controllers
         ],
-        providers: [...defaultTestServerProviders, ...providers]
+        providers: [
+            ...defaultTestServerProviders,
+            ...rolesAndPermissionsProviders(
+                { ...defaultTestServerPermissions, platformPermissions: [...defaultTestServerPermissions.platformPermissions, TOKENS_INTROSPECT] },
+                roles
+            ),
+            ...providers
+        ]
     });
 }
 
@@ -281,12 +306,16 @@ async function createUser(name: string, roles: Roles[] = [Roles.USER]): Promise<
 /**
  * Creates an api key that is a secret.
  * @param user - The user the key acts as.
- * @param roles - The roles the key may use.
+ * @param permissions - The permissions the key may use.
  * @param expiresAt - When the key stops working.
  * @returns The created key.
  */
-async function createKey(user: JwtUser, roles: Roles[] = [Roles.USER], expiresAt: Date | undefined = undefined): Promise<CreatedApiKey> {
-    return await authService().createApiKey(user.id, { name: 'service', roles, expiresAt, tenantId: undefined, clientAuthentication: undefined, requireDpop: false }, undefined);
+async function createKey(
+    user: JwtUser,
+    permissions: (Permission | PlatformPermission)[] = [TestPlatformPermissions.USER],
+    expiresAt: Date | undefined = undefined
+): Promise<CreatedApiKey> {
+    return await authService().createApiKey(user.id, { name: 'service', permissions, expiresAt, tenantId: undefined, clientAuthentication: undefined, requireDpop: false }, undefined);
 }
 
 /**
@@ -294,7 +323,7 @@ async function createKey(user: JwtUser, roles: Roles[] = [Roles.USER], expiresAt
  * @returns The key itself.
  */
 async function createResourceServerKey(): Promise<string> {
-    return (await createKey(await createUser(`resource-server-${Date.now()}-${Math.random()}`, [Roles.ADMIN]), [Roles.ADMIN])).key;
+    return (await createKey(await createUser(`resource-server-${Date.now()}-${Math.random()}`, [Roles.ADMIN]), [TOKENS_INTROSPECT])).key;
 }
 
 /**
@@ -420,14 +449,14 @@ class CompanyClientAccessTokenAuthStrategy<Role extends string> extends ClientAc
 type OpaqueToken = {
     userId: string,
     clientId: string,
-    roles: string[]
+    permissions: string[]
 };
 
 /**
  * Issues opaque tokens and keeps them in memory: a strategy of the application's own, related to none
  * the framework ships.
  */
-class OpaqueClientAccessTokenAuthStrategy implements ClientAccessTokenIssuingAuthStrategyInterface<Roles, JwtUser> {
+class OpaqueClientAccessTokenAuthStrategy implements ClientAccessTokenIssuingAuthStrategyInterface<string, JwtUser> {
     readonly name: string = 'opaque-client-access-token';
     readonly securityScheme: OpenApiSecuritySchemeObject = { type: 'http', scheme: 'bearer' };
     private readonly tokens: Map<string, OpaqueToken> = new Map();
@@ -438,10 +467,14 @@ class OpaqueClientAccessTokenAuthStrategy implements ClientAccessTokenIssuingAut
 
     async resolveUser(context: HttpRequestContext | WebsocketRequestContext): Promise<JwtUser | undefined> {
         const token: OpaqueToken | undefined = this.findRequestToken(context);
-        const user: JwtUser | undefined = token == undefined
+        return token == undefined
             ? undefined
             : await inject(repositoryTokenFor(JwtUser)).findOne({ where: { id: token.userId }, required: false });
-        return token == undefined || user == undefined ? undefined : { ...user, roles: user.roles.filter(role => token.roles.includes(role)) };
+    }
+
+    async resolveCredentialLimits(context: HttpRequestContext | WebsocketRequestContext): Promise<CredentialLimits | undefined> {
+        const token: OpaqueToken | undefined = this.findRequestToken(context);
+        return await Promise.resolve(token == undefined ? undefined : { permissions: token.permissions, tenantId: undefined });
     }
 
     async resolveAuthenticatedAt(): Promise<Date | undefined> {
@@ -455,7 +488,7 @@ class OpaqueClientAccessTokenAuthStrategy implements ClientAccessTokenIssuingAut
 
     async issueClientAccessToken(user: BaseUser<string>, grant: ClientAccessTokenGrant): Promise<IssuedClientAccessToken> {
         const value: string = randomBytes(32).toString('base64url');
-        this.tokens.set(value, { userId: user.id, clientId: grant.clientId, roles: grant.roles });
+        this.tokens.set(value, { userId: user.id, clientId: grant.clientId, permissions: grant.permissions });
         return await Promise.resolve({ value, expiresInMs: Ms.HOUR });
     }
 
@@ -463,7 +496,7 @@ class OpaqueClientAccessTokenAuthStrategy implements ClientAccessTokenIssuingAut
         const found: OpaqueToken | undefined = this.tokens.get(token);
         return await Promise.resolve(found == undefined
             ? { active: false }
-            : { active: true, sub: found.userId, client_id: found.clientId, scope: found.roles.join(' '), token_type: 'Bearer' });
+            : { active: true, sub: found.userId, client_id: found.clientId, scope: found.permissions.join(' '), token_type: 'Bearer' });
     }
 
     async revokeToken(token: string): Promise<void> {
@@ -484,7 +517,7 @@ describe('AuthorizationServerController — starting', () => {
         [[JwtAuthStrategy, ClientAccessTokenAuthStrategy], [], /AuthorizationServerController[\S\s]*ApiKey/]
     ])('refuses to start without one strategy issuing the tokens of clients, or without its clients (%#)', async (strategies, entities, message) => {
         await expect(startApp([], entities, strategies)).rejects.toThrow(message);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts with the strategy issuing the tokens of clients alone, which issues and reads them', async () => {
         server = await startApp([], [ApiKey], [ClientAccessTokenAuthStrategy]);
@@ -493,7 +526,7 @@ describe('AuthorizationServerController — starting', () => {
             const user: JwtUser = await createUser('issuer-only');
             const key: ApiKey = await authService().createApiKey(user.id, {
                 name: 'issuer-only',
-                roles: [Roles.USER],
+                permissions: [TestPlatformPermissions.USER],
                 expiresAt: undefined,
                 tenantId: undefined,
                 clientAuthentication: { method: ApiKeyAuthenticationMethod.SELF_SIGNED_TLS_CLIENT_AUTH, certificate: await createSelfSignedCertificate(user) },
@@ -507,46 +540,46 @@ describe('AuthorizationServerController — starting', () => {
         finally {
             await server.shutdown();
         }
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('issues, introspects and revokes through a strategy of the application\'s own', async () => {
         server = await startApp([], [ApiKey], [OpaqueClientAccessTokenAuthStrategy]);
         try {
             baseUrl = await server.start();
             const user: JwtUser = await createUser('opaque');
-            const resourceServer: CreatedApiKey = await createKey(await createUser('opaque-resource-server', [Roles.ADMIN]), [Roles.ADMIN]);
+            const resourceServer: CreatedApiKey = await createKey(await createUser('opaque-resource-server', [Roles.ADMIN]), [TOKENS_INTROSPECT]);
 
             const token: string = await issueToken(await createKey(user));
 
             expect(JwtUtilities.findUnverifiedPayload(token)).toBeUndefined();
             expect((await callWith('/me', token)).status).toBe(200);
             const introspected: Response = await post('/introspect', [['token', token]], basic(resourceServer.apiKey.id, resourceServer.key));
-            expect(await body(introspected)).toMatchObject({ active: true, sub: user.id, scope: Roles.USER });
+            expect(await body(introspected)).toMatchObject({ active: true, sub: user.id, scope: TestPlatformPermissions.USER });
             expect((await post('/revoke', [['token', token]])).status).toBe(200);
             expect((await callWith('/me', token)).status).toBe(401);
         }
         finally {
             await server.shutdown();
         }
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to revoke access tokens at once while checks trust the credential', async () => {
         await expect(startApp([
             defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useFactory: (): AccessTokenRevocation => 'immediately' }),
             defineProvider({ token: ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK, useFactory: () => false })
         ], [ApiKey, JwtRevokedAccessToken])).rejects.toThrow('REVALIDATE_USER_ON_AUTH_CHECK is false');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to revoke client tokens at once without the entity they are kept in', async () => {
         await expect(startApp([defineProvider({ token: ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION, useFactory: (): AccessTokenRevocation => 'immediately' })])).rejects.toThrow(/JwtRevokedAccessToken/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('AuthorizationServerController — access tokens that work until they expire', () => {
     beforeAll(async () => {
         server = await startApp();
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -607,7 +640,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         const user: JwtUser = await createUser('dpop-required');
         const key: CreatedApiKey = await authService().createApiKey(
             user.id,
-            { name: 'bound', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: true },
+            { name: 'bound', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: true },
             undefined
         );
 
@@ -626,22 +659,22 @@ describe('AuthorizationServerController — access tokens that work until they e
 
     it('issues a token to a client sending its id and secret in the authorization header, which acts as the key\'s user', async () => {
         const user: JwtUser = await createUser('basic', [Roles.USER, Roles.ADMIN]);
-        const key: CreatedApiKey = await createKey(user, [Roles.USER]);
+        const key: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
 
         const res: Response = await requestToken(key);
 
         expect(res.status).toBe(200);
         expect(res.headers.get('cache-control')).toBe('no-store');
         const answer: OAuth2Answer = await body(res);
-        expect(answer).toMatchObject({ token_type: 'Bearer', expires_in: 3600, scope: Roles.USER });
+        expect(answer).toMatchObject({ token_type: 'Bearer', expires_in: 3600, scope: TestPlatformPermissions.USER });
         const token: string = String(answer['access_token']);
         expect(JwtUtilities.findUnverifiedPayload(token)).toMatchObject({
-            iss: issuer(), aud: issuer(), sub: user.id, client_id: key.apiKey.id, scope: Roles.USER
+            iss: issuer(), aud: issuer(), sub: user.id, client_id: key.apiKey.id, scope: TestPlatformPermissions.USER
         });
-        // the key's roles only, though the user holds more
+        // what the key lists only, though the user holds more
         const me: Response = await callWith('/me', token);
         expect(me.status).toBe(200);
-        expect(await me.json()).toEqual({ id: user.id, roles: [Roles.USER] });
+        expect(await me.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
         expect((await callWith('/admin', token)).status).toBe(403);
     });
 
@@ -684,7 +717,7 @@ describe('AuthorizationServerController — access tokens that work until they e
     });
 
     it('refuses a client of an expired key, of a deactivated user, or an id that is no key', async () => {
-        const expired: CreatedApiKey = await createKey(await createUser('expired'), [Roles.USER], new Date(Date.now() + 200));
+        const expired: CreatedApiKey = await createKey(await createUser('expired'), [TestPlatformPermissions.USER], new Date(Date.now() + 200));
         await new Promise(resolve => setTimeout(resolve, 300));
         expect((await requestToken(expired)).status).toBe(401);
 
@@ -722,25 +755,25 @@ describe('AuthorizationServerController — access tokens that work until they e
         expect(await body(twice)).toMatchObject({ error: 'invalid_request' });
     });
 
-    it('issues a token for fewer roles when asked, and refuses one the key may not use', async () => {
+    it('issues a token for fewer permissions when asked, and refuses one the key may not use', async () => {
         const user: JwtUser = await createUser('scoped', [Roles.USER, Roles.ADMIN]);
-        const key: CreatedApiKey = await createKey(user, [Roles.USER, Roles.ADMIN]);
+        const key: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN]);
 
         const all: string = await issueToken(key);
         expect((await callWith('/admin', all)).status).toBe(200);
 
-        const fewer: OAuth2Answer = await body(await requestToken(key, [['scope', Roles.USER]]));
-        expect(fewer).toMatchObject({ scope: Roles.USER });
+        const fewer: OAuth2Answer = await body(await requestToken(key, [['scope', TestPlatformPermissions.USER]]));
+        expect(fewer).toMatchObject({ scope: TestPlatformPermissions.USER });
         expect((await callWith('/admin', String(fewer['access_token']))).status).toBe(403);
 
-        const unknown: Response = await requestToken(key, [['scope', 'OWNER']]);
+        const unknown: Response = await requestToken(key, [['scope', 'test.owner']]);
         expect(unknown.status).toBe(400);
         expect(await body(unknown)).toMatchObject({ error: 'invalid_scope' });
     });
 
     it('takes a role from a client\'s tokens when it is taken from the user', async () => {
         const user: JwtUser = await createUser('demoted', [Roles.USER, Roles.ADMIN]);
-        const token: string = await issueToken(await createKey(user, [Roles.USER, Roles.ADMIN]));
+        const token: string = await issueToken(await createKey(user, [TestPlatformPermissions.USER, TestPlatformPermissions.ADMIN]));
         expect((await callWith('/admin', token)).status).toBe(200);
 
         await inject(repositoryTokenFor(JwtUser)).updateById(user.id, { roles: [Roles.USER] });
@@ -769,7 +802,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
         const apiKey: ApiKey = await authService().createApiKey(user.id, {
             name: 'signer',
-            roles: [Roles.USER],
+            permissions: [TestPlatformPermissions.USER],
             expiresAt: undefined,
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString() },
@@ -806,7 +839,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         try {
             const apiKey: ApiKey = await authService().createApiKey((await createUser('published')).id, {
                 name: 'publisher',
-                roles: [Roles.USER],
+                permissions: [TestPlatformPermissions.USER],
                 expiresAt: undefined,
                 tenantId: undefined,
                 clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, jwksUrl: `http://127.0.0.1:${portOf(keySet)}/jwks.json` },
@@ -827,7 +860,7 @@ describe('AuthorizationServerController — access tokens that work until they e
 
         await expect(authService().createApiKey(user.id, {
             name: 'x',
-            roles: [],
+            permissions: [],
             expiresAt: undefined,
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, publicKey: 'not a key' },
@@ -835,7 +868,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         }, undefined)).rejects.toThrow('The public key of an api key');
         await expect(authService().createApiKey(user.id, {
             name: 'x',
-            roles: [],
+            permissions: [],
             expiresAt: undefined,
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.PRIVATE_KEY_JWT, jwksUrl: 'http://keys.example.com/jwks.json' },
@@ -843,7 +876,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         }, undefined)).rejects.toThrow('has to be at an https url');
         await expect(authService().createApiKey(user.id, {
             name: 'x',
-            roles: [],
+            permissions: [],
             expiresAt: undefined,
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.SELF_SIGNED_TLS_CLIENT_AUTH, certificate: 'not a certificate' },
@@ -855,7 +888,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         const user: JwtUser = await createUser('mtls');
         const apiKey: ApiKey = await authService().createApiKey(user.id, {
             name: 'mtls',
-            roles: [Roles.USER],
+            permissions: [TestPlatformPermissions.USER],
             expiresAt: undefined,
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.TLS_CLIENT_AUTH },
@@ -888,7 +921,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         const certificate: string = await createSelfSignedCertificate(user);
         const apiKey: ApiKey = await authService().createApiKey(user.id, {
             name: 'self-signed',
-            roles: [Roles.USER],
+            permissions: [TestPlatformPermissions.USER],
             expiresAt: undefined,
             tenantId: undefined,
             clientAuthentication: { method: ApiKeyAuthenticationMethod.SELF_SIGNED_TLS_CLIENT_AUTH, certificate },
@@ -911,7 +944,7 @@ describe('AuthorizationServerController — access tokens that work until they e
 
         expect(await introspect(token, resourceServer)).toMatchObject({
             active: true,
-            scope: Roles.USER,
+            scope: TestPlatformPermissions.USER,
             client_id: key.apiKey.id,
             username: user.email,
             token_type: 'Bearer',
@@ -942,7 +975,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         expect(await introspect(key.key, resourceServer)).toEqual({ active: false });
     });
 
-    it('answers only a caller holding a role that may introspect', async () => {
+    it('answers only a caller who may use the permission to introspect', async () => {
         const token: string = await issueToken(await createKey(await createUser('guarded')));
         const someone: CreatedApiKey = await createKey(await createUser('nosy'));
 
@@ -955,7 +988,7 @@ describe('AuthorizationServerController — access tokens that work until they e
         expect(await body(withoutRole)).toMatchObject({ error: 'insufficient_scope' });
 
         // a resource server authenticating as a client, the way OAuth2 libraries do
-        const resourceServer: CreatedApiKey = await createKey(await createUser('resource-client', [Roles.ADMIN]), [Roles.ADMIN]);
+        const resourceServer: CreatedApiKey = await createKey(await createUser('resource-client', [Roles.ADMIN]), [TOKENS_INTROSPECT]);
         const asClient: Response = await post('/introspect', [['token', token]], basic(resourceServer.apiKey.id, resourceServer.key));
         expect(asClient.status).toBe(200);
         expect(await body(asClient)).toMatchObject({ active: true });
@@ -1021,7 +1054,7 @@ describe('AuthorizationServerController — access tokens revoked at once', () =
             [ApiKey, JwtRevokedAccessToken]
         );
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -1104,7 +1137,7 @@ describe('AuthorizationServerController — DPoP proofs that carry a nonce', () 
     beforeAll(async () => {
         server = await startApp([defineProvider({ token: ZIBRI_DI_TOKENS.DPOP_NONCES, useFactory: () => true })]);
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -1143,7 +1176,7 @@ describe('AuthorizationServerController — tokens signed with a key pair', () =
             [JwksController]
         );
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -1163,7 +1196,7 @@ describe('AuthorizationServerController — tokens signed with a key pair', () =
             audience: REPORTS,
             typ: 'at+jwt'
         });
-        expect(verified.payload).toMatchObject({ sub: user.id, client_id: key.apiKey.id, scope: Roles.USER });
+        expect(verified.payload).toMatchObject({ sub: user.id, client_id: key.apiKey.id, scope: TestPlatformPermissions.USER });
         expect(typeof verified.payload.jti).toBe('string');
     });
 });
@@ -1192,7 +1225,7 @@ describe('AuthorizationServerController — keys published at a path of the appl
             [CompanyJwksController]
         );
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

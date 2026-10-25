@@ -3,8 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { Auth } from '../../auth/decorators/auth.decorator';
@@ -84,7 +85,7 @@ describe('a websocket message', () => {
     beforeAll(async () => {
         server = await startTestServer({
             websocketControllers: [FailedMessageWsController],
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -97,11 +98,11 @@ describe('a websocket message', () => {
         baseUrl = await server.start();
         // eslint-disable-next-line typescript/no-unsafe-assignment
         wsService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     afterEach(() => {
         for (const socket of sockets.splice(0)) {

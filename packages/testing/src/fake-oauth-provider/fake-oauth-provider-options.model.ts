@@ -32,6 +32,12 @@ export type FakeOAuthProviderOptions = {
      */
     issuesIdToken?: boolean,
     /**
+     * Whether the ID tokens the provider issues say when the user signed in, in `auth_time`. One that
+     * does not say is Google, which answers no `max_age` either.
+     * @default true
+     */
+    issuesAuthTime?: boolean,
+    /**
      * What the provider's api answers, by path, to a request carrying an access token it issued: the
      * json the function makes of whoever that token was issued for.
      * @default {}

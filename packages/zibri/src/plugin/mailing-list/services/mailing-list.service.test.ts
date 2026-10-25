@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { MailingListServiceInterface, MailingListSubscriberCreateData } from './mailing-list-service.interface';
 import { MailingListService } from './mailing-list.service';
 import { compileTsxTemplate } from '../../../__testing__/compile-tsx-template.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -81,7 +82,7 @@ describe('ZibriMailingListPlugin — starting', () => {
         await expect(start).rejects.toThrow(
             /Error initializing ZibriMailingListPlugin[\S\s]*- MailingList\n[\S\s]*- MailingListSubscriber\n[\S\s]*- MailingListSubscriptionConfirmationToken/
         );
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('MailingListService', () => {
@@ -100,7 +101,8 @@ describe('MailingListService', () => {
             plugins: [new ZibriMailingListPlugin()],
             dataSources: [
                 createTestDataSource({
-                    entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken]
+                    entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken],
+                    repositories: defaultTestServerRepositories
                 })
             ],
             providers: [
@@ -117,11 +119,11 @@ describe('MailingListService', () => {
         subscriberRepository = inject(repositoryTokenFor(MailingListSubscriber));
         confirmationTokenRepository = inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
         emailRepository = inject(repositoryTokenFor(Email));
-    }, 30000);
+    }, TestTimeouts.postgres.start + 10000);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     async function createMailingList(name: string): Promise<MailingList> {
         return mailingListRepository.create({ name, subscribers: [] });

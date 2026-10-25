@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { type HashString } from '../../auth/hash/hash.utilities';
 import { Repository } from '../../data-source/repository/repository';
@@ -50,15 +51,15 @@ describe('model-registry descriptors — rows of related entities', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Vault, Keyholder] })]
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Vault, Keyholder], repositories: defaultTestServerRepositories })]
         });
         vaultRepository = inject(repositoryTokenFor(Vault));
         keyholderRepository = inject(repositoryTokenFor(Keyholder));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('decrypts a row read along with another one against its own row', async () => {
         const vault: Vault = await vaultRepository.create({ name: 'read', keyholders: [] });

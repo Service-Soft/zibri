@@ -9,7 +9,8 @@ import { Get } from './decorators/get.decorator';
 import { Param } from './decorators/param.decorator';
 import { Post } from './decorators/post.decorator';
 import { RouterInterface } from './router.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -245,15 +246,15 @@ describe('bodies and parameters that take one of several shapes', () => {
     beforeAll(async () => {
         server = await startTestServer({
             controllers: [ShapesController],
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             version: '1.0.0'
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Posts a json body.

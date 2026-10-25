@@ -16,6 +16,7 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
+import { TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
@@ -106,7 +107,7 @@ beforeAll(async () => {
         httpMethod: HttpMethod.GET,
         route: '/manual/admin',
         openApi: { useInOpenApi: false },
-        auth: { hasPlatformRole: { allowedRoles: [Roles.ADMIN] } },
+        auth: { hasPlatformPermission: { permission: TestPlatformPermissions.ADMIN } },
         handler: () => 'admin'
     });
     router.registerRoute({
@@ -151,7 +152,7 @@ describe('evaluation/02-http-runtime-core M13 - a manually registered route is s
     });
 
     describe('it can state the checks a decorated route states', () => {
-        it('refuses a caller who does not have the role the route asks for', async () => {
+        it('refuses a caller who does not have the permission the route asks for', async () => {
             expect(await call('/manual/admin', userToken)).toBe(403);
         });
 

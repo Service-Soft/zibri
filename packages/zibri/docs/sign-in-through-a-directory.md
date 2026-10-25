@@ -1,5 +1,5 @@
 # Sign-in through a directory
-Users sign in with the name and password of their account in your company's directory, such as Active Directory, OpenLDAP or 389 Directory Server. The directory checks the password, so your application stores none. The sign-in ends in the same jwt or cookie login a password gives.
+Users sign in with the name and password of their account in your company's directory, such as Active Directory, OpenLDAP or 389 Directory Server. The directory checks the password, so your application stores none. The sign-in ends in the same JWT or cookie login a password gives.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -20,13 +20,13 @@ Then extend `BaseLdapAuthenticator` for your directory:
 
 ```ts
 // src/auth/company-directory.authenticator.ts
-import { BaseLdapAuthenticator, inject, LdapEntry, LdapServiceAccount, repositoryTokenFor, Repository, Transaction } from 'zibri';
+import { BaseLdapAuthenticator, inject, LdapEntry, LdapServiceAccount, repositoryTokenFor, Transaction } from 'zibri';
 
 import { environment } from '../environment';
-import { Role } from '../models/role.enum';
+import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class CompanyDirectoryAuthenticator extends BaseLdapAuthenticator<Role, User> {
+export class CompanyDirectoryAuthenticator extends BaseLdapAuthenticator<Roles, User> {
     readonly name: string = 'company-directory';
     readonly urls: string[] = ['ldaps://ldap.example.com'];
     readonly serviceAccount: LdapServiceAccount = { dn: 'cn=app,ou=services,dc=example,dc=com', password: environment.ldapPassword };
@@ -37,7 +37,7 @@ export class CompanyDirectoryAuthenticator extends BaseLdapAuthenticator<Role, U
 
     async resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<User> {
         const [email] = entry.attributes['mail'] ?? [];
-        return await inject<Repository<User>>(repositoryTokenFor(User)).create({ email, roles: [Role.USER] }, { transaction });
+        return await inject(repositoryTokenFor(User)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 
     async resolveSignIn(entry: LdapEntry, user: User, transaction: Transaction | undefined): Promise<User> {
@@ -51,6 +51,8 @@ And register it next to your strategy, and give it to the [auth routes](./auth-r
 ```ts
 // src/application-options.ts
 import { AuthController, Controller, JwtAuthStrategy, OtpTwoFactorMethod, ZibriApplicationOptions } from 'zibri';
+
+import { CompanyDirectoryAuthenticator } from './auth/company-directory.authenticator';
 
 @Controller('/auth', { versions: 'all' })
 export class AppAuthController extends AuthController({
@@ -107,11 +109,15 @@ The service account finds the one entry below `searchBase` that matches `entryFi
 The audit trail records the typed name as the `subject` of the login.
 
 ## A first sign-in
-An entry is linked to a user by the id the directory gave it, so a sign-in finds its user after the entry is moved or renamed. The first time anybody signs in as an entry, `resolveFirstSignIn` gets the entry and answers the user it signs in as. Create one, find one, or throw an http error to refuse:
+An entry is linked to a user by the id the directory gave it, so a sign-in finds its user after the entry is moved or renamed. The first time anybody signs in as an entry, `resolveFirstSignIn` gets the entry and answers the user it signs in as. Create one, find one, or throw an HTTP error to refuse:
 
 ```ts
 // src/auth/app-users-directory.authenticator.ts
-import { $ts, ForbiddenError, inject, LdapEntry, repositoryTokenFor, Repository, Transaction } from 'zibri';
+import { $ts, ForbiddenError, inject, LdapEntry, repositoryTokenFor, Transaction } from 'zibri';
+
+import { Roles } from '../models/roles.enum';
+import { User } from '../models/user.model';
+import { CompanyDirectoryAuthenticator } from './company-directory.authenticator';
 
 export class AppUsersDirectoryAuthenticator extends CompanyDirectoryAuthenticator {
     override readonly groupSearchBase: string = 'ou=groups,dc=example,dc=com';
@@ -121,7 +127,7 @@ export class AppUsersDirectoryAuthenticator extends CompanyDirectoryAuthenticato
             throw new ForbiddenError($ts`Your account has no access to this application.`);
         }
         const [email] = entry.attributes['mail'] ?? [];
-        return await inject<Repository<User>>(repositoryTokenFor(User)).create({ email, roles: [Role.USER] }, { transaction });
+        return await inject(repositoryTokenFor(User)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 }
 ```
@@ -131,7 +137,7 @@ export class AppUsersDirectoryAuthenticator extends CompanyDirectoryAuthenticato
 Two first sign-ins as the same entry at once make one user: the second waits for the first.
 
 ## Later sign-ins
-Every later sign-in as an entry finds the user it is linked to, and is refused once that user is deleted. `resolveSignIn` gets the entry and that user, and answers the user the sign-in logs in as: updated from the entry, or as it is. Throw an http error to refuse.
+Every later sign-in as an entry finds the user it is linked to, and is refused once that user is deleted. `resolveSignIn` gets the entry and that user, and answers the user the sign-in logs in as: updated from the entry, or as it is. Throw an HTTP error to refuse.
 
 Every refresh of a login of a linked user hands the entry to `resolveSignIn` too, whichever authenticator started the login, and the refreshed login carries the user it answers.
 
@@ -139,7 +145,11 @@ Keep the roles of a user in step with their groups, so that someone taken out of
 
 ```ts
 // src/auth/role-directory.authenticator.ts
-import { inject, LdapEntry, repositoryTokenFor, Repository, Transaction } from 'zibri';
+import { inject, LdapEntry, repositoryTokenFor, Transaction } from 'zibri';
+
+import { Roles } from '../models/roles.enum';
+import { User } from '../models/user.model';
+import { CompanyDirectoryAuthenticator } from './company-directory.authenticator';
 
 const ADMINS: string = 'cn=admins,ou=groups,dc=example,dc=com';
 
@@ -147,8 +157,8 @@ export class RoleDirectoryAuthenticator extends CompanyDirectoryAuthenticator {
     override readonly groupSearchBase: string = 'ou=groups,dc=example,dc=com';
 
     override async resolveSignIn(entry: LdapEntry, user: User, transaction: Transaction | undefined): Promise<User> {
-        const roles: Role[] = entry.groups.some(dn => dn.toLowerCase() === ADMINS) ? [Role.ADMIN] : [Role.USER];
-        return await inject<Repository<User>>(repositoryTokenFor(User)).updateById(user.id, { roles }, { transaction });
+        const roles: Roles[] = entry.groups.some(dn => dn.toLowerCase() === ADMINS) ? [Roles.ADMIN] : [Roles.USER];
+        return await inject(repositoryTokenFor(User)).updateById(user.id, { roles }, { transaction });
     }
 }
 ```
@@ -156,18 +166,20 @@ export class RoleDirectoryAuthenticator extends CompanyDirectoryAuthenticator {
 An access token keeps the roles it was issued with until it expires.
 
 ## A disabled entry
-A user whose entry is disabled or deleted in the directory loses every login and api key:
+A user whose entry is disabled or deleted in the directory loses every login and API key:
 
 - at the next refresh of a login of theirs, which answers `403` with an `AccountDeactivatedError`
 - or when `DisabledLdapEntriesCronJob` finds the entry, every 15 minutes by default
 
 The user stays active, so once the entry is enabled again, they sign in as before. The audit trail records `auth.access.ended` with their id.
 
-An entry is disabled when no entry below `searchBase` that matches `entryFilter` has its id any more, or when `isEntryActive` answers `false`. By default `isEntryActive` answers `false` for an entry that 389 Directory Server marks inactivated with `nsAccountLock`, or that OpenLDAP's password policy locked until an administrator unlocks it. A lock after too many wrong passwords leaves the logins open. Read a mark of your own directory by overriding it, and name the attributes it reads in `entryStateAttributes`:
+An entry is disabled when no entry below `searchBase` that matches `entryFilter` has its id, or when `isEntryActive` answers `false`. By default `isEntryActive` answers `false` for an entry that 389 Directory Server marks inactivated with `nsAccountLock`, or that OpenLDAP's password policy locked until an administrator unlocks it. A lock after too many wrong passwords leaves the logins open. Read a mark of your own directory by overriding it, and name the attributes it reads in `entryStateAttributes`:
 
 ```ts
 // src/auth/expiring-directory.authenticator.ts
 import { LdapEntry } from 'zibri';
+
+import { CompanyDirectoryAuthenticator } from './company-directory.authenticator';
 
 export class ExpiringDirectoryAuthenticator extends CompanyDirectoryAuthenticator {
     override readonly entryStateAttributes: string[] = ['employeeStatus'];
@@ -184,17 +196,17 @@ While no server of the directory can be reached, a refresh of a linked user answ
 With a `groupSearchBase`, every sign-in reads the groups of the entry as the service account, once the password is checked. `entry.groups` holds the distinguished names of the groups below `groupSearchBase` that match `groupFilter` and list the entry in their `memberAttribute`, and of the groups those are members of, as deep as they go. A distinguished name is written the way the directory writes it, so compare names without regard to case.
 
 ## Active Directory
-`BaseActiveDirectoryAuthenticator` is set up for Active Directory and Samba domains. Users sign in with their account name (`anna`), their user principal name (`anna@example.com`) or their down-level logon name (`EXAMPLE\anna`), and an account is linked by its `objectGUID`:
+`BaseActiveDirectoryAuthenticator` is set up for Active Directory and Samba domains. Users sign in with their account name (`ada`), their user principal name (`ada@example.com`) or their down-level logon name (`EXAMPLE\ada`), and an account is linked by its `objectGUID`:
 
 ```ts
 // src/auth/company-domain.authenticator.ts
-import { BaseActiveDirectoryAuthenticator, inject, LdapEntry, LdapServiceAccount, repositoryTokenFor, Repository, Transaction } from 'zibri';
+import { BaseActiveDirectoryAuthenticator, inject, LdapEntry, LdapServiceAccount, repositoryTokenFor, Transaction } from 'zibri';
 
 import { environment } from '../environment';
-import { Role } from '../models/role.enum';
+import { Roles } from '../models/roles.enum';
 import { User } from '../models/user.model';
 
-export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator<Role, User> {
+export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator<Roles, User> {
     readonly name: string = 'company-domain';
     readonly netbiosName: string = 'EXAMPLE';
     readonly urls: string[] = ['ldaps://dc1.example.com', 'ldaps://dc2.example.com'];
@@ -205,7 +217,7 @@ export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator
 
     async resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<User> {
         const [email] = entry.attributes['userprincipalname'] ?? [];
-        return await inject<Repository<User>>(repositoryTokenFor(User)).create({ email, roles: [Role.USER] }, { transaction });
+        return await inject(repositoryTokenFor(User)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 
     async resolveSignIn(entry: LdapEntry, user: User): Promise<User> {
@@ -218,11 +230,22 @@ export class CompanyDomainAuthenticator extends BaseActiveDirectoryAuthenticator
 |---|---|
 | `netbiosName` | The NetBIOS name of the domain, which a down-level logon name starts with. A name that starts with another domain's is refused like an unknown one. Required |
 
-The groups of an account are found in one search, nested ones included. The primary group of an account, usually `Domain Users`, is not among them.
+The groups of an account include nested ones. The primary group of an account, usually `Domain Users`, is not among them.
 
 An account is [disabled](#a-disabled-entry) when its `userAccountControl` carries the flag of a disabled account. A lockout after too many wrong passwords leaves the logins open.
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `ldapts` | Talking to the directory over LDAP. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `LdapIdentity` | An authenticator of a directory is registered |
 
 ## See also
 - [Authentication & authorization](./auth.md) — strategies, authenticators and `AuthService`
 - [Sign-in through a provider](./sign-in-through-a-provider.md) — OpenID Connect, OAuth2 and SAML
-- [Testing](./testing.md#a-fake-directory) — a directory inside your tests
+- [Testing](./testing.md#signing-in-through-a-directory) — a directory inside your tests

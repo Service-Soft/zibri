@@ -17,9 +17,10 @@ import { PasskeyRegistration } from './passkey-registration.model';
 import { PasskeyRequestOptions } from './passkey-request-options.model';
 import { PasskeyAuthenticator } from './passkey.authenticator';
 import { Passkey } from './passkey.model';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -174,6 +175,7 @@ async function startApp(
 ): Promise<[StartedTestServer, string]> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession, ...entities],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -283,15 +285,16 @@ describe('PasskeyAuthenticator — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Passkey[\S\s]*PasskeyChallenge/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without the passkey options', async () => {
         await expect(startApp(undefined)).rejects.toThrow(/passkey_options/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts with passkeys as a second factor only, without the table of a sign-up', async () => {
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, Passkey, PasskeyChallenge],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         const server: StartedTestServer = await startTestServer({
@@ -302,7 +305,7 @@ describe('PasskeyAuthenticator — starting', () => {
 
         await expect(server.start()).resolves.toBeDefined();
         await server.shutdown();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('PasskeyAuthenticator — signing in to cookies', () => {
@@ -310,11 +313,11 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp(PASSKEY_OPTIONS);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('signs a user up with a passkey, which logs them in, and signs them in with it again', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
@@ -586,6 +589,7 @@ describe('PasskeyAuthenticator — models of devices', () => {
         metadata.reportCompromised(compromised.aaguid);
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, ...PASSKEY_ENTITIES],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -609,12 +613,12 @@ describe('PasskeyAuthenticator — models of devices', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await metadata?.close();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('creates passkeys on a model the metadata lists and the application allows, downloading the metadata once', async () => {
         expect(await create(new FakePasskeyDevice({ attestation: allowed }))).toBe(200);
@@ -652,6 +656,7 @@ describe('PasskeyAuthenticator — metadata it cannot trust', () => {
         allowed = await metadata.addModel();
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, ...PASSKEY_ENTITIES],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -676,13 +681,13 @@ describe('PasskeyAuthenticator — metadata it cannot trust', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await metadata?.close();
         await someoneElse?.close();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('creates no passkey with metadata not signed under the root it is configured with, and answers that as a fault', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);

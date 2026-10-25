@@ -4,6 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
  * A cookie auth refresh session.
@@ -38,6 +39,13 @@ export class CookieAuthRefreshSession extends BaseEntity {
     @Property.boolean()
     blacklisted!: boolean;
     /**
+     * When a rotation replaced this refresh session, or null while none has.
+     *
+     * A replaced refresh session is still accepted for the strategy's reuse grace after this.
+     */
+    @Property.date({ required: false })
+    replacedAt?: Date | null;
+    /**
      * The id of the "family" this token belongs to.
      * All tokens that belong to the same "ancestor" are considered to be in a family.
      *
@@ -71,6 +79,13 @@ export class CookieAuthRefreshSession extends BaseEntity {
      */
     @Property.string({ required: false })
     federatedLogout: string | undefined | null;
+    /**
+     * How the user proved who they are at the provider the login went through. Null for a login
+     * started some other way, or through a provider that does not say. Every refresh session of one
+     * family carries the same value.
+     */
+    @Property.unknown({ required: false })
+    providerAuthentication: ProviderAuthentication | undefined | null;
 }
 
 /**

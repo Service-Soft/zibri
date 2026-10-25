@@ -6,7 +6,8 @@ import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job
 import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronSyncCronJob } from './cron-sync.cron-job';
 import { CronService } from './cron.service';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
@@ -41,7 +42,8 @@ class ProbeCronJob extends CronJob {
 // in memory, with the real cron service: another instance is played by writing the row it would
 // write, which is all one instance ever learns of another
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, CronJobEntity]
+    entities: [...defaultTestServerEntities, CronJobEntity],
+    repositories: defaultTestServerRepositories
 });
 
 describe('CronService, after another instance changed a job', () => {
@@ -63,11 +65,11 @@ describe('CronService, after another instance changed a job', () => {
         cronService = inject(CronService);
         rows = inject(repositoryTokenFor(CronJobEntity));
         probe = inject(ProbeCronJob);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(async () => {
         // eslint-disable-next-line unicorn/no-null

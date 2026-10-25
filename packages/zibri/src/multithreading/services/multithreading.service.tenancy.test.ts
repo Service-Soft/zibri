@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
@@ -38,7 +39,8 @@ type AmountWorkerData = BaseThreadJobWorkerData & {
 
 // in memory, so that what a job does across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const workerFile: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
@@ -65,6 +67,8 @@ describe('MultithreadingService across tenants', () => {
                         defaultTimeoutMs: Ms.MINUTE,
                         defaultTimeoutPriorityMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
+                        maxAttempts: 3,
+                        workerResourceLimits: {},
                         enableTsWorkerFiles: true
                     }
                 }),
@@ -74,11 +78,11 @@ describe('MultithreadingService across tenants', () => {
         multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
         tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
         jobs = inject(repositoryTokenFor(ThreadJobEntity));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps a job in the tenant it was queued in, and records how it ended', async () => {
         const finished: ThreadJobEntity<{ filePath: FsPath }, unknown> = await tenants.runAs(
@@ -120,6 +124,7 @@ describe('MultithreadingService across tenants', () => {
             status: ThreadJobStatus.IN_QUEUE,
             priority: false,
             progress: 0,
+            attempts: 0,
             workerData,
             timeout: Ms.MINUTE
         }));

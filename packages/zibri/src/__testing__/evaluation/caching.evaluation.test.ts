@@ -18,6 +18,7 @@ import { Newable } from '../../types/newable.type';
 import { Bytes } from '../../utilities/bytes';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -152,12 +153,12 @@ let valKey: ValKeyDataSource;
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [dataSourceClass, valKeyDataSourceClass] });
     valKey = inject(valKeyDataSourceClass);
-}, 60000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describe('evaluation/04-infrastructure-subsystems 3.9 - multi tier cache', () => {
 

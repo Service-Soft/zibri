@@ -1,63 +1,81 @@
-import { DataSourceInterface, inject, Newable, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, TenantServiceInterface, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
+import { DataSourceInterface, inject, Newable, PasswordCredentials, PasswordCredentialsCreateData, Repository, repositoryTokenFor, RoleCreateData, TenantServiceInterface, Transaction, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { logger } from '.';
 import { requireEnv } from './env';
-import { Company, Roles, User } from './models';
-import { MembershipRepository, UserRepository } from './repositories';
+import { Permissions, PlatformPermissions, PlatformRoles, Role, Roles, Tenant, User } from './models';
+import { MembershipRepository, RoleRepository, UserRepository } from './repositories';
+
+// the roles the application starts with. Administrators create more, and change these, at runtime
+const defaultRoles: RoleCreateData<Role>[] = [
+    { name: PlatformRoles.USER, level: 'platform', permissions: [], description: 'Everybody with an account' },
+    {
+        name: PlatformRoles.ADMIN,
+        level: 'platform',
+        permissions: Object.values(PlatformPermissions),
+        description: 'Administers the application'
+    },
+    { name: Roles.USER, level: 'tenant', permissions: [], description: 'Everybody in a tenant' },
+    { name: Roles.ADMIN, level: 'tenant', permissions: Object.values(Permissions), description: 'Administers a tenant' }
+];
 
 export async function createDefaultData(dataSourceClass: Newable<DataSourceInterface>): Promise<void> {
     const dataSource: DataSourceInterface = inject(dataSourceClass);
     logger.info('Creates default data if missing');
 
-    await createDefaultAdmin(dataSource);
-    await createDefaultCompany();
-    logger.info('Finished creating default data');
-}
-
-async function createDefaultAdmin(dataSource: DataSourceInterface): Promise<void> {
-    const userRepository: UserRepository = inject(UserRepository);
-    const credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>
-        = inject(repositoryTokenFor(PasswordCredentials));
-
-    const email: string = requireEnv('DEFAULT_ADMIN_EMAIL');
-
-    const defaultUser: User | undefined = await userRepository.findOne({ where: { email }, required: false });
-    if (defaultUser) {
-        return;
-    }
-
-    logger.info('  - default admin');
+    // one transaction, so that a start failing halfway leaves nothing behind for the next one to trip over
     const transaction: Transaction = await dataSource.startTransaction();
     try {
-        const user: User = await userRepository.create({ name: 'root', email, roles: [Roles.ADMIN] }, { transaction });
-        await credentialsRepository.create(
-            { password: requireEnv('DEFAULT_ADMIN_PASSWORD'), userId: user.id },
-            { transaction }
-        );
+        await createDefaultRoles(transaction);
+        await createDefaultAdmin(transaction);
         await transaction.commit();
     }
     catch (error) {
         await transaction.rollback();
         throw error;
     }
+    logger.info('Finished creating default data');
 }
 
-// a company is a tenant here, and the default admin administers the default one - so a request
-// naming its id in the x-tenant-id header reaches what the default admin may do
-async function createDefaultCompany(): Promise<void> {
-    const companyRepository: Repository<Company> = inject(repositoryTokenFor(Company));
-    const name: string = 'Default';
-    const company: Company = await companyRepository.findOne({ where: { name }, required: false })
-        ?? await companyRepository.create({ name });
+async function createDefaultRoles(transaction: Transaction): Promise<void> {
+    const roleRepository: RoleRepository = inject(RoleRepository);
+    const existing: Set<string> = new Set((await roleRepository.findAll({ take: 'all', transaction })).map(role => role.name));
+    const missing: RoleCreateData<Role>[] = defaultRoles.filter(role => !existing.has(role.name));
+    if (!missing.length) {
+        return;
+    }
+    logger.info('  - default roles');
+    await roleRepository.createAll(missing, { transaction });
+}
 
-    const admin: User = await inject(UserRepository).findOne({ where: { email: requireEnv('DEFAULT_ADMIN_EMAIL') } });
+async function createDefaultAdmin(transaction: Transaction): Promise<void> {
+    const userRepository: UserRepository = inject(UserRepository);
+    const credentialsRepository: Repository<PasswordCredentials, PasswordCredentialsCreateData>
+        = inject(repositoryTokenFor(PasswordCredentials));
+
+    const email: string = requireEnv('DEFAULT_ADMIN_EMAIL');
+
+    const defaultUser: User | undefined = await userRepository.findOne({ where: { email }, required: false, transaction });
+    if (defaultUser) {
+        return;
+    }
+
+    logger.info('  - default admin');
+    const user: User = await userRepository.create({ name: 'root', email, roles: [PlatformRoles.ADMIN] }, { transaction });
+    await credentialsRepository.create(
+        { password: requireEnv('DEFAULT_ADMIN_PASSWORD'), userId: user.id },
+        { transaction }
+    );
+    await createDefaultTenant(user, transaction);
+}
+
+// the tenant the default admin administers, so that a request naming its id in the x-tenant-id
+// header reaches what the default admin may do there
+async function createDefaultTenant(admin: User, transaction: Transaction): Promise<void> {
+    const tenantRepository: Repository<Tenant> = inject(repositoryTokenFor(Tenant));
+    const tenant: Tenant = await tenantRepository.create({ name: 'Default' }, { transaction });
     const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
-    await tenantService.runAs(company.id, async () => {
-        const membershipRepository: MembershipRepository = inject(MembershipRepository);
-        if (await membershipRepository.findMembership(admin.id)) {
-            return;
-        }
-        logger.info(`  - default company, with the default admin as its admin, at tenant ${company.id}`);
-        await membershipRepository.create({ tenantId: company.id, userId: admin.id, roles: [Roles.ADMIN] });
+    await tenantService.runAs(tenant.id, async () => {
+        await inject(MembershipRepository).create({ userId: admin.id, roles: [Roles.ADMIN] }, { transaction });
     });
+    logger.info(`  - default tenant ${tenant.id}, administered by the default admin`);
 }

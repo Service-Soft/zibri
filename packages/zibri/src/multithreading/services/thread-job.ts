@@ -62,6 +62,10 @@ export class ThreadJob<
      */
     progress: Percentage;
     /**
+     * How many times a worker was handed this job: its first start and every takeover since.
+     */
+    attempts: number;
+    /**
      * The error that the job failed with.
      */
     error?: LoggedError | null;
@@ -106,6 +110,7 @@ export class ThreadJob<
         this.onComplete = functions?.onComplete;
         this.onCancel = functions?.onCancel;
         this.progress = entity.progress;
+        this.attempts = entity.attempts;
         this.priority = entity.priority;
         this.timeout = entity.timeout;
         this.error = entity.error;

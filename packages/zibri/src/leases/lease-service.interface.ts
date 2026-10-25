@@ -20,8 +20,13 @@ export interface LeaseServiceInterface {
      * `LeaseAcquisitionTimeoutError` instead. A caller that asked to queue has said its work cannot
      * proceed without the grant, so returning quietly would let it carry on as though the work had
      * been done, which is the quiet failure this whole area is about.
+     *
+     * The work is handed a signal that aborts, with a `LeaseLostError`, once the grant is lost:
+     * taken away by another instance, or not renewable for longer than it lives. Nothing stops the
+     * work for it, since what it has already written stays written either way - but work that is
+     * run again from the start by whoever takes the grant over has every reason to stop.
      */
-    withLease: <T>(options: LeaseOptions, fn: () => Promise<T>) => Promise<T | undefined>,
+    withLease: <T>(options: LeaseOptions, fn: (lost: AbortSignal) => Promise<T>) => Promise<T | undefined>,
 
     /**
      * Takes as many of the named grants as are free, runs the work over those, and hands them back
@@ -34,21 +39,26 @@ export interface LeaseServiceInterface {
      *
      * `fn` is given the keys that were actually taken, which may be fewer than were asked for and
      * is never empty - when every key is already held this returns undefined without running the
-     * work at all.
+     * work at all - and the signal `withLease` hands its work, which here fires once any of them
+     * is lost.
      *
      * Always skips what it cannot take. There is deliberately no waiting form: queueing for several
      * keys at once is how two callers that want the same two keys in a different order wait for
      * each other forever.
      */
-    withLeases: <T>(keys: string[], options: LeaseSetOptions, fn: (taken: string[]) => Promise<T>) => Promise<T | undefined>,
+    withLeases: <T>(
+        keys: string[],
+        options: LeaseSetOptions,
+        fn: (taken: string[], lost: AbortSignal) => Promise<T>
+    ) => Promise<T | undefined>,
 
     /**
      * Runs the work while keeping an already taken grant alive, and hands it back afterwards.
      *
      * For a grant this service did not take - one stored somewhere of the caller's own choosing.
-     * Prefer `withLease`, which owns the whole cycle.
+     * Prefer `withLease`, which owns the whole cycle. The work is handed the same signal.
      */
-    hold: <T>(lease: HeldLease, leaseInMs: number, fn: () => Promise<T>) => Promise<T>,
+    hold: <T>(lease: HeldLease, leaseInMs: number, fn: (lost: AbortSignal) => Promise<T>) => Promise<T>,
 
     /**
      * Starts keeping an already taken grant alive, and hands back the way to stop.

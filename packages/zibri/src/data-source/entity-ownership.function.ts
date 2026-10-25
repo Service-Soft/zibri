@@ -1,5 +1,10 @@
 import { DataSourceInterface } from './data-sources/data-source.interface';
+import { Repository } from './repository/repository';
+import { RepositoryClass } from './repository/repository-class.type';
+import { RepositoryForUtilities } from './repository/repository-for.utilities';
 import { getAmbiguousRepositoryDataSources, repositoryTokenFor, setAmbiguousRepositoryTokens } from '../di/decorators/inject-repository.decorator';
+import { inject } from '../di/inject.function';
+import { DiToken } from '../di/models/di-token.model';
 import { register } from '../di/register.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
@@ -53,6 +58,8 @@ export function resolveEntityOwnership(dataSources: RegisteredDataSource[]): voi
         if (!metadata) {
             throw new EntityMetadataMissingError(entity);
         }
+        // refused unless declared: an entity in a second data source is almost always a copy-paste
+        // mistake, and writing to the wrong store without a word is worse than not starting
         if (!metadata.allowDuplicate) {
             throw new InternalError([
                 `The entity "${entity.name}" is part of multiple data sources `
@@ -84,6 +91,10 @@ export function resolveEntityOwnership(dataSources: RegisteredDataSource[]): voi
  * The token qualified with the data source is always registered. The unqualified one is only
  * registered when the entity is not known to be part of multiple data sources, which is what makes
  * `@InjectRepository(Entity)` work without naming a data source in the common case.
+ *
+ * An entity the data source lists a repository class for is read and written through that class,
+ * built over the repository the data source builds: every token hands out the one instance, and so
+ * does the class itself.
  * @param dataSourceClass - The class of the data source, which the tokens are qualified with.
  * @param dataSource - The data source whose repositories should be registered.
  */
@@ -92,15 +103,27 @@ export function registerRepositoryProvidersFor(
     dataSource: DataSourceInterface
 ): void {
     for (const entity of dataSource.entities) {
+        const qualified: DiToken<Repository<BaseEntity>> = repositoryTokenFor(entity, dataSourceClass);
+        const repositoryClass: RepositoryClass | undefined =RepositoryForUtilities.findRepositoryClass(dataSource, entity);
         register({
-            token: repositoryTokenFor(entity, dataSourceClass),
-            useFactory: () => dataSource.getRepository(entity)
+            token: qualified,
+            useFactory: repositoryClass == undefined
+                ? () => dataSource.getRepository(entity)
+                : () => RepositoryForUtilities.buildRepository(repositoryClass, entity, dataSource.getRepository(entity))
         });
 
         if (!getAmbiguousRepositoryDataSources(`Repository<${entity.name}>`)) {
             register({
                 token: repositoryTokenFor(entity),
-                useFactory: () => dataSource.getRepository(entity)
+                useFactory: () => inject(qualified)
+            });
+        }
+
+        if (repositoryClass != undefined) {
+            register({
+                token: repositoryClass,
+                useFactory: () => inject(qualified),
+                variants: RepositoryForUtilities.resolveVariants(repositoryClass)
             });
         }
     }

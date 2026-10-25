@@ -10,6 +10,7 @@ import { FederatedLoginAttempt } from '../../auth/authenticators/federated/feder
 import { FederatedRegistrationTicket } from '../../auth/authenticators/federated/federated-registration-ticket.model';
 import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth-client-authentication.model';
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../../auth/authenticators/password/password.authenticator';
 import { Auth } from '../../auth/decorators/auth.decorator';
@@ -30,8 +31,9 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -41,12 +43,14 @@ const CONNECTED_URL: string = 'https://app.example.com/account';
 
 let provider: FakeOAuthProvider;
 
-class ProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class ProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'company';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     get issuer(): string {
         return provider.issuer;
@@ -98,6 +102,7 @@ describe('evaluation/03-auth-and-security H16 - adding an identity provider to a
                 FederatedRegistrationTicket,
                 FederatedConnectionCode
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -121,12 +126,12 @@ describe('evaluation/03-auth-and-security H16 - adding an identity provider to a
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await provider?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('connects a provider to the account of a user logged in with their password, which then signs them in', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'connect@example.com', roles: [Roles.USER] });

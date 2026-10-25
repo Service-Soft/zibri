@@ -30,8 +30,9 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const ORIGIN: string = 'https://app.example.com';
@@ -52,12 +53,12 @@ class SignUpController {
     async signUp(
         @Body(PasskeyTicketCredentials)
         input: PasskeyTicketCredentials
-    ): Promise<JwtAuthData<Roles>> {
+    ): Promise<JwtAuthData<string>> {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const registration: PasskeyRegistration = await authService.resolveRegistration(PasskeyAuthenticator, input, undefined);
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.name, roles: [Roles.USER] });
         await authService.linkIdentity(PasskeyAuthenticator, input, user.id, undefined);
-        return await authService.login(PasskeyAuthenticator<Roles, JwtUser>, JwtAuthStrategy<Roles, JwtUser>, input, undefined);
+        return await authService.login(PasskeyAuthenticator<string, JwtUser>, JwtAuthStrategy<string, JwtUser>, input, undefined);
     }
 }
 
@@ -83,6 +84,7 @@ describe('evaluation/03-auth-and-security H10 - passkeys', () => {
     beforeAll(async () => {
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, Passkey, PasskeyChallenge, PasskeyRegistrationTicket],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -100,11 +102,11 @@ describe('evaluation/03-auth-and-security H10 - passkeys', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     async function post<T>(path: string, body: unknown, headers: Record<string, string> = {}): Promise<[number, T]> {
         const res: Response = await fetch(`${baseUrl}${path}`, {

@@ -13,10 +13,13 @@ import { inject } from '../di/inject.function';
 import { TooManyRequestsError } from '../error-handling/errors/too-many-requests.error';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { FsUtilities } from '../utilities/fs.utilities';
+import { type GaugeInterface } from '../metrics/gauge.interface';
+import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS } from '../metrics/metrics-collector.model';
+import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
+import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { Ms } from '../utilities/ms';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
-import { EmailAttachment } from './models/email-attachment.model';
 import { EmailConfig, EmailConfigInput } from './models/email-config.model';
 import { type LeaseServiceInterface } from '../leases/lease-service.interface';
 import { EmailPriority } from './models/email-priority.enum';
@@ -103,16 +106,45 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         return inject(repositoryTokenFor(Email));
     }
 
+    private get wakeUpService(): WakeUpServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         // every mail goes through the queue, so the table is needed whenever this is the email service
         validateEntitiesRegistered(EmailService.name, app, Email);
+        inject(ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE).addLimiter(inject(ZIBRI_DI_TOKENS.EMAIL_RATE_LIMITER));
         if (!app.options.cronJobs.includes(SendQueuedEmailsCronJob)) {
             app.options.cronJobs.push(SendQueuedEmailsCronJob);
         }
         if (!app.options.cronJobs.includes(EmailCleanupCronJob)) {
             app.options.cronJobs.push(EmailCleanupCronJob);
         }
+        const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+        metricsService.addCollector({
+            name: 'email queue',
+            minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
+            collect: async () => await this.collectQueueMetrics(metricsService)
+        });
+    }
+
+    /**
+     * Sets how many mails are queued and failed, and how long the oldest queued one has waited.
+     * @param metricsService - Where the gauges are.
+     */
+    private async collectQueueMetrics(metricsService: MetricsServiceInterface): Promise<void> {
+        // across tenants, for the reason findMails reads that way
+        const [queued, failed, [oldest]] = await Promise.all([
+            this.emailRepository.count({ where: { status: EmailStatus.QUEUED }, acrossTenants: true }),
+            this.emailRepository.count({ where: { status: EmailStatus.FAILED }, acrossTenants: true }),
+            this.emailRepository.findAll({ where: { status: EmailStatus.QUEUED }, take: 1, acrossTenants: true })
+        ]);
+        const depth: GaugeInterface = metricsService.getGauge('email_queue_depth', ['status']);
+        depth.set({ status: EmailStatus.QUEUED }, queued);
+        depth.set({ status: EmailStatus.FAILED }, failed);
+        metricsService.getGauge('email_queue_oldest_age_seconds')
+            .set({}, oldest == undefined ? 0 : (Date.now() - oldest.createdAt.getTime()) / Ms.SECOND);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -143,6 +175,8 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
             sender: this.config.defaultSender,
             ...data
         });
+        // whichever instance sends the queue looks at its next pass, however long it found nothing
+        await this.wakeUpService.wake(this.emailRepository.dataSource, WAKE_UP_TOPICS.EMAILS);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -270,6 +304,7 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         this.logger.warn(cause.message);
         const retryAt: Date = new Date(Date.now() + (this.config.retryDelayInMs * (2 ** (attempts - 1))));
         await this.emailRepository.updateById(email.id, { attempts, retryAt }, { acrossTenants: true });
+        this.wakeUpService.wakeAt(WAKE_UP_TOPICS.EMAILS, retryAt);
     }
 
     /**
@@ -293,7 +328,6 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
      * @param email - The email to send out.
      */
     protected async send(email: Email): Promise<void> {
-        await this.validateAttachments(email.attachments ?? undefined);
         // a transport that could not reach its provider throws, which leaves the row QUEUED and the
         // claim on it retained - so nothing below runs for a mail that was never delivered. What it
         // answers is a verdict from the provider, which is the only thing that may end a mail
@@ -320,25 +354,6 @@ export class EmailService implements EmailServiceInterface, OnAppInit, OnAppShut
         }
 
         await this.emailRepository.deleteById(email.id, { acrossTenants: true });
-    }
-
-    /**
-     * Resolves the given attachments.
-     * @param attachments - The attachments to resolve.
-     * @returns The resolved attachments.
-     */
-    protected async validateAttachments(attachments: EmailAttachment[] | undefined | null): Promise<void> {
-        if (!attachments?.length) {
-            return;
-        }
-
-        await Promise.all(
-            attachments.map(async a => {
-                if (!await FsUtilities.exists(a.path)) {
-                    throw new InternalError(`mail attachment at path ${a.path} does not exist`);
-                }
-            })
-        );
     }
 
     /**

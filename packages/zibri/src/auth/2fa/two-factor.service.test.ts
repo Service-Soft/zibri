@@ -10,13 +10,16 @@ import { OtpCredentials } from './methods/otp/otp-credentials.model';
 import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
 import { TwoFactorServiceInterface } from './two-factor-service.interface';
 import { TwoFactorThrottledError } from './two-factor-throttled.error';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { Roles } from '../../__testing__/mocks/entities/roles.enum';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryFor } from '../../data-source/repository/repository-for.decorator';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -25,17 +28,17 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { Newable } from '../../types/newable.type';
 import { BaseUserEntity } from '../models/base-user.model';
+import { BaseUserRepository } from '../user/base-user-repository.model';
 import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
 import { OTP_PERIOD_IN_SECONDS } from './methods/otp/otp.utilities';
 import { Ms } from '../../utilities/ms';
 
-enum TestRole {
-    USER = 'user'
-}
-
 // allowed to go unused, because the starting case boots without it
 @Entity({ tenant: 'shared', allowOrphan: true })
-class User extends BaseUserEntity(TestRole) {}
+class User extends BaseUserEntity<Roles>() {}
+
+@RepositoryFor(User)
+class UserRepository extends BaseUserRepository<User>() {}
 
 let server: StartedTestServer;
 let twoFactorService: TwoFactorServiceInterface;
@@ -67,13 +70,13 @@ describe('OtpTwoFactorMethod — starting', () => {
         const start: Promise<void> = startAndStopTestServerWithout([OtpCredentials]);
 
         await expect(start).rejects.toThrow(/Error initializing OtpTwoFactorMethod[\S\s]*OtpCredentials/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without TwoFactorFailureStreak, and names it', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([TwoFactorFailureStreak]);
 
         await expect(start).rejects.toThrow(/Error initializing TwoFactorService[\S\s]*TwoFactorFailureStreak/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a failure delay that would switch the wait off', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([], {
@@ -84,13 +87,14 @@ describe('OtpTwoFactorMethod — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/TWO_FACTOR_FAILURE_DELAY_IN_MS must be greater than 0/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('TwoFactorService (contract via OTP method)', () => {
     beforeAll(async () => {
         const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-            entities: [...defaultTestServerEntities, User]
+            entities: [...defaultTestServerEntities, User],
+            repositories: [...defaultTestServerRepositories, UserRepository]
         });
         server = await startTestServer({ dataSources: [dataSourceClass] });
 
@@ -101,11 +105,11 @@ describe('TwoFactorService (contract via OTP method)', () => {
         streakRepo = inject(repositoryTokenFor(TwoFactorFailureStreak));
         otpHeader = inject(ZIBRI_DI_TOKENS.OTP_HEADER);
         otpLength = inject(ZIBRI_DI_TOKENS.OTP_LENGTH);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     let user: User;
 
@@ -114,7 +118,7 @@ describe('TwoFactorService (contract via OTP method)', () => {
         await otpCredentialsRepo.deleteAll({});
         await streakRepo.deleteAll({});
         await userRepo.deleteAll({});
-        user = await userRepo.create({ email: '2fa-test@example.com', roles: [TestRole.USER] });
+        user = await userRepo.create({ email: '2fa-test@example.com', roles: [Roles.USER] });
     });
 
     /**

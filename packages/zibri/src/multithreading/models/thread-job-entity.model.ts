@@ -21,9 +21,10 @@ const omitValues: (keyof ThreadJob<BaseThreadJobWorkerData, unknown>)[] = [
 type OmitValues = typeof omitValues[number];
 
 /**
- * Contains information about an invoice.
+ * A thread job as the queue keeps it: what it runs, where it stands, and how it ended.
  */
-@Entity({ allowOrphan: true })
+// indexed as the pool reads it: the takeable rows of a priority class, oldest first
+@Entity({ allowOrphan: true, indexes: [['status', 'priority', 'queuedAtMs']] })
 export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>
     extends BaseEntity
     implements OmitStrict<ThreadJob<WorkerData, ResultType>, OmitValues> {
@@ -70,6 +71,12 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number({ format: 'integer' })
     progress!: Percentage;
+
+    /**
+     * How many times a worker was handed this job: its first start and every takeover since.
+     */
+    @Property.number({ format: 'integer' })
+    attempts!: number;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.boolean()

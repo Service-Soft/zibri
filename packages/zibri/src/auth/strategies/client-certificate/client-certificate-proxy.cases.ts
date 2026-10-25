@@ -10,7 +10,8 @@ import { BaseClientCertificateAuthStrategy } from './base-client-certificate.aut
 import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -97,9 +98,9 @@ type Me = {
      */
     id: string,
     /**
-     * The roles the request holds.
+     * The permissions of the user's own the request holds.
      */
-    roles: Roles[]
+    platformPermissions: string[]
 };
 
 /**
@@ -138,15 +139,15 @@ class ClientController {
     /**
      * The current user.
      * @param user - The user of the request.
-     * @returns Their id and roles.
+     * @returns Their id and permissions.
      */
     @Auth.isLoggedIn()
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): Me {
-        return { id: user.id, roles: user.roles };
+        return { id: user.id, platformPermissions: user.platformPermissions };
     }
 }
 
@@ -167,7 +168,7 @@ export function describeBehindProxy(proxyName: string, proxy: ClientCertificateP
          * Takes the certificate from the proxy, whose connections arrive from this machine through the
          * tunnel testcontainers opens to it, and finds the user by the email address in its common name.
          */
-        class ProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<Roles, JwtUser> {
+        class ProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<string, JwtUser> {
             // eslint-disable-next-line jsdoc/require-jsdoc
             readonly header: string = proxy.header;
             // eslint-disable-next-line jsdoc/require-jsdoc
@@ -242,6 +243,7 @@ export function describeBehindProxy(proxyName: string, proxy: ClientCertificateP
 
             const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
                 entities: defaultTestServerEntities,
+                repositories: defaultTestServerRepositories,
                 allowOrphan: true
             });
             server = await startTestServer({
@@ -268,7 +270,7 @@ export function describeBehindProxy(proxyName: string, proxy: ClientCertificateP
             const answer: ProxyAnswer = await callThroughProxy(started.verifyingPort, '/me', keyPair);
 
             expect(answer.status).toBe(200);
-            expect(JSON.parse(answer.body)).toEqual({ id: user.id, roles: [Roles.USER] });
+            expect(JSON.parse(answer.body)).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
         });
 
         it('never forwards a certificate header the client sent itself', async () => {

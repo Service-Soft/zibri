@@ -3,7 +3,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
@@ -20,6 +20,7 @@ import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Migration } from '../../migration/migration.model';
 import { SchemaManagement } from '../../models/schema-management.model';
 import { Repository } from '../../repository/repository';
+import { RepositoryClass } from '../../repository/repository-class.type';
 import { Transaction } from '../../transaction/transaction.model';
 
 /**
@@ -100,6 +101,8 @@ class TimedDataSource extends PostgresDataSource {
 
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, TimedRow];
 
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
+
     override migrations: Newable<Migration>[] = [SleepingMigration];
 
     schemaManagement: SchemaManagement = 'synchronize';
@@ -122,6 +125,8 @@ class SingleConnectionDataSource extends PostgresDataSource {
     };
 
     entities: Newable<BaseEntity>[] = [MigrationEntity];
+
+    readonly repositories: RepositoryClass[] = [];
 
     schemaManagement: SchemaManagement = 'synchronize';
 }

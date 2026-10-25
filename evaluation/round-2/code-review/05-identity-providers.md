@@ -1,0 +1,23 @@
+# Identity providers, directories, SCIM, authorization server, client certificates — code review
+
+Extracted from the evaluation chapter [05-identity-providers.md](../05-identity-providers.md); `I` ids
+refer to its findings. These are shape, duplication and style, with the evaluation's severity scale.
+Cross-cutting: [09-architecture-and-code-quality.md](./09-architecture-and-code-quality.md).
+
+### Q1. `ScimService` (1974 lines) and `BaseFederatedAuthenticator` (1201 lines) carry several concerns each — MINOR
+`scim/scim.service.ts` (modified in the working tree) holds the resource routes, the bulk engine with its circle breaking (lines 528-659, 1694-1933), the value-index matching (667-791), two paging strategies (803-913), group-closure walks (1083-1174) and the versioning. The bulk engine and the value-sorted paging are pure enough to be `ScimBulkUtilities` / `ScimPagingUtilities` under CODE_STYLE's "group related functions into a utility class". `BaseFederatedAuthenticator` likewise mixes the protocol-neutral sign-in with cookie plumbing (`findCookie`, `setBindingCookie`, `clearCookie`, lines 1161-1201) that `resolveHttpContext` makes request-bound; a `FederatedBindingUtilities` would also let an application's own routes reuse the binding without extending the class.
+
+### Q2. An orphaned JSDoc in `BaseOAuthAuthenticator` — MINOR
+`oauth/base-oauth.authenticator.ts:486-491` is a JSDoc block ("Stops keeping the tokens of an identity ... @returns The tokens that were kept") followed directly by a second JSDoc for `unlinkUnusedIdentity`; the first belongs to `removeTokens` at line 503, which has none. Published typedoc attaches the wrong text or none.
+
+### Q3. Four cleanup cron jobs with one shape — MINOR, from `after-all-findings-fixed.md` item 1
+`FederatedCleanupCronJob` (four `deleteAll({ expirationDate: { before: now } })`, `federated/federated-cleanup.cron-job.ts:39-42`), `ApiKeyCleanupCronJob`, `JwtRevokedAccessTokenCleanupCronJob` and `TwoFactorCodeCleanupCronJob` all delete expired rows of an entity on a timer and are each pushed into `app.options.cronJobs` by whatever `init` happens to run (`base-federated.authenticator.ts:228-230`, `client-access-token.auth-strategy.ts:107-109`, `api-key.service.ts:101-103`). A declarative `expiresAt`/`expirationDate` marker on the entity with one framework sweeper is the generic system the user's list asks about, and would also give the `FederatedLoginAttempt` rows an attacker can mint at the rate limiter's budget a bound that does not depend on an authenticator having registered the job.
+
+### Q4. `startConnection` / `linkIdentity` naming — MINOR, from `after-all-findings-fixed.md` item 10
+The user wants `startLinkIdentity` / `confirmLinkIdentity`. Reading the flow confirms the asymmetry is worse than the names: the chain is `startConnection` (answers a url) → `continueConnection` (the `connect` route, spends the code and starts the attempt) → `completeSignIn` with `attempt.userId` → `linkConnectedIdentity` (`base-federated.authenticator.ts:303-370, 448-451, 870-910`), while the registration chain is `resolveRegistration` → `linkIdentity` → `authenticate`. `linkIdentity` links from a *ticket* and `linkConnectedIdentity` from a *connection*; `completeConnection` on `AuthService` (`auth.service.ts:441-464`) belongs to passkeys and not to this chain at all. The rename should settle the two chains as `startLinkIdentity`/`confirmLinkIdentity` and name the passkey one apart.
+
+### Q5. Name uniqueness and provider lookup are duplicated and run `inject` per request — MINOR
+`validateName` exists twice with the same body (`base-federated.authenticator.ts:1112-1127`, `base-ldap.authenticator.ts:730-737`), one duck-typed and one `instanceof`; and `FederatedRouteUtilities.findAuthenticator` resolves every registered authenticator through `inject` and compares `name` on every callback, logout and metadata request (`federated-route.utilities.ts:369-371`), as does `ProviderTokenAuthStrategy.findAuthenticators` per request (`provider-token.auth-strategy.ts:135-140`). A registry of federated authenticators by name, built once in `AuthService.onAppStart` where the urls are already checked, would hold both.
+
+### Q6. `FederatedSignInError` reasons collapse into `expired` for errors that are not one — MINOR
+`toFailure` sends any refusal that is not a `FederatedSignInError` to the error url as `expired` (`federated-route.utilities.ts:318`), including `UnauthorizedError('No user is linked to this sign-in.')` from `resolveUser` (`base-federated.authenticator.ts:1099-1105`) and a `BadRequestError` from a hook. The enum has `INVALID`; the fall-through should be a distinct value, and the audit reason already distinguishes them.

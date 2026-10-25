@@ -3,11 +3,14 @@ import assert from 'node:assert';
 import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { ErrorResponseBody } from './error-response-body.model';
 import { CustomBodyHttpError } from './errors/custom-body-http.error';
 import { NotFoundError } from './errors/not-found.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
 import { InternalError } from './internal-error.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { Property } from '../entity/decorators/property.decorator';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -18,8 +21,11 @@ import { MimeType } from '../http/mime-type.enum';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { FailedRateLimitResult } from '../rate-limiting/rate-limit-result.model';
+import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
+import { Post } from '../routing/decorators/post.decorator';
+import { ValidationProblem } from '../validation/validation-problem.model';
 
 /**
  * An error of a protocol that says what its errors look like.
@@ -34,8 +40,24 @@ class ProtocolError extends CustomBodyHttpError {
     }
 }
 
+class TaskCreateData {
+    @Property.string({ maxLength: 5 })
+    title!: string;
+
+    @Property.number({ min: 1 })
+    estimate!: number;
+}
+
 @Controller('/error-cases')
 class ErrorCasesController {
+    @Post('/tasks')
+    createTask(
+        @Body(TaskCreateData)
+        data: TaskCreateData
+    ): TaskCreateData {
+        return data;
+    }
+
     @Get('/protocol')
     protocol(): never {
         throw new ProtocolError();
@@ -79,14 +101,14 @@ describe('errorHandler', () => {
         // in memory: nothing here reads a table, and the suite runs without a container
         server = await startTestServer({
             controllers: [ErrorCasesController],
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })]
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })]
         });
         baseUrl = await server.start();
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     afterEach(() => {
         jest.restoreAllMocks();
@@ -102,6 +124,40 @@ describe('errorHandler', () => {
         expect(body.status).toBe(404);
         expect(body.name).toBe('NotFoundError');
         expect(body.paragraphs).toEqual(['nothing here']);
+    });
+
+    it('answers a validation error with every problem, each under its key and with its code', async () => {
+        const res: Response = await fetch(`${baseUrl}/error-cases/tasks`, {
+            method: 'POST',
+            headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
+            body: JSON.stringify({ title: 'Write the docs', estimate: 0, owner: 'Ada' })
+        });
+        expect(res.status).toBe(400);
+
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const body: ErrorResponseBody = await res.json();
+        expect(body.name).toBe('ValidationError');
+        // the order the properties were validated in is no promise, so compared as a set
+        const problems: Omit<ValidationProblem, 'message'>[] = (body.problems ?? []).map(({ key, code }) => ({ key, code }));
+        expect(problems).toHaveLength(3);
+        expect(problems).toEqual(expect.arrayContaining([
+            { key: 'title', code: 'maxLength' },
+            { key: 'estimate', code: 'min' },
+            { key: 'owner', code: 'unknownKey' }
+        ]));
+        expect(body.problems?.find(p => p.key === 'title')?.message).toBe('needs to be at most 5 characters long');
+    });
+
+    it('lists the problems of a validation error in an xml answer as well', async () => {
+        const res: Response = await fetch(`${baseUrl}/error-cases/tasks`, {
+            method: 'POST',
+            headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON, [KnownHeader.ACCEPT]: MimeType.XML },
+            body: JSON.stringify({ title: 'Docs', estimate: 0 })
+        });
+        expect(res.status).toBe(400);
+
+        const xml: string = await res.text();
+        expect(xml).toContain('<problem><key>estimate</key><code>min</code><message>needs to be at least 1</message></problem>');
     });
 
     it('answers an error with a body of its own with that body, in the json type the request accepts', async () => {

@@ -3,9 +3,11 @@ import { type PropertyMetadata } from './property.decorator';
 // asking whether an entity can be soft deleted does not pull the change set entities in - they are
 // decorated with @Entity themselves, which would evaluate this module from inside its own loading
 import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
+import { CheckConstraintViolationError } from '../../data-source/check-constraint-violation.error';
 import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
+import { $t } from '../../localization/translate.function';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -13,7 +15,9 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toSnakeCase } from '../../utilities/to-snake-case.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ValidationProblemCode } from '../../validation/validation-problem-code.enum';
 import { type BaseEntity } from '../base-entity.model';
+import { type EntityCheck } from '../models/entity-check.model';
 import { type EntityOrder, type OrderDirection } from '../models/entity-order.model';
 import { type EntityRelations } from '../models/entity-relations.model';
 import { type EntityScope } from '../models/entity-scope.model';
@@ -79,15 +83,12 @@ export type EntityMetadata<T extends BaseEntity = BaseEntity> = {
     /**
      * Rules every row has to follow, each a filter the row has to match.
      *
-     * Written with `whereFor`, eg. A done task has a completion date:
-     * `whereFor<Task>([{ status: { not: 'done' } }, { completedAt: { not: null } }])`. A write leaving
-     * a row that does not match one is refused with a `CheckConstraintViolationError`.
-     *
-     * A check compares a property against a string, number, boolean or null - as it is, or with
-     * `not`, `oneOf`, `notOneOf`, or a comparison of numbers. A row holding null for a property it
-     * compares matches `not` and `notOneOf` unless they name null, and never matches a comparison.
+     * A write leaving a row that does not match one is refused with a
+     * `CheckConstraintViolationError`. A request body of the entity, or of a model derived from it,
+     * that breaks one is answered with a validation problem carrying the check's code and message,
+     * before the handler runs - when the body holds every property the check compares.
      */
-    checks?: KeyWhere[],
+    checks?: EntityCheck[],
     /**
      * The scopes every row of this entity is restricted by.
      *
@@ -134,7 +135,7 @@ type EntityMetadataInput<
     TUniqueKey extends string = never,
     TIndexKey extends string = never,
     TTenant extends EntityTenant = DefaultTenant
-> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'tenant'> & {
+> = OmitStrict<Partial<EntityMetadata>, 'defaultOrder' | 'defaultRelations' | 'uniques' | 'indexes' | 'checks' | 'tenant'> & {
     /**
      * Which tenant the rows of this entity belong to: `'shared'`, or the string property holding the
      * tenant of each row. Defaults to the property `tenantId`.
@@ -148,6 +149,13 @@ type EntityMetadataInput<
      * Default relations to include in results when nothing has been specified.
      */
     defaultRelations?: { [K in TRelationKey]?: true | NestedRelationsInput },
+    /**
+     * Rules every row has to follow.
+     *
+     * Write a check as `{ where, code, message }`, or as the filter alone - which is answered with
+     * the code `'check'` and a message naming the properties it compares.
+     */
+    checks?: (KeyWhere | EntityCheck)[],
     /**
      * Groups of properties that have to be unique together.
      *
@@ -215,6 +223,7 @@ export function Entity<
     // every store that reads them back
     const uniqueGroups: UniqueGroup[] | undefined = uniques
         ?.map(group => Array.isArray(group) ? { properties: group } : { properties: group.properties, where: group.where });
+    const entityChecks: EntityCheck[] | undefined = checks?.map(check => isEntityCheck(check) ? check : checkOf(check));
     return <T extends ConstrainKeys<T, TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant>>>(
         target: Newable<T>
     ): void => {
@@ -224,8 +233,8 @@ export function Entity<
         validateUniqueValuesCompare(target, uniqueGroups ?? []);
         // turned into what the schema would hold, which refuses a filter no store could check alike -
         // here rather than while a schema is built, which a store judging the filter itself never does
-        for (const check of checks ?? []) {
-            keyWhereToSql({ name: target.name, properties: Object.keys(MetadataUtilities.getModelProperties(target)) }, check);
+        for (const check of entityChecks ?? []) {
+            keyWhereToSql({ name: target.name, properties: Object.keys(MetadataUtilities.getModelProperties(target)) }, check.where);
         }
         const metadata: EntityMetadata = {
             tableName: tableName ?? toSnakeCase(target.name),
@@ -239,13 +248,34 @@ export function Entity<
             defaultRelations: defaultRelations as EntityMetadata['defaultRelations'],
             uniques: uniqueGroups,
             indexes,
-            checks,
+            checks: entityChecks,
             scope,
             tenant
         };
         MetadataUtilities.setEntityMetadata(target as unknown as Newable<BaseEntity>, metadata);
         GlobalRegistry.entityClasses.push(target as unknown as Newable<BaseEntity>);
     };
+}
+
+/**
+ * Whether a check is written out, rather than as its filter alone.
+ * @param check - The check, as declared.
+ * @returns True for `{ where, code, message }`.
+ */
+function isEntityCheck(check: KeyWhere | EntityCheck): check is EntityCheck {
+    // a filter is an array of branches or an object of property names, and `where` is a filter key
+    // of nested values, never a property of its own - so the two cannot be mistaken for each other
+    return !Array.isArray(check) && 'code' in check && 'message' in check && 'where' in check;
+}
+
+/**
+ * Writes out a check declared as its filter alone.
+ * @param where - The filter.
+ * @returns The check, answered with the code `check` and a message naming what it compares.
+ */
+function checkOf(where: KeyWhere): EntityCheck {
+    const properties: string = CheckConstraintViolationError.resolveProperties(where).join(', ');
+    return { where, code: ValidationProblemCode.CHECK, message: $t`breaks the check on "${properties}"` };
 }
 
 /**

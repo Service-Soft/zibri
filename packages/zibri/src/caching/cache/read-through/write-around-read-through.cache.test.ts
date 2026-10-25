@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { WriteAroundReadThroughCache } from './write-around-read-through.cache';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -53,11 +54,11 @@ describe('WriteAroundReadThroughCache', () => {
     beforeAll(async () => {
         server = await startTestServer({});
         cacheService = inject(ZIBRI_DI_TOKENS.CACHE_SERVICE) as CacheService;
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         cacheService.caches.length = 0;

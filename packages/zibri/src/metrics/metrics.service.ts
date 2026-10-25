@@ -9,17 +9,21 @@ import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
+import { MetricsCollector } from './metrics-collector.model';
+import { MetricsExposition } from './metrics-exposition.model';
 import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 import { MiddlewarePhase } from '../http/middleware-phase.enum';
 import { RouteLabelUtilities } from '../http/route-label.utilities';
+import { type LoggerInterface } from '../logging/logger.interface';
 import { optionalPeer } from '../utilities/optional-peer.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
@@ -63,6 +67,16 @@ class PromHistogram implements HistogramInterface {
 }
 
 /**
+ * A collector, with when it last ran.
+ */
+type RegisteredCollector = MetricsCollector & {
+    /**
+     * When it last started, or undefined before its first run.
+     */
+    lastRunAtMs: number | undefined
+};
+
+/**
  * Default metrics service implementation of Zibri.
  */
 @Injectable({ register: 'onUse' })
@@ -72,6 +86,7 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     private readonly gauges: Map<string, Gauge<string>> = new Map<string, Gauge<string>>();
     private readonly histograms: Map<string, Histogram<string>> = new Map<string, Histogram<string>>();
     private readonly metricSnapshots: MetricsSnapshot[] = [];
+    private readonly collectors: RegisteredCollector[] = [];
 
     // eslint-disable-next-line sonar/no-duplicate-string
     private get promClient(): typeof import('prom-client') {
@@ -164,7 +179,41 @@ export class PrometheusMetricsService implements MetricsServiceInterface, OnAppI
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    addCollector(collector: MetricsCollector): void {
+        this.collectors.push({ ...collector, lastRunAtMs: undefined });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveExposition(): Promise<MetricsExposition> {
+        await this.runCollectors();
+        return { contentType: this.registry.contentType, body: await this.registry.metrics() };
+    }
+
+    /**
+     * Runs every collector whose interval has passed since its last run.
+     */
+    private async runCollectors(): Promise<void> {
+        const now: number = Date.now();
+        await Promise.all(this.collectors
+            .filter(c => c.lastRunAtMs == undefined || now - c.lastRunAtMs >= c.minIntervalInMs)
+            .map(async c => {
+                // taken before the run, so a read arriving while it runs does not start a second one
+                c.lastRunAtMs = now;
+                try {
+                    await c.collect();
+                }
+                catch (error) {
+                    // the gauges keep what the last run set, and the read goes on: a data source that
+                    // is down is exactly when the rest of the metrics are needed
+                    const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
+                    logger.warn(`the metrics collector "${c.name}" failed: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async collect(): Promise<void> {
+        await this.runCollectors();
         // one entry per interface, and there can be none: a container with no interface of its own,
         // or a probe the host would not answer
         const stats: Systeminformation.NetworkStatsData[] = await this.si.networkStats();

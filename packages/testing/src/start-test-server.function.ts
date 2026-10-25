@@ -1,12 +1,14 @@
 import { AddressInfo } from 'node:net';
 
+import { ExecResult } from 'testcontainers';
 import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, LoggerInterface, Newable, PostgresDataSource, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
 
 import { createInMemoryDataSource } from './in-memory-data-source/create-in-memory-data-source.function';
 import { registerAheadOfInit } from './register-ahead-of-init.function';
 import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function';
 import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function';
-import { applyContainerPort, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
+import { settleAfterFailure } from './settle-after-failure.function';
+import { applyContainerPort, buildDataSources, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
 import { StartTestServerOptions } from './start-test-server-options.model';
 import { defaultTestProviders } from './test-providers';
 
@@ -21,8 +23,6 @@ const testServerFallback: ApplicationOptionsFallback = {
     dataSources: () => [createInMemoryDataSource()],
     providers: defaultTestProviders
 };
-
-const noOp: () => void = () => {};
 
 /**
  * A test server that has been initialized, and everything that can be done with it.
@@ -40,12 +40,18 @@ export class StartedTestServer {
          * is what its own run wrote. A test that asserts on those files needs to be able to find
          * them, and a failing one is read before anything else.
          */
-        readonly scratchPath: FsPath
+        readonly scratchPath: FsPath,
+        /**
+         * What the application logged at info while it booted, in order, which the server keeps off
+         * the terminal. A `reInit` replaces it with what the restart logged.
+         */
+        public bootLog: string[]
     ) {
         this.containerPorts = new Map(containers.map(c => [c.dataSourceClass, c.port]));
     }
 
-    private reApplyContainerPorts(): void {
+    private async reApplyContainerPorts(): Promise<void> {
+        await buildDataSources([...this.containerPorts.keys()]);
         for (const [dataSourceClass, port] of this.containerPorts) {
             const dataSource: DataSourceInterface = inject(dataSourceClass);
             if (needsContainer(dataSource)) {
@@ -86,6 +92,28 @@ export class StartedTestServer {
             throw new Error(`${dataSourceClass.name} runs on no postgres container of this server`);
         }
         await runAsSuperuser(started.container, dataSource, statements);
+    }
+
+    /**
+     * Runs a command inside the container a data source was given, as the container's own user.
+     *
+     * For what a test has to arrange on the server's machine rather than in its database, such as a
+     * locale the image does not ship.
+     * @param dataSourceClass - The data source whose container the command runs in.
+     * @param command - The command and its arguments.
+     * @returns What the command printed.
+     * @throws When the data source got no container, or the command fails.
+     */
+    async runInContainer(dataSourceClass: Newable<DataSourceInterface>, command: string[]): Promise<string> {
+        const started: StartedDataSourceContainer | undefined = this.containers.find(c => c.dataSourceClass === dataSourceClass);
+        if (started == undefined) {
+            throw new Error(`${dataSourceClass.name} runs on no container of this server`);
+        }
+        const result: ExecResult = await started.container.exec(command);
+        if (result.exitCode !== 0) {
+            throw new Error(`"${command.join(' ')}" failed in the container of ${dataSourceClass.name}:\n${result.output}`);
+        }
+        return result.output;
     }
 
     /**
@@ -137,9 +165,12 @@ export class StartedTestServer {
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
         logger.info('re initializes test server...');
         const info: typeof logger.info = logger.info;
-        logger.info = noOp;
+        this.bootLog = [];
+        logger.info = (message: string): void => {
+            this.bootLog.push(message);
+        };
 
-        this.reApplyContainerPorts();
+        await this.reApplyContainerPorts();
 
         this.app = new ZibriApplication({ ...resolved, providers });
 
@@ -149,7 +180,7 @@ export class StartedTestServer {
         catch (error) {
             // a failed init can still have connected a data source in beforeAppInit - shut down
             // whatever was actually constructed so the containers below don't outlive this call
-            await this.app.shutdown();
+            await settleAfterFailure('shut the application down', [this.app.shutdown()]);
             throw error;
         }
 
@@ -195,9 +226,13 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
     logger.info('initializes test server...');
     // what a booting application says about itself is a page of it, and a suite starting a server
     // per test file says it once per file about an application the test did not ask questions about.
-    // Restored at the end, so anything logged after the server is up still reaches the run.
+    // Restored at the end, so anything logged after the server is up still reaches the run. Kept
+    // rather than dropped, for a test asking what the boot said.
     const info: typeof logger.info = logger.info;
-    logger.info = noOp;
+    const bootLog: string[] = [];
+    logger.info = (message: string): void => {
+        bootLog.push(message);
+    };
 
     const app: ZibriApplication = new ZibriApplication(applicationOptions);
 
@@ -211,13 +246,13 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
         // stays: a boot that failed is exactly the case where what it managed to write is worth
         // looking at, and the next run's is a directory of its own.
         logger.info = info;
-        await app.shutdown();
-        await Promise.all(containers.map(c => c.container.stop()));
+        await settleAfterFailure('shut the application down', [app.shutdown()]);
+        await settleAfterFailure('stop a container', containers.map(c => c.container.stop()));
         throw error;
     }
 
     logger.info = info;
     logger.info('test server initialized');
 
-    return new StartedTestServer(app, containers, scratchPath);
+    return new StartedTestServer(app, containers, scratchPath, bootLog);
 }

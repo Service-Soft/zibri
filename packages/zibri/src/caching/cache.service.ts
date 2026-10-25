@@ -4,7 +4,7 @@ import { CacheExpiryCleanupCronJob } from './cache-expiry-cleanup.cron-job';
 import { CacheInvalidationCronJob } from './cache-invalidation.cron-job';
 import { CacheInvalidation, CreateCacheInvalidationData } from './cache-invalidation.model';
 import { CacheServiceInterface } from './cache-service.interface';
-import { matchesAnyTag } from './cache-tag-matchers';
+import { CacheTagMatcher, matchesAnyTag, matchesTag } from './cache-tag-matchers';
 import { ZibriApplication } from '../application/application';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -21,6 +21,7 @@ import { InternalError } from '../error-handling/internal-error.model';
 import { OnAppInit } from '../global/on-app-init.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type CounterInterface } from '../metrics/counter.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
@@ -33,6 +34,20 @@ class InitCacheServiceError extends InternalError {
         this.name = 'InitCacheServiceError';
     }
 }
+
+/**
+ * Something kept in memory besides the caches, told when a tag it listens for is invalidated.
+ */
+type InvalidationListener = {
+    /**
+     * The tags it listens for.
+     */
+    matcher: CacheTagMatcher,
+    /**
+     * What runs, with the tag invalidated.
+     */
+    listener: (tag: string) => Promise<void>
+};
 
 /**
  * Default implementation of the cache service.
@@ -49,6 +64,11 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
      * themselves are deleted once old enough.
      */
     private readonly appliedInvalidationIds: Set<string> = new Set();
+
+    /**
+     * What runs when a tag is invalidated, besides the caches.
+     */
+    private readonly invalidationListeners: InvalidationListener[] = [];
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -111,23 +131,41 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    registerInvalidationListener(
+        app: ZibriApplication,
+        registrant: string,
+        tag: CacheTagMatcher,
+        listener: (tag: string) => Promise<void>
+    ): void {
+        // told through the same row the caches are, so the table and the job applying it are needed
+        // for the same reason
+        validateEntitiesRegistered(registrant, app, CacheInvalidation);
+        if (!app.options.cronJobs.includes(CacheInvalidationCronJob)) {
+            app.options.cronJobs.push(CacheInvalidationCronJob);
+        }
+        this.invalidationListeners.push({ matcher: tag, listener });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async invalidateTags(tags: string[]): Promise<void> {
-        // every instance runs the same caches, so with none here there is nothing to clear and
-        // nobody to tell - and the table is only asked for at startup when there are caches
-        if (!this.caches.length) {
+        // every instance runs the same caches and listeners, so with none here there is nothing to
+        // clear and nobody to tell - and the table is only asked for at startup when there are some
+        if (!this.caches.length && !this.invalidationListeners.length) {
             return;
         }
         await this.invalidateTagsLocally(tags);
 
         // and tell the other instances, whose caches this one cannot reach. Published after the
         // local invalidation, so the instance that handled the write is never the stale one.
-        await inject(repositoryTokenFor(CacheInvalidation)).create({ tags });
+        const repository: Repository<CacheInvalidation, CreateCacheInvalidationData> = inject(repositoryTokenFor(CacheInvalidation));
+        await repository.create({ tags });
+        await inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE).wake(repository.dataSource, WAKE_UP_TOPICS.CACHE_INVALIDATIONS);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async applyPendingInvalidations(): Promise<void> {
         // for the same reason as invalidateTags
-        if (!this.caches.length) {
+        if (!this.caches.length && !this.invalidationListeners.length) {
             return;
         }
         const repository: Repository<CacheInvalidation, CreateCacheInvalidationData> = inject(
@@ -206,5 +244,8 @@ export class CacheService implements CacheServiceInterface, OnAppInit {
             }
             await c.store.invalidateTags(tags);
         }));
+        await Promise.all(tags.flatMap(tag => this.invalidationListeners
+            .filter(({ matcher }) => matchesTag(matcher, tag))
+            .map(async ({ listener }) => await listener(tag))));
     }
 }

@@ -12,7 +12,8 @@ export class TokenRequest extends OAuth2ClientCredentials {
     grant_type?: string;
 
     /**
-     * The roles the token may use, separated by spaces. All the client's api key may use when left out.
+     * The permissions the token may use, separated by spaces. All the client's api key may use when
+     * left out.
      */
     @Property.string({ required: false })
     scope?: string;

@@ -1,3 +1,5 @@
+import { S3Credentials } from './s3-credentials.model';
+import { S3ServerSideEncryption } from './s3-server-side-encryption.model';
 import { FileSize } from '../../../entity/models/file-property-metadata.model';
 
 /**
@@ -17,13 +19,16 @@ export interface S3BackupTransportOptions {
      */
     readonly region: string,
     /**
-     * The access key the requests are signed with.
+     * What the requests are signed with: an access key and its secret, or a function resolving the
+     * credentials before every request, for credentials that expire. Such a function returns the same
+     * credentials for as long as they are valid.
      */
-    readonly accessKeyId: string,
+    readonly credentials: S3Credentials | (() => Promise<S3Credentials>),
     /**
-     * The secret of the access key.
+     * How the service encrypts the backups it stores: as the bucket's default encryption says, or with
+     * the algorithm and key every backup is uploaded with.
      */
-    readonly secretAccessKey: string,
+    readonly serverSideEncryption: S3ServerSideEncryption,
     /**
      * The folder in the bucket the backups are stored in. Without one, they are stored at the top of the bucket.
      */

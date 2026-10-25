@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, StartedTestServer, startTestServer } from 'zibri-testing';
 
+import { TestTimeouts } from '../__testing__/constants';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { MissedLifecycleHooksError } from '../di/errors/missed-lifecycle-hooks.error';
@@ -238,7 +239,7 @@ describe('an application that imports the package', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
 
         await expect(server.start()).resolves.toMatch(/^http:\/\//);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('still serves a controller it declares, orphan-allowed or not', async () => {
         // the other half: `allowOrphan` means a controller *may* go unused, not that a declared one
@@ -254,7 +255,7 @@ describe('an application that imports the package', () => {
 
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ ok: true });
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('builds a service that takes part in the lifecycle, and runs its hook', async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -265,7 +266,7 @@ describe('an application that imports the package', () => {
         // way to write startup work, and the hook is the whole point of the class.
         expect(events).toContain(`${HookedService.name} constructed`);
         expect(events).toContain(`${HookedService.name}.onAppInit`);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('does not build a service nothing asks for', async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -275,7 +276,7 @@ describe('an application that imports the package', () => {
         // at startup buys nothing and costs whatever its constructor does. Importing the module that
         // declares it is not a request for it to run.
         expect(events).not.toContain('QuietService constructed');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('builds it as soon as something injects it', async () => {
         server = await startTestServer({
@@ -290,7 +291,7 @@ describe('an application that imports the package', () => {
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ quiet: 'QuietService' });
         expect(events).toContain('QuietService constructed');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('builds a service the application names, and runs its hook', async () => {
         server = await startTestServer({
@@ -304,7 +305,7 @@ describe('an application that imports the package', () => {
         // the application saying so.
         expect(events).toContain('LateService constructed');
         expect(events).toContain('LateService.onAppInit');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a service first injected after the phases it declares', async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -317,7 +318,7 @@ describe('an application that imports the package', () => {
         expect(() => inject(LateService)).toThrow(MissedLifecycleHooksError);
         expect(() => inject(LateService)).toThrow('additionalLifecycleServices');
         expect(events).not.toContain('LateService constructed');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('runs the hooks of a service another one builds while the application initializes', async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -330,7 +331,7 @@ describe('an application that imports the package', () => {
         expect(events).toContain('JoinedService.onAppInit');
         // and the one whose hook ran is the one everybody gets
         expect(inject(JoiningService).joined).toBe(inject(JoinedService));
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses a service first reached during initialization after a phase it declares', async () => {
         reachForEarlyService = true;
@@ -341,7 +342,7 @@ describe('an application that imports the package', () => {
         // built without its hook and nothing said so
         expect(events).toContain(MissedLifecycleHooksError.name);
         expect(events).not.toContain('EarlyService constructed');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('hands over a service declaring only a shutdown hook after startup, and shuts it down', async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -353,7 +354,7 @@ describe('an application that imports the package', () => {
         await server.shutdown();
         server = undefined;
         expect(events).toContain('TeardownService.onAppShutdown');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('does not construct anything during shutdown that it never built', async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
@@ -368,5 +369,5 @@ describe('an application that imports the package', () => {
         // time on the way out, to be handed a shutdown it has no state for. The branch that handles
         // a failed init already argued this and the one below it did the opposite.
         expect(events).not.toContain('QuietService constructed');
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 });

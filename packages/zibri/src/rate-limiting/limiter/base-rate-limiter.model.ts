@@ -353,7 +353,11 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
 
             if (result.allowed) {
                 this.metrics.allowed.increase({ limiter: this.config.name });
-                return await fn(...args);
+                const value: V = await fn(...args);
+                if (options?.refundOnSuccess === true) {
+                    await this.refund(key, count);
+                }
+                return value;
             }
 
             if (options?.reserveIfUnavailable === true) {
@@ -378,6 +382,28 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                 result
             );
         }) as (...args: TArgs) => RateLimitWrapResult<V, TOptions>;
+    }
+
+    /**
+     * Gives back what a call consumed, for a call that turned out not to count.
+     *
+     * A store that cannot be reached is no reason to fail the call: it has already succeeded, and
+     * what is lost is one unit of a budget rather than its answer. The failure is still counted on
+     * the error metric.
+     * @param key - The key the call was counted against.
+     * @param count - How much it consumed.
+     */
+    private async refund(key: string, count: number): Promise<void> {
+        try {
+            await this.measureStoreOperation('refund', async () => await this.config.store.atomicUpdate(
+                key,
+                // a key that expired in the meantime has nothing to give back to, and starts over full
+                current => current ? this.creditCapacity(current, count) : this.initialAlgoState(Date.now())
+            ));
+        }
+        catch {
+            // counted by measureStoreOperation
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { QueryRunner } from 'typeorm';
 
 import { Transaction } from './transaction.model';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -29,11 +30,11 @@ let repo: Repository<Item>;
 
 describe('transaction', () => {
     beforeAll(async () => {
-        const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: [...defaultTestServerEntities, Item] });
+        const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: [...defaultTestServerEntities, Item], repositories: defaultTestServerRepositories });
         server = await startTestServer({ dataSources: [dataSourceClass] });
         dataSource = inject(dataSourceClass);
         repo = inject(repositoryTokenFor(Item));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     it('should see changes inside transaction, but not outside until committed', async () => {
         const transaction: Transaction = await dataSource.startTransaction();
@@ -130,5 +131,5 @@ describe('transaction', () => {
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 });

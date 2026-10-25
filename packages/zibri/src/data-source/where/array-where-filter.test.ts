@@ -2,7 +2,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { type Relation } from 'typeorm';
 import { StartedTestServer } from 'zibri-testing';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -78,18 +79,19 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [
             createTestDataSource({
-                entities: [...defaultTestServerEntities, Post, Comment, Category]
+                entities: [...defaultTestServerEntities, Post, Comment, Category],
+                repositories: defaultTestServerRepositories
             })
         ]
     });
     postRepo = inject(repositoryTokenFor(Post));
     commentRepo = inject(repositoryTokenFor(Comment));
     categoryRepo = inject(repositoryTokenFor(Category));
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await postRepo.deleteAll({});

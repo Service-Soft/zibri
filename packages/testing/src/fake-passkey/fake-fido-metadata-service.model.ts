@@ -2,8 +2,8 @@ import { createPrivateKey, KeyObject, X509Certificate as PemCertificate, randomB
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 
-import { BasicConstraintsExtension, Extension, KeyUsageFlags, KeyUsagesExtension, X509Certificate, X509CertificateGenerator } from '@peculiar/x509';
-import { JsonUtilities, KnownHeader, MimeType } from 'zibri';
+import type { X509Certificate } from '@peculiar/x509';
+import { JsonUtilities, KnownHeader, MimeType, optionalPeer } from 'zibri';
 
 import { FakePasskeyAttestation } from './fake-passkey-attestation.model';
 
@@ -115,6 +115,7 @@ export class FakeFidoMetadataService {
      * @returns The service.
      */
     static async create(): Promise<FakeFidoMetadataService> {
+        const { BasicConstraintsExtension, X509CertificateGenerator } = FakeFidoMetadataService.x509();
         const root: Issued = await FakeFidoMetadataService.issueRoot('CN=Fake FIDO Metadata Root');
         const signerKeys: CryptoKeyPair = await FakeFidoMetadataService.generateKeys();
         const signer: X509Certificate = await X509CertificateGenerator.create({
@@ -213,6 +214,7 @@ export class FakeFidoMetadataService {
     }
 
     private static async issueModel(aaguid: string = randomUUID()): Promise<IssuedModel> {
+        const { BasicConstraintsExtension, Extension, X509CertificateGenerator } = FakeFidoMetadataService.x509();
         const root: Issued = await FakeFidoMetadataService.issueRoot(`CN=Fake Attestation Root ${aaguid}`);
         const keys: CryptoKeyPair = await FakeFidoMetadataService.generateKeys();
         // the model, as a DER octet string of its 16 bytes
@@ -245,6 +247,7 @@ export class FakeFidoMetadataService {
     }
 
     private static async issueRoot(name: string): Promise<Issued> {
+        const { BasicConstraintsExtension, KeyUsageFlags, KeyUsagesExtension, X509CertificateGenerator } = FakeFidoMetadataService.x509();
         const keys: CryptoKeyPair = await FakeFidoMetadataService.generateKeys();
         const certificate: X509Certificate = await X509CertificateGenerator.createSelfSigned({
             serialNumber: '01',
@@ -259,6 +262,15 @@ export class FakeFidoMetadataService {
             ]
         }, crypto);
         return { keys, certificate };
+    }
+
+    /**
+     * The certificate builder, an optional peer: loaded rather than imported, so a project that never
+     * fakes a passkey need not install it.
+     * @returns Its exports.
+     */
+    private static x509(): typeof import('@peculiar/x509') {
+        return optionalPeer('@peculiar/x509', 'A fake FIDO metadata service');
     }
 
     private static async generateKeys(): Promise<CryptoKeyPair> {

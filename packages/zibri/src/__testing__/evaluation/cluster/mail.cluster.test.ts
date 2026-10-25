@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { ClusterMarkRow, StartedTestCluster, startTestCluster } from 'zibri-testing';
 
-import { mailCronIntervalInMs, queuedMailCount } from './mail.instance-options';
+import { attachedContent, mailCronIntervalInMs, queuedMailCount } from './mail.instance-options';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 
 /**
@@ -143,5 +143,28 @@ describe('evaluation/04-infrastructure-subsystems 1.6 - queued mail across repli
         }
         // longer than the usual 15000 on purpose: the send is deliberately slower than the tick, so
         // draining the queue cannot be quicker than that
+    }, 60000);
+
+    // evaluation/round-2/06-infrastructure.md F6. Last, because it takes an instance down
+    it('sends an attachment from an instance other than the one that queued it, once that one is gone', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        await cluster.clearMarks();
+
+        const queuedBy: string = cluster.instanceAt(0).id;
+        const res: Response = await fetch(`${cluster.instanceAt(0).baseUrl}/cluster-mail/queue-with-attachment`, { method: 'POST' });
+        expect(res.status).toBe(204);
+        // what is left of the mail once its instance is gone is the row
+        await cluster.kill(queuedBy);
+
+        const marks: ClusterMarkRow[] = await cluster.waitFor(
+            async () => await cluster?.marks('mail-attachment') ?? [],
+            m => m.length > 0,
+            { timeoutInMs: 30000 }
+        );
+
+        expect(marks.map(m => m.tag)).toEqual([attachedContent]);
+        expect(marks[0]?.instanceId).not.toBe(queuedBy);
     }, 60000);
 });

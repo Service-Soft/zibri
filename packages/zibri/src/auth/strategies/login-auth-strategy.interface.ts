@@ -1,9 +1,9 @@
 import { AuthStrategyInterface } from './auth-strategy.interface';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { FederatedSessionMatch } from '../authenticators/federated/federated-session-match.model';
-import { FederatedSession } from '../authenticators/federated/federated-session.model';
 import { Authentication } from '../models/authentication.model';
 import { BaseUser } from '../models/base-user.model';
+import { EndedLogin } from '../models/ended-login.model';
 
 /**
  * Interface for an auth strategy that carries a login from one request to the next.
@@ -27,11 +27,12 @@ export interface LoginAuthStrategyInterface<
      */
     startLogin: (authentication: Authentication<UserType>, transaction: Transaction | undefined) => Promise<AuthDataType>,
     /**
-     * Logs out the current user.
-     * @returns The session at a provider the login was started from, so it can be ended there too.
-     * Undefined when it was started some other way.
+     * Ends the login the data names.
+     * @returns The login it ended: whose it was, and the session at a provider it was started from.
+     * Undefined when the data names no login to end, such as a credential already spent.
+     * @throws When the login could not be ended, which leaves it live.
      */
-    logout: (data: LogoutData) => Promise<FederatedSession | undefined>,
+    logout: (data: LogoutData) => Promise<EndedLogin | undefined>,
     /**
      * Refreshes the login of a user.
      */

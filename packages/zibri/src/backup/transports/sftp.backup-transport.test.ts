@@ -9,12 +9,14 @@ import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
 import { SftpBackupTransportOptions } from './sftp/sftp-backup-transport-options.model';
 import { BaseSftpBackupTransport } from './sftp.backup-transport';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -110,6 +112,7 @@ class Item {
 @DataSource()
 @Backup({ transports: [TestSftpBackupTransport], encrypt: false })
 class DbDataSource extends PostgresDataSource {
+    override backupScope: PostgresBackupScope = 'schema';
     override rootPw: string = 'password';
     override rootUsername: string = 'postgres';
     override options: OmitStrict<PostgresOptions, 'type'> = {
@@ -120,6 +123,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
+    repositories: RepositoryClass[] = defaultTestServerRepositories;
     schemaManagement: SchemaManagement = 'synchronize';
 }
 

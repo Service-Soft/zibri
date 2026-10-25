@@ -4,9 +4,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
 import { BaseAppleAuthenticator } from './base-apple.authenticator';
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -50,7 +51,7 @@ const p8: string = keyPair.privateKey.export({ type: 'pkcs8', format: 'pem' }).t
 // the client secrets the provider was sent, and whether each was signed for it
 const clientSecrets: boolean[] = [];
 
-class AppleAuthenticator extends BaseAppleAuthenticator<Roles, JwtUser> {
+class AppleAuthenticator extends BaseAppleAuthenticator<string, JwtUser> {
     readonly clientId: string = SERVICES_ID;
 
     readonly teamId: string = TEAM_ID;
@@ -130,6 +131,7 @@ describe('BaseAppleAuthenticator', () => {
                 FederatedRegistrationTicket,
                 FederatedConnectionCode
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -153,12 +155,12 @@ describe('BaseAppleAuthenticator', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await apple?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Signs in at Apple the way a browser does, up to the answer Apple posts to the callback.

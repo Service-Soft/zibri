@@ -5,8 +5,10 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
@@ -67,7 +69,7 @@ type LoggedIn = {
     /**
      * What the login handed out.
      */
-    authData: JwtAuthData<Roles>
+    authData: JwtAuthData<string>
 };
 
 /**
@@ -142,7 +144,7 @@ describe('a socket whose login has ended', () => {
     beforeAll(async () => {
         server = await startTestServer({
             websocketControllers: [EndedLoginsWsController],
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, ApiKey] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, ApiKey], repositories: defaultTestServerRepositories })],
             authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
             providers: [
                 ...defaultTestServerProviders,
@@ -152,7 +154,13 @@ describe('a socket whose login has ended', () => {
                 }),
                 defineProvider({
                     token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
-                    useValue: { accessTokenKey: 'test-access-token-secret', refreshTokenSecret: 'test-refresh-token-secret', accessTokenExpiresInMs }
+                    useValue: {
+                        accessTokenKey: 'test-access-token-secret',
+                        refreshTokenSecret: 'test-refresh-token-secret',
+                        accessTokenExpiresInMs,
+                        // no grace, so that presenting a spent token again is reuse straight away
+                        refreshTokenReuseGraceInMs: 0
+                    }
                 }),
                 // so that a logout ends the access token as well, which is what a socket can follow:
                 // under `onExpiry` the token keeps working over http, and the socket rightly with it
@@ -163,11 +171,11 @@ describe('a socket whose login has ended', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         wsService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
         authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     afterEach(() => {
         for (const socket of sockets.splice(0)) {
@@ -248,7 +256,7 @@ describe('a socket whose login has ended', () => {
             sessionKey: UUIDUtilities.generate(),
             logout: undefined
         };
-        const authData: JwtAuthData<Roles> = await inject(JwtAuthStrategy<Roles>)
+        const authData: JwtAuthData<string> = await inject(JwtAuthStrategy<string>)
             .startLogin({ user, authenticatedAt: new Date(), federatedSession }, undefined);
         const socket: Socket = await connectAs({ user, authData });
         const otherLogin: Socket = await connectAs(await logIn(user));
@@ -272,7 +280,7 @@ describe('a socket whose login has ended', () => {
         const user: JwtUser = await createUser();
         const created: CreatedApiKey = await authService.createApiKey(
             user.id,
-            { name: 'socket', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            { name: 'socket', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
             undefined
         );
         const socket: Socket = await connect({ 'x-api-key': created.key });

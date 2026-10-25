@@ -42,7 +42,7 @@ export class LogRequestContext {
     @Property.string({ enum: HttpMethod })
     method!: HttpMethod;
     /**
-     * The complete url that was requested.
+     * The path that was requested, without its query string.
      */
     @Property.string()
     url!: string;

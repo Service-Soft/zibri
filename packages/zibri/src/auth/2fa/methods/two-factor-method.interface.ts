@@ -2,7 +2,7 @@ import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
 import { Newable } from '../../../types/newable.type';
-import { BaseUser } from '../../models/base-user.model';
+import { UserAccount } from '../../models/user-account.model';
 
 /**
  * Interface for a two factor method.
@@ -55,37 +55,37 @@ export interface TwoFactorMethod<
      * everything in it is derived from the secret, so keeping a copy at rest would mean a second
      * plaintext of the thing the row exists to protect.
      */
-    requestRegisterForUser: <Role extends string, UserType extends BaseUser<Role>>(
+    requestRegisterForUser: <UserType extends UserAccount>(
         user: UserType,
         data: TwoFactorRequestRegisterData
     ) => TwoFactorRequestRegisterResult | Promise<TwoFactorRequestRegisterResult>,
     /**
      * Confirms the registration of the two factor method for the given user.
      */
-    confirmRegisterForUser: <Role extends string, UserType extends BaseUser<Role>>(
+    confirmRegisterForUser: <UserType extends UserAccount>(
         user: UserType,
         data: TwoFactorConfirmRegisterData
     ) => void | Promise<void>,
     /**
      * Removes the two factor method from the given user.
      */
-    unregisterForUser: <Role extends string, UserType extends BaseUser<Role>>(user: UserType) => void | Promise<void>,
+    unregisterForUser: <UserType extends UserAccount>(user: UserType) => void | Promise<void>,
     /**
      * Whether the given user has a confirmed registration of this method.
      *
      * A registration that was requested but never confirmed does not count.
      */
-    isRegisteredForUser: <Role extends string, UserType extends BaseUser<Role>>(user: UserType) => boolean | Promise<boolean>,
+    isRegisteredForUser: <UserType extends UserAccount>(user: UserType) => boolean | Promise<boolean>,
     /**
      * Starts the second factor of an operation of the given user, who has a confirmed registration of
      * the method: sends them a code, or answers with a challenge for their device. Does nothing for a
      * method whose second factor needs nothing started, such as an authenticator app.
      */
-    startSecondFactor: <Role extends string, UserType extends BaseUser<Role>>(user: UserType) => Promise<SecondFactorStartType>,
+    startSecondFactor: <UserType extends UserAccount>(user: UserType) => Promise<SecondFactorStartType>,
     /**
      * Validates that the given request has a valid second factor.
      */
-    validate: <Role extends string, UserType extends BaseUser<Role>>(
+    validate: <UserType extends UserAccount>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ) => void | Promise<void>

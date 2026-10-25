@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { SemVerVersion } from './sem-ver.utilities';
 import { StoredRoute } from './stored-route.model';
 import { Version, VersionFile } from './version.model';
-import { testFileFolder } from '../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -117,11 +117,11 @@ beforeAll(async () => {
         controllers: [VersionTestController, ValidatedController]
     });
     baseUrl = await server.start();
-}, 15000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('VersioningService integration', () => {
     describe('A deployment that did not bring its versions folder', () => {
@@ -137,7 +137,7 @@ describe('VersioningService integration', () => {
             expect(await FsUtilities.exists(missing)).toBe(false);
 
             await restartServer();
-        }, 15000);
+        }, TestTimeouts.postgres.restart);
     });
 
     describe('First startup', () => {
@@ -180,7 +180,7 @@ describe('VersioningService integration', () => {
             await FsUtilities.rm(testVersionsDir);
             await FsUtilities.mkdir(testVersionsDir);
             await restartServer();
-        }, 15000);
+        }, TestTimeouts.postgres.restart);
     });
 
     describe('Already at latest version (no-op)', () => {

@@ -1,5 +1,6 @@
 import { FindAllOptions } from './find-all-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
+import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { OmitStrict } from '../../../types/omit-strict.type';
 
 /**
@@ -15,4 +16,6 @@ import { OmitStrict } from '../../../types/omit-strict.type';
  * ordered on some data sources and refused on others: order what you keep, or use `findAll` with an
  * order and the bound that comes with it.
  */
-export type StreamOptions<T extends BaseEntity> = OmitStrict<FindAllOptions<T>, 'take' | 'skip' | 'order'>;
+export type StreamOptions<T extends BaseEntity, S extends EntitySelection<T> | undefined = undefined> = OmitStrict<
+    FindAllOptions<T, S>, 'take' | 'skip' | 'order'
+>;

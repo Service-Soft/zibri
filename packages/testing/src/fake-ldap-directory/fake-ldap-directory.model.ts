@@ -2,21 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { AddressInfo, createServer, Server, Socket } from 'node:net';
 import { createServer as createTlsServer, Server as TlsServer, TLSSocket } from 'node:tls';
 
-import { AndFilter,
-    Attribute,
-    BerReader,
-    BerWriter,
-    BindRequest,
-    EqualityFilter,
-    ExtendedRequest,
-    ExtensibleFilter,
-    Filter,
-    NotFilter,
-    OrFilter,
-    PresenceFilter,
-    ProtocolOperation,
-    SearchRequest,
-    SubstringFilter } from 'ldapts';
+import type { BerReader, BerWriter, BindRequest, ExtendedRequest, Filter, SearchRequest } from 'ldapts';
+import { optionalPeer } from 'zibri';
 
 import { FakeLdapBind } from './fake-ldap-bind.model';
 import { FakeLdapDirectoryOptions } from './fake-ldap-directory-options.model';
@@ -101,6 +88,15 @@ const OPERATIONAL_ATTRIBUTES: Set<string> = new Set(['entryuuid', 'nsaccountlock
 const HOST: string = '127.0.0.1';
 
 /**
+ * The LDAP messages and filters the directory reads and writes, an optional peer: loaded rather than
+ * imported, so a project that never fakes a directory need not install it.
+ * @returns Its exports.
+ */
+function ldapts(): typeof import('ldapts') {
+    return optionalPeer('ldapts', 'A fake LDAP directory');
+}
+
+/**
  * What a connection knows about itself.
  */
 type Connection = {
@@ -181,6 +177,8 @@ export class FakeLdapDirectory {
      * @returns The directory, not listening yet.
      */
     static async create(options: FakeLdapDirectoryOptions): Promise<FakeLdapDirectory> {
+        // asked for here rather than at the first message, which a missing package would drop
+        ldapts();
         const entries: FakeLdapEntry[] = options.entries.map(entry => {
             const hasId: boolean = Object.keys(entry.attributes).some(name => name.toLowerCase() === 'entryuuid');
             return hasId ? entry : { ...entry, attributes: { ...entry.attributes, entryUUID: [randomUUID()] } };
@@ -250,7 +248,8 @@ export class FakeLdapDirectory {
      * @returns Whether the connection was upgraded to TLS, after which nothing more is read from it here.
      */
     private answer(socket: Socket, connection: Connection, message: Buffer, onData: (data: Buffer) => void): 'answered' | 'upgraded' {
-        const reader: BerReader = new BerReader(message);
+        const ldap: typeof import('ldapts') = ldapts();
+        const reader: BerReader = new ldap.BerReader(message);
         reader.readSequence();
         const messageId: number = reader.readInt() ?? 0;
         const operation: number | null = reader.readSequence();
@@ -259,38 +258,43 @@ export class FakeLdapDirectory {
             return 'answered';
         }
         switch (operation) {
-            case ProtocolOperation.LDAP_REQ_BIND: {
-                const request: BindRequest = new BindRequest({ messageId });
+            case ldap.ProtocolOperation.LDAP_REQ_BIND: {
+                const request: BindRequest = new ldap.BindRequest({ messageId });
                 try {
                     request.parseMessage(reader);
                 }
                 catch {
-                    socket.write(FakeLdapDirectory.result(messageId, ProtocolOperation.LDAP_RES_BIND, ResultCode.PROTOCOL_ERROR));
+                    socket.write(FakeLdapDirectory.result(messageId, ldap.ProtocolOperation.LDAP_RES_BIND, ResultCode.PROTOCOL_ERROR));
                     return 'answered';
                 }
                 socket.write(this.bind(connection, request));
                 return 'answered';
             }
-            case ProtocolOperation.LDAP_REQ_SEARCH: {
-                const request: SearchRequest = new SearchRequest({ messageId, filter: new PresenceFilter({ attribute: 'objectclass' }) });
+            case ldap.ProtocolOperation.LDAP_REQ_SEARCH: {
+                const request: SearchRequest = new ldap.SearchRequest({
+                    messageId,
+                    filter: new ldap.PresenceFilter({ attribute: 'objectclass' })
+                });
                 request.parseMessage(reader);
                 socket.write(this.search(connection, request));
                 return 'answered';
             }
-            case ProtocolOperation.LDAP_REQ_EXTENSION: {
-                const request: ExtendedRequest = new ExtendedRequest({ messageId });
+            case ldap.ProtocolOperation.LDAP_REQ_EXTENSION: {
+                const request: ExtendedRequest = new ldap.ExtendedRequest({ messageId });
                 request.parseMessage(reader);
                 if (request.oid !== START_TLS_OID || connection.encrypted) {
-                    socket.write(FakeLdapDirectory.result(messageId, ProtocolOperation.LDAP_RES_EXTENSION, ResultCode.OPERATIONS_ERROR));
+                    socket.write(
+                        FakeLdapDirectory.result(messageId, ldap.ProtocolOperation.LDAP_RES_EXTENSION, ResultCode.OPERATIONS_ERROR)
+                    );
                     return 'answered';
                 }
                 socket.removeListener('data', onData);
-                socket.write(FakeLdapDirectory.result(messageId, ProtocolOperation.LDAP_RES_EXTENSION, ResultCode.SUCCESS));
+                socket.write(FakeLdapDirectory.result(messageId, ldap.ProtocolOperation.LDAP_RES_EXTENSION, ResultCode.SUCCESS));
                 // what comes next is the client starting TLS on the same connection
                 this.serve(new TLSSocket(socket, { isServer: true, key: this.key.privateKey, cert: this.key.certificate }), true);
                 return 'upgraded';
             }
-            case ProtocolOperation.LDAP_REQ_UNBIND: {
+            case ldap.ProtocolOperation.LDAP_REQ_UNBIND: {
                 socket.end();
                 return 'answered';
             }
@@ -302,15 +306,16 @@ export class FakeLdapDirectory {
     }
 
     private bind(connection: Connection, request: BindRequest): Buffer {
+        const ldap: typeof import('ldapts') = ldapts();
         const succeed: (boundAs: string | undefined) => Buffer = boundAs => {
             this.binds.push({ dn: request.dn, withPassword: !!request.password, encrypted: connection.encrypted, succeeded: true });
             connection.boundAs = boundAs;
-            return FakeLdapDirectory.result(request.messageId, ProtocolOperation.LDAP_RES_BIND, ResultCode.SUCCESS);
+            return FakeLdapDirectory.result(request.messageId, ldap.ProtocolOperation.LDAP_RES_BIND, ResultCode.SUCCESS);
         };
         const refuse: (code: ResultCode, message: string) => Buffer = (code, message) => {
             this.binds.push({ dn: request.dn, withPassword: !!request.password, encrypted: connection.encrypted, succeeded: false });
             connection.boundAs = undefined;
-            return FakeLdapDirectory.result(request.messageId, ProtocolOperation.LDAP_RES_BIND, code, message);
+            return FakeLdapDirectory.result(request.messageId, ldap.ProtocolOperation.LDAP_RES_BIND, code, message);
         };
         if (!connection.encrypted) {
             return refuse(ResultCode.CONFIDENTIALITY_REQUIRED, 'TLS confidentiality required');
@@ -332,13 +337,18 @@ export class FakeLdapDirectory {
     }
 
     private search(connection: Connection, request: SearchRequest): Buffer {
+        const ldap: typeof import('ldapts') = ldapts();
         this.searches.push({ baseDn: request.baseDN, filter: request.filter.toString(), boundAs: connection.boundAs });
         if (connection.boundAs == undefined) {
-            return FakeLdapDirectory.result(request.messageId, ProtocolOperation.LDAP_RES_SEARCH, ResultCode.INSUFFICIENT_ACCESS_RIGHTS);
+            return FakeLdapDirectory.result(
+                request.messageId,
+                ldap.ProtocolOperation.LDAP_RES_SEARCH,
+                ResultCode.INSUFFICIENT_ACCESS_RIGHTS
+            );
         }
         const base: string = FakeLdapDirectory.normalize(request.baseDN);
         if (!this.entries.some(entry => FakeLdapDirectory.normalize(entry.dn).endsWith(base))) {
-            return FakeLdapDirectory.result(request.messageId, ProtocolOperation.LDAP_RES_SEARCH, ResultCode.NO_SUCH_OBJECT);
+            return FakeLdapDirectory.result(request.messageId, ldap.ProtocolOperation.LDAP_RES_SEARCH, ResultCode.NO_SUCH_OBJECT);
         }
         const found: FakeLdapEntry[] = this.entries
             .filter(entry => FakeLdapDirectory.isInScope(FakeLdapDirectory.normalize(entry.dn), base, request.scope))
@@ -348,7 +358,7 @@ export class FakeLdapDirectory {
             ...sent.map(entry => FakeLdapDirectory.searchEntry(request, entry)),
             FakeLdapDirectory.result(
                 request.messageId,
-                ProtocolOperation.LDAP_RES_SEARCH,
+                ldap.ProtocolOperation.LDAP_RES_SEARCH,
                 sent.length < found.length ? ResultCode.SIZE_LIMIT_EXCEEDED : ResultCode.SUCCESS
             )
         ]);
@@ -365,29 +375,30 @@ export class FakeLdapDirectory {
      * @returns Whether it matches.
      */
     private matches(filter: Filter, entry: FakeLdapEntry): boolean {
-        if (filter instanceof AndFilter) {
+        const ldap: typeof import('ldapts') = ldapts();
+        if (filter instanceof ldap.AndFilter) {
             return filter.filters.every(part => this.matches(part, entry));
         }
-        if (filter instanceof OrFilter) {
+        if (filter instanceof ldap.OrFilter) {
             return filter.filters.some(part => this.matches(part, entry));
         }
-        if (filter instanceof NotFilter) {
+        if (filter instanceof ldap.NotFilter) {
             return !this.matches(filter.filter, entry);
         }
-        if (filter instanceof PresenceFilter) {
+        if (filter instanceof ldap.PresenceFilter) {
             return FakeLdapDirectory.valuesOf(entry, filter.attribute).length > 0;
         }
-        if (filter instanceof EqualityFilter) {
+        if (filter instanceof ldap.EqualityFilter) {
             const expected: string = (Buffer.isBuffer(filter.value) ? filter.value.toString('utf8') : filter.value).toLowerCase();
             return FakeLdapDirectory.valuesOf(entry, filter.attribute).some(value => value.toLowerCase() === expected);
         }
-        if (filter instanceof SubstringFilter) {
+        if (filter instanceof ldap.SubstringFilter) {
             const escape: (text: string) => string = text => text.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&');
             const parts: string[] = [filter.initial, ...filter.any, filter.final].map(part => escape(part));
             const pattern: RegExp = new RegExp(`^${parts.join('.*')}$`, 'i');
             return FakeLdapDirectory.valuesOf(entry, filter.attribute).some(value => pattern.test(value));
         }
-        if (filter instanceof ExtensibleFilter && filter.rule === IN_CHAIN_RULE) {
+        if (filter instanceof ldap.ExtensibleFilter && filter.rule === IN_CHAIN_RULE) {
             return this.isMemberInChain(entry, filter.matchType, FakeLdapDirectory.normalize(filter.value), new Set());
         }
         return false;
@@ -420,7 +431,7 @@ export class FakeLdapDirectory {
      * @returns The message, or undefined while it has not arrived whole.
      */
     private static takeMessage(connection: Connection): Buffer | undefined {
-        const reader: BerReader = new BerReader(connection.pending);
+        const reader: BerReader = new (ldapts().BerReader)(connection.pending);
         if (reader.readSequence() == undefined || reader.offset + reader.length > connection.pending.length) {
             return undefined;
         }
@@ -430,7 +441,7 @@ export class FakeLdapDirectory {
     }
 
     private static result(messageId: number, operation: number, code: number, message: string = ''): Buffer {
-        const writer: BerWriter = new BerWriter();
+        const writer: BerWriter = new (ldapts().BerWriter)();
         writer.startSequence();
         writer.writeInt(messageId);
         writer.startSequence(operation);
@@ -446,17 +457,18 @@ export class FakeLdapDirectory {
         // ldapts reads the names that were asked for in lowercase
         const asked: string[] = request.attributes.map(name => name.toLowerCase());
         const everything: boolean = !asked.length || asked.includes('*');
-        const writer: BerWriter = new BerWriter();
+        const ldap: typeof import('ldapts') = ldapts();
+        const writer: BerWriter = new ldap.BerWriter();
         writer.startSequence();
         writer.writeInt(request.messageId);
-        writer.startSequence(ProtocolOperation.LDAP_RES_SEARCH_ENTRY);
+        writer.startSequence(ldap.ProtocolOperation.LDAP_RES_SEARCH_ENTRY);
         writer.writeString(entry.dn);
         writer.startSequence();
         for (const [type, values] of Object.entries(entry.attributes)) {
             const name: string = type.toLowerCase();
             if (asked.includes(name) || (everything && !OPERATIONAL_ATTRIBUTES.has(name))) {
                 const buffers: Buffer[] = values.map(value => Buffer.isBuffer(value) ? value : Buffer.from(value, 'utf8'));
-                new Attribute({ type, values: buffers }).write(writer);
+                new ldap.Attribute({ type, values: buffers }).write(writer);
             }
         }
         writer.endSequence();

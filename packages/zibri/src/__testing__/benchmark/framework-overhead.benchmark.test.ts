@@ -22,8 +22,8 @@ import { Param } from '../../routing/decorators/param.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
-import { testFileFolder } from '../constants';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -95,11 +95,11 @@ let items: Repository<BenchmarkItem>;
 beforeAll(async () => {
     server = await startTestServer({
         controllers: [BenchmarkController],
-        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, BenchmarkItem] })]
+        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, BenchmarkItem], repositories: defaultTestServerRepositories })]
     });
     baseUrl = await server.start();
     items = inject(repositoryTokenFor(BenchmarkItem));
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

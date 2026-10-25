@@ -9,6 +9,7 @@ import { isProviderTokenAuthenticator, ProviderTokenAuthenticatorInterface } fro
 import { ProviderToken } from '../../authenticators/provider-token.model';
 import { type DpopServiceInterface } from '../../dpop/dpop-service.interface';
 import { BaseUser } from '../../models/base-user.model';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
@@ -87,6 +88,13 @@ export class ProviderTokenAuthStrategy<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveAuthenticatedAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         return (await this.findRequestToken(context))?.authenticatedAt;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveProviderAuthentication(
+        context: HttpRequestContext | WebsocketRequestContext
+    ): Promise<ProviderAuthentication | undefined> {
+        return (await this.findRequestToken(context))?.providerAuthentication;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from '@jest/globals';
 
+import { testFileFolder } from '../__testing__/constants';
 import { JsonUtilities } from '../utilities/json.utilities';
 
 /**
@@ -91,7 +92,11 @@ type WorkspaceManifest = {
     /**
      * What a consumer brings.
      */
-    peerDependencies?: Record<string, string>
+    peerDependencies?: Record<string, string>,
+    /**
+     * The npm scripts it is built and tested with.
+     */
+    scripts?: Record<string, string>
 };
 
 /**
@@ -107,6 +112,50 @@ function workspaceManifests(): Record<string, WorkspaceManifest> {
         }
     }
     return result;
+}
+
+/**
+ * The jest runs one of the framework's npm scripts ends in, following `npm run` through the scripts it calls.
+ * @param script - The script's name in the framework's `package.json`.
+ * @returns The `--testPathPatterns` of each jest run, or undefined for a run that takes every test file.
+ */
+function resolveJestPatternsRunBy(script: string): (RegExp | undefined)[] {
+    const command: string | undefined = workspaceManifests()['zibri']?.scripts?.[script];
+    assert(command != undefined, `the framework has no script "${script}"`);
+    return command
+        .split('&&')
+        .map(part => part.trim())
+        .flatMap(part => {
+            const called: string | undefined = /^npm run ([\w:-]+)/.exec(part)?.[1];
+            if (called != undefined) {
+                return resolveJestPatternsRunBy(called);
+            }
+            if (!part.startsWith('jest')) {
+                return [];
+            }
+            const pattern: string | undefined = /--testPathPatterns='([^']*)'/.exec(part)?.[1];
+            assert(pattern != undefined || !part.includes('--testPathPatterns'), `cannot read the pattern of "${part}"`);
+            return [pattern == undefined ? undefined : new RegExp(pattern)];
+        });
+}
+
+/**
+ * Every test file of the framework, as jest finds them.
+ * @param dir - The directory to look in, the framework's sources by default.
+ * @returns Their absolute paths.
+ */
+function frameworkTestFiles(dir: string = path.join(packagesDir, 'zibri', 'src')): string[] {
+    // not into the folder the suites write to: the ones running beside this one create and delete
+    // directories there, and a walk that lists one before it is deleted fails reading it
+    return readdirSync(dir, { withFileTypes: true })
+        .map(entry => ({ entry, entryPath: path.join(dir, entry.name) }))
+        .filter(({ entryPath }) => entryPath !== testFileFolder)
+        .flatMap(({ entry, entryPath }) => {
+            if (entry.isDirectory()) {
+                return frameworkTestFiles(entryPath);
+            }
+            return entry.name.endsWith('.test.ts') ? [entryPath] : [];
+        });
 }
 
 /**
@@ -287,6 +336,20 @@ describe('the ci workflows', () => {
         expect(workflow('dependency-review.yml')).toContain('pull_request:');
         expect(workflow('dependency-review.yml')).toContain('.github/license-policy.json');
     });
+
+    it('runs every test file of the framework', () => {
+        const patterns: (RegExp | undefined)[] = [...workflow('ci.yml').matchAll(/npm run (\S+) -w zibri$/gm)]
+            .flatMap(m => m[1] == undefined ? [] : resolveJestPatternsRunBy(m[1]));
+        const notRun: string[] = frameworkTestFiles()
+            .filter(file => !patterns.some(pattern => pattern == undefined || pattern.test(file)))
+            .map(file => path.relative(packagesDir, file));
+
+        // the cluster and evaluation suites are where coordination across replicas, the schema lock
+        // and the lease fold are held (round-2 07 §T1). A suite that only runs when somebody types its
+        // script lets a change that breaks one of them through the build
+        expect(patterns.length).toBeGreaterThan(0);
+        expect(notRun).toStrictEqual([]);
+    });
 });
 
 describe('the tree a consumer installs', () => {
@@ -369,6 +432,29 @@ describe('the tree a consumer installs', () => {
         expect(res.violations).toStrictEqual(['png-js@1.2.0 (no license declared)']);
     });
 
+    it('allows a license for the package it is allowed for, at every version, and for no other', () => {
+        const policy: Record<string, unknown> = {
+            allowed: ['MIT'],
+            exceptions: {},
+            allowedFor: { 'caniuse-lite': { licenses: ['CC-BY-4.0'] } }
+        };
+        const tree: Record<string, string>[] = [
+            { name: 'caniuse-lite', version: '1.0.30001810', license: 'CC-BY-4.0' },
+            { name: 'caniuse-lite', version: '1.0.30001900', license: 'CC-BY-4.0' },
+            { name: 'caniuse-lite', version: '2.0.0', license: 'GPL-3.0' },
+            { name: 'browser-data', version: '1.0.0', license: 'CC-BY-4.0' }
+        ];
+        const res: { violations: string[] } = inResolverProcess(`
+            const { findLicenseViolations } = await import('${pathToFileURL(consumerTreePath).href}');
+            console.log(JSON.stringify({ violations: findLicenseViolations(${JsonUtilities.stringify(tree)}, ${JsonUtilities.stringify(policy)}) }));
+        `);
+
+        // CC-BY-4.0 forbids passing the material on under terms that restrict its use further, which
+        // MIT does not: allowed for everything, it would reach whatever an application ships. caniuse-lite
+        // is read at build time and never shipped, so it is allowed there, at every version it releases
+        expect(res.violations).toStrictEqual(['caniuse-lite@2.0.0 (GPL-3.0)', 'browser-data@1.0.0 (CC-BY-4.0)']);
+    });
+
     it('fails on a high or critical advisory, and not on a lesser one', () => {
         const answered: Record<string, Record<string, string>[]> = {
             minimist: [
@@ -409,11 +495,17 @@ describe('the tree a consumer installs', () => {
     });
 
     it('names the licenses it allows where a reader looks for them', () => {
-        const policy: { allowed: string[] } = JsonUtilities.parse(readFileSync(path.join(repoRoot, '.github', 'license-policy.json'), 'utf8'));
+        const policy: { allowed: string[], allowedFor: Record<string, { licenses: string[] }> } = JsonUtilities.parse(
+            readFileSync(path.join(repoRoot, '.github', 'license-policy.json'), 'utf8')
+        );
         const deployment: string = readFileSync(path.join(packagesDir, 'zibri', 'docs', 'deployment.md'), 'utf8');
         const section: string = deployment.slice(deployment.indexOf('## What the application is made of'), deployment.indexOf('## Running more than one instance'));
 
         expect(policy.allowed.filter(license => !section.includes(license))).toStrictEqual([]);
+        // a license allowed for one package is one a reader has to be told about by that package's name
+        const allowedFor: string[] = Object.entries(policy.allowedFor)
+            .flatMap(([name, { licenses }]) => licenses.map(license => `\`${name}\` (${license})`));
+        expect(allowedFor.filter(entry => !section.includes(entry))).toStrictEqual([]);
     });
 });
 
@@ -554,7 +646,7 @@ describe('the release workflow', () => {
             path.join(packagesDir, 'cli', 'src', 'commands', 'new', 'new.command.ts'),
             'utf8'
         );
-        const installedByVersion: string[] = [...generator.matchAll(/`(zibri[\w-]*)@\${version}`/g)]
+        const installedByVersion: string[] = [...generator.matchAll(/resolveFrameworkDependency\('[\w-]+', '(zibri[\w-]*)'\)/g)]
             .map(m => m[1])
             .filter(name => name != undefined);
 

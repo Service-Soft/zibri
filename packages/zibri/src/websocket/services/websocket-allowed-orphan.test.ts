@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, it } from '@jest/globals';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { WebsocketController } from '../decorators/websocket-controller.decorator';
 import { WebsocketRoute } from '../decorators/websocket-route.decorator';
@@ -17,11 +18,11 @@ describe('WebsocketService — allowOrphan bypasses the orphan check', () => {
 
     beforeAll(async () => {
         server = await startTestServer({ websocketControllers: [] });
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('starts successfully despite the controller not being passed in', () => {
         void AllowedOrphanWebsocketController;

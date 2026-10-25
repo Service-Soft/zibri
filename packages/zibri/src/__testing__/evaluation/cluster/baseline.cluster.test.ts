@@ -23,7 +23,7 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'baseline.instance-options.ts'),
         instances: 2
     });
-}, 15000);
+}, 30000);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError

@@ -93,6 +93,23 @@ class ClusterThreadJobController {
     }
 
     /**
+     * Waits for a job to end, wherever it runs.
+     * @param id - The job to wait for.
+     * @returns Its status, the id of the instance that ran it, and how many milliseconds after it
+     * stopped this instance heard of it, as `status:result:lag`.
+     */
+    @Get('/wait/:id')
+    async wait(
+        @Param.path('id')
+        id: string
+    ): Promise<string> {
+        const multithreadingService: MultithreadingServiceInterface = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
+        const job: ThreadJobEntity<ThreadJobClusterWorkerData, string> = await multithreadingService
+            .waitForThreadJob<string, ThreadJobClusterWorkerData>(id);
+        return `${job.status}:${job.result ?? ''}:${Date.now() - (job.stoppedAtMs ?? Date.now())}`;
+    }
+
+    /**
      * Reads what a job's row currently says.
      * @param id - The job to read.
      * @returns Its status and, once it has one, the id of the instance that ran it - or why it failed.

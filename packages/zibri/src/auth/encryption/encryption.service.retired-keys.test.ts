@@ -12,8 +12,8 @@ import { EncryptionServiceInterface } from './encryption-service.interface';
 import { EncryptionString } from './encryption.utilities';
 import { RetiredKeyUsage } from './retired-key-usage.model';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
-import { testFileFolder } from '../../__testing__/constants';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BackupEntity } from '../../backup/backup-entity.model';
@@ -78,9 +78,9 @@ describe('EncryptionService — what is still under a retired key', () => {
     beforeAll(async () => {
         await FsUtilities.rm(backupFolder);
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, BackupEntity, BackupResourceEntity] })]
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, BackupEntity, BackupResourceEntity], repositories: defaultTestServerRepositories })]
         });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

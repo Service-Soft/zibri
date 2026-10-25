@@ -1,6 +1,8 @@
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { ExecResult, GenericContainer, StartedTestContainer } from 'testcontainers';
-import { DataSourceInterface, inject, Newable, OmitStrict, PostgresDataSource, PostgresOptions, ValKeyDataSource, ValKeyOptions } from 'zibri';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { ExecResult, StartedTestContainer } from 'testcontainers';
+import { DataSourceInterface, DiContainer, inject, Newable, OmitStrict, optionalPeer, PostgresDataSource, PostgresOptions, ValKeyDataSource, ValKeyOptions } from 'zibri';
+
+import { settleAfterFailure } from './settle-after-failure.function';
 
 /**
  * The postgres image every container backed test runs against.
@@ -24,6 +26,19 @@ export const VALKEY_TEST_IMAGE: string = 'valkey/valkey:8-alpine';
  * The port valkey listens on inside its container.
  */
 export const VALKEY_PORT: number = 6379;
+
+/**
+ * The label naming the process that started a container, by its pid.
+ *
+ * The session label testcontainers sets is shared by every process of a run, so it cannot say which
+ * suite a container still running belongs to; this one narrows it to the worker that started it.
+ */
+export const CONTAINER_PROCESS_LABEL: string = 'zibri-testing.process';
+
+/**
+ * What the container packages are needed for, as a missing one names it.
+ */
+const CONTAINERS_FEATURE: string = 'Starting a container for a data source';
 
 /**
  * Any data source a test harness knows how to start a container for.
@@ -59,6 +74,19 @@ export type StartedDataSourceContainer = {
  */
 export function needsContainer(dataSource: DataSourceInterface): dataSource is TestDataSource {
     return dataSource instanceof PostgresDataSource || dataSource instanceof ValKeyDataSource;
+}
+
+/**
+ * Builds the given data sources ahead of the application's initialization, awaiting whatever
+ * asynchronous provider they read - a password from a vault, say. `inject` hands them out from then on.
+ * @param dataSourceClasses - The data source classes to build.
+ */
+export async function buildDataSources(dataSourceClasses: Newable<DataSourceInterface>[]): Promise<void> {
+    // one after the other: an asynchronous provider is awaited once, and two builds running at once
+    // could both find it not awaited yet
+    for (const dataSourceClass of dataSourceClasses) {
+        await DiContainer.getInstance().injectAsync(dataSourceClass);
+    }
 }
 
 /**
@@ -175,31 +203,66 @@ function quoteLiteral(value: string): string {
 export async function startDataSourceContainers(
     dataSourceClasses: Newable<DataSourceInterface>[]
 ): Promise<StartedDataSourceContainer[]> {
-    const started: (StartedDataSourceContainer | undefined)[] = await Promise.all(
+    // settled rather than all: a start that fails leaves the others still starting, and once the
+    // error is thrown nothing holds them to stop - they run until the process ends, and the docker
+    // calls they still wait on land after the suite is gone
+    await buildDataSources(dataSourceClasses);
+    const settled: PromiseSettledResult<StartedDataSourceContainer | undefined>[] = await Promise.allSettled(
         dataSourceClasses.map(async dataSourceClass => {
             const dataSource: DataSourceInterface = inject(dataSourceClass);
             if (!needsContainer(dataSource)) {
                 return undefined;
             }
 
+            // loaded here rather than imported, because both are optional peers: a project testing
+            // against an in-memory data source installs neither, and loads this module all the same
             if (dataSource instanceof ValKeyDataSource) {
+                const { GenericContainer } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
                 const valKeyContainer: StartedTestContainer = await new GenericContainer(VALKEY_TEST_IMAGE)
                     .withExposedPorts(VALKEY_PORT)
+                    .withLabels(processLabels())
                     .start();
                 const port: number = valKeyContainer.getMappedPort(VALKEY_PORT);
                 applyContainerPort(dataSource, port);
                 return { dataSourceClass, container: valKeyContainer, port };
             }
 
+            const { PostgreSqlContainer } = optionalPeer<typeof import('@testcontainers/postgresql')>(
+                '@testcontainers/postgresql',
+                CONTAINERS_FEATURE
+            );
             const container: StartedPostgreSqlContainer = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
                 .withDatabase('postgres')
                 .withUsername(POSTGRES_PROVISIONING_USER)
+                .withLabels(processLabels())
                 .start();
-            await provisionApplicationRole(container, dataSource);
+            try {
+                await provisionApplicationRole(container, dataSource);
+            }
+            catch (error) {
+                await settleAfterFailure('stop a container', [container.stop()]);
+                throw error;
+            }
             const port: number = container.getMappedPort(5432);
             applyContainerPort(dataSource, port);
             return { dataSourceClass, container, port };
         })
     );
-    return started.filter(c => c != undefined);
+
+    const started: StartedDataSourceContainer[] = settled
+        .flatMap(s => s.status === 'fulfilled' && s.value != undefined ? [s.value] : []);
+    const failed: PromiseRejectedResult | undefined = settled.find(s => s.status === 'rejected');
+    if (failed != undefined) {
+        await settleAfterFailure('stop a container', started.map(s => s.container.stop()));
+        throw failed.reason;
+    }
+    return started;
+}
+
+/**
+ * The labels every container the harness starts carries.
+ * @returns The labels.
+ */
+function processLabels(): Record<string, string> {
+    return { [CONTAINER_PROCESS_LABEL]: String(process.pid) };
 }

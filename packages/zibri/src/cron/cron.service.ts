@@ -1,9 +1,10 @@
 import { CronExpressionString } from './cron-expression.utilities';
-import { CronJobEntity } from './cron-job-entity.model';
+import { CreateCronJobEntityData, CronJobEntity } from './cron-job-entity.model';
 import { CronJob } from './cron-job.model';
 import { CronServiceInterface } from './cron-service.interface';
 import { CronSyncCronJob } from './cron-sync.cron-job';
 import { ZibriApplication } from '../application/application';
+import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -19,6 +20,7 @@ import { BeforeAppShutdown } from '../global/before-app-shutdown.interface';
 import { type LeaseServiceInterface } from '../leases/lease-service.interface';
 import { $ts } from '../localization/translate.function';
 import { type LoggerInterface } from '../logging/logger.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
 import { OmitStrict } from '../types/omit-strict.type';
 import { Ms } from '../utilities/ms';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
@@ -29,7 +31,8 @@ import { validateEntitiesRegistered } from '../utilities/validate-entities-regis
 export type CronUpdateData = Partial<
     OmitStrict<
         CronJobEntity,
-        'id' | 'source' | 'cron' | 'state' | 'previousState' | 'errorMessage' | 'lastRun' | 'consecutiveFailures' | 'backedOffUntil'
+        'id' | 'source' | 'cron' | 'declaredCron' | 'declaredActive' | 'state' | 'previousState' | 'errorMessage' | 'lastRun'
+        | 'consecutiveFailures' | 'backedOffUntil'
     >
 >;
 
@@ -98,7 +101,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
                     await cronJob.init(
                         this.logger,
                         inject(repositoryTokenFor(CronJobEntity)),
-                        (key: string, ttlMs: number) => this.shouldRunExecution(key, ttlMs)
+                        (key: string, ttlMs: number, run: () => Promise<void>) => this.runExecution(key, ttlMs, run)
                     );
                     const state: string = cronJob.state.toLowerCase().replaceAll('_', ' ');
                     const scope: string = cronJob.distributed ? '' : ', per instance';
@@ -128,9 +131,9 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
      * is a job with nothing outstanding and this finds nothing. Only jobs that asked for it take part
      * at all - see {@link CronJobEntity.catchUpWithinMs}.
      *
-     * The claim uses the key that slot's own execution would have used, so a make-up run and a real
-     * one are the same event as far as the deployment is concerned: if any instance did run it, the
-     * key is taken and nothing happens here.
+     * The make-up run is the slot's own execution as far as the deployment is concerned: it is run
+     * under the slot's key, so if any instance ran it, or is still running it, the key is held and
+     * nothing happens here.
      * @param cronJob - The job to check.
      */
     private async catchUpMissedRun(cronJob: CronJob): Promise<void> {
@@ -148,16 +151,8 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
             return;
         }
 
-        const claimed: boolean = await this.shouldRunExecution(
-            `${cronJob.name}:${missed.toISOString()}`,
-            inject(ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS)
-        );
-        if (!claimed) {
-            return;
-        }
-
         this.logger.info(`catching up cron job "${cronJob.name}", missed at ${missed.toISOString()}`);
-        await cronJob.runOnTick();
+        await cronJob.runOnTick(missed);
     }
 
     /**
@@ -200,22 +195,26 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async shouldRunExecution(key: string, ttlMs: number): Promise<boolean> {
-        // 'retain', because the grant is not only an exclusion but the record that this tick has
-        // been dealt with. Handing it back at the end of the election would let a replica arriving
-        // a moment later win the same key and run the job a second time.
+    async runExecution(key: string, ttlMs: number, run: () => Promise<void>): Promise<boolean> {
+        // the run inside the grant, which is renewed underneath it for as long as it lasts: an
+        // instance booting while a nightly job is in its twentieth minute finds the slot held, and
+        // does not catch it up beside the run. The lease length therefore only decides how long an
+        // execution whose instance died waits before another takes it over.
         //
-        // Nothing renews it: node-cron owns the job body and only asks who should run, so there is
-        // no work here to renew across. CRON_EXECUTION_LEASE_IN_MS is therefore the one place in
-        // the framework where the lease really does have to outlast the work.
-        const claimed: boolean | undefined = await this.leaseService.withLease(
+        // 'retain', because the grant is not only an exclusion but the record that this tick has
+        // been dealt with. Handing it back at the end of the run would let a replica arriving a
+        // moment later win the same key and run the job a second time.
+        const ran: boolean | undefined = await this.leaseService.withLease(
             { key: `cron:${key}`, leaseInMs: ttlMs, mode: 'skip', onCompletion: 'retain' },
-            () => Promise.resolve(true)
+            async () => {
+                await run();
+                return true;
+            }
         );
 
         // undefined means another instance holds this execution, which is the expected outcome on
         // every instance but one and not worth a log line
-        return claimed ?? false;
+        return ran ?? false;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -228,7 +227,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         await cronJob.init(
             this.logger,
             inject(repositoryTokenFor(CronJobEntity)),
-            (key: string, ttlMs: number) => this.shouldRunExecution(key, ttlMs)
+            (key: string, ttlMs: number, run: () => Promise<void>) => this.runExecution(key, ttlMs, run)
         );
         this.cronJobs.push(cronJob);
         // the two steps run together here, unlike at boot: this is called by an application that is
@@ -267,6 +266,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
             throw new CronJobWithNameNotFoundError(name);
         }
         await foundJob.enable();
+        await this.wakeOtherInstances();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -276,6 +276,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
             throw new CronJobWithNameNotFoundError(name);
         }
         await foundJob.disable();
+        await this.wakeOtherInstances();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -285,6 +286,16 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
             throw new CronJobWithNameNotFoundError(name);
         }
         await foundJob.changeCron(cron);
+        await this.wakeOtherInstances();
+    }
+
+    /**
+     * Has the other instances apply a change to the stored jobs at their next sync, however long
+     * their syncs found nothing.
+     */
+    private async wakeOtherInstances(): Promise<void> {
+        const repository: Repository<CronJobEntity, CreateCronJobEntityData> = inject(repositoryTokenFor(CronJobEntity));
+        await inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE).wake(repository.dataSource, WAKE_UP_TOPICS.CRON_JOBS);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -303,5 +314,6 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
             ]);
         }
         await foundJob.update(data);
+        await this.wakeOtherInstances();
     }
 }

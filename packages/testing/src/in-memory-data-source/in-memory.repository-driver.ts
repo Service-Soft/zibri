@@ -1,4 +1,4 @@
-import { BaseEntity, CheckConstraintViolationError, coversEveryRow, DeepPartial, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, KeyWhere, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderComparator, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator, WriteDataUtilities } from 'zibri';
+import { AggregateRow, AggregateUtilities, BaseEntity, CheckConstraintViolationError, coversEveryRow, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, KeyWhere, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderComparator, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelatedNarrowing, RelatedNarrowingUtilities, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, ScopedWhere, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator, WriteDataUtilities } from 'zibri';
 
 import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -75,7 +75,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             throw new EntityMetadataMissingError(entityClass);
         }
         this.tableName = metadata.tableName;
-        this.checks = metadata.checks ?? [];
+        this.checks = (metadata.checks ?? []).map(check => check.where);
         this.properties = MetadataUtilities.getModelProperties(entityClass);
         this.uniqueGroups = this.resolveUniqueGroups();
     }
@@ -244,7 +244,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         if (!options.where) {
             return scope.ids(this.tableName).length;
         }
-        return this.findRows({ where: options.where }, scope).length;
+        return this.findRows({ where: options.where, related: options.related }, scope).length;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async aggregate(options: DriverAggregateOptions<T>): Promise<AggregateRow[]> {
+        const rows: T[] = this.findRows({ where: options.where, related: options.related }, this.scope(options.transaction));
+        return AggregateUtilities.resolveRows(rows, options.fn, options.property, options.groupBy);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -266,13 +272,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     async updateAll<R extends boolean = false>(
         options: DriverUpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
-        const { where, data, transaction, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
+        const { where, data, increments, transaction, related, returnUpdated }: DriverUpdateAllOptions<T, R> = options;
         const scope: InMemoryScope = this.scope(transaction);
 
         // no grant per row, and no second read once they are held, unlike the valkey driver. Both
         // exist there to close the window between reading which rows match and writing them, and
         // there is no such window here: nothing is awaited between the two.
-        const matched: T[] = this.findRows({ where }, scope);
+        const matched: T[] = this.findRows({ where, related }, scope);
         if (!matched.length) {
             return (returnUpdated === true ? [] : 0) as R extends true ? T[] : number;
         }
@@ -283,7 +289,10 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         // { status: 'SENT' }) being the obvious case - and re-running it then returns the rows that
         // were *not* touched
         const updated: T[] = this.persist(
-            matched.map(m => ({ ...WriteDataUtilities.resolveMerged(data, m, this.entityClass), id: m.id })),
+            matched.map(m => ({
+                ...WriteDataUtilities.resolveIncremented(WriteDataUtilities.resolveMerged(data, m, this.entityClass), m, increments),
+                id: m.id
+            })),
             scope,
             returnUpdated === true
         );
@@ -291,10 +300,15 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
-    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+    async updateEach(
+        rows: DeepPartial<T>[],
+        where: Where<T>,
+        transaction: Transaction | undefined,
+        related?: RelatedNarrowing
+    ): Promise<T[]> {
         const scope: InMemoryScope = this.scope(transaction);
         // nothing is awaited between finding the rows and writing them, as in updateAll
-        const matched: Map<string, T> = new Map(this.findRows({ where }, scope).map(m => [String(m.id), m]));
+        const matched: Map<string, T> = new Map(this.findRows({ where, related }, scope).map(m => [String(m.id), m]));
         return this.persist(
             rows.flatMap(r => {
                 const stored: T | undefined = matched.get(String(r.id));
@@ -310,14 +324,15 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         identity: string[],
         rows: UpsertRow<T>[],
         transaction: Transaction | undefined,
-        reachable: Where<T> | undefined
+        reachable: Where<T> | undefined,
+        related?: RelatedNarrowing
     ): Promise<T[]> {
         const scope: InMemoryScope = this.scope(transaction);
         // read once for every row rather than once per row: nothing is written until every row has
         // been judged, so the answer cannot change in between
         const reachableIds: Set<string> | undefined = reachable == undefined
             ? undefined
-            : new Set(this.findRows({ where: reachable }, scope).map(r => r.id));
+            : new Set(this.findRows({ where: reachable, related }, scope).map(r => r.id));
 
         // every row is judged before any is written, so a refused one leaves nothing behind even
         // when the caller passed no transaction to roll back
@@ -338,7 +353,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             }
             // the row's own condition is judged the way `reachable` is, against the row as it is now
             const meetsCondition: boolean = row.where == undefined
-                || this.findRows({ where: row.where }, scope).some(r => r.id === found.id);
+                || this.findRows({ where: row.where, related }, scope).some(r => r.id === found.id);
             if ((reachableIds != undefined && !reachableIds.has(found.id)) || !meetsCondition) {
                 const group: UniqueGroup = UpsertIdentityUtilities.resolveUniqueGroup(this.entityClass, identity);
                 throw new UniqueConstraintViolationError(this.entityClass.name, group.properties);
@@ -705,7 +720,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                 continue;
             }
             const entity: T = this.fromFields(row);
-            this.resolveRelations(entity, relationsById?.get(id) ?? requested, scope);
+            this.resolveRelations(entity, relationsById?.get(id) ?? requested, scope, options.related);
             res.push(entity);
         }
         return res;
@@ -737,19 +752,20 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param entity - The entity to resolve them on.
      * @param relations - The property keys to resolve.
      * @param scope - What to read through.
+     * @param related - What the rows each relation reaches are narrowed to.
      */
-    private resolveRelations(entity: T, relations: RelationTree, scope: InMemoryScope): void {
+    private resolveRelations(entity: T, relations: RelationTree, scope: InMemoryScope, related: RelatedNarrowing | undefined): void {
         for (const [key, below] of relations) {
             const metadata: PropertyMetadata | undefined = this.properties[key];
             if (metadata == undefined || !this.isRelation(metadata)) {
                 continue;
             }
-            (entity as Record<string, unknown>)[key] = this.resolveRelation(entity, key, metadata, below, scope);
+            (entity as Record<string, unknown>)[key] = this.resolveRelation(entity, key, metadata, below, scope, related);
         }
     }
 
     /**
-     * Reads the other side of one relation.
+     * Reads the other side of one relation: the rows the caller may see of it.
      *
      * The related entities are loaded with the relations named below this one and no others, so a
      * circular declaration stops where the request does rather than recursing forever.
@@ -758,6 +774,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param metadata - The metadata of the relation.
      * @param below - The relations to resolve on the entities this one reads.
      * @param scope - What to read through.
+     * @param related - What the rows each relation reaches are narrowed to.
      * @returns The related entity, the related entities, or undefined.
      */
     private resolveRelation(
@@ -765,10 +782,12 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
         key: string,
         metadata: RelationMetadata<BaseEntity>,
         below: RelationTree,
-        scope: InMemoryScope
+        scope: InMemoryScope,
+        related: RelatedNarrowing | undefined
     ): unknown {
         const targetClass: Newable<BaseEntity> = metadata.target();
         const targetDriver: InMemoryRepositoryDriver<BaseEntity> = new InMemoryRepositoryDriver(targetClass, this.store);
+        const options: DriverFindOptions<BaseEntity> = { relations: below, related };
 
         switch (metadata.type) {
             case Relation.MANY_TO_ONE:
@@ -778,22 +797,53 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
                     return undefined;
                 }
                 // eslint-disable-next-line typescript/no-base-to-string
-                return targetDriver.loadRows([String(foreignKey)], { relations: below }, scope).at(0);
+                return targetDriver.narrowedRows([String(foreignKey)], options, scope).at(0);
             }
             case Relation.ONE_TO_MANY:
             case Relation.HAS_ONE: {
                 const foreignKeyColumn: string = this.requireInverseJoinColumn(metadata, key);
-                const targets: BaseEntity[] = targetDriver.findRows(
-                    { where: { [foreignKeyColumn]: entity.id } as never, relations: below },
-                    scope
+                const narrowed: ScopedWhere<BaseEntity> = RelatedNarrowingUtilities.narrow(
+                    { [foreignKeyColumn]: entity.id } as Where<BaseEntity>,
+                    targetClass,
+                    related
                 );
+                const targets: BaseEntity[] = narrowed.matchesNothing
+                    ? []
+                    : targetDriver.findRows({ ...options, where: narrowed.where }, scope);
                 return metadata.type === Relation.HAS_ONE ? targets.at(0) : targets;
             }
             case Relation.MANY_TO_MANY: {
                 const ids: string[] = [...scope.readJoin(this.joinKey(entity.id, key))];
-                return targetDriver.loadRows(ids, { relations: below }, scope);
+                return targetDriver.narrowedRows(ids, options, scope);
             }
         }
+    }
+
+    /**
+     * Loads the rows with the given ids that the caller may see, in the order of the ids.
+     *
+     * Read by id when nothing narrows them, and found by a filter naming the ids otherwise, so that
+     * a narrowing reaching through a relation has the relations it judges resolved.
+     * @param ids - The ids to load.
+     * @param options - The find options, naming the relations to resolve and the narrowing.
+     * @param scope - What to read through.
+     * @returns The rows, skipping ids the table no longer holds and rows the caller may not see.
+     */
+    private narrowedRows(ids: string[], options: DriverFindOptions<T>, scope: InMemoryScope): T[] {
+        if (options.related?.get(this.entityClass) == undefined) {
+            return this.loadRows(ids, options, scope);
+        }
+        const narrowed: ScopedWhere<T> = RelatedNarrowingUtilities.narrow(
+            { id: { oneOf: ids } } as Where<T>,
+            this.entityClass,
+            options.related
+        );
+        if (narrowed.matchesNothing) {
+            return [];
+        }
+        const found: T[] = this.findRows({ ...options, where: narrowed.where }, scope);
+        const byId: Map<string, T> = new Map(found.map(row => [String(row.id), row]));
+        return ids.flatMap(id => byId.get(id) ?? []);
     }
 
     /**
@@ -1180,16 +1230,13 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
      * @param metadata - The metadata of the relation.
      * @param key - The property key, for the error message.
      * @returns The name of the join column.
-     * @throws When the relation does not declare one.
+     * @throws When the relation holds no foreign key of its own.
      */
     private resolveJoinColumn(metadata: RelationMetadata<BaseEntity>, key: string): string {
-        if (
-            (metadata.type === Relation.MANY_TO_ONE || metadata.type === Relation.BELONGS_TO_ONE)
-            && metadata.joinColumn != undefined
-        ) {
+        if (metadata.type === Relation.MANY_TO_ONE || metadata.type === Relation.BELONGS_TO_ONE) {
             return metadata.joinColumn;
         }
-        throw new InternalError(`The relation "${this.entityClass.name}.${key}" needs to have "joinColumn" set.`);
+        throw new InternalError(`The relation "${this.entityClass.name}.${key}" holds no foreign key of its own.`);
     }
 
     /**

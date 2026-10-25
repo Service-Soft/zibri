@@ -26,6 +26,7 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
+import { TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
 import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -100,8 +101,8 @@ class Evaluation2faController {
 }
 
 /**
- * Routes guarded by nothing but a login and a role, so what an access token is still worth can be
- * observed after the account behind it changes.
+ * Routes guarded by nothing but a login and what a role carries, so what an access token is still
+ * worth can be observed after the account behind it changes.
  */
 @Controller('/evaluation-revocation')
 class EvaluationRevocationController {
@@ -112,7 +113,7 @@ class EvaluationRevocationController {
     }
 
     @Get('/admin')
-    @Auth.hasPlatformRole([Roles.ADMIN])
+    @Auth.hasPlatformPermission(TestPlatformPermissions.ADMIN)
     admin(): { ok: boolean } {
         return { ok: true };
     }
@@ -133,7 +134,7 @@ const API_KEY_HEADER: string = 'x-evaluation-api-key';
  * The api key is the user's id, which is not a scheme anybody should copy. It keeps the fixture to
  * the one thing being observed: two credentials in one request.
  */
-class ApiKeyAuthStrategy implements AuthStrategyInterface<Roles, JwtUser> {
+class ApiKeyAuthStrategy implements AuthStrategyInterface<string, JwtUser> {
 
     readonly name: string = 'api-key';
 
@@ -301,8 +302,11 @@ describe('evaluation/03-auth-and-security B2 - refresh token rotation must be at
         const first: Response = await refreshLogin(refreshToken.value);
         expect(first.status).toBe(200);
 
-        const replayed: Response = await refreshLogin(refreshToken.value);
-        expect(replayed.status).toBeGreaterThanOrEqual(400);
+        // within the reuse grace a replayed token is a second tab, and gets a token of its own; what
+        // rotation guarantees is that the login carries on with a new token, see
+        // ../../auth/strategies/jwt/jwt.auth-strategy.reuse-grace.test.ts for the grace itself
+        const rotated: TokenResponseBody = await first.json() as TokenResponseBody;
+        expect(rotated.refreshToken.value).not.toBe(refreshToken.value);
     });
 
     it('leaves one usable refresh token when the same one is presented twice at once', async () => {
@@ -354,7 +358,12 @@ describe('evaluation/03-auth-and-security G2 - a refusal must not describe the a
     it('answers every refused refresh token with the same message, whatever state it is in', async () => {
         const { refreshToken }: TokenResponseBody = await login();
         expect((await refreshLogin(refreshToken.value)).status).toBe(200);
-        // spent: the rotation above blacklisted it, and presenting it again destroys the family
+        // spent: the rotation above blacklisted it. Replayed within the reuse grace it is a second
+        // tab of the same login; past the grace, presenting it again destroys the family
+        const spent: JwtRefreshToken[] = await refreshTokenRepository.findAll({
+            where: { userId: user.id, blacklisted: true }
+        });
+        await Promise.all(spent.map(async t => await refreshTokenRepository.updateById(t.id, { replacedAt: new Date(0) })));
         const reused: string = await messageOf(await refreshLogin(refreshToken.value));
 
         const second: TokenResponseBody = await login();

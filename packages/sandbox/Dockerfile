@@ -23,15 +23,15 @@ WORKDIR /app
 # development machine wants and a deployment pays for
 ENV NODE_ENV=production
 
-COPY --from=build --chown=node:node /app/package.json ./package.json
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
 
 # the bundle carries everything read from inside it: the assets, the compiled templates and
 # the translations. "versions" is the one thing read from beside it, because the application
 # writes to it and the next release is checked against what this one recorded. An image
 # without it does not start, which is the point: an application that quietly treated the
 # version it is on as the first one that ever existed would drop every guarantee it gives.
-COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build /app/dist ./dist
 COPY --chown=node:node versions ./versions
 
 # the two paths written while the application runs, owned by the user that runs it. Nothing

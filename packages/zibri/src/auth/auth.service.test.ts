@@ -3,15 +3,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@je
 import { AuthServiceInterface } from './auth-service.interface';
 import { LinkedIdentity } from './authenticators/linked-identity.model';
 import { Auth } from './decorators/auth.decorator';
-import { HasRoleMetadata } from './models/has-role-metadata.model';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
 import { PasswordResetToken, PasswordResetTokenCreateData } from './models/password-reset-token.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
 import { AuthStrategies } from './strategies/auth-strategies.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestPermissions, TestPlatformPermissions } from '../__testing__/mocks/entities/test-permissions.model';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../__testing__/test-server/membership-repository';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository';
@@ -39,7 +43,7 @@ import { JwtAuthData } from './strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
 // a provider, for the types of linking an identity only: nothing here signs in through it
-class TypedAuthenticator extends BaseGoogleAuthenticator<Roles, JwtUser> {
+class TypedAuthenticator extends BaseGoogleAuthenticator<string, JwtUser> {
     readonly clientId: string = 'client';
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: 'secret' };
@@ -56,7 +60,7 @@ class DummyController {
     loginRequired(): void {}
 
     @Get('/admin-only')
-    @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
+    @Auth.hasPermission(TestPermissions.MEMBER_ADMIN, [JwtAuthStrategy])
     adminOnly(): void {}
 
     @Get('/2fa-required')
@@ -101,15 +105,15 @@ class RouteConflictController {
     @Auth.isNotLoggedIn.skip()
     isNotLoggedInAndIsNotLoggedInSkip(): void {}
 
-    @Get('/has-role-and-skip')
-    @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
+    @Get('/has-permission-and-skip')
+    @Auth.hasPermission(TestPermissions.MEMBER_ADMIN, [JwtAuthStrategy])
     @Auth.skip()
-    hasRoleAndSkip(): void {}
+    hasPermissionAndSkip(): void {}
 
-    @Get('/has-role-and-has-role-skip')
-    @Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
-    @Auth.hasRole.skip()
-    hasRoleAndHasRoleSkip(): void {}
+    @Get('/has-permission-and-has-permission-skip')
+    @Auth.hasPermission(TestPermissions.MEMBER_ADMIN, [JwtAuthStrategy])
+    @Auth.hasPermission.skip()
+    hasPermissionAndHasPermissionSkip(): void {}
 
     @Get('/require-2fa-and-skip')
     @Auth.require2fa({ allowedMethods: [] })
@@ -129,8 +133,8 @@ class RouteConflictController {
 @Auth.isLoggedIn.skip()
 @Auth.isNotLoggedIn([JwtAuthStrategy])
 @Auth.isNotLoggedIn.skip()
-@Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
-@Auth.hasRole.skip()
+@Auth.hasPermission(TestPermissions.MEMBER_ADMIN, [JwtAuthStrategy])
+@Auth.hasPermission.skip()
 @Auth.require2fa({ allowedMethods: [] })
 @Auth.require2fa.skip()
 @Controller('/controller-conflict', { allowOrphan: true })
@@ -145,7 +149,7 @@ class ControllerLevelConflictController {
 // and does nothing. Stacked like the controller above, for the same reason.
 @Auth.isLoggedIn([JwtAuthStrategy])
 @Auth.isNotLoggedIn([JwtAuthStrategy])
-@Auth.hasRole([Roles.ADMIN], [JwtAuthStrategy])
+@Auth.hasPermission(TestPermissions.MEMBER_ADMIN, [JwtAuthStrategy])
 @Auth.require2fa({ allowedMethods: [] })
 @Auth.skip()
 @Controller('/controller-skip-conflict', { allowOrphan: true })
@@ -188,7 +192,7 @@ function tenantService(): TenantServiceInterface {
  * @param roles - The roles they hold in it.
  * @returns The id of the tenant.
  */
-async function createMembership(userId: string, roles: Roles[]): Promise<string> {
+async function createMembership(userId: string, roles: MemberRoles[]): Promise<string> {
     const tenantId: string = UUIDUtilities.generate();
     await tenantService().runAs(tenantId, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId, roles }));
     return tenantId;
@@ -213,7 +217,7 @@ describe('AuthService contract', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createTestDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             // the three conflict controllers are deliberately not registered: a route whose
             // declaration nothing can satisfy is refused while it is being registered, so an
             // application carrying one does not boot. They are resolved directly below instead,
@@ -223,11 +227,11 @@ describe('AuthService contract', () => {
         authService = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         userRepo = inject(DefaultTestServerUserRepository);
         credentialsRepository = inject(repositoryTokenFor(PasswordCredentials));
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await userRepo.deleteAll({});
@@ -297,14 +301,15 @@ describe('AuthService contract', () => {
     describe('getCurrentUser', () => {
         it('returns the logged in user', async () => {
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            const current: JwtUser = await authService.getCurrentUser(ctx, strategies, true);
+            const current: CurrentUser<JwtUser> = await authService.getCurrentUser(ctx, strategies, true);
             expect(current.id).toBe(testAdmin.id);
             expect(current.email).toBe(adminEmail);
+            expect([...current.platformPermissions].sort()).toEqual([TestPlatformPermissions.ADMIN, TestPlatformPermissions.USER]);
         });
 
         it('required=false returns undefined without token', async () => {
             const ctx: HttpRequestContext = buildContext();
-            const current: JwtUser | undefined = await authService.getCurrentUser(ctx, strategies, false);
+            const current: CurrentUser<JwtUser> | undefined = await authService.getCurrentUser(ctx, strategies, false);
             expect(current).toBeUndefined();
         });
 
@@ -316,8 +321,8 @@ describe('AuthService contract', () => {
         });
     });
 
-    // --------- isLoggedIn / hasRole ----------
-    describe('isLoggedIn / hasRole', () => {
+    // --------- isLoggedIn / hasPermission ----------
+    describe('isLoggedIn / hasPermission', () => {
         it('isLoggedIn returns true with valid token', async () => {
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
             expect(await authService.isLoggedIn(ctx, strategies)).toBe(true);
@@ -328,48 +333,67 @@ describe('AuthService contract', () => {
             expect(await authService.isLoggedIn(ctx, strategies)).toBe(false);
         });
 
-        it('hasRole returns true if role present', async () => {
-            const tenantId: string = await createMembership(testAdmin.id, [Roles.ADMIN]);
+        it('hasPermission returns true if a role of the membership carries it', async () => {
+            const tenantId: string = await createMembership(testAdmin.id, [MemberRoles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, [Roles.ADMIN]))).toBe(true);
+            expect(await tenantService().runAs(
+                tenantId,
+                async () => await authService.hasPermission(ctx, strategies, TestPermissions.MEMBER_ADMIN)
+            )).toBe(true);
         });
 
-        it('hasRole returns false if role missing', async () => {
-            const tenantId: string = await createMembership(testAdmin.id, [Roles.ADMIN]);
+        it('hasPermission returns false if no role of the membership carries it', async () => {
+            const tenantId: string = await createMembership(testAdmin.id, [MemberRoles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, ['nonexistent']))).toBe(false);
+            expect(await tenantService().runAs(
+                tenantId,
+                async () => await authService.hasPermission(ctx, strategies, TestPermissions.MEMBER_USER)
+            )).toBe(false);
         });
 
-        it('hasRole returns false without token', async () => {
-            const tenantId: string = await createMembership(testAdmin.id, [Roles.USER]);
+        it('hasPermission returns false without token', async () => {
+            const tenantId: string = await createMembership(testAdmin.id, [MemberRoles.USER]);
             const ctx: HttpRequestContext = buildContext();
-            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, [Roles.USER]))).toBe(false);
+            expect(await tenantService().runAs(
+                tenantId,
+                async () => await authService.hasPermission(ctx, strategies, TestPermissions.MEMBER_USER)
+            )).toBe(false);
         });
 
-        it('hasRole reads the roles of the membership in the active tenant, never the user\'s own', async () => {
-            // the admin holds ADMIN of their own, and only USER in this tenant
-            const tenantId: string = await createMembership(testAdmin.id, [Roles.USER]);
+        it('hasPermission reads the roles of the membership in the active tenant, never the user\'s own', async () => {
+            // the admin holds ADMIN of their own, and only MEMBER_USER in this tenant
+            const tenantId: string = await createMembership(testAdmin.id, [MemberRoles.USER]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            expect(await tenantService().runAs(tenantId, async () => await authService.hasRole(ctx, strategies, [Roles.ADMIN]))).toBe(false);
+            // @ts-expect-error - a platform permission is no tenant permission, and asked for anyway it answers no
+            expect(await tenantService().runAs(tenantId, async () => await authService.hasPermission(ctx, strategies, TestPlatformPermissions.ADMIN)))
+                .toBe(false);
             // and in no tenant at all there is no membership to hold a role
-            expect(await authService.hasRole(buildContext(adminAuthData.accessToken.value), strategies, [Roles.USER])).toBe(false);
+            expect(await authService.hasPermission(buildContext(adminAuthData.accessToken.value), strategies, TestPermissions.MEMBER_USER))
+                .toBe(false);
         });
 
-        it('hasRole refuses in a tenant the user is no member of', async () => {
-            await createMembership(testAdmin.id, [Roles.ADMIN]);
+        it('hasPermission refuses in a tenant the user is no member of', async () => {
+            await createMembership(testAdmin.id, [MemberRoles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
             const otherTenantId: string = UUIDUtilities.generate();
-            expect(await tenantService().runAs(otherTenantId, async () => await authService.hasRole(ctx, strategies, [Roles.ADMIN]))).toBe(false);
+            expect(await tenantService().runAs(
+                otherTenantId,
+                async () => await authService.hasPermission(ctx, strategies, TestPermissions.MEMBER_ADMIN)
+            )).toBe(false);
         });
 
-        it('hasPlatformRole reads the user\'s own roles, whichever tenant is active', async () => {
-            const tenantId: string = await createMembership(testUser.id, [Roles.ADMIN]);
-            expect(await authService.hasPlatformRole(buildContext(adminAuthData.accessToken.value), strategies, [Roles.ADMIN])).toBe(true);
-            // a membership role is no role of the user's own
+        it('hasPlatformPermission reads the user\'s own roles, whichever tenant is active', async () => {
+            const tenantId: string = await createMembership(testUser.id, [MemberRoles.ADMIN]);
+            expect(await authService.hasPlatformPermission(buildContext(adminAuthData.accessToken.value), strategies, TestPlatformPermissions.ADMIN))
+                .toBe(true);
+            // what a membership role carries is no permission of the user's own
             const userCtx: HttpRequestContext = buildContext(userAuthData.accessToken.value);
-            expect(await tenantService().runAs(tenantId, async () => await authService.hasPlatformRole(userCtx, strategies, [Roles.ADMIN])))
-                .toBe(false);
-            expect(await authService.hasPlatformRole(buildContext(), strategies, [Roles.USER])).toBe(false);
+            expect(await tenantService().runAs(
+                tenantId,
+                // @ts-expect-error - a tenant permission is no platform permission, and asked for anyway it answers no
+                async () => await authService.hasPlatformPermission(userCtx, strategies, TestPermissions.MEMBER_ADMIN)
+            )).toBe(false);
+            expect(await authService.hasPlatformPermission(buildContext(), strategies, TestPlatformPermissions.USER)).toBe(false);
         });
     });
 
@@ -386,11 +410,9 @@ describe('AuthService contract', () => {
             expect(meta).toBeDefined();
         });
 
-        it('resolveHasRoleMetadata reads @Auth.hasRole', async () => {
-            const meta: HasRoleMetadata | undefined = await authService.resolveHasRoleMetadata(DummyController, 'adminOnly');
-            expect(meta).toBeDefined();
-            const hasRoleMeta: HasRoleMetadata = meta as HasRoleMetadata;
-            expect(hasRoleMeta.allowedRoles).toEqual([Roles.ADMIN]);
+        it('resolveHasPermissionMetadata reads @Auth.hasPermission', async () => {
+            const meta: HasPermissionMetadata | undefined = await authService.resolveHasPermissionMetadata(DummyController, 'adminOnly');
+            expect(meta?.permission).toBe(TestPermissions.MEMBER_ADMIN);
         });
 
         it('resolveRequire2faMetadata reads @Auth.require2fa', async () => {
@@ -414,9 +436,9 @@ describe('AuthService contract', () => {
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
-            it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.skip', async () => {
+            it('resolveHasPermissionMetadata throws for @Auth.hasPermission + @Auth.skip', async () => {
                 await expect(
-                    async () => await authService.resolveHasRoleMetadata(RouteConflictController, 'hasRoleAndSkip')
+                    async () => await authService.resolveHasPermissionMetadata(RouteConflictController, 'hasPermissionAndSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
@@ -440,9 +462,9 @@ describe('AuthService contract', () => {
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
-            it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.hasRole.skip', async () => {
+            it('resolveHasPermissionMetadata throws for @Auth.hasPermission + @Auth.hasPermission.skip', async () => {
                 await expect(
-                    async () => await authService.resolveHasRoleMetadata(RouteConflictController, 'hasRoleAndHasRoleSkip')
+                    async () => await authService.resolveHasPermissionMetadata(RouteConflictController, 'hasPermissionAndHasPermissionSkip')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
@@ -466,9 +488,9 @@ describe('AuthService contract', () => {
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
-            it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.hasRole.skip', async () => {
+            it('resolveHasPermissionMetadata throws for @Auth.hasPermission + @Auth.hasPermission.skip', async () => {
                 await expect(
-                    async () => await authService.resolveHasRoleMetadata(ControllerLevelConflictController, 'x')
+                    async () => await authService.resolveHasPermissionMetadata(ControllerLevelConflictController, 'x')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
@@ -492,9 +514,9 @@ describe('AuthService contract', () => {
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
-            it('resolveHasRoleMetadata throws for @Auth.hasRole + @Auth.skip', async () => {
+            it('resolveHasPermissionMetadata throws for @Auth.hasPermission + @Auth.skip', async () => {
                 await expect(
-                    async () => await authService.resolveHasRoleMetadata(ControllerSkipConflictController, 'x')
+                    async () => await authService.resolveHasPermissionMetadata(ControllerSkipConflictController, 'x')
                 ).rejects.toThrow(InvalidDecoratorCombinationError);
             });
 
@@ -522,18 +544,18 @@ describe('AuthService contract', () => {
             ).resolves.toBeUndefined();
         });
 
-        it('throws when missing role for adminOnly', async () => {
-            const tenantId: string = await createMembership(testUser.id, [Roles.USER]);
+        it('throws when missing the permission for adminOnly', async () => {
+            const tenantId: string = await createMembership(testUser.id, [MemberRoles.USER]);
             const ctx: HttpRequestContext = buildContext(userAuthData.accessToken.value);
             await expect(
                 tenantService().runAs(tenantId, async () => await authService.checkAccess(DummyController, 'adminOnly', ctx))
             ).rejects.toThrow();
         });
 
-        it('succeeds when role present for adminOnly', async () => {
-            // a role checked by @Auth.hasRole is one the membership holds, so the admin acts inside a
-            // tenant they are an admin of
-            const tenantId: string = await createMembership(testAdmin.id, [Roles.ADMIN]);
+        it('succeeds when the permission is present for adminOnly', async () => {
+            // a permission checked by @Auth.hasPermission is carried by a role the membership holds,
+            // so the admin acts inside a tenant they are an admin of
+            const tenantId: string = await createMembership(testAdmin.id, [MemberRoles.ADMIN]);
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
             await expect(
                 tenantService().runAs(tenantId, async () => await authService.checkAccess(DummyController, 'adminOnly', ctx))
@@ -618,9 +640,9 @@ describe('AuthService contract', () => {
             await expect(authService.isLoggedIn(ctx, [])).resolves.toBe(false);
         });
 
-        it('hasRole returns false (not throws) for an empty strategies array', async () => {
+        it('hasPlatformPermission returns false (not throws) for an empty strategies array', async () => {
             const ctx: HttpRequestContext = buildContext(adminAuthData.accessToken.value);
-            await expect(authService.hasRole(ctx, [], [Roles.ADMIN])).resolves.toBe(false);
+            await expect(authService.hasPlatformPermission(ctx, [], TestPlatformPermissions.ADMIN)).resolves.toBe(false);
         });
 
     });

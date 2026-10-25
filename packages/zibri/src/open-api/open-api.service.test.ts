@@ -6,14 +6,17 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Response } from './decorators/response.decorator';
 import { OpenApiDefinition, OpenApiOperation, OpenApiReferenceObject, OpenApiSchemaObject } from './open-api.model';
+import { OpenApiService } from './open-api.service';
 import { type PaginationResult } from './pagination-result.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { definePermissions, definePlatformPermissions } from '../auth/roles/define-permissions.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
-import { defineProvider } from '../di/models/di-provider.model';
+import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { XmlUtilities } from '../document/xml.utilities';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property } from '../entity/decorators/property.decorator';
@@ -30,6 +33,7 @@ import { XmlAttribute } from '../parsing/xml/xml-attribute.decorator';
 import { XmlElement } from '../parsing/xml/xml-element.decorator';
 import { XmlNamespace } from '../parsing/xml/xml-namespace.decorator';
 import { XmlRoot } from '../parsing/xml/xml-root.decorator';
+import { Route } from '../routing/controller-route-configuration.model';
 import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
@@ -140,8 +144,11 @@ class Player extends BaseEntity {
     @Property.string()
     name!: string;
 
-    @Property.manyToOne({ target: () => Team, inverseSide: 'players' })
+    @Property.manyToOne({ target: () => Team, joinColumn: 'teamId', inverseSide: 'players' })
     team!: Relation<Team>;
+
+    @Property.string({ format: 'uuid' })
+    teamId!: string;
 }
 
 class Team extends BaseEntity {
@@ -205,6 +212,10 @@ class XmlEnvelope {
 
 const envelope: XmlEnvelope = { version: '1', header: { id: 'h1' }, parties: [{ name: 'Ada' }] };
 
+const { ITEMS_EXPORT } = definePermissions(['items.export'] as const);
+
+const { ITEMS_PURGE } = definePlatformPermissions(['items.purge'] as const);
+
 @Controller('/items')
 class ItemController {
     @Auth.isLoggedIn()
@@ -215,11 +226,14 @@ class ItemController {
         id: string,
         @Param.query('verbose', { type: 'boolean', required: false })
         verbose: boolean | undefined,
+        @Param.query('tags', { type: 'array', items: { type: 'string' }, required: false })
+        tags: string[] | undefined,
         @Param.header('x-request-id')
         requestId: string
     ): Item {
         void id;
         void verbose;
+        void tags;
         void requestId;
         return {} as Item;
     }
@@ -270,15 +284,15 @@ class ItemController {
         return {} as Item;
     }
 
-    @Auth.hasRole(['admin'])
+    @Auth.hasPermission(ITEMS_EXPORT)
     @Response.empty()
-    @Get('/admin-only')
-    adminOnly(): void { }
+    @Get('/export')
+    export(): void { }
 
-    @Auth.hasPlatformRole(['operator'])
+    @Auth.hasPlatformPermission(ITEMS_PURGE)
     @Response.empty()
-    @Get('/operator-only')
-    operatorOnly(): void { }
+    @Get('/purge')
+    purge(): void { }
 
     @Response.object(Owner, { status: HttpStatus.OK })
     @Get('/:id/owner')
@@ -360,6 +374,26 @@ class ManualPingRoute implements OnAppInit {
     }
 }
 
+/**
+ * The providers `ItemController` and `ManualPingRoute` need, which every server of this file
+ * registers: a controller one server declared stays declared for the next.
+ */
+const itemProviders: DiProvider<unknown>[] = [
+    ...defaultTestServerProviders,
+    defineProvider({ token: ManualPingRoute, useClass: ManualPingRoute }),
+    ...rolesAndPermissionsProviders(
+        {
+            permissions: [...defaultTestServerPermissions.permissions, ITEMS_EXPORT],
+            platformPermissions: [...defaultTestServerPermissions.platformPermissions, ITEMS_PURGE]
+        },
+        [
+            ...defaultTestServerRoles,
+            { name: 'admin', level: 'tenant', permissions: [ITEMS_EXPORT], description: undefined },
+            { name: 'operator', level: 'platform', permissions: [ITEMS_PURGE], description: undefined }
+        ]
+    )
+];
+
 describe('OpenApiService', () => {
     let server: StartedTestServer;
     let baseUrl: string;
@@ -369,9 +403,10 @@ describe('OpenApiService', () => {
         server = await startTestServer({
             controllers: [ItemController],
             version: '1.0.0',
-            // the document is built from declarations alone, so no store has to be running for it
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
-            providers: [...defaultTestServerProviders, defineProvider({ token: ManualPingRoute, useClass: ManualPingRoute })]
+            // the document is built from declarations alone, so no store has to be running for it.
+            // Orphan allowed, since the suite below boots a second server while this class exists
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories, allowOrphan: true })],
+            providers: itemProviders
         });
         baseUrl = await server.start();
 
@@ -379,11 +414,11 @@ describe('OpenApiService', () => {
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         spec = await res.json();
-    }, 25000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * Looks up an operation in the fetched spec, asserting it exists.
@@ -403,7 +438,8 @@ describe('OpenApiService', () => {
 
     it('sets the openapi version, title and tags', () => {
         expect(spec.openapi).toBe('3.1.0');
-        expect(spec.info.title).toContain('Explorer');
+        // the name of the application alone: a client generator names the client after it
+        expect(spec.info.title).toBe('test');
         expect(spec.tags).toEqual(expect.arrayContaining([{ name: 'ItemController' }]));
     });
 
@@ -421,6 +457,19 @@ describe('OpenApiService', () => {
         ]));
     });
 
+    it('says how an array query parameter is spelled, which is the form the router reads', () => {
+        const operation: OpenApiOperation = op('/items/{id}', 'get');
+        expect(operation.parameters).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                name: 'tags',
+                in: 'query',
+                style: 'form',
+                explode: true,
+                schema: expect.objectContaining({ type: 'array', items: expect.objectContaining({ type: 'string' }) })
+            })
+        ]));
+    });
+
     it('requires security for a route behind @Auth.isLoggedIn()', () => {
         const operation: OpenApiOperation = op('/items/{id}', 'get');
         expect(operation.security).toBeDefined();
@@ -432,16 +481,17 @@ describe('OpenApiService', () => {
         expect(operation.security).toBeUndefined();
     });
 
-    it('exposes allowed roles via x-roles for a route behind @Auth.hasRole()', () => {
-        const operation: OpenApiOperation = op('/items/admin-only', 'get');
-        expect(operation['x-roles']).toEqual(['admin']);
-        expect(operation['x-platform-roles']).toBeUndefined();
+    it('exposes the permission via x-permission for a route behind @Auth.hasPermission()', () => {
+        const operation: OpenApiOperation = op('/items/export', 'get');
+        expect(operation['x-permission']).toBe('items.export');
+        expect(operation['x-platform-permission']).toBeUndefined();
+        expect(operation.security).toBeDefined();
     });
 
-    it('exposes the roles of the user\'s own via x-platform-roles for a route behind @Auth.hasPlatformRole()', () => {
-        const operation: OpenApiOperation = op('/items/operator-only', 'get');
-        expect(operation['x-platform-roles']).toEqual(['operator']);
-        expect(operation['x-roles']).toBeUndefined();
+    it('exposes the permission of the user\'s own via x-platform-permission for a route behind @Auth.hasPlatformPermission()', () => {
+        const operation: OpenApiOperation = op('/items/purge', 'get');
+        expect(operation['x-platform-permission']).toBe('items.purge');
+        expect(operation['x-permission']).toBeUndefined();
         expect(operation.security).toBeDefined();
     });
 
@@ -538,7 +588,7 @@ describe('OpenApiService', () => {
     });
 
     it('builds no content for @Response.empty(), under the status it defaults to', () => {
-        const operation: OpenApiOperation = op('/items/admin-only', 'get');
+        const operation: OpenApiOperation = op('/items/export', 'get');
         // 204 rather than 200: a route that returns nothing says so, and the document has to agree
         // with what the router actually answers
         expect(operation.responses?.['204']).toBeDefined();
@@ -735,5 +785,48 @@ describe('OpenApiService', () => {
         expect(res.status).toBe(200);
         const js: string = await res.text();
         expect(js).toContain('zibri-openapi-logo');
+    });
+});
+
+/**
+ * The default service under a route of its own, the way open-api.md moves the explorer.
+ */
+class ApiDocsService extends OpenApiService {
+    override readonly openApiRoute: Route = '/docs';
+}
+
+describe('OpenApiService extended under a route of its own', () => {
+    let server: StartedTestServer;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+        server = await startTestServer({
+            controllers: [ItemController],
+            version: '1.0.0',
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
+            providers: [
+                ...itemProviders,
+                defineProvider({ token: ZIBRI_DI_TOKENS.OPEN_API_SERVICE, useClass: ApiDocsService })
+            ]
+        });
+        baseUrl = await server.start();
+    }, TestTimeouts.inMemory.start);
+
+    afterAll(async () => {
+        await server?.shutdown();
+    }, TestTimeouts.inMemory.shutdown);
+
+    it('serves the explorer and the document under that route, and nothing under /explorer', async () => {
+        const explorer: globalThis.Response = await fetch(`${baseUrl}/docs`);
+        expect(explorer.status).toBe(200);
+        expect(await explorer.text()).toContain('/docs/swagger-ui-init.js');
+
+        const document: globalThis.Response = await fetch(`${baseUrl}/docs/spec/1.0.0`);
+        expect(document.status).toBe(200);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const spec: OpenApiDefinition = await document.json();
+        expect(spec.openapi).toBe('3.1.0');
+
+        expect((await fetch(`${baseUrl}/explorer`)).status).toBe(404);
     });
 });

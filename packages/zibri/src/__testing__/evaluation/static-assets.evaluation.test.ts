@@ -6,8 +6,8 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { HttpStatus } from '../../http/http-status.enum';
 import { KnownHeader } from '../../http/known-header.enum';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
-import { testFileFolder } from '../constants';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
@@ -55,14 +55,14 @@ beforeAll(async () => {
     await FsUtilities.createFile(FsUtilities.getPath(publicAssetsPath, 'favicon.png'), 'fake-favicon-bytes');
     server = await startTestServer({
         // in process: nothing here is stored, and a container would be most of what the suite costs
-        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({ token: ZIBRI_DI_TOKENS.ASSETS_PATH, useValue: assetsPath })
         ]
     });
     baseUrl = await server.start();
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

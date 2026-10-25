@@ -20,6 +20,7 @@ import { $ts } from '../../localization/translate.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
 import { BaseUser } from '../models/base-user.model';
+import { RoleUtilities } from '../roles/role.utilities';
 
 /**
  * An error to throw during user service initialization.
@@ -52,9 +53,9 @@ export class UserService implements UserServiceInterface, OnAppInit {
     readonly userRepositories: UserRepositoryInterface<string, BaseUser<string>>[] = [];
 
     /**
-     * The entities whose rows are users, because a user repository built on the data layer reads them.
+     * The user repositories, as the repositories of their entities.
      */
-    private readonly userEntities: Set<Newable<BaseEntity>> = new Set();
+    private readonly userEntityRepositories: Repository<BaseUser<string>>[] = [];
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -70,17 +71,14 @@ export class UserService implements UserServiceInterface, OnAppInit {
 
         for (const provider of repoProviders) {
             const repo: unknown = inject(provider.token);
-            if (!isUserRepository(repo)) {
+            // registered under the variant by its data source, which lists repository classes only
+            if (!(repo instanceof Repository) || !isUserRepository(repo)) {
                 throw new InitUserServiceError(
-                    `Invalid class marked with @UserRepo: ${getDiTokenName(provider.token)} needs to implement UserRepositoryInterface`
+                    `Invalid user repository: ${getDiTokenName(provider.token)} needs to extend BaseUserRepository<User>()`
                 );
             }
             this.userRepositories.push(repo);
-            // a repository of the data layer names its entity. One that is not reads its users from
-            // somewhere no repository deletes them in, so there is nothing to follow a deletion of
-            if (repo instanceof Repository) {
-                this.userEntities.add(repo.entityClass);
-            }
+            this.userEntityRepositories.push(repo);
             this.logger.info(`  - ${getDiTokenName(provider.token)}`);
         }
 
@@ -90,10 +88,11 @@ export class UserService implements UserServiceInterface, OnAppInit {
             .filter(i => isUserRepository(i));
 
         for (const repository of repositories) {
-            if (!this.userRepositories.find(c => c.constructor.name === repository.constructor.name)) {
-                throw new InitUserServiceError(
-                    `The class "${repository.constructor.name}" seems to be a user repository but has not been decorated with @UserRepo()`
-                );
+            if (!this.userRepositories.includes(repository)) {
+                throw new InitUserServiceError([
+                    `The class "${repository.constructor.name}" is a user repository, but no data source lists it in its repositories.`,
+                    'Declare it with @RepositoryFor(User), and list it in the repositories of the data source that declares User.'
+                ]);
             }
         }
     }
@@ -149,8 +148,43 @@ export class UserService implements UserServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateRoles(id: string, roles: string[], transaction: Transaction | undefined): Promise<void> {
+        // asked of every repository, for the reason updateDeactivatedAt gives
+        const written: true | undefined = await this.resolveFromAnyRepository(
+            this.userRepositories.map(async r => {
+                await r.updateRoles(id, roles, transaction);
+                return true as const;
+            })
+        );
+        if (written == undefined) {
+            throw new NotFoundError($ts`Could not find user with id "${id}".`);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     isUserEntity(entityClass: Newable<BaseEntity>): boolean {
-        return this.userEntities.has(entityClass);
+        return this.userEntityRepositories.some(repository => repository.entityClass === entityClass);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findUnknownRoles(known: string[]): Promise<string[]> {
+        const found: string[][] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await RoleUtilities.resolveUnknownRoles(
+                repository.stream({
+                    where: { roles: RoleUtilities.whereHoldingUnknownRoles(known) },
+                    unscoped: true,
+                    autoDecrypt: false
+                }),
+                known
+            )));
+        return [...new Set(found.flat())];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async isRoleHeld(role: string): Promise<boolean> {
+        const held: number[] = await Promise.all(this.userEntityRepositories
+            .map(async repository => await repository.count({ where: { roles: { includes: [role] } }, unscoped: true })));
+        return held.some(count => count > 0);
     }
 
     /**

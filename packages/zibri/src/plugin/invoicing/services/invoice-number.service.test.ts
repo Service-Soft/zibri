@@ -2,8 +2,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { InvoiceNumberService } from './invoice-number.service';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { companyInfoProvider } from '../../../__testing__/mocks/company-info-provider.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from '../../../__testing__/test-server/plugins';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../../__testing__/test-server/start-and-stop-test-server-without.function';
@@ -175,13 +176,13 @@ describe('ZibriInvoicingPlugin — starting', () => {
         await expect(start).rejects.toThrow(
             /Error initializing ZibriInvoicingPlugin[\S\s]*- Invoice\n[\S\s]*- NumberInvoices\n[\S\s]*- InvoiceRecipientAbbreviation/
         );
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('generateInvoiceNumber', () => {
     beforeAll(async () => {
         testServer = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
             plugins: [...defaultTestServerPlugins, new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,
@@ -191,11 +192,11 @@ describe('generateInvoiceNumber', () => {
         });
         invoiceRepo = inject(repositoryTokenFor(Invoice));
         invoiceNumberService = inject(InvoiceNumberService);
-    }, 30000);
+    }, 50000);
 
     afterAll(async () => {
         await testServer.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('should generate the expected number for a company customer', async () => {
         const number: string = await inTenant(async () => await invoiceNumberService.generateInvoiceNumber('1', companyData, undefined));

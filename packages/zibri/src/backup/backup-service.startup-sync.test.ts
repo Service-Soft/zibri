@@ -7,9 +7,11 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BackupTransportInterface } from './transports/backup-transport.interface';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -52,6 +54,7 @@ class UnreachableBackupTransport implements BackupTransportInterface {
 @Backup({ transports: [UnreachableBackupTransport], encrypt: false })
 class BackedUpDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, BackupEntity, BackupResourceEntity];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 describe('BackupService', () => {
@@ -62,7 +65,7 @@ describe('BackupService', () => {
 
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [BackedUpDataSource] });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         warn.mockRestore();

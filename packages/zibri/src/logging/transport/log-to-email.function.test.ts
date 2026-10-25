@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createLogToEmail, EmailLoggerTransportConfig } from './log-to-email.function';
 import { LogEmailTemplate, LoggerTransportSend } from './logger-transport.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -44,11 +45,11 @@ describe('logToEmail', () => {
     beforeAll(async () => {
         server = await startTestServer();
         emailRepository = inject(repositoryTokenFor(Email));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('queues an email with the default subject based on log level and app name', async () => {
         const log: Log = createLog();

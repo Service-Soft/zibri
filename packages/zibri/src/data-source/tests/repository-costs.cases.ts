@@ -84,7 +84,20 @@ const CALLS: Record<string, (m: Measured) => Promise<unknown>> = {
     '`findOne`': async m => await m.items.findOne({ where: { batch: m.batch } }),
     '`findAll`': async m => await m.items.findAll({ where: { batch: m.batch } }),
     '`findAll` with relations': async m => await m.items.findAll({ where: { batch: m.batch }, relations: ['group'] }),
+    '`findAll` with a relation of a relation': async m => await m.items.findAll({
+        where: { batch: m.batch },
+        relations: { group: { items: true } }
+    }),
     '`findAllPaginated`': async m => await m.items.findAllPaginated(1, MANY_ROWS, { where: { batch: m.batch } }),
+    '`findAllPaginated` with relations': async m => await m.items.findAllPaginated(1, MANY_ROWS, {
+        where: { batch: m.batch },
+        relations: ['group']
+    }),
+    // a relation to many rows, which is what multiplies the rows a window is taken over
+    '`findAllPaginated` with a relation of a relation': async m => await m.items.findAllPaginated(1, MANY_ROWS, {
+        where: { batch: m.batch },
+        relations: { group: { items: true } }
+    }),
     '`findAllAfter`': async m => await m.items.findAllAfter(undefined, MANY_ROWS, { where: { batch: m.batch } }),
     '`stream`': async m => {
         for await (const item of m.items.stream({ where: { batch: m.batch } })) {
@@ -93,6 +106,8 @@ const CALLS: Record<string, (m: Measured) => Promise<unknown>> = {
     },
     '`count`': async m => await m.items.count({ where: { batch: m.batch } }),
     '`exists`': async m => await m.items.exists({ where: { batch: m.batch } }),
+    '`sum`, `average`, `minimum`, `maximum`': async m => await m.items.sum('count', { where: { batch: m.batch } }),
+    '`count` per group': async m => await m.items.count({ where: { batch: m.batch }, groupBy: ['batch'] }),
     '`create`': async m => await m.items.create(freshRow(m)),
     '`create` with relations': async m => await m.items.create(freshRow(m), { relations: ['group'] }),
     '`createAll`': async m => await m.items.createAll(m.rows.map(() => freshRow(m))),

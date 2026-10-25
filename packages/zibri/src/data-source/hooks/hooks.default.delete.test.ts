@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { SaveOperation } from './before-save';
 import { getDefaultBeforeReturnHook } from './hooks.default';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { type EncryptionServiceInterface } from '../../auth/encryption/encryption-service.interface';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -39,14 +40,14 @@ let lockers: Repository<Locker>;
 let encryption: EncryptionServiceInterface;
 
 beforeAll(async () => {
-    server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Locker] })] });
+    server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Locker], repositories: defaultTestServerRepositories })] });
     lockers = inject(repositoryTokenFor(Locker));
     encryption = inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE);
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 afterEach(() => {
     jest.restoreAllMocks();

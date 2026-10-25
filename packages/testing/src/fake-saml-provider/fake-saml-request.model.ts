@@ -23,6 +23,11 @@ export type FakeSamlRequest = {
      */
     nameIdFormat: string | undefined,
     /**
+     * The classes of authentication the request asks for, as its RequestedAuthnContext names them.
+     * Empty when it asks for none.
+     */
+    requestedAuthnContext: string[],
+    /**
      * The relay state the request came with, which the answer carries back.
      */
     relayState: string | undefined,

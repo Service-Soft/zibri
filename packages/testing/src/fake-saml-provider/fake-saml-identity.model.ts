@@ -13,5 +13,10 @@ export type FakeSamlIdentity = {
     /**
      * The attributes sent about the user, by name.
      */
-    attributes: Record<string, string | string[]>
+    attributes: Record<string, string | string[]>,
+    /**
+     * How the user signed in, as the AuthnContextClassRef of the assertion says. A password over a
+     * protected connection, when undefined.
+     */
+    authnContextClassRef?: string
 };

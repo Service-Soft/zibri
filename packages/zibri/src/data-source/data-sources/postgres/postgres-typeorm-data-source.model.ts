@@ -8,7 +8,9 @@ import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
 import { pgTypeParsers } from './pg-type-parsers.function';
+import { PostgresBackupScope } from './postgres-backup-scope.model';
 import { PostgresColumnSql } from './postgres-column-sql.model';
+import { ListeningConnection, PostgresNotificationListener } from './postgres-notification-listener.model';
 import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { AlsUtilities } from '../../../context/als.utilities';
@@ -53,11 +55,13 @@ import { FuzzySearchUtilities } from '../../models/where/fuzzy-search.utilities'
 import { AnyNumber } from '../../models/where/number-where-filter.model';
 import { MistypedStoredValue } from '../../stored-value-type-mismatch.error';
 import { Transaction } from '../../transaction/transaction.model';
+import { TypeOrmTransaction } from '../../transaction/typeorm-transaction.model';
 import { uniqueConstraintName } from '../../unique-constraint-name.function';
 import { keyWhereToSql } from '../../where/key-where-to-sql.function';
 import { WriteDataUtilities } from '../../write-data.utilities';
 import { DataSourceInitializationError } from '../data-source-initialization.error';
 import { StartTransactionOptions } from '../data-source.interface';
+import { DataSourceSubscription, PubSubDataSourceInterface } from '../pub-sub-data-source.interface';
 import { QueryOptions, SqlDataSourceInterface } from '../sql-data-source.interface';
 import { OPERATION_LIMIT_DATA_KEY } from '../statement-limiting-data-source.model';
 import { MergedRows, UpsertInput, UpsertReachable, UpsertSql, TypeOrmBaseDataSource, ToColumnMappableTypes } from '../typeorm-base-data-source.model';
@@ -122,6 +126,16 @@ type ConnectedQueryRunner = {
     }
 };
 
+/**
+ * What a query runner holds once it has a connection, as far as listening on it needs.
+ */
+type ListeningQueryRunner = {
+    /**
+     * The connection.
+     */
+    databaseConnection: ListeningConnection['client']
+};
+
 const DUMP_COMMAND: string = 'pg_dump';
 /**
  * Writes an archive of DUMP_COMMAND out as the statements that recreate what it holds.
@@ -134,6 +148,17 @@ const DEFAULT_PORT: number = 5432;
  * The sql state postgres reports a unique violation under.
  */
 const UNIQUE_VIOLATION_SQL_STATE: string = '23505';
+
+/**
+ * The sql state postgres fails the statement of the transaction it ends to break a deadlock with.
+ */
+const DEADLOCK_DETECTED_SQL_STATE: string = '40P01';
+
+/**
+ * The sql state postgres ends a transaction with that read rows another one changed in a way its
+ * isolation level does not allow.
+ */
+const SERIALIZATION_FAILURE_SQL_STATE: string = '40001';
 
 /**
  * The sql state postgres answers a write breaking a check constraint with.
@@ -157,29 +182,26 @@ const CAST_MARKER_PATTERN: RegExp = /\/\* zibri-json:(?<path>.+?):(?<type>number
 /**
  * Reads the value out of the complaint postgres made about it.
  *
- * Both shapes it uses quote the value last, which is the only part of the message worth repeating:
- * the type it failed to read as is already known from the marker, and said better there.
+ * Every shape it uses quotes the value last, which is the only part of the message worth repeating:
+ * the type it failed to read as is already known from the marker, and said better there. In the
+ * quotes of whichever language the server writes its messages in.
  */
-const UNREADABLE_VALUE_PATTERN: RegExp = /"(?<value>[^"]*)"\s*$/;
+const UNREADABLE_VALUE_PATTERN: RegExp = /["«»‹›“”„「」]\s?(?<value>[^"«»‹›“”„「」]*?)\s?["«»‹›“”„「」]\s*$/u;
 
 /**
- * The declared type behind the column type postgres named in a complaint.
+ * The declared type behind the function postgres names as the one that could not read a value.
  *
- * Only used to choose between markers when a statement carries more than one cast, so not naming a
- * type is an answer here rather than a problem: the datetime states describe a value that parsed and
- * then said nothing sensible, and name no type while doing it.
- * @param message - The message the query failed with.
- * @returns The declared type, or undefined when the message names none.
+ * Only used to choose between markers when a statement carries more than one cast. The function
+ * rather than the message, which is written in the server's language, while the function is named
+ * the same on every server.
  */
-function declaredTypeOf(message: string): string | undefined {
-    if (message.includes('for type numeric')) {
-        return 'number';
-    }
-    if (message.includes('for type boolean')) {
-        return 'boolean';
-    }
-    return message.includes('for type timestamp') ? 'date' : undefined;
-}
+const DECLARED_TYPE_BY_ROUTINE: ReadonlyMap<string, string> = new Map([
+    ['numeric_in', 'number'],
+    // the same complaint, raised one call further down before postgres 16
+    ['set_var_from_str', 'number'],
+    ['boolin', 'boolean'],
+    ['DateTimeParseError', 'date']
+]);
 
 /**
  * Clears what a dump of the schema is about to recreate, as the first statement of the restore.
@@ -259,6 +281,21 @@ BEGIN
 END
 $zibri$;
 `;
+}
+
+/**
+ * Clears the tables of the data source's entities, as the first statement of a restore that covers
+ * those tables alone.
+ *
+ * The tables this build declares, which a dump taken by an older one may not hold. Without a
+ * cascade: a view or a foreign key of something else that depends on one of them would go with it,
+ * and the restore brings back none of those, so the restore is refused instead. All in one statement,
+ * so that the tables' references to each other do not count as such a dependency.
+ * @param tables - The tables, qualified and quoted.
+ * @returns The statement.
+ */
+function clearTablesSql(tables: string[]): string {
+    return `DROP TABLE IF EXISTS ${tables.join(', ')};\n`;
 }
 
 /**
@@ -440,8 +477,27 @@ type StoredKeyRow = {
     /**
      * Whether a unique constraint is enforced through it.
      */
-    constraint: boolean
+    constraint: boolean,
+    /**
+     * Whether it carries {@link DECLARED_KEY_COMMENT}, which says the data source created it.
+     */
+    marked: boolean
 };
+
+/**
+ * The comment on every index the data source creates for what an entity declares.
+ *
+ * What tells its own indexes apart from everybody else's on the same table. Not the name: unquoted,
+ * `IDX_orders_customer` is stored as `idx_orders_customer`, which is how the data source names its
+ * own - and an index somebody added by hand has to survive every boot.
+ */
+const DECLARED_KEY_COMMENT: string = 'Kept by zibri as an entity declares it, and dropped once none does.';
+
+/**
+ * Whether an index is named the way the orm names one by default, which is how 2.x let it name the
+ * indexes and uniques an entity declared: its prefix, then a fixed length of a hash.
+ */
+const ORM_DEFAULT_KEY_NAME_PATTERN: RegExp = /^(UQ_[\da-f]{27}|IDX_[\da-f]{26})$/;
 
 /**
  * The id of a row a merge moved, as text.
@@ -535,10 +591,11 @@ const STORED_CHECKS_SQL: string = `
 `;
 
 /**
- * Lists the indexes of a table in the current schema.
+ * Lists the indexes of a table in the current schema, and whether each carries the given comment.
  */
 const STORED_KEYS_SQL: string = `
-    SELECT i.relname AS "name", x.indisvalid AS "valid", c.conname IS NOT NULL AS "constraint"
+    SELECT i.relname AS "name", x.indisvalid AS "valid", c.conname IS NOT NULL AS "constraint",
+        coalesce(obj_description(i.oid, 'pg_class') = $2, false) AS "marked"
     FROM pg_index x
     JOIN pg_class i ON i.oid = x.indexrelid
     JOIN pg_class t ON t.oid = x.indrelid
@@ -553,6 +610,11 @@ const STORED_KEYS_SQL: string = `
 const MAX_IDENTIFIER_BYTES: number = 63;
 
 /**
+ * The largest payload `NOTIFY` carries, in bytes: it has to be shorter than 8000.
+ */
+const MAX_NOTIFY_PAYLOAD_BYTES: number = 7999;
+
+/**
  * The name postgres stores for a given one.
  * @param name - The name.
  * @returns It, cut to what postgres keeps.
@@ -565,7 +627,16 @@ function toStoredIdentifier(name: string): string {
 /**
  * A base postgres data source definition.
  */
-export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresOptions> implements SqlDataSourceInterface {
+export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresOptions>
+    implements SqlDataSourceInterface, PubSubDataSourceInterface {
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly maxMessageBytes: number | undefined = MAX_NOTIFY_PAYLOAD_BYTES;
+
+    /**
+     * The connection subscriptions listen on, once something subscribed.
+     */
+    private notificationListener: PostgresNotificationListener | undefined;
 
     /**
      * The similarity from which this data source answers a search out of an index.
@@ -690,6 +761,16 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      */
     readonly rootUsername: string | undefined;
 
+    /**
+     * What a backup of this data source covers, and so what a restore of it replaces. Has to be set
+     * when the data source is marked with \@Backup.
+     *
+     * `'schema'` when the schema belongs to this application alone, so that what its migrations
+     * create besides tables is backed up as well. `'entity-tables'` when anything else keeps tables
+     * in the same schema.
+     */
+    readonly backupScope: PostgresBackupScope | undefined;
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         logger: LoggerInterface,
@@ -735,6 +816,69 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async publish(channel: string, message: string): Promise<void> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        const bytes: number = Buffer.byteLength(message);
+        if (bytes > MAX_NOTIFY_PAYLOAD_BYTES) {
+            throw new InternalError(
+                `Cannot publish a message of ${bytes} bytes on "${channel}": postgres carries at most ${MAX_NOTIFY_PAYLOAD_BYTES}.`
+            );
+        }
+        // outside any transaction, so it is delivered now rather than with a commit
+        await this.ds.query('SELECT pg_notify($1, $2)', [this.resolveChannelName(channel), message]);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async subscribe(channel: string, onMessage: (message: string) => void): Promise<DataSourceSubscription> {
+        this.notificationListener ??= new PostgresNotificationListener(
+            async () => await this.obtainListeningConnection(),
+            this.logger
+        );
+        return await this.notificationListener.subscribe(this.resolveChannelName(channel), onMessage);
+    }
+
+    /**
+     * Takes a connection out of the pool to listen on.
+     * @returns The connection, and how to hand it back.
+     */
+    private async obtainListeningConnection(): Promise<ListeningConnection> {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        const runner: QueryRunner = this.ds.createQueryRunner();
+        // the runner discards a connection that fails, and hands it back when released
+        await runner.connect();
+        // typeorm's own QueryRunner declares no connection, for the reason cancelStatementOn gives
+        const connected: ListeningQueryRunner = runner as unknown as ListeningQueryRunner;
+        return { client: connected.databaseConnection, release: async () => await runner.release() };
+    }
+
+    /**
+     * The name a channel has on this server.
+     *
+     * Under the schema when the data source names one, so two applications sharing a database in
+     * schemas of their own do not hear each other.
+     * @param channel - The channel.
+     * @returns The name.
+     * @throws When the name is longer than postgres keeps.
+     */
+    private resolveChannelName(channel: string): string {
+        const name: string = this.fullOptions.schema == undefined ? channel : `${this.fullOptions.schema}.${channel}`;
+        if (Buffer.byteLength(name) > MAX_IDENTIFIER_BYTES) {
+            throw new InternalError(`The channel "${name}" is longer than the ${MAX_IDENTIFIER_BYTES} bytes postgres keeps of a name.`);
+        }
+        return name;
+    }
+
+    override async shutDown(): Promise<void> {
+        // before the pool closes, which waits for every connection it handed out
+        await this.notificationListener?.close();
+        await super.shutDown();
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async limitStatementsOn(runner: QueryRunner, timeoutInMs: number, inTransaction: boolean): Promise<() => Promise<void>> {
         const value: string = String(timeoutInMs);
         if (!inTransaction) {
@@ -755,7 +899,8 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     override async startTransaction(options?: StartTransactionOptions): Promise<Transaction> {
-        const transaction: Transaction = await super.startTransaction(options);
+        const transaction: TypeOrmTransaction = TypeOrmUtilities.toTypeOrmTransaction(await super.startTransaction(options));
+        this.abandonWithItsConnection(transaction);
         const idleTimeoutInMs: number = options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS;
         if (!idleTimeoutInMs) {
             return transaction;
@@ -766,8 +911,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             // has to watch the clock. LOCAL, so it covers this transaction and reverts with it -
             // set on the connection instead it would outlive the transaction and apply to every
             // later user of that pooled connection, including queries in no transaction at all
-            await TypeOrmUtilities.toTypeOrmTransaction(transaction)
-                .queryRunner.query(`SET LOCAL idle_in_transaction_session_timeout = ${idleTimeoutInMs}`);
+            await transaction.queryRunner.query(`SET LOCAL idle_in_transaction_session_timeout = ${idleTimeoutInMs}`);
         }
         catch (error) {
             // the transaction is already open and holding a connection, so it cannot simply be
@@ -776,6 +920,49 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             throw error;
         }
         return transaction;
+    }
+
+    /**
+     * Ends a transaction once the server closes its connection, the way the idle timeout does.
+     * @param transaction - The transaction, just started.
+     */
+    private abandonWithItsConnection(transaction: TypeOrmTransaction): void {
+        // the server rolls the transaction back and closes the connection, and nothing tells the
+        // transaction: without this it stays open for everything waiting on its end - a lease held
+        // until it, renewed for the life of the process. Typeorm's own listener, added first, has
+        // already discarded the connection by the time this runs.
+        // typeorm's own QueryRunner declares no connection, for the reason cancelStatementOn gives
+        const connected: ListeningQueryRunner = transaction.queryRunner as unknown as ListeningQueryRunner;
+        const connection: ListeningQueryRunner['databaseConnection'] = connected.databaseConnection;
+        const onError: (error: Error) => void = error => void this.abandon(transaction, error);
+        connection.on('error', onError);
+        // the connection goes back to the pool for the next transaction, which listens for itself
+        transaction.afterFinish(async () => {
+            connection.removeListener('error', onError);
+            await Promise.resolve();
+        });
+    }
+
+    /**
+     * Ends a transaction whose connection the server closed, and reports it.
+     * @param transaction - The transaction.
+     * @param error - What the connection failed with.
+     */
+    private async abandon(transaction: TypeOrmTransaction, error: Error): Promise<void> {
+        if (transaction.isFinished) {
+            return;
+        }
+        this.logger.error(new InternalError(
+            'The connection of a transaction that was not committed or rolled back was closed. It has been rolled back.',
+            { cause: error }
+        ));
+        try {
+            await transaction.abandon();
+        }
+        catch (finishError) {
+            // runs on the connection's event rather than under a caller, so there is nowhere to throw to
+            this.logger.error(finishError instanceof Error ? finishError : new InternalError(String(finishError)));
+        }
     }
 
     /**
@@ -1347,29 +1534,42 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    violatedUniqueProperties(error: TOQueryFailedError): string[] | undefined {
+    isDeadlock(error: TOQueryFailedError): boolean {
+        return 'code' in error.driverError && error.driverError.code === DEADLOCK_DETECTED_SQL_STATE;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    isSerializationFailure(error: TOQueryFailedError): boolean {
+        return 'code' in error.driverError && error.driverError.code === SERIALIZATION_FAILURE_SQL_STATE;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    findViolatedUniqueProperties(error: TOQueryFailedError, entityClass: Newable<BaseEntity>): string[] | undefined {
         if (!('code' in error.driverError) || error.driverError.code !== UNIQUE_VIOLATION_SQL_STATE) {
             return undefined;
         }
-        const detail: string = 'detail' in error.driverError && typeof error.driverError.detail === 'string'
-            ? error.driverError.detail
-            : '';
-
-        // eg. "Key (email)=(someone@example.com) already exists."
-        const columns: string | undefined = detail.split('Key (').at(1)
-            ?.split(')=')
-            .at(0);
-        if (columns != undefined) {
-            return columns.split(', ');
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
         }
-
-        // a violation the server named without detailing it still names the declaration, which is
-        // more use to whoever reads the error than saying nothing
-        return [
-            'constraint' in error.driverError && typeof error.driverError.constraint === 'string'
-                ? error.driverError.constraint
-                : 'unknown'
-        ];
+        // by the name of the constraint rather than by the detail describing it: the detail is
+        // written in the server's language, while the name is the one this data source gave it
+        const constraint: string = 'constraint' in error.driverError && typeof error.driverError.constraint === 'string'
+            ? error.driverError.constraint
+            : 'unknown';
+        const metadata: TOEntityMetadata = this.ds.getMetadata(entityClass);
+        const declared: DeclaredKey | undefined = this.resolveDeclaredKeys(entityClass, metadata)
+            .find(k => k.duplicates != undefined && toStoredIdentifier(k.name) === constraint);
+        if (declared != undefined) {
+            return declared.properties;
+        }
+        // the primary key, which the orm named when it created the table
+        const primaryColumnNames: string[] = metadata.primaryColumns.map(c => c.databaseName);
+        if (constraint === this.ds.namingStrategy.primaryKeyName(metadata.tablePath, primaryColumnNames)) {
+            return metadata.primaryColumns.map(c => c.propertyName);
+        }
+        // one nothing here declared - on another table the write reached, or added by hand - still
+        // names the constraint, which is more use to whoever reads the error than saying nothing
+        return [constraint];
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1381,9 +1581,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
 
         // the same sql states answer for a malformed uuid or a bad literal anywhere else in the
         // statement, so the marker is what makes this a json question rather than the state
+        const routine: string | undefined = 'routine' in error.driverError && typeof error.driverError.routine === 'string'
+            ? error.driverError.routine
+            : undefined;
         const markers: RegExpExecArray[] = [...error.query.matchAll(CAST_MARKER_PATTERN)];
         const marker: RegExpExecArray | undefined = markers.find(
-            m => m.groups?.['type'] === declaredTypeOf(error.message)
+            m => m.groups?.['type'] === DECLARED_TYPE_BY_ROUTINE.get(routine ?? '')
         ) ?? markers.at(0);
         const path: string | undefined = marker?.groups?.['path'];
         const declaredType: string | undefined = marker?.groups?.['type'];
@@ -1405,6 +1608,13 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async validateBackupConfiguration(): Promise<void> {
+        if (this.backupScope == undefined) {
+            throw new InternalError(
+                'Invalid data source marked with @Backup: backupScope is not set.'
+                + ' Set \'schema\' to back up everything in the schema the data source works in,'
+                + ' or \'entity-tables\' to back up the tables of its entities and leave the rest of the schema alone.'
+            );
+        }
         if (Boolean(this.rootUsername) !== Boolean(this.rootPw)) {
             throw new InternalError(
                 'Invalid data source marked with @Backup: rootUsername and rootPw belong together.'
@@ -1486,6 +1696,22 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             );
         }
         return row.schema;
+    }
+
+    /**
+     * Gets the tables of this data source's entities, qualified with the schema and quoted - which is
+     * how a statement names them, and how the client tools take a name as it is written.
+     * @param schema - The schema the data source works in.
+     * @returns The tables.
+     * @throws {DataSourceInitializationError} When the data source was not initialized.
+     */
+    private getQualifiedEntityTableNames(schema: string): string[] {
+        if (!this.ds) {
+            throw new DataSourceInitializationError();
+        }
+        // the junction table of a many to many relation is an entity of its own to the orm, so it is
+        // one of these as well
+        return this.ds.entityMetadatas.map(m => `${escapeIdentifier(schema)}.${escapeIdentifier(m.tableName)}`);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1621,7 +1847,8 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
-     * Dumps the schema this data source works in, and nothing else on the server.
+     * Dumps the schema this data source works in, or only the tables of its entities in it when
+     * {@link backupScope} says so, and nothing else on the server.
      *
      * `pg_dump` of the one schema this data source works in, rather than `pg_dumpall` of the
      * cluster it happens to live in. What that leaves out is the point.
@@ -1663,8 +1890,9 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             'custom',
             // a pattern, where double quotes take the name as it is written: neither folded to lower
             // case nor read for wildcards
-            '--schema',
-            `"${schema.replaceAll('"', '""')}"`
+            ...this.backupScope === 'entity-tables'
+                ? this.getQualifiedEntityTableNames(schema).flatMap(table => ['--table', table])
+                : ['--schema', `"${schema.replaceAll('"', '""')}"`]
         ];
 
         const child: ChildProcessByStdio<null, Readable, null> = spawn(DUMP_COMMAND, args, {
@@ -1699,7 +1927,8 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * lands whole or is rolled back and raised.
      *
      * The dump carries no `DROP`, so the restore clears the schema it is about to recreate itself -
-     * see {@link clearSchemaSql} for why that is not left to `pg_dump --clean`.
+     * see {@link clearSchemaSql} for why that is not left to `pg_dump --clean`. Of a backup of the
+     * entity tables, it clears those tables alone, and is refused when anything else depends on one.
      *
      * A restore replaces the objects it dumps, so the role running it has to own them. That is
      * ordinary ddl rights on this application's own tables, which is what created them - not
@@ -1711,17 +1940,20 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * which then changes nothing: such a role has to be created before the restore.
      * @param backupData - The dump to apply.
      */
-    async restoreBackup(backupData: Readable): Promise<void> {
+    protected override async applyBackup(backupData: Readable): Promise<void> {
         const schema: string = await this.resolveSchemaName();
         const env: NodeJS.ProcessEnv = this.clientEnvironment(await this.backupPassword());
+        const entityTablesOnly: boolean = this.backupScope === 'entity-tables';
 
         // the objects in the schema and nothing else of the archive: what is left out is the schema's
         // own entries, whose owner is not this application. With their owners, because the role
         // running the restore is not necessarily the one that owned them - restored as a separate
-        // backup role, every table would be that role's, and the application could no longer alter it
+        // backup role, every table would be that role's, and the application could no longer alter it.
+        // Of the entity tables, the archive's drops go first: a table an older build declared and this
+        // one does not is still in the archive, and its create would fail on the table still there
         const reader: ChildProcessByStdio<Writable, Readable, null> = spawn(
             ARCHIVE_COMMAND,
-            ['--schema', schema, '--file', '-'],
+            ['--schema', schema, ...entityTablesOnly ? ['--clean', '--if-exists'] : [], '--file', '-'],
             { stdio: ['pipe', 'pipe', 'inherit'], env }
         );
         const applier: ChildProcessByStdio<Writable, null, null> = spawn(
@@ -1742,7 +1974,10 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         // awaited inside the script, which a psql that stopped early no longer reads to the end of
         // eslint-disable-next-line promise/prefer-await-to-then
         read.catch(() => undefined);
-        const script: Readable = Readable.from(restoreScript(clearSchemaSql(schema), reader.stdout, read));
+        const clear: string = entityTablesOnly
+            ? clearTablesSql(this.getQualifiedEntityTableNames(schema))
+            : clearSchemaSql(schema);
+        const script: Readable = Readable.from(restoreScript(clear, reader.stdout, read));
 
         await new Promise<void>((resolve, reject) => {
             let settled: boolean = false;
@@ -1850,11 +2085,6 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                 };
             }
             case Relation.BELONGS_TO_ONE: {
-                if (metadata.joinColumn == undefined) {
-                    throw new InternalError(
-                        `The property ${cls.name}.${key} needs to have "joinColumn" set inside of the @Property.belongsToOne() decorator.`
-                    );
-                }
                 return {
                     ...metadata,
                     ...shared,
@@ -1863,11 +2093,6 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                 };
             }
             case Relation.MANY_TO_ONE: {
-                if (metadata.joinColumn == undefined) {
-                    throw new InternalError(
-                        `The property ${cls.name}.${key} needs to have "joinColumn" set inside of the @Property.manyToOne() decorator.`
-                    );
-                }
                 return {
                     ...metadata,
                     ...shared,
@@ -1974,8 +2199,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             [indexName(currentTableName, []), indexName(tableName, [])],
             [trigramIndexName(currentTableName, ''), trigramIndexName(tableName, '')]
         ];
-        const stored: StoredKeyRow[] = await queryRunner.connection.query<StoredKeyRow[]>(STORED_KEYS_SQL, [tableName], queryRunner);
-        for (const key of stored) {
+        const stored: StoredKeyRow[] = await queryRunner.connection.query<StoredKeyRow[]>(
+            STORED_KEYS_SQL,
+            [tableName, DECLARED_KEY_COMMENT],
+            queryRunner
+        );
+        for (const key of stored.filter(k => k.marked)) {
             const match: [string, string] | undefined = prefixes.find(([prefix]) => key.name.startsWith(prefix));
             if (match == undefined) {
                 continue;
@@ -2075,16 +2304,26 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      */
     private async reconcileKeysOf(runner: QueryRunner, entity: Newable<BaseEntity>, metadata: TOEntityMetadata): Promise<boolean> {
         const declared: DeclaredKey[] = this.resolveDeclaredKeys(entity, metadata);
-        const stored: StoredKeyRow[] = await runner.connection.query<StoredKeyRow[]>(STORED_KEYS_SQL, [metadata.tableName], runner);
-        const owned: StoredKeyRow[] = stored.filter(k => this.isDeclaredKeyName(k.name, metadata.tableName));
+        const stored: StoredKeyRow[] = await runner.connection.query<StoredKeyRow[]>(
+            STORED_KEYS_SQL,
+            [metadata.tableName, DECLARED_KEY_COMMENT],
+            runner
+        );
+        const declaredNames: Set<string> = new Set(declared.map(k => toStoredIdentifier(k.name)));
+        // what this data source created, which carries its comment - or, from before it did, carries
+        // the name of one declared now. And what 2.x left, which the orm named. Everything else on the
+        // table is somebody else's
+        const owned: StoredKeyRow[] = stored.filter(k => k.marked
+            || declaredNames.has(k.name)
+            || ORM_DEFAULT_KEY_NAME_PATTERN.test(k.name));
 
         // what a build that failed leaves behind: an index that enforces and serves nothing, and is
         // kept up on every write all the same
         for (const leftover of owned.filter(k => !k.valid)) {
             await runner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${escapeIdentifier(leftover.name)}`);
+            this.logger.info(`Dropped the index "${leftover.name}" of the table "${metadata.tableName}": building it had failed.`);
         }
         const kept: Map<string, StoredKeyRow> = new Map(owned.filter(k => k.valid).map(k => [k.name, k]));
-        const declaredNames: Set<string> = new Set(declared.map(k => toStoredIdentifier(k.name)));
         const missing: DeclaredKey[] = declared.filter(k => !kept.has(toStoredIdentifier(k.name)));
         const abandoned: StoredKeyRow[] = [...kept.values()].filter(k => !declaredNames.has(k.name));
 
@@ -2096,11 +2335,18 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         for (const key of declared.filter(k => k.constrain != undefined && kept.get(toStoredIdentifier(k.name))?.constraint === false)) {
             await this.inShortLock(runner, key.constrain ?? '');
         }
+        // marked after it is built rather than with it, which a concurrent build cannot be. One that
+        // stops in between leaves an index under a declared name, which is owned by that name
+        for (const key of declared.filter(k => kept.get(toStoredIdentifier(k.name))?.marked !== true)) {
+            const name: string = escapeIdentifier(toStoredIdentifier(key.name));
+            await runner.query(`COMMENT ON INDEX ${name} IS ${literalToSql(DECLARED_KEY_COMMENT)}`);
+        }
         const table: string = escapeIdentifier(metadata.tableName);
         for (const key of abandoned) {
             await (key.constraint
                 ? this.inShortLock(runner, `ALTER TABLE ${table} DROP CONSTRAINT ${escapeIdentifier(key.name)}`)
                 : runner.query(`DROP INDEX CONCURRENTLY IF EXISTS ${escapeIdentifier(key.name)}`));
+            this.logger.info(`Dropped the index "${key.name}" of the table "${metadata.tableName}": no entity declares it anymore.`);
         }
         const checksChanged: boolean = await this.reconcileChecksOf(runner, entity, metadata.tableName);
         return missing.length > 0 || abandoned.length > 0 || checksChanged;
@@ -2121,7 +2367,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     private async reconcileChecksOf(runner: QueryRunner, entity: Newable<BaseEntity>, tableName: string): Promise<boolean> {
         const table: string = escapeIdentifier(tableName);
         const declared: Map<string, string> = new Map((MetadataUtilities.getEntityMetadata(entity)?.checks ?? []).map(check => {
-            const predicate: string = keyWhereToSql(entity, check);
+            const predicate: string = keyWhereToSql(entity, check.where);
             return [toStoredIdentifier(checkConstraintName(tableName, predicate)), predicate];
         }));
         const stored: StoredCheckRow[] = await runner.connection.query<StoredCheckRow[]>(STORED_CHECKS_SQL, [tableName], runner);
@@ -2148,7 +2394,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                     runner
                 );
                 const check: KeyWhere | undefined = MetadataUtilities.getEntityMetadata(entity)?.checks
-                    ?.find(c => keyWhereToSql(entity, c) === predicate);
+                    ?.find(c => keyWhereToSql(entity, c.where) === predicate)?.where;
                 const constraint: string = check == undefined
                     ? predicate
                     : CheckConstraintViolationError.resolveProperties(check).join(', ');

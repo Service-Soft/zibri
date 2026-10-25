@@ -19,12 +19,12 @@ export interface ApiKeyServiceInterface {
     registerReader: (app: ZibriApplication, reader: string) => void,
     /**
      * Creates an api key that is a secret, and answers with the key itself, which is only ever handed
-     * out here. Throws a BadRequestError when the name is empty, the user lacks one of the roles, or the
-     * key would have expired already.
+     * out here. Throws a BadRequestError when the name is empty, a permission is not declared or not
+     * carried by a role of the user, or the key would have expired already.
      */
-    create: <Role extends string>(
+    create: (
         userId: string,
-        data: ApiKeyCreateData<Role, undefined>,
+        data: ApiKeyCreateData<undefined>,
         transaction: Transaction | undefined
     ) => Promise<CreatedApiKey>,
     /**
@@ -32,9 +32,9 @@ export interface ApiKeyServiceInterface {
      * the token endpoint of the authorization server. Throws a BadRequestError like `create`, and when
      * what it proves itself with cannot be used.
      */
-    createClient: <Role extends string>(
+    createClient: (
         userId: string,
-        data: ApiKeyCreateData<Role, ApiKeyClientAuthentication>,
+        data: ApiKeyCreateData<ApiKeyClientAuthentication>,
         transaction: Transaction | undefined
     ) => Promise<ApiKey>,
     /**

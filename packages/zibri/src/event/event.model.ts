@@ -35,7 +35,8 @@ export enum EventStatus {
 /**
  * Definition for an event.
  */
-@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' } })
+// indexed as the dispatch poll reads it: the unfinished events that are due
+@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' }, indexes: [['status', 'nextDispatchAt']] })
 export class Event<T> extends BaseEntity {
     /**
      * The tenant the event was emitted in, or null for one emitted outside every tenant.
@@ -68,6 +69,12 @@ export class Event<T> extends BaseEntity {
     @Property.string({ enum: EventStatus, default: EventStatus.CREATED })
     status!: EventStatus;
     /**
+     * When the dispatch poll offers the event next: now, while a subscriber owes it a run that is due,
+     * and the earliest retry while every subscriber that owes one is waiting for its retry.
+     */
+    @Property.date({ default: () => new Date() })
+    nextDispatchAt!: Date;
+    /**
      * All ids of eg. Classes that are subscribed to this event.
      */
     @Property.array({ items: { type: 'string' } })
@@ -82,7 +89,10 @@ export class Event<T> extends BaseEntity {
 /**
  * The data needed to create a new event.
  */
-export class EventCreateData<T> extends OmitClass(Event<unknown>, ['id', 'data', 'createdAt', 'eventSubscriberRuns', 'status']) {
+export class EventCreateData<T> extends OmitClass(
+    Event<unknown>,
+    ['id', 'data', 'createdAt', 'eventSubscriberRuns', 'status', 'nextDispatchAt']
+) {
     /**
      * The data of the event.
      */

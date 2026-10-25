@@ -1,5 +1,5 @@
 # Client certificates
-A service calls your api with a client certificate: it shows the certificate to the proxy in front of your application while connecting (mutual TLS), and acts as one of your users. The proxy checks that the client holds the certificate's key and forwards the certificate in a header. Your application takes that header only from the proxy, checks who issued the certificate and that it is valid, and finds the user it belongs to.
+A service calls your API with a client certificate: it shows the certificate to the proxy in front of your application while connecting (mutual TLS), and acts as one of your users. The proxy checks that the client holds the certificate's key and forwards the certificate in a header. Your application takes that header only from the proxy, checks who issued the certificate and that it is valid, and finds the user it belongs to.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -16,7 +16,7 @@ Extend `BaseClientCertificateAuthStrategy` for your proxy:
 // src/auth/ingress-client-certificate.auth-strategy.ts
 import { X509Certificate } from 'node:crypto';
 
-import { BaseClientCertificateAuthStrategy, ClientCertificateHeaderFormat, inject, Repository, repositoryTokenFor } from 'zibri';
+import { BaseClientCertificateAuthStrategy, ClientCertificateHeaderFormat, inject, repositoryTokenFor } from 'zibri';
 
 import { environment } from '../environment';
 import { Role } from '../models/role.enum';
@@ -33,7 +33,7 @@ export class IngressClientCertificateAuthStrategy extends BaseClientCertificateA
         if (email == undefined) {
             return undefined;
         }
-        return await inject<Repository<User>>(repositoryTokenFor(User)).findOne({ where: { email }, required: false });
+        return await inject(repositoryTokenFor(User)).findOne({ where: { email }, required: false });
     }
 }
 ```
@@ -43,6 +43,8 @@ And register it next to the strategy your users log in with:
 ```ts
 // src/application-options.ts
 import { JwtAuthStrategy, ZibriApplicationOptions } from 'zibri';
+
+import { IngressClientCertificateAuthStrategy } from './auth/ingress-client-certificate.auth-strategy';
 
 export const authOptions: Pick<ZibriApplicationOptions, 'authStrategies'> = {
     authStrategies: [JwtAuthStrategy, IngressClientCertificateAuthStrategy]
@@ -58,8 +60,6 @@ export const authOptions: Pick<ZibriApplicationOptions, 'authStrategies'> = {
 | `resolveUserByCertificate` | Answers the user a certificate belongs to, see [finding the user](#finding-the-user). Required |
 | `requiredExtendedKeyUsages` | The extended key usages, as object identifiers, a certificate naming any has to name every one of, see [what is checked](#what-is-checked). `['1.3.6.1.5.5.7.3.2']`, TLS client authentication, by default |
 | `name` | The name of the security scheme in the OpenAPI spec. `client-certificate` by default |
-
-The strategy needs the package `@peculiar/x509`. The application refuses to start without it, when `header`, `trustedProxies` or `certificateAuthorities` is empty, when an entry of `trustedProxies` is neither an address nor a subnet, when one of `certificateAuthorities` is not a certificate, or when an entry of `requiredExtendedKeyUsages` is no object identifier.
 
 ## Proxies
 | `headerFormat` | What the header holds | Proxies |
@@ -113,6 +113,8 @@ An authority of your own that marks its client certificates with a usage of its 
 
 ```ts
 // src/auth/partner-client-certificate.auth-strategy.ts
+import { IngressClientCertificateAuthStrategy } from './ingress-client-certificate.auth-strategy';
+
 export class PartnerClientCertificateAuthStrategy extends IngressClientCertificateAuthStrategy {
     override readonly requiredExtendedKeyUsages: string[] = ['1.3.6.1.5.5.7.3.2', '1.3.6.1.4.1.55555.1'];
 }
@@ -120,10 +122,10 @@ export class PartnerClientCertificateAuthStrategy extends IngressClientCertifica
 
 A request carrying a certificate and another credential, such as a bearer token, is refused with a `401`. The exception is an access token bound to that certificate, see [bound tokens](#bound-tokens). A route that only people may call names the strategies it accepts, as in [what a key may do](./api-keys.md#what-a-key-may-do). A certificate never counts as a recent login.
 
-Websocket messages are never identified by a client certificate.
+WebSocket messages are never identified by a client certificate.
 
 ## Bound tokens
-A service can also exchange its certificate for an access token at the [authorization server](./authorization-server.md), with an api key whose `clientAuthentication` is `TLS_CLIENT_AUTH` or `SELF_SIGNED_TLS_CLIENT_AUTH`, see [clients without a secret](./api-keys.md#clients-without-a-secret). The token is bound to the certificate: it carries the certificate's thumbprint as `cnf`, and is taken only from a request that presents the same certificate. The request then acts as the token, with the roles the token may use.
+A service can also exchange its certificate for an access token at the [authorization server](./authorization-server.md), with an API key whose `clientAuthentication` is `TLS_CLIENT_AUTH` or `SELF_SIGNED_TLS_CLIENT_AUTH`, see [clients without a secret](./api-keys.md#clients-without-a-secret). The token is bound to the certificate: it carries the certificate's thumbprint as `cnf`, and is taken only from a request that presents the same certificate. The request then acts as the token, with the permissions the token may use.
 
 The proxy forwards the certificate on the routes of the authorization server as on every other.
 
@@ -136,8 +138,13 @@ The authorization server and bound tokens read the certificate of a request thro
 | `isTrusted` | Whether a certificate may identify a caller: issued by an authority you trust, valid right now, and one for a client |
 | `resolveUserByCertificate` | Answers the user a trusted certificate belongs to |
 
+## Requirements
+| Package | Used for |
+|---|---|
+| `@peculiar/x509` | Reading the key usages a client certificate names. You install it |
+
 ## See also
 - [Authentication & authorization](./auth.md) — strategies, authenticators and `AuthService`
-- [Api keys](./api-keys.md) — the other way a service calls your api
+- [API keys](./api-keys.md) — the other way a service calls your API
 - [Issuing tokens to services](./authorization-server.md) — exchanging a certificate for a bound access token
 - [Deployment](./deployment.md) — the proxy in front of your application

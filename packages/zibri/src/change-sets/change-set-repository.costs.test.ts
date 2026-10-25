@@ -3,7 +3,8 @@ import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from '
 
 import { SoftDeleteEntity } from './models/soft-delete-entity.model';
 import { SoftDeleteRepository } from './soft-delete-repository';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { inject } from '../di/inject.function';
 import { Entity } from '../entity/decorators/entity.decorator';
@@ -29,6 +30,7 @@ const roundTrips: RoundTripCounter = new RoundTripCounter();
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
     entities: [...defaultTestServerEntities, CostAccount],
+    repositories: defaultTestServerRepositories,
     roundTrips
 });
 
@@ -38,7 +40,7 @@ let accounts: SoftDeleteRepository<CostAccount>;
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [dataSourceClass] });
     accounts = inject(dataSourceClass).getRepository(CostAccount);
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

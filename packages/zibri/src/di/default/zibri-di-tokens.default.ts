@@ -1,4 +1,5 @@
 import { AssetServiceInterface } from '../../assets/asset-service.interface';
+import { AuditServiceInterface } from '../../audit/audit-service.interface';
 import { SmsCodeLimits } from '../../auth/2fa/methods/code/sms-code-limits.model';
 import { TwoFactorCodeOptions } from '../../auth/2fa/methods/code/two-factor-code-options.model';
 import { OtpValidationWindowInMs } from '../../auth/2fa/methods/otp/otp.utilities';
@@ -19,8 +20,11 @@ import { EncryptionStrategyInterface } from '../../auth/encryption/strategies/en
 import { HashServiceInterface } from '../../auth/hash/hash-service.interface';
 import { HashStrategyInterface } from '../../auth/hash/strategies/hash-strategy.interface';
 import { ScryptCost } from '../../auth/hash/strategies/scrypt.hash-strategy';
+import { Require2faProviderFactors } from '../../auth/models/require-2fa-provider-factors.model';
 import { Require2faReauth } from '../../auth/models/require-2fa-reauth.model';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
+import { PermissionDeclaration } from '../../auth/roles/permission-declaration.model';
+import { type RoleServiceInterface } from '../../auth/roles/role-service.interface';
 import { ScimServiceInterface } from '../../auth/scim/scim-service.interface';
 import { ApiKeyOptions } from '../../auth/strategies/api-key/api-key-options.model';
 import { ApiKeyServiceInterface } from '../../auth/strategies/api-key/api-key-service.interface';
@@ -60,6 +64,7 @@ import { OpenApiServiceInterface } from '../../open-api/open-api-service.interfa
 import { FormDataLimits } from '../../parsing/form-data/form-data-limits.model';
 import { CspOptions, CspOptionsInput } from '../../parsing/html/csp-options.model';
 import { ParserInterface } from '../../parsing/parser.interface';
+import { WakeUpServiceInterface } from '../../polling/wake-up-service.interface';
 import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
 import { RateLimitingServiceInterface } from '../../rate-limiting/rate-limiting-service.interface';
 import { RouterInterface } from '../../routing/router.interface';
@@ -112,6 +117,10 @@ export const ZIBRI_DI_TOKENS = {
      * table the busiest table in the application.
      */
     ACCESS_LOG: ziToken<boolean>('zi.access_log'),
+    AUDIT_SERVICE: ziToken<AuditServiceInterface>('zi.audit_service'),
+    // undefined for an application that provides none, which the audit service refuses to start with
+    AUDIT_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.audit_retention_in_ms'),
+    AUDIT_MAX_REFUSALS_PER_MINUTE: ziToken<number>('zi.audit_max_refusals_per_minute'),
     METRICS_SERVICE: ziToken<MetricsServiceInterface>('zi.metrics_service'),
     ASSET_SERVICE: ziToken<AssetServiceInterface>('zi.asset_service'),
     BACKUP_SERVICE: ziToken<BackupServiceInterface>('zi.backup_service'),
@@ -121,6 +130,19 @@ export const ZIBRI_DI_TOKENS = {
     OPEN_API_AUTH: ziToken<RouteAuthConfiguration>('zi.open_api_auth'),
     AUTH_SERVICE: ziToken<AuthServiceInterface>('zi.auth_service'),
     REVALIDATE_USER_ON_AUTH_CHECK: ziToken<boolean>('zi.revalidate_user_on_auth_check'),
+    /**
+     * Every permission of the application, which routes name and roles carry. The roles are rows, see
+     * `ROLE_SERVICE`.
+     *
+     * Undefined unless provided, and then no permission is declared: a route naming one, or a role
+     * carrying one, is refused.
+     */
+    PERMISSIONS: ziToken<PermissionDeclaration | undefined>('zi.permissions'),
+    /**
+     * The service keeping the roles: reading them for the checks, and creating, changing, deleting,
+     * giving and taking them.
+     */
+    ROLE_SERVICE: ziToken<RoleServiceInterface>('zi.role_service'),
     /**
      * When an access token stops working once what it was issued for has ended: when it expires, or
      * immediately, which reads on every check of a token whether its login or its client still exists.
@@ -134,12 +156,14 @@ export const ZIBRI_DI_TOKENS = {
     TWO_FACTOR_FAILURE_DELAY_IN_MS: ziToken<number>('zi.two_factor_failure_delay_in_ms'),
     REQUIRE_2FA_REAUTH: ziToken<Require2faReauth>('zi.require_2fa_reauth'),
     REQUIRE_2FA_REAUTH_WINDOW_IN_MS: ziToken<number>('zi.require_2fa_reauth_window_in_ms'),
+    REQUIRE_2FA_PROVIDER_FACTORS: ziToken<Require2faProviderFactors>('zi.require_2fa_provider_factors'),
     OTP_HEADER: ziToken<string>('zi.otp_header'),
     OTP_VALIDATION_WINDOW_IN_MS: ziToken<OtpValidationWindowInMs>('zi.otp_validation_window_in_ms'),
     OTP_LENGTH: ziToken<number>('zi.otp_length'),
     PASSKEY_HEADER: ziToken<string>('zi.passkey_header'),
     EMAIL_CODE_HEADER: ziToken<string>('zi.email_code_header'),
     SMS_CODE_HEADER: ziToken<string>('zi.sms_code_header'),
+    LOGIN_TICKET_HEADER: ziToken<string>('zi.login_ticket_header'),
     // undefined for an application that provides none, which is the one not sending codes by text message
     SMS_CODE_LIMITS: ziToken<SmsCodeLimits | undefined>('zi.sms_code_limits'),
     RECOVERY_CODE_HEADER: ziToken<string>('zi.recovery_code_header'),
@@ -159,6 +183,7 @@ export const ZIBRI_DI_TOKENS = {
     HTTP_SERVER_LIMITS: ziToken<HttpServerLimits>('zi.http_server_limits'),
     COMPRESSION_OPTIONS: ziToken<CompressionOptions>('zi.compression_options'),
     LEASE_SERVICE: ziToken<LeaseServiceInterface>('zi.lease_service'),
+    WAKE_UP_SERVICE: ziToken<WakeUpServiceInterface>('zi.wake_up_service'),
     TENANT_SERVICE: ziToken<TenantServiceInterface>('zi.tenant_service'),
     MEMBERSHIP_SERVICE: ziToken<MembershipServiceInterface>('zi.membership_service'),
     LEASE_DRAIN_TIMEOUT_IN_MS: ziToken<number>('zi.lease_drain_timeout_in_ms'),
@@ -174,6 +199,7 @@ export const ZIBRI_DI_TOKENS = {
     COOKIE_AUTH_REFRESH_SESSION_OPTIONS: ziToken<CookieAuthSessionOptionsInput>('zi.cookie_auth_refresh_session_options'),
     COOKIE_AUTH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_session_expires_in_ms'),
     COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS: ziToken<number>('zi.cookie_auth_refresh_session_expires_in_ms'),
+    COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS: ziToken<number>('zi.cookie_auth_refresh_session_reuse_grace_in_ms'),
     PASSWORD_RESET_TOKEN_EXPIRES_IN_MS: ziToken<number>('zi.password_reset_token_expires_in_ms'),
     CONFIRM_PASSWORD_RESET_URL: ziToken<string | undefined>('zi.confirm_password_reset_url'),
     // eslint-disable-next-line typescript/no-explicit-any
@@ -201,6 +227,8 @@ export const ZIBRI_DI_TOKENS = {
     EMAIL_RATE_LIMITER: ziToken<RateLimiterInterface<any>>('zi.email_rate_limiter'),
     MULTITHREADING_SERVICE: ziToken<MultithreadingServiceInterface>('zi.multithreading_service'),
     MULTITHREADING_OPTIONS: ziToken<MultithreadingOptions>('zi.multithreading_options'),
+    // undefined for an application that provides none, which the multithreading service refuses to start with
+    THREAD_JOB_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.thread_job_retention_in_ms'),
     // eslint-disable-next-line typescript/no-explicit-any
     WEBSOCKET_SERVICE: ziToken<WebsocketServiceInterface<any>>('zi.websocket_service'),
     // both undefined for an application that provides no input, which is the one without websockets

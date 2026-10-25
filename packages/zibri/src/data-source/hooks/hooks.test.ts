@@ -2,7 +2,8 @@ import assert from 'node:assert';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { type HashString } from '../../auth/hash/hash.utilities';
 import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
@@ -57,17 +58,18 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [
             createTestDataSource({
-                entities: [...defaultTestServerEntities, HookTestEntity, ChangeSet]
+                entities: [...defaultTestServerEntities, HookTestEntity, ChangeSet],
+                repositories: defaultTestServerRepositories
             })
         ]
     });
     repo = inject(repositoryTokenFor(HookTestEntity));
     changeSetRepo = inject(repositoryTokenFor(ChangeSet));
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await changeSetRepo.deleteAll({});

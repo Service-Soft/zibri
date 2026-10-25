@@ -1,3 +1,5 @@
+import { ProviderAuthentication } from '../models/provider-authentication.model';
+
 /**
  * What a token an identity provider issued says, once it is verified: the user it signs in as, and
  * what a request sending it has to prove on top.
@@ -15,6 +17,10 @@ export type ProviderToken = {
      * When the token stops being accepted, when it says.
      */
     expiresAt: Date | undefined,
+    /**
+     * How the user proved who they are at the provider, when the token says.
+     */
+    providerAuthentication: ProviderAuthentication | undefined,
     /**
      * The RFC 7638 thumbprint of the DPoP key the token is bound to, if any.
      */

@@ -12,8 +12,9 @@ import { EmailPriority } from '../../email/models/email-priority.enum';
 import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
 import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -94,7 +95,7 @@ beforeAll(async () => {
     server = await startTestServer({
         // in process: what is asserted is which mails a pass takes and when their rows are written, which
         // does not depend on the engine the rows are in
-        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({
@@ -110,11 +111,11 @@ beforeAll(async () => {
     });
     emailRepository = inject(repositoryTokenFor(Email));
     emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 beforeEach(async () => {
     await emailRepository.deleteAll({});

@@ -3,8 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { CronJob } from '../../cron/cron-job.model';
@@ -56,7 +57,7 @@ const quietPeriodInMs: number = 300;
 
 // one for both applications of this file: a data source that is declared stays registered, and an
 // application that does not deploy it is refused for it before anything this file is about runs
-const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities });
+const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
 let server: StartedTestServer;
 let baseUrl: string;
@@ -170,11 +171,11 @@ describe('replaying what a reconnecting client missed', () => {
         baseUrl = await server.start();
         // eslint-disable-next-line typescript/no-unsafe-assignment
         wsService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     afterEach(() => {
         for (const socket of sockets.splice(0)) {
@@ -271,5 +272,5 @@ describe('an application with websockets that does not say how long its messages
             dataSources: [dataSourceClass],
             providers: resolveProviders(false)
         })).rejects.toThrow('ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });

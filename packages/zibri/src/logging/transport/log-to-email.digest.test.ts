@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { EmailLoggerTransportConfig } from './log-to-email.function';
 import { LogEmailTemplate, LoggerTransport } from './logger-transport.model';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -46,11 +47,11 @@ let emailRepository: Repository<Email>;
 beforeAll(async () => {
     server = await startTestServer();
     emailRepository = inject(repositoryTokenFor(Email));
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await emailRepository.deleteAll({});

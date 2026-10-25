@@ -1,5 +1,6 @@
 import { BaseUser } from '../../../models/base-user.model';
 import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
  * Authenticates a user by a sign-in at a Keycloak realm.
@@ -13,6 +14,9 @@ export abstract class BaseKeycloakAuthenticator<
 > extends BaseOidcAuthenticator<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'keycloak';
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     /**
      * The url Keycloak is reached at, eg. `https://sso.example.com`.

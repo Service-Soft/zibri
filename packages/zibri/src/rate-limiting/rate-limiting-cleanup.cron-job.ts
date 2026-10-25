@@ -17,7 +17,10 @@ export class RateLimitingCleanupCronJob extends CronJob {
         // Stays correct for a shared store too - cleanup is idempotent, it just runs more often, and
         // a run against one costs two operations plus one per key actually holding an abandoned
         // reservation. Running it everywhere is cheap enough not to need a mechanism to run it once.
-        distributed: false
+        distributed: false,
+        // and a shared row would only say that some instance cleaned up, at the cost of reading and
+        // writing it every ten seconds from every one of them
+        syncToDataSource: false
     };
 
     constructor(

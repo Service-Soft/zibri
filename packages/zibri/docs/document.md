@@ -1,5 +1,5 @@
 # Document generation
-Zibri wraps [pdfmake](https://pdfmake.github.io/docs/) so PDF documents can be built without pulling in and configuring it yourself. The wrapper is general-purpose — it isn't tied to invoicing, even though the invoicing plugin is currently the only built-in consumer. XML documents are written from models, see [XML](./xml.md).
+`PdfUtilities` builds PDF documents from a [pdfmake](https://pdfmake.github.io/docs/) document definition, such as a report, a receipt or an invoice. The [invoicing plugin](./invoicing-plugin.md) renders its invoices with it. XML documents are written from models, see [XML](./xml.md).
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -15,9 +15,8 @@ Zibri wraps [pdfmake](https://pdfmake.github.io/docs/) so PDF documents can be b
 | `PdfImageDefinition` | type | Definition of an image embedded into the document |
 | `PdfBufferOptions` | type | Options passed through to pdfmake's PDF buffer generation |
 
-## Usage
-### Generating a PDF
-`PdfUtilities.create` takes a `PdfDocumentDefinition` and returns a `PdfDocument` — a readable stream, not a `Buffer`. Pipe it to one or more writable destinations, then call `.end()` to flush it:
+## Generating a PDF
+`PdfUtilities.create` takes a `PdfDocumentDefinition` and returns a `PdfDocument`, which is a readable stream. Pipe it to one or more writable destinations, then call `.end()` to flush it:
 
 ```ts
 // src/reports/report-pdf.function.ts
@@ -51,9 +50,9 @@ export function createReportPdf(): PdfDocument {
 }
 ```
 
-`content` accepts the full pdfmake DSL directly (`PdfContentDefinition` is just an alias for pdfmake's `Content` type) — Zibri doesn't simplify or restrict it, only requires `attachments` in addition to what pdfmake itself expects.
-<br>
-Since a `PdfDocument` is a plain readable stream, it can be returned directly from an endpoint via `FileResponse.fromStream` (see [creating endpoints](./creating-endpoints.md#returning-files)):
+`content` takes the full pdfmake DSL: `PdfContentDefinition` is pdfmake's `Content` type. A definition takes everything pdfmake takes, plus `attachments`.
+
+An endpoint returns a `PdfDocument` with `FileResponse.fromStream`, see [creating endpoints](./creating-endpoints.md#returning-files):
 
 ```ts
 // src/controllers/report.controller.ts
@@ -71,11 +70,14 @@ export class ReportController {
 }
 ```
 
-### Attaching files to a PDF
+## Attaching files to a PDF
 Add entries to `attachments` on the document definition. Each entry needs an `options.name` and either a file path or the raw content:
 
 ```ts
-const definition: PdfDocumentDefinition = {
+// src/invoices/invoice-definition.ts
+import { PdfDocumentDefinition } from 'zibri';
+
+export const invoiceDefinition: PdfDocumentDefinition = {
     attachments: [
         {
             src: Buffer.from('raw file content'),
@@ -85,6 +87,11 @@ const definition: PdfDocumentDefinition = {
     content: ['Invoice with an attached csv export']
 };
 ```
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `pdfmake` | Laying out and writing PDF documents. You install it |
 
 ## See also
 - [XML](./xml.md) — writing and reading xml documents with `XmlUtilities.generateFrom` and `XmlUtilities.parseFrom`

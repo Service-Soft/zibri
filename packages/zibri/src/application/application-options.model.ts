@@ -1,6 +1,8 @@
+import { TwoFactorAtLogin } from '../auth/2fa/two-factor-at-login.type';
 import { TwoFactorFailureLimit } from '../auth/2fa/two-factor-failure-limit.model';
 import { TwoFactorMethods } from '../auth/2fa/two-factor-methods.model';
 import { Authenticators } from '../auth/authenticators/authenticators.model';
+import { PasswordFailureLimit } from '../auth/authenticators/password/password-failure-limit.model';
 import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
 import { BackupTransportInterface } from '../backup/transports/backup-transport.interface';
 import { CronJob } from '../cron/cron-job.model';
@@ -185,12 +187,25 @@ export type ZibriApplicationOptions = {
      */
     twoFactorMethods?: TwoFactorMethods,
     /**
+     * Whether a login asks for a second factor once its credentials were accepted: `never`,
+     * `ifEnrolled` or `required`.
+     *
+     * With anything but `never`, declare `LoginTicket` in your data source.
+     */
+    twoFactorAtLogin: TwoFactorAtLogin,
+    /**
      * Whether a user's second factor is locked after too many wrong codes in a row, and what the lock
      * refuses.
      *
      * Defaults to `false`, which locks nothing.
      */
     twoFactorFailureLimit?: TwoFactorFailureLimit,
+    /**
+     * Whether an account is locked after too many wrong passwords in a row, and for how long.
+     *
+     * Defaults to `false`, which locks nothing.
+     */
+    passwordFailureLimit?: PasswordFailureLimit,
     /**
      * The cron jobs to register in the app.
      */

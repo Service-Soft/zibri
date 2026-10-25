@@ -1,4 +1,4 @@
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { zibriFrameworkEntities } from './framework-entities';
 
@@ -10,6 +10,11 @@ export type CreatePostgresTestDataSourceOptions = {
      * The application's own entities. The framework's are added for you.
      */
     entities?: Newable<BaseEntity>[],
+    /**
+     * The application's repository classes, each declared with `@RepositoryFor` for one of the
+     * entities. None when it is not given.
+     */
+    repositories?: RepositoryClass[],
     /**
      * The host to connect to. The port is the one the container was mapped to, and is applied by
      * the harness rather than named here.
@@ -58,6 +63,7 @@ export type CreatePostgresTestDataSourceOptions = {
 export function createPostgresTestDataSource(options: CreatePostgresTestDataSourceOptions = {}): Newable<PostgresDataSource> {
     const {
         entities = [],
+        repositories = [],
         host = 'localhost',
         username = 'postgres',
         password = 'password',
@@ -91,6 +97,8 @@ export function createPostgresTestDataSource(options: CreatePostgresTestDataSour
         };
 
         override entities: Newable<BaseEntity>[] = all;
+
+        override readonly repositories: RepositoryClass[] = repositories;
 
         // a harness ships no migrations and needs tables, so this is the one deployment shape it is
         // actually right for

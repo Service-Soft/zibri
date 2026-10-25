@@ -212,6 +212,26 @@ export function describePartialNestedUpdate(dataSourceName: string, repositories
             expect(await storedLocation(venue.id)).toEqual({ ...main, number: '7' });
         });
 
+        // a statement writing the table reads its rows under no alias, and a condition through a
+        // relation naming the row by a bare column name held for every row of the table. Also what
+        // large-batches.cases.ts counts at scale
+        it('updates the rows a filter through a relation matches alone', async () => {
+            const organizer: Organizer = await repositoriesOf().organizers.create({ name: UUIDUtilities.generate() });
+            const other: Organizer = await repositoriesOf().organizers.create({ name: UUIDUtilities.generate() });
+            const batch: string = UUIDUtilities.generate();
+            const matched: Venue = await repositoriesOf().venues.create({ batch, name: 'hall', location: main, organizerId: organizer.id });
+            const unmatched: Venue = await repositoriesOf().venues.create({ batch, name: 'hall', location: main, organizerId: other.id });
+
+            const count: number = await repositoriesOf().venues.updateAll(
+                { batch, organizer: { where: { name: organizer.name } } },
+                { location: { number: '9' } }
+            );
+
+            expect(count).toBe(1);
+            expect(await storedLocation(matched.id)).toEqual({ ...main, number: '9' });
+            expect(await storedLocation(unmatched.id)).toEqual(main);
+        });
+
         it('merges when updateAll gives a relation as well', async () => {
             const venue: Venue = await createVenue();
             const label: Label = await repositoriesOf().labels.create({ text: 'loud' });

@@ -2,13 +2,23 @@ import { BaseRepositoryOptions } from './base-repository-options.model';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityOrder } from '../../../entity/models/entity-order.model';
 import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model';
+import { EntitySelection } from '../../../entity/models/entity-selection.model';
 import { Where } from '../where/where-filter.model';
 
 /**
  * Options for finding multiple entities.
  */
-export type FindAllOptions<T extends BaseEntity> = BaseRepositoryOptions
+export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | undefined = undefined> = BaseRepositoryOptions
     & {
+        /**
+         * The properties to hand back, by default every one.
+         *
+         * Names the properties of each entity, `['name', 'email']`, or reaches into what a property
+         * holds: `{ name: true, address: { street: true } }`. A relation is reached into only when
+         * `relations` includes it, and an included relation the selection does not name is not handed
+         * back. Every entity keeps its `id`. The return type is narrowed to what is named.
+         */
+        select?: S,
         /**
          * The order to read the entities in.
          *

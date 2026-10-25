@@ -23,6 +23,7 @@ import { GlobalError } from './errors/global.error';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MethodNotAllowedError } from './errors/method-not-allowed.error';
 import { TooManyRequestsError } from './errors/too-many-requests.error';
+import { ValidationError } from './errors/validation.error';
 import { NumberUtilities } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
@@ -68,6 +69,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         name: httpError.name,
         message: httpError.message,
         paragraphs: httpError.paragraphs,
+        problems: httpError instanceof ValidationError ? httpError.problems : undefined,
         traceId: TracingUtilities.getCurrentTraceContext()?.traceId
     };
 
@@ -203,7 +205,7 @@ function handleLogging(error: unknown, httpError: HttpError): void {
         // `@RateLimited` sits on the route method, so a limiter that trips means the body that would
         // have audited never ran. The log context carries the url and the client ip with it
         if (error instanceof TooManyRequestsError) {
-            logger.audit({ action: AuditAction.RATE_LIMITED, outcome: AuditOutcome.FAILURE });
+            inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.RATE_LIMITED, outcome: AuditOutcome.FAILURE });
         }
         return;
     }

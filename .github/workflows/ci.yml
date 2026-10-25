@@ -58,6 +58,8 @@ jobs:
             - run: npm ci
             - run: npm run build -w zibri-tsx
             - run: npm run build:prod -w zibri
+            # loaded built, the way a consumer gets it, by the check that it loads without its optional peers
+            - run: npm run build -w zibri-testing
             - run: npm run test:ci -w zibri
             - run: npm run test -w zibri-tsx
             # the cli's whole suite in one in-band run, which is what lets it report coverage without

@@ -111,9 +111,9 @@ type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
      * way rather than as a lifecycle hook. Everything injected afterwards gets the value it resolved
      * to, which is what lets `inject()` stay synchronous.
      *
-     * Whatever it needs arrives as an argument, in the order `deps` names it. `inject()` is refused
-     * inside here: this runs before the rest of the application exists, so what `inject()` found
-     * would depend on what happened to have been built already.
+     * Whatever it needs arrives as an argument, in the order `deps` names it. `inject()` refuses
+     * another asynchronous provider inside here, since whether that one has been awaited yet would
+     * depend on the order the providers were registered in.
      *
      * Separate from `useFactory` because a promise is a value like any other: a `useFactory` that
      * returns one provides the promise itself, and only what is declared here is waited for.

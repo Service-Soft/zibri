@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { LoggerTransport } from './logger-transport.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -69,14 +70,23 @@ function refusedLoginOf(subject: string): AuditEvent {
     return { action: AuditAction.LOGIN, outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED, subject };
 }
 
+/**
+ * Logs a refused login of the given address, the way the audit service logs one.
+ * @param logger - The logger.
+ * @param subject - The address the attempt named.
+ */
+function logRefusedLogin(logger: Logger, subject: string): void {
+    logger.warn('auth.login failure (refused)', { metadata: { audit: refusedLoginOf(subject) } });
+}
+
 // evaluation/03-auth-and-security G3: the db transport wrote whatever arrived, so a caller could fill
 // the log table at request rate - an error row per bad input, an audit row per refused login
 describe('the db logger transport\'s budget', () => {
     beforeAll(async () => {
-        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
         tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
         logs = inject(repositoryTokenFor(Log));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterEach(() => {
         jest.restoreAllMocks();
@@ -84,7 +94,7 @@ describe('the db logger transport\'s budget', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('writes each entry as its own row while the minute\'s budget lasts, and one counted row per kind past it', async () => {
         const tenantId: string = UUIDUtilities.generate();
@@ -97,10 +107,10 @@ describe('the db logger transport\'s budget', () => {
         await logger.flush();
         await logIn(tenantId, () => {
             for (let i: number = 0; i < 5; i++) {
-                logger.audit(refusedLoginOf('alice@example.com'));
+                logRefusedLogin(logger, 'alice@example.com');
             }
-            logger.audit(refusedLoginOf('bob@example.com'));
-            logger.audit(refusedLoginOf('bob@example.com'));
+            logRefusedLogin(logger, 'bob@example.com');
+            logRefusedLogin(logger, 'bob@example.com');
         });
         await logger.flush();
 

@@ -1,10 +1,8 @@
 import { BaseUserEntity, Entity, IntersectionClass, OmitClass, OmitStrict, PasswordCredentials, Property } from 'zibri';
 
-import { Roles } from './roles.enum';
-
-// 'shared' because one user can be member in multiple tenants
+// 'shared' because one user can be member in multiple tenants. Its roles are the names of roles
 @Entity({ tenant: 'shared' })
-export class User extends BaseUserEntity(Roles) {
+export class User extends BaseUserEntity() {
     @Property.string()
     name!: string;
 }

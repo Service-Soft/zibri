@@ -27,6 +27,7 @@ import { ScimValueSort } from './scim-value-sort.model';
 import { ScimWhereUtilities } from './scim-where.utilities';
 import { ScimError } from './scim.error';
 import { ZibriApplication } from '../../application/application';
+import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { Where, WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { ScopedWhere, ScopeWhereUtilities } from '../../data-source/scopes/scope-where.utilities';
@@ -211,6 +212,10 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         return inject(repositoryTokenFor(ScimUserValue));
     }
 
+    private get auditService(): AuditServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE);
+    }
+
     private get authService(): AuthServiceInterface {
         return inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     }
@@ -303,7 +308,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             return await this.inTransaction(async transaction => {
                 await this.validateUserNameFree(input.userName, undefined, transaction);
                 const id: string = UUIDUtilities.generate();
-                const provisioner: BaseScimProvisioner<string> = inject(endpoint.provisioner);
+                const provisioner: BaseScimProvisioner = inject(endpoint.provisioner);
                 const found: BaseUser<string> | undefined = await provisioner.findProvisionedUser({ id, ...input }, transaction);
                 // only a user it creates is the tenant's own. One that existed already may belong to
                 // other tenants too, and an identity provider claiming them by their email could
@@ -1964,11 +1969,11 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     private async audited<T>(action: AuditAction, work: () => Promise<AuditedResult<T>>): Promise<T> {
         try {
             const { result, userId } = await work();
-            this.logger.audit({ action, outcome: AuditOutcome.SUCCESS, ...userId == undefined ? {} : { userId } });
+            this.auditService.record({ action, outcome: AuditOutcome.SUCCESS, ...userId == undefined ? {} : { userId } });
             return result;
         }
         catch (error) {
-            this.logger.audit({ action, outcome: AuditOutcome.FAILURE, reason: auditReasonFor(error) });
+            this.auditService.record({ action, outcome: AuditOutcome.FAILURE, reason: auditReasonFor(error) });
             throw error;
         }
     }

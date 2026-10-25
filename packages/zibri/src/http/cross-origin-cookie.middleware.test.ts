@@ -3,10 +3,12 @@ import { InMemoryDataSource } from 'zibri-testing';
 
 import { CorsOrigin } from './cors.middleware';
 import { KnownHeader } from './known-header.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { BaseEntity } from '../entity/base-entity.model';
 import { AcceptCrossSitePosts } from '../routing/decorators/accept-cross-site-posts.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
@@ -22,6 +24,7 @@ const cookie: string = 'sessionId=the-users';
 @DataSource()
 class CrossOriginCookieDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 /**
@@ -85,12 +88,12 @@ beforeAll(async () => {
         security: { cors: { origins: [allowedOrigin], credentials: true } }
     });
     baseUrl = await server.start();
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 /**
  * Sends a request to the test route.

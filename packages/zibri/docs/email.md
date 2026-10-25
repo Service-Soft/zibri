@@ -1,5 +1,5 @@
 # Handling emails
-Zibri provides an out of the box email service with with templating, mail queue, persistence and priority handling.
+The email service queues mails in your data source and sends them in the background, by priority and within an hourly rate limit. You render a mail from a [tsx template](./templating.md#rendering-an-email) and queue it.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -9,15 +9,17 @@ Zibri provides an out of the box email service with with templating, mail queue,
 | `EmailConfigInput` | type | Options accepted by the `EMAIL_CONFIG` DI token |
 | `ZIBRI_DI_TOKENS.EMAIL_CONFIG` | DI token | Configures the sender, the rate limit and how the queue is drained |
 | `EmailTransportInterface` | interface | What delivers a mail |
+| `EmailSendResult` | type | What a transport answers for a mail: the recipients the provider refused |
 | `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` | DI token | Injects `EmailTransportInterface` |
 | `SmtpEmailTransport` | class | The transport Zibri ships, over SMTP |
-| `EmailPriority` | enum | Priority of a queued email (eg. `HIGH`, `NORMAL`) |
+| `EmailPriority` | enum | Priority of a queued email (such as `HIGH`, `NORMAL`) |
+| `EmailStatus` | enum | Status of a queued email: `QUEUED`, `SENT` or `FAILED` |
 | `Email` | entity | A queued email |
+| `EmailAttachment` | class | A file attached to a queued email, with its content |
 | `EmailCleanupCronJob` | cron job | Deletes the failed emails older than `failedRetentionInMs`. Registered for you |
 
-## Usage
-### Configuring email
-Email needs two things: what the subsystem should do, and what delivers a mail. Both are providers, and both are required — there is no default transport, because every one of them needs a server or an api key that only your deployment knows.
+## Configuring email
+Email takes two providers, and both are required. `ZIBRI_DI_TOKENS.EMAIL_CONFIG` says what the queue does, and `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` delivers a mail. There is no default transport, since each one needs a server or an API key of your deployment.
 
 ```ts
 // src/providers.ts
@@ -29,7 +31,7 @@ export const providers: DiProvider<unknown>[] = [
         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
         useFactory: (): EmailConfigInput => {
             return {
-                defaultSender: 'Test Test',
+                defaultSender: 'noreply@example.com',
                 maxEmailsPerHour: 1000,
                 failedRetentionInMs: Ms.DAY * 90
             };
@@ -38,7 +40,7 @@ export const providers: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,
         useFactory: () => new SmtpEmailTransport({
-            host: 'mailserver-host',
+            host: 'smtp.example.com',
             port: 587,
             auth: {
                 user: 'mail-user',
@@ -50,21 +52,33 @@ export const providers: DiProvider<unknown>[] = [
 ];
 ```
 
-### Sending through something other than SMTP
-Plenty of environments do not allow outbound SMTP at all, and send through an http API instead — SES, SendGrid, Postmark. Implement `EmailTransportInterface` and register it under the same token; everything else about the mail subsystem is unchanged.
+| Option | What it is |
+|---|---|
+| `defaultSender` | The address a mail queued without a sender goes out as. Required |
+| `maxEmailsPerHour` | The hourly budget queued mails are rate limited against. Required |
+| `failedRetentionInMs` | How long a `FAILED` mail is kept, counted from when it was queued, or `'forever'`. Required |
+| `sendLeaseInMs` | How long one instance may hold a queued mail while sending it. Renewed while the send runs, so it decides how long a mail waits before another instance takes over from one that stopped existing. Defaults to one minute |
+| `sendBatchSize` | How many mails one pass of the queue sends at most. Raise it to drain a backlog faster, lower it for a provider that dislikes bursts. Defaults to 10 |
+| `maxSendAttempts` | How many times sending a mail may throw before it is `FAILED`. Defaults to 5 |
+| `retryDelayInMs` | How long a mail whose send threw waits before it is tried again, doubling with each further attempt. Defaults to one minute |
+
+Every priority gets a slot in each pass, whatever `sendBatchSize` is. A priority takes at most `sendBatchSize` slots, less one per priority below it, so a steady flood of `HIGH` still leaves one slot for `NORMAL` and one for `LOW`.
+
+## Sending through something other than SMTP
+To send through an HTTP API, such as SES, SendGrid or Postmark, implement `EmailTransportInterface` and register it under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT`. The queue works the same with every transport.
 
 ```ts
-// src/email/my-api.email-transport.ts
+// src/email/mail-api.email-transport.ts
 import { Email, EmailSendResult, EmailTransportInterface } from 'zibri';
 
-import { myProvider } from './my-provider';
+import { mailApi } from './mail-api';
 
-export class MyApiEmailTransport implements EmailTransportInterface {
+export class MailApiEmailTransport implements EmailTransportInterface {
 
-    readonly name: string = 'MyApiEmailTransport';
+    readonly name: string = 'MailApiEmailTransport';
 
     async send(email: Email): Promise<EmailSendResult> {
-        const response = await myProvider.messages.create({
+        const response = await mailApi.messages.create({
             from: email.sender,
             to: email.recipients,
             subject: email.subject,
@@ -75,98 +89,131 @@ export class MyApiEmailTransport implements EmailTransportInterface {
 }
 ```
 
-Two rules decide whether a mail is kept, retried or recorded as failed, so a transport has to get them right:
+How `send` ends decides whether a mail is retried or recorded as failed:
 
 | The transport | Means | The row |
 |---|---|---|
-| Throws | The message never reached the provider — a refused connection, a timeout, a 5xx, an expired credential | Stays `QUEUED` and is attempted again at its `retryAt`, `FAILED` after `maxSendAttempts` attempts |
+| Throws | The message never reached the provider, such as a refused connection, a timeout, a 5xx or an expired credential | Stays `QUEUED` and is attempted again at its `retryAt`, `FAILED` after `maxSendAttempts` attempts |
 | Returns `rejectedRecipients` | The provider answered and refused those addresses | `FAILED`, and never attempted again |
 
-Answering where you should have thrown loses the mail silently. Throwing where you should have answered sends the accepted recipients a second copy on the next attempt.
+> [!WARNING]
+> A transport that returns where it should throw loses the mail silently. One that throws where it should return sends the accepted recipients a second copy on the next attempt.
 
-Add `close()` if the transport holds something — a connection pool, a keep-alive agent, an sdk client. It is called when the application shuts down.
+Add `close()` if the transport holds something, such as a connection pool, a keep-alive agent or an SDK client. It is called when the application shuts down.
 
-A mail queued in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and the transport sends it in that tenant. The transport reads it in `email.tenantId`, eg. to send it from that tenant's own address.
+A mail queued in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and the transport sends it in that tenant. The transport reads it in `email.tenantId`, for example to send it from that tenant's own address.
 
 A mail sent to a mailing list carries `listUnsubscribeUrl`. Send it as the `List-Unsubscribe: <url>` header, together with `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, as `SmtpEmailTransport` does: a mailbox provider then shows its own unsubscribe button, which posts to that url (RFC 8058).
 
-### Queueing an email
-Then you can use the email service:
+## Queueing an email
+An email is a tsx template in `src/templates/emails`, built from the MJML components, see [rendering an email](./templating.md#rendering-an-email):
+
+```tsx
+// src/templates/emails/task-assigned.tsx
+import { $ts, Mjml, MjBody, MjButton, MjColumn, MjSection, MjText, TsxEmailComponent } from 'zibri';
+
+type TaskAssignedEmailProps = {
+    userName: string,
+    taskTitle: string,
+    taskUrl: string
+};
+
+export const TaskAssignedEmail: TsxEmailComponent<TaskAssignedEmailProps> = ({ userName, taskTitle, taskUrl }) => {
+    return (
+        <Mjml>
+            <MjBody>
+                <MjSection>
+                    <MjColumn>
+                        <MjText>{$ts`Hello ${userName}, the task "${taskTitle}" was assigned to you.`}</MjText>
+                        <MjButton href={taskUrl}>{$ts`Open the task`}</MjButton>
+                    </MjColumn>
+                </MjSection>
+            </MjBody>
+        </Mjml>
+    );
+};
+```
+
+`TsxUtilities.renderEmail` renders it to html, and `queue` adds the mail to the queue:
 
 ```ts
-import { EmailServiceInterface, ZIBRI_DI_TOKENS, inject, EmailPriority } from 'zibri';
-import renderBaseEmail from '../templates/emails/base-email.hbs';
-import renderEmailContent from '../templates/emails/my-email.hbs';
+// src/services/task-notification.service.ts
+import { EmailPriority, EmailServiceInterface, inject, TsxUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
-export async function queueTestEmail(): Promise<void> {
+import { TaskAssignedEmail } from '../templates/emails/task-assigned';
+
+export async function queueTaskAssignedEmail(): Promise<void> {
     const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
-    const content: string = renderEmailContent({
-        some: 'data'
+    const html: string = TsxUtilities.renderEmail(TaskAssignedEmail, {
+        userName: 'Ada',
+        taskTitle: 'Write the release notes',
+        taskUrl: 'https://app.example.com/tasks/42'
     });
     await emailService.queue({
-        recipients: ['test@test.com'],
-        subject: 'test',
-        priority: EmailPriority.HIGH, // defaults to NORMAL
-        html: renderBaseEmail({
-            content,
-            base: {
-                title: 'Test Email',
-                baseUrl: 'http://localhost:3000'
-            }
-        })
+        recipients: ['ada@example.com'],
+        subject: 'A task was assigned to you',
+        priority: EmailPriority.HIGH,
+        html
     });
 }
 ```
 
-### What happens to the row
+A mail without a `priority` is queued as `NORMAL`. A [Handlebars template](./templating.md#rendering-a-handlebars-template) renders html for a mail as well.
+
+## Attaching files
+An attachment carries the content of its file, base64 encoded, and the name the recipient sees. The extension of `filename` decides the content type.
+
+```ts
+// src/services/invoice-email.service.ts
+import { readFile } from 'node:fs/promises';
+
+import { EmailServiceInterface, FsPath, inject, ZIBRI_DI_TOKENS } from 'zibri';
+
+export async function queueInvoiceEmail(invoicePath: FsPath): Promise<void> {
+    const emailService: EmailServiceInterface = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
+    await emailService.queue({
+        recipients: ['customer@example.com'],
+        subject: 'Your invoice',
+        html: '<p>Your invoice is attached.</p>',
+        attachments: [{ filename: 'invoice.pdf', base64Content: (await readFile(invoicePath)).toString('base64') }]
+    });
+}
+```
+
+The content is part of the queued mail, so whichever instance sends it has the file, and you can delete yours once the mail is queued.
+
+## What happens to the row
 
 A queued mail is a row in the `Email` table, and what becomes of it depends on how the send went.
 
 | Outcome | Row |
 |---|---|
-| Sent, `persist: false` (the default) | Deleted — the queue drains |
+| Sent, `persist: false` (the default) | Deleted, so the queue drains |
 | Sent, `persist: true` | Kept, `status: SENT` |
 | A recipient was refused | Kept, `status: FAILED`, with `rejectedRecipients` naming the addresses |
-| The send threw before reaching the server, eg. an attachment is missing | Kept, `status: QUEUED`, with `attempts` counting it and `retryAt` saying when it is tried again |
+| The send threw before reaching the server, such as the server could not be reached | Kept, `status: QUEUED`, with `attempts` counting it and `retryAt` saying when it is tried again |
 | The send threw `maxSendAttempts` times | Kept, `status: FAILED` |
 
 Each mail of a pass is sent on its own, so one whose send throws holds back none of the others. It is passed over until its `retryAt`: `retryDelayInMs` after the first attempt, and twice as long after each further one.
 
-`persist` decides what happens to a mail that was **sent**. A mail that failed is kept either way: the row is the only record that it was ever owed, and a rejected password reset or 2FA code is exactly the thing you need to be able to look up afterwards.
+`persist` applies to mails that were sent. A failed mail is kept either way, so you can look up a password reset or a 2FA code that never arrived.
 
-Only `QUEUED` mails are picked up, so a `FAILED` row is a record rather than a retry — nothing attempts it again. It is kept for `failedRetentionInMs`, counted from when the mail was queued, and `EmailCleanupCronJob` deletes it once a day after that. With `'forever'`, failed mails are kept until you delete them.
+Only `QUEUED` mails are picked up, so a `FAILED` row is never attempted again. It is kept for `failedRetentionInMs`, counted from when the mail was queued, and `EmailCleanupCronJob` deletes it once a day after that. With `'forever'`, failed mails are kept until you delete them.
 
-A mail server routinely accepts some recipients of one message and refuses others, which is the common real bounce — one address in a list that no longer exists. `rejectedRecipients` is which ones, so the row answers *who* rather than only *that something went wrong*.
+A mail server can accept some recipients of a mail and refuse others, such as one address of a list that does not exist. `rejectedRecipients` names the refused ones.
 
-### About rendering templates
-You might be wondering how we can import a ts function from a file ending with `.hbs`.
-
-That's due to our handlebars compiler that automatically creates ts definitions based on your templates. It is actually smart enough to detect any variables that you use in your templates, as well as infer their type. While being extremly helpful, this type safety comes with the downside that any variables you use are restricted in their typing for the compiler to infer their type. They need to be either:
-- string
-- string[]
-- an object with its values being either string, string[] or another object
-
-These are also hot reloaded when you change your templates and eg. introduce or remove a new variable.  
-
-> Caveat:<br>
-> If you don't run `npm run start` then the compiler won't be able to generate the .ts files. So if you have any problems with eg. a property of your template not being recognized, check that first.
-
-## Configuration
-`ZIBRI_DI_TOKENS.EMAIL_CONFIG` holds what the subsystem does; `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` holds what delivers a mail. Both are shown in "Configuring email" above.
-
-| Option | Meaning |
+## Requirements
+| Package | Used for |
 |---|---|
-| `defaultSender` | The address a mail queued without a sender goes out as |
-| `maxEmailsPerHour` | The hourly budget queued mails are rate limited against |
-| `failedRetentionInMs` | How long a `FAILED` mail is kept, counted from when it was queued, or `'forever'`. Required |
-| `sendLeaseInMs` | How long one instance may hold a queued mail while sending it. Renewed while the send runs, so it decides how long a mail waits before another instance takes over from one that stopped existing. Defaults to one minute |
-| `sendBatchSize` | How many mails one pass of the queue sends at most. Raise it to drain a backlog faster, lower it for a provider that dislikes bursts. Defaults to 10 |
-| `maxSendAttempts` | How many times sending a mail may throw before it is `FAILED`. Defaults to 5 |
-| `retryDelayInMs` | How long a mail whose send threw waits before it is tried again, doubling with each further attempt. Defaults to one minute |
+| `nodemailer` | Sending emails over SMTP, with `SmtpEmailTransport`. You install it |
 
-Priorities cannot starve each other whatever `sendBatchSize` is: each priority may take at most that many slots less one per priority below it, so a permanent flood of `HIGH` still leaves a slot for `NORMAL` and one for `LOW` every pass.
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `Email` | Every application |
 
 ## See also
+- [Templating](./templating.md) — writing the tsx email templates
 - [Replication](./replication.md) — how the queue is drained exactly once across instances
-- [Templating](./templating.md) — rendering the `.hbs` email templates
 - [Rate limiting](./rate-limiting.md) — the `EmailRateLimiter` enforcing `maxEmailsPerHour`

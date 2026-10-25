@@ -24,7 +24,11 @@ export const require2faDecorator: Require2faFn
         // into a route nobody could ever satisfy. An undefined reauth means whatever
         // REQUIRE_2FA_REAUTH says when the route is checked, which a value taken here would freeze
         // before the application's providers are known.
-        const fullMetadata: Require2faMetadata = { allowedMethods: options?.allowedMethods, reauth: options?.reauth };
+        const fullMetadata: Require2faMetadata = {
+            allowedMethods: options?.allowedMethods,
+            reauth: options?.reauth,
+            providerFactors: options?.providerFactors
+        };
 
         const decorator: MethodDecorator & ClassDecorator = (
             target: Object,

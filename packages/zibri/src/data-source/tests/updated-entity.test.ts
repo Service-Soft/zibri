@@ -2,14 +2,16 @@ import { afterAll, beforeAll } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { describeUpdatedEntity, Seat, Subscription, Team } from './updated-entity.cases';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
 import { Repository } from '../repository/repository';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, Subscription, Team, Seat]
+    entities: [...defaultTestServerEntities, Subscription, Team, Seat],
+    repositories: defaultTestServerRepositories
 });
 
 let server: StartedTestServer | undefined;
@@ -22,7 +24,7 @@ beforeAll(async () => {
     subscriptions = inject(dataSourceClass).getRepository(Subscription);
     teams = inject(dataSourceClass).getRepository(Team);
     seats = inject(dataSourceClass).getRepository(Seat);
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

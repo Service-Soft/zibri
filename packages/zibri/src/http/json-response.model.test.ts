@@ -5,7 +5,8 @@ import { HttpStatus } from './http-status.enum';
 import { JsonResponse } from './json-response.model';
 import { KnownHeader } from './known-header.enum';
 import { MimeType } from './mime-type.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { Response } from '../open-api/decorators/response.decorator';
@@ -53,14 +54,14 @@ describe('JsonResponse', () => {
     beforeAll(async () => {
         server = await startTestServer({
             controllers: [ResourceController],
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })]
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })]
         });
         baseUrl = await server.start();
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('answers with its body and headers, in the status and json type of the route', async () => {
         const created: globalThis.Response = await fetch(`${baseUrl}/resources`, { method: 'POST' });

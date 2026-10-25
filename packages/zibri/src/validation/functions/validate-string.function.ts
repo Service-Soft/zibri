@@ -9,6 +9,7 @@ import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../.
 import { StringParamMetadata } from '../../routing/models/string-param-metadata.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { RegexUtilities } from '../../utilities/regex.utilities';
+import { ValidationProblemCode } from '../validation-problem-code.enum';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**
@@ -69,19 +70,31 @@ export function stringValueProblems(
         return [new TypeMismatchValidationProblem(fullKey, 'string')];
     }
     if (meta.format && !isFormatValid(meta.format, property)) {
-        return [{ key: fullKey, message: $ts`needs to be in format "${meta.format}"` }];
+        return [{ key: fullKey, code: ValidationProblemCode.FORMAT, message: $ts`needs to be in format "${meta.format}"` }];
     }
     if (meta.regex != undefined && !RegexUtilities.resolveLinear(meta.regex).test(property)) {
-        return [{ key: fullKey, message: $ts`needs to match regex "${meta.regex}"` }];
+        return [{ key: fullKey, code: ValidationProblemCode.REGEX, message: $ts`needs to match regex "${meta.regex}"` }];
     }
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
-        return [{ key: fullKey, message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
+        return [{
+            key: fullKey,
+            code: ValidationProblemCode.ENUM,
+            message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"`
+        }];
     }
     if (meta.minLength && meta.minLength > property.length) {
-        return [{ key: fullKey, message: $ts`needs to be at least ${meta.minLength} characters long` }];
+        return [{
+            key: fullKey,
+            code: ValidationProblemCode.MIN_LENGTH,
+            message: $ts`needs to be at least ${meta.minLength} characters long`
+        }];
     }
     if (meta.maxLength && property.length > meta.maxLength) {
-        return [{ key: fullKey, message: $ts`needs to be at most ${meta.maxLength} characters long` }];
+        return [{
+            key: fullKey,
+            code: ValidationProblemCode.MAX_LENGTH,
+            message: $ts`needs to be at most ${meta.maxLength} characters long`
+        }];
     }
     return [];
 }

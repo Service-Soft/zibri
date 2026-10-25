@@ -2,14 +2,16 @@ import { afterAll, beforeAll } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
 import { Chore, describeOwnedRelations, Doorplate, Folder, Guest, Household, Lodger, ownedRelationEntities, OwnedRelationRepositories, Pet, Resident, Stop, Ticket, Trip } from './owned-relations.cases';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ChangeSet } from '../../change-sets/models/change-set.model';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, ...ownedRelationEntities]
+    entities: [...defaultTestServerEntities, ...ownedRelationEntities],
+    repositories: defaultTestServerRepositories
 });
 
 let server: StartedTestServer | undefined;
@@ -32,7 +34,7 @@ beforeAll(async () => {
         lodgers: dataSource.getRepository(Lodger),
         folders: dataSource.getRepository(Folder)
     };
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

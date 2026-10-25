@@ -34,8 +34,9 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -60,7 +61,8 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 const password: string = 'secure123';
 
 const dataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession]
+    entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession],
+    repositories: defaultTestServerRepositories
 });
 
 /**
@@ -105,7 +107,7 @@ class EvaluationContextController {
     @Get('/required-user')
     requiredUser(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): { id: string } {
         return { id: user.id };
     }
@@ -113,7 +115,7 @@ class EvaluationContextController {
     @Get('/optional-user')
     optionalUser(
         @CurrentUser(false)
-        user: JwtUser | undefined
+        user: CurrentUser<JwtUser> | undefined
     ): { id: string | undefined } {
         return { id: user?.id };
     }
@@ -121,7 +123,7 @@ class EvaluationContextController {
     @Get('/cookie-user')
     cookieUser(
         @CurrentUser(true, [CookieAuthStrategy])
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): { id: string } {
         return { id: user.id };
     }
@@ -225,7 +227,7 @@ beforeAll(async () => {
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('evaluation/02-http-runtime-core M5 - the matched route on the request context', () => {
 
@@ -243,7 +245,7 @@ describe('evaluation/02-http-runtime-core M5 - the matched route on the request 
         const res: globalThis.Response = await fetch(`${baseUrl}/evaluation-context/required-user`);
 
         // `@CurrentUser()` means required - the decorator says so and the docs show it beside a
-        // route that expects a user. The parameter is typed `JwtUser`, so the alternative to a 401
+        // route that expects a user. The parameter is typed `CurrentUser<JwtUser>`, so the alternative to a 401
         // is a handler running with undefined where its own signature promised an account
         expect(res.status).toBe(401);
     });

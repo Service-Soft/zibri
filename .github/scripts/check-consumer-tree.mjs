@@ -134,13 +134,15 @@ export function isLicenseAllowed(expression, allowed) {
 
 // The packages whose license the policy does not allow, as `name@version (license)`. An exception is
 // for one version, because what was checked by hand is that version's license - an upgrade that
-// changed it would otherwise go through on the strength of the old one.
+// changed it would otherwise go through on the strength of the old one. `allowedFor` is the other way
+// round: the license is known, and allowed for that one package at every version, because what made
+// it acceptable is what the package is rather than what one release of it declares.
 // this needs to be exported, as its manually string imported into the ci-workflows.test.ts
 export function findLicenseViolations(tree, policy) {
     return tree
         .filter(({ name, version, license }) => !isLicenseAllowed(
             policy.exceptions[`${name}@${version}`]?.license ?? license,
-            policy.allowed
+            [...policy.allowed, ...policy.allowedFor?.[name]?.licenses ?? []]
         ))
         .map(({ name, version, license }) => `${name}@${version} (${license ?? 'no license declared'})`);
 }

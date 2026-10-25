@@ -99,6 +99,7 @@ export function corsMiddleware(options: CorsOptions): RequestHandler {
             inject(ZIBRI_DI_TOKENS.EMAIL_CODE_HEADER),
             inject(ZIBRI_DI_TOKENS.SMS_CODE_HEADER),
             inject(ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER),
+            inject(ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER),
             inject(ZIBRI_DI_TOKENS.API_KEY_HEADER),
             KnownHeader.TRACEPARENT,
             KnownHeader.TRACESTATE,

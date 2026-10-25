@@ -1,5 +1,5 @@
 # Two factor
-Requiring a second factor on the operations that deserve one. Ships with TOTP — the six digit codes an authenticator app shows —, with [passkeys](./passkeys.md#as-a-second-factor), and with codes sent by [email or text message](#codes-by-email-or-text-message).
+A second factor is a further proof a user presents beside their login, such as a code from their phone. You require one on the operations that need it. TOTP, the six digit codes an authenticator app shows, is built in, as are [passkeys](./passkeys.md#as-a-second-factor) and codes sent by [email or text message](#codes-by-email-or-text-message).
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -48,20 +48,23 @@ Requiring a second factor on the operations that deserve one. Ships with TOTP �
 | `ReauthenticationRequiredError` | error | Thrown when the route accepts a recent login and the user's is too old |
 | `ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH` | DI token | What a route that says nothing about `reauth` accepts. Defaults to `false` |
 | `ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH_WINDOW_IN_MS` | DI token | How recent a login has to be. Defaults to 5 minutes |
+| `Require2faProviderFactors` | type | Which second factor presented at the provider a route counts, see [accepting the provider's second factor](#accepting-the-providers-second-factor) |
+| `ZIBRI_DI_TOKENS.REQUIRE_2FA_PROVIDER_FACTORS` | DI token | What a route that says nothing about `providerFactors` counts. Defaults to `false` |
+| `ProviderAuthentication` | type | How a user proved who they are at the provider: the methods and the class of the authentication, as a login keeps them |
+| `TwoFactorAtLogin` | type | The `twoFactorAtLogin` app option: whether a login asks for a second factor, see [asking for a second factor at login](#asking-for-a-second-factor-at-login) |
+| `SecondFactorRequiredError` | error | What a login that waits for its second factor answers. `401`, with the ticket the login continues with |
+| `LoginTicket` | entity | A login that waits for its second factor. Kept hashed |
+| `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER` | DI token | Which header carries the ticket. Defaults to `x-login-ticket` |
 
 ## What a second factor is for
 
-Not for a session. For an **operation**.
+A second factor guards an operation, not a session. `@Auth.require2fa()` checks on every request to the route it guards. A user who presented a code at login sends none with their next requests, and is asked again when they change their payment details. Whether the login itself asks for one is `twoFactorAtLogin`, see [asking for a second factor at login](#asking-for-a-second-factor-at-login).
 
-A user logs in and is asked for a code. They then do a lot of things, sending no code with any of them, because that first one is spent and gone. When they go to change their payment details, they are asked again.
-
-That is why `@Auth.require2fa()` checks on every request to the route it guards, rather than marking a session as "2fa done". Marking the session would mean one code at login authorizes every sensitive action afterwards — which is the thing a second factor exists to prevent.
-
-So put it on the operations that matter, not on everything:
+Put it on the operations that matter:
 
 ```ts
 // src/controllers/account.controller.ts
-import { Auth, BaseUser, Body, Controller, defineProvider, Get, OtpRegistration, OtpTwoFactorMethod, OtpValidationWindowInMs, Patch, TwoFactorServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
+import { Auth, Body, Controller, Get, Patch } from 'zibri';
 
 import { Account, PaymentDetails } from '../models';
 
@@ -69,15 +72,15 @@ import { Account, PaymentDetails } from '../models';
 class AccountController {
     @Auth.isLoggedIn()
     @Get('/')
-    async read(): Promise<Account> { /* no code needed */ }
+    async read(): Promise<Account> { /* your own code */ }
 
     @Auth.require2fa()
     @Patch('/payment-details')
-    async updatePaymentDetails(@Body(PaymentDetails) data: PaymentDetails): Promise<void> { /* code required */ }
+    async updatePaymentDetails(@Body(PaymentDetails) data: PaymentDetails): Promise<void> { /* your own code */ }
 }
 ```
 
-Called with no argument, any method the app has configured is accepted. Pass `allowedMethods` to narrow it.
+Reading the account takes a login, changing the payment details a second factor beside it. Called with no argument, any method the app has configured is accepted. Pass `allowedMethods` to narrow it.
 
 ## Accepting a recent login instead
 
@@ -93,13 +96,15 @@ import { AddressChange, PasswordChange } from '../models';
 class ProfileController {
     @Auth.require2fa({ reauth: true })
     @Patch('/address')
-    async updateAddress(@Body(AddressChange) data: AddressChange): Promise<void> { /* a code or a recent login */ }
+    async updateAddress(@Body(AddressChange) data: AddressChange): Promise<void> { /* your own code */ }
 
     @Auth.require2fa({ reauth: { allow: 'onlyAsFallback', windowInMs: Ms.MINUTE } })
     @Patch('/password')
-    async updatePassword(@Body(PasswordChange) data: PasswordChange): Promise<void> { /* a code, or a login in the last minute from a user without one */ }
+    async updatePassword(@Body(PasswordChange) data: PasswordChange): Promise<void> { /* your own code */ }
 }
 ```
+
+Changing the address takes a second factor or a recent login. Changing the password takes a second factor, or a login in the last minute from a user without one.
 
 | `reauth` | A recent login is accepted |
 |---|---|
@@ -111,6 +116,7 @@ class ProfileController {
 A route that does not set `reauth` takes `ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH`, which is `false`. A login is recent for 5 minutes, or for what `ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH_WINDOW_IN_MS` says:
 
 ```ts
+// src/providers.ts
 import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({ token: ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH, useValue: 'onlyAsFallback' })
@@ -127,12 +133,94 @@ With `'onlyAsFallback'`, a user who removes their second factor is back to the l
 
 A recent login proves the password and nothing else. Guard these routes with `'onlyAsFallback'` at most, so a user with a second factor has to present it:
 
-- the routes that enrol a second factor, or a password would be enough to add one of the attacker's own. `POST /2fa/register` of the [auth routes](./auth-routes.md) takes `'onlyAsFallback'`
+- the routes that enroll a second factor, or a password would be enough to add one of the attacker's own. `POST /2fa/register` of the [auth routes](./auth-routes.md) takes `'onlyAsFallback'`
 - with [codes by email](#codes-by-email-or-text-message), the route that changes the account's email address, or a password would be enough to send every code to another mailbox
+
+## Accepting the provider's second factor
+
+A user who signs in [through a provider](./sign-in-through-a-provider.md) may have presented a second factor there. The provider says so with the sign-in: an OpenID Connect provider in the `amr` and `acr` claims of the ID token, a SAML identity provider in the AuthnContextClassRef of the assertion. The login keeps it, refreshes included. Say which of them a route counts in place of a second factor presented here, with `providerFactors`:
+
+```ts
+// src/controllers/payment.controller.ts
+import { Auth, Body, Controller, Patch } from 'zibri';
+
+import { PaymentDetails } from '../models';
+
+@Controller('/payment')
+class PaymentController {
+    @Auth.require2fa({ providerFactors: { methods: ['mfa', 'hwk'], contextClasses: ['urn:oasis:names:tc:SAML:2.0:ac:classes:TimeSyncToken'] } })
+    @Patch('/details')
+    async updateDetails(@Body(PaymentDetails) data: PaymentDetails): Promise<void> { /* your own code */ }
+}
+```
+
+A login counts when its provider reported one of the `methods`, or one of the `contextClasses`. A user whose login counts is not asked for a code. One whose login does not presents a second factor as on any guarded route, or a recent login where the route accepts one. A [locked](#locking-after-too-many-wrong-codes) second factor is not stood in for by the provider's either.
+
+A route that does not set `providerFactors` takes `ZIBRI_DI_TOKENS.REQUIRE_2FA_PROVIDER_FACTORS`, which is `false`, counting none:
+
+```ts
+// src/providers.ts
+import { defineProvider, Require2faProviderFactors, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.REQUIRE_2FA_PROVIDER_FACTORS, useFactory: (): Require2faProviderFactors => ({ methods: ['mfa'] }) })
+```
+
+Ask the provider for the factor with `acrValues` on an OpenID Connect authenticator, or `requestedAuthnContext` on a SAML one, see [sign-in through a provider](./sign-in-through-a-provider.md#other-providers). A user whose login does not count then [signs in again](./sign-in-through-a-provider.md#signing-in-again) and presents the factor at the provider.
+
+The factor comes from the strategy the request addresses, through `resolveProviderAuthentication` of `AuthStrategyInterface`. A strategy that does not implement it, such as one for api keys, never counts. A [token of the provider](./provider-tokens.md) counts by its own `amr` and `acr`.
+
+## Asking for a second factor at login
+
+`twoFactorAtLogin` in your app options says whether a login asks for a second factor once its credentials were accepted:
+
+| `twoFactorAtLogin` | A user with a second factor | A user without one |
+|---|---|---|
+| `'never'` | logs in on their credentials | logs in on their credentials |
+| `'ifEnrolled'` | presents it to log in | logs in on their credentials |
+| `'required'` | presents it to log in | enrolls their first before the login completes |
+
+```ts
+// src/application-options.ts
+import { ZibriApplicationOptions } from 'zibri';
+
+export const loginOptions: Pick<ZibriApplicationOptions, 'twoFactorAtLogin'> = {
+    twoFactorAtLogin: 'ifEnrolled'
+};
+```
+
+With anything but `'never'`, declare `LoginTicket` in your data source.
+
+A login that waits for its second factor answers `401` with `SecondFactorRequiredError`: the body every error has, plus the `ticket` the login continues with and the names of the `methods` the user has enrolled:
+
+```txt
+POST /auth/login
+{ "email": "ada@example.com", "password": "..." }
+
+401 { "name": "SecondFactorRequiredError", "ticket": "...", "methods": ["otp", "email"], ... }
+```
+
+The client sends the ticket in the `x-login-ticket` header to the routes the login continues at, see the [auth routes](./auth-routes.md):
+
+```txt
+POST /auth/login/2fa/start?method=email
+                                sends the code, or answers the challenge for a passkey
+
+POST /auth/login/2fa/complete
+x-authorization-email-code: 123456
+                                answers what the login route answers
+```
+
+`complete` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes.
+
+An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/register` and `POST /auth/login/2fa/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`.
+
+Rename the header through `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER`. CORS follows the token.
+
+A login that waits is recorded as `auth.login.pending`, and the completed one as `auth.login`. In a route of your own, `login` of `AuthServiceInterface` throws the `SecondFactorRequiredError`, which answers as above. A sign-in at a provider that logs in on the redirect back is refused when it waits for a second factor: hand it over by code, see [signing in at a provider](./auth-routes.md#signing-in-at-a-provider).
 
 ## Enrolling a user
 
-Two steps, and the second one is not optional. The [auth routes](./auth-routes.md) take them at `POST /auth/2fa/register` and `POST /auth/2fa/confirm`, naming the method in `method` when there is more than one:
+Enrolling takes two steps, and only the second one enables the second factor. The [auth routes](./auth-routes.md) take them at `POST /auth/2fa/register` and `POST /auth/2fa/confirm`, naming the method in `method` when there is more than one:
 
 ```txt
 POST /auth/2fa/register?method=otp
@@ -145,62 +233,57 @@ POST /auth/2fa/confirm?method=otp
 `DELETE /auth/2fa/{method}` removes it again. In routes of your own, `TwoFactorServiceInterface` does the same:
 
 ```ts
-export async function enrol(
+// src/services/two-factor-enrollment.function.ts
+import { OtpRegistration, OtpTwoFactorMethod, TwoFactorServiceInterface, UserAccount } from 'zibri';
+
+export async function enroll(
     twoFactorService: TwoFactorServiceInterface,
-    user: BaseUser<string>,
+    user: UserAccount,
     otpMethod: OtpTwoFactorMethod
 ): Promise<void> {
-    // 1. hand the user something to scan. This does NOT enable 2fa yet
     const registration: OtpRegistration = await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
-    // -> writes OtpCredentials with confirmed: false, and answers what the user has to see:
-    //    registration.qrCodeUrl - the otpauth url to render as a qr code
-    //    registration.secret    - the same thing to type when scanning is not an option
-
-    // 2. the user types the first code their app shows, proving they scanned it
     await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, { token: '123456' });
-    // -> confirmed: true, and only now does it satisfy @Auth.require2fa
 }
 ```
 
-Both fields are derived from the secret and **neither is stored**. Enrollment is the one moment
-either is needed in the clear, so keeping a copy would mean a second, unprotected plaintext of the
-thing the row exists to protect — the otpauth url embeds the secret verbatim. Render them, then
-forget them.
+The first step answers what the user scans: `registration.qrCodeUrl`, the `otpauth` URL to show as a QR code, and `registration.secret`, the same secret to type in where scanning is not an option. The second step takes the first code their app shows, and only then does the second factor satisfy `@Auth.require2fa`.
 
-The stored secret is an encrypted property, which means an application using this method has to
-configure `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` — see
-[encryption & hashing](./encryption-and-hashing.md). Without it, enrolling throws.
+Neither field is stored. Show them to the user once.
 
-**An unconfirmed enrollment satisfies nothing.** Until step 2 the secret is one nobody has proven they hold, so it cannot be used to pass a check — otherwise starting an enrollment and never finishing it would *be* the bypass.
+The stored secret is an encrypted property, so configure `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS`,
+see [encryption & hashing](./encryption-and-hashing.md). Without it, enrolling throws.
 
-Asking for a new enrollment abandons any unfinished one, so a user who gives up halfway and starts again does not leave a second secret behind. A **confirmed** credential is left alone: setting up a new device must not cost you the one that currently works before the new one is proven.
+An unconfirmed enrollment satisfies no check.
+
+Asking for a new enrollment abandons any unfinished one. A confirmed credential stays until the new one is confirmed, so a user setting up a new device keeps the one that works.
 
 ## Codes are single use
 
-A TOTP code stays the same for its whole 30-second window, so the same six digits are shown for up to half a minute. Zibri accepts each one **once**. Presenting it again is refused with:
+A TOTP code stays the same for its whole 30-second window, so the same six digits are shown for up to half a minute. Each code is accepted once, as RFC 6238 §5.2 requires. Presenting it again is refused with:
 
 > This two factor code has already been used. Wait for your authenticator to show the next one.
 
-A distinct error from a wrong code, though both answer `401`. Two sensitive operations close together is a normal thing to do, and telling that user their code was *invalid* sends them hunting for a mistake they did not make.
+This error is distinct from a wrong code, though both answer `401`, so the user knows to wait instead of looking for a typo. Two operations inside the same 30 seconds need two codes, so the second waits for the next one.
 
-This is required rather than chosen — RFC 6238 §5.2 says a verifier must not accept a second use, because "the same user twice" and "somebody who watched the code go past" look identical from the server. The cost is real: two operations inside the same 30 seconds means waiting for the next code.
-
-The record is a [lease](./leases.md) keyed by the credentials and the window, so a code spent on one instance is spent on all of them, and it clears itself once the window has passed.
+A code spent on one instance is spent on all of them.
 
 ### Clock skew
 
-Codes are accepted from 30 seconds either side of now, so an authenticator that has drifted still works. Each window is spent separately — drifting does not cost a user a code.
+Codes are accepted from 30 seconds either side of now, so an authenticator that has drifted still works. Each window is spent separately, so a drifted clock costs the user no code.
 
 ```ts
+// src/providers.ts
+import { defineProvider, OtpValidationWindowInMs, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({ token: ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS, useFactory: (): OtpValidationWindowInMs => 0 })
 ```
 
-`0` accepts only the current code: the smallest replay surface, but any client whose clock is off by more than a few seconds starts failing, and phone clocks drift.
+`0` accepts only the current code. It leaves the least room for replaying a code, and a client whose clock is off by more than a few seconds starts failing. Phone clocks drift.
 
-The type accepts `0`, `30_000`, `60_000` and `90_000` only. A code belongs to a 30-second window or it does not, so `45_000` cannot be honored — it would quietly behave as `30_000`. Listing the values that exist makes that a compile error instead of a surprise, and the ceiling is there because every extra window is another code an observer could still spend.
+The type accepts `0`, `30_000`, `60_000` and `90_000`, whole 30-second windows. Every window more is another code an observer could still spend.
 
 ## Wrong codes
-After a wrong code, the user waits before the next code is checked: 1 second after the first, and twice as long after each wrong code in a row — 2 seconds, 4, 8, and so on. The next correct code ends the streak.
+After a wrong code, the user waits before the next code is checked: 1 second after the first, and twice as long after each wrong code in a row: 2 seconds, 4, 8, and so on. The next correct code ends the streak.
 
 A code presented while the user still has to wait answers `429` with a `Retry-After` header, and is not checked at all, so the right code is refused too until the wait is over. Someone who mistypes loses a second or two. Someone guessing gets a few dozen codes a year.
 
@@ -211,12 +294,13 @@ Every refused code is recorded as `auth.2fa`.
 Change the first wait through `ZIBRI_DI_TOKENS.TWO_FACTOR_FAILURE_DELAY_IN_MS`. It has to be greater than `0`:
 
 ```ts
+// src/providers.ts
 import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({ token: ZIBRI_DI_TOKENS.TWO_FACTOR_FAILURE_DELAY_IN_MS, useFactory: () => Ms.SECOND * 5 })
 ```
 
-Declare `TwoFactorFailureStreak` in your data source. The application refuses to start without it.
+Declare `TwoFactorFailureStreak` in your data source.
 
 A method of your own throws `InvalidTwoFactorCodeError` for a wrong code, so that it counts, and its own error for everything else.
 
@@ -224,6 +308,7 @@ A method of your own throws `InvalidTwoFactorCodeError` for a wrong code, so tha
 With `twoFactorFailureLimit` in your app options, a user's second factor is locked once they present that many wrong codes in a row:
 
 ```ts
+// src/application-options.ts
 import { ZibriApplicationOptions } from 'zibri';
 
 export const lockingOptions: Pick<ZibriApplicationOptions, 'twoFactorFailureLimit'> = {
@@ -257,13 +342,16 @@ Confirming takes one of the codes, which proves the user kept them, and does not
 
 A code is sent in the `x-authorization-recovery-code` header, with or without its dash and in any case, and works once in place of a second factor. While the user's second factor is [locked](#locking-after-too-many-wrong-codes), recovery codes are the only method checked: a correct one removes the user's other methods, lifts the lock, and lets the request through, so the user enrolls a new authenticator. A wrong one counts towards the wait like any wrong code.
 
-Declare `TwoFactorRecoveryCode` in your data source. The application refuses to start without it once the method is registered. Rename the header through `ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER`.
+Declare `TwoFactorRecoveryCode` in your data source. Rename the header through `ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER`.
 
 ## Resetting a user's second factors
 `resetSecondFactors` removes every second factor of a user, recovery codes included, and lifts a lock. Call it from a support or admin route of your own, for a user who lost everything or whose account is locked:
 
 ```ts
-export async function resetForUser(twoFactorService: TwoFactorServiceInterface, user: BaseUser<string>): Promise<void> {
+// src/services/two-factor-reset.function.ts
+import { TwoFactorServiceInterface, UserAccount } from 'zibri';
+
+export async function resetForUser(twoFactorService: TwoFactorServiceInterface, user: UserAccount): Promise<void> {
     await twoFactorService.resetSecondFactors(user);
 }
 ```
@@ -272,10 +360,13 @@ The user then enrolls anew. Every reset, and every lock a recovery code lifts, i
 
 ## Codes by email or text message
 
-For users without an authenticator app. A code is sent to them when they are about to do something that needs one, and they send it back with the request. It is weaker than the other methods: a text message can be redirected to another device, and whoever can read a mailbox can read the code. Register them only where you want them.
+For users without an authenticator app. A code is sent to them when they are about to do something that needs one, and they send it back with the request.
+
+> [!WARNING]
+> Both are weaker than the other methods: a text message can be redirected to another device, and whoever can read a mailbox can read the code. Register them only where you want them.
 
 ```ts
-// src/app.ts
+// src/application-options.ts
 import { EmailTwoFactorMethod, SmsTwoFactorMethod, ZibriApplicationOptions } from 'zibri';
 
 export const options: Partial<ZibriApplicationOptions> = {
@@ -283,19 +374,19 @@ export const options: Partial<ZibriApplicationOptions> = {
 };
 ```
 
-Declare `TwoFactorCodeCredentials`, `TwoFactorCode` and `RateLimitStateEntity` in your data source. The application refuses to start without them. The codes and the phone numbers are encrypted properties, so configure `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` too — see [encryption & hashing](./encryption-and-hashing.md).
+Declare `TwoFactorCodeCredentials`, `TwoFactorCode` and `RateLimitStateEntity` in your data source. The codes and the phone numbers are encrypted properties, so configure `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` too, see [encryption & hashing](./encryption-and-hashing.md).
 
 Email goes through the [email service](./email.md), so it needs a transport. A text message goes through a sender you provide, because every provider needs an account only you have:
 
 ```ts
-// src/sms/my-provider.sms-service.ts
+// src/services/sms-gateway.service.ts
 import { SendSmsData, SmsServiceInterface } from 'zibri';
 
-import { myProvider } from './my-provider';
+import { smsGatewayClient } from './sms-gateway-client';
 
-export class MyProviderSmsService implements SmsServiceInterface {
+export class SmsGatewayService implements SmsServiceInterface {
     async send(data: SendSmsData): Promise<void> {
-        await myProvider.messages.create({ to: data.to, body: data.message });
+        await smsGatewayClient.messages.create({ to: data.to, body: data.message });
     }
 }
 ```
@@ -304,10 +395,10 @@ export class MyProviderSmsService implements SmsServiceInterface {
 // src/providers.ts
 import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
-defineProvider({ token: ZIBRI_DI_TOKENS.SMS_SERVICE, useClass: MyProviderSmsService })
-```
+import { SmsGatewayService } from './services/sms-gateway.service';
 
-The application refuses to start with `SmsTwoFactorMethod` and no `SMS_SERVICE`.
+defineProvider({ token: ZIBRI_DI_TOKENS.SMS_SERVICE, useClass: SmsGatewayService })
+```
 
 ### What text messages cost
 
@@ -323,7 +414,7 @@ defineProvider({
 })
 ```
 
-The application refuses to start with `SmsTwoFactorMethod` and no `SMS_CODE_LIMITS`.
+`SMS_CODE_LIMITS` is required with `SmsTwoFactorMethod`.
 
 - A number that starts with none of `allowedCallingCodes` is refused with `400`, when enrolling and when asking for a code.
 - A number that was sent `maxPerNumberPerDay` codes is refused with `429`, whichever account asks.
@@ -346,23 +437,24 @@ POST /auth/2fa/confirm?method=sms
 Or through `TwoFactorServiceInterface`:
 
 ```ts
-export async function enrolByCode(
+// src/services/two-factor-enrollment.function.ts
+import { EmailTwoFactorMethod, SmsTwoFactorMethod, TwoFactorServiceInterface, UserAccount } from 'zibri';
+
+export async function enrollByCode(
     twoFactorService: TwoFactorServiceInterface,
-    user: BaseUser<string>,
+    user: UserAccount,
     emailMethod: EmailTwoFactorMethod,
     smsMethod: SmsTwoFactorMethod
 ): Promise<void> {
-    // the code goes to the address of the account
     await twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined);
     await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, emailMethod, { code: '123456' });
 
-    // the code goes to the number, which is kept encrypted
     await twoFactorService.requestRegisterTwoFactorMethodForUser(user, smsMethod, { phoneNumber: '+4915112345678' });
     await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, smsMethod, { code: '654321' });
 }
 ```
 
-An enrollment that was not confirmed satisfies nothing. Asking again gives up on it; a confirmed one stays until the new one is confirmed. `SmsTwoFactorMethod` takes the number in international format and refuses anything else, and so does `SmsRegisterData` as a request body.
+The email code goes to the address of the account, the text message to the number, which is kept encrypted. An enrollment that was not confirmed satisfies nothing. Asking again gives up on it; a confirmed one stays until the new one is confirmed. `SmsTwoFactorMethod` takes the number in international format and refuses anything else, and so does `SmsRegisterData` as a request body.
 
 ### Asking for a code
 
@@ -370,7 +462,7 @@ An enrollment that was not confirmed satisfies nothing. Asking again gives up on
 
 ```ts
 // src/controllers/account.controller.ts
-import { Auth, BaseUser, Controller, CurrentUser, EmailTwoFactorMethod, Inject, Post, Response, TwoFactorServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
+import { Auth, Controller, CurrentUser, EmailTwoFactorMethod, Inject, Post, Response, TwoFactorServiceInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
 @Controller('/account-codes')
 class AccountCodeController {
@@ -384,7 +476,7 @@ class AccountCodeController {
     @Auth.isLoggedIn()
     @Response.empty()
     @Post('/email-code')
-    async sendEmailCode(@CurrentUser() user: BaseUser<string>): Promise<void> {
+    async sendEmailCode(@CurrentUser() user: CurrentUser): Promise<void> {
         await this.twoFactorService.startSecondFactor(user, this.emailMethod);
     }
 }
@@ -398,11 +490,12 @@ The client then sends the code in `x-authorization-email-code` or `x-authorizati
 - It works once. Entering it uses it up, so each guarded request needs a code of its own.
 - A new code replaces the one before it.
 - A wrong code counts as a [wrong code in a row](#wrong-codes), so the user waits before the next one is checked.
-- A user is sent a code at most once a minute for each method, whether they enrol or log in. Asking sooner is refused with `429` and a `Retry-After` header, and sends nothing. Together with the above, an email or text message user passes at most one guarded request a minute.
+- A user is sent a code at most once a minute for each method, whether they enroll or log in. Asking sooner is refused with `429` and a `Retry-After` header, and sends nothing. Together with the above, an email or text message user passes at most one guarded request a minute.
 
 Change them with `ZIBRI_DI_TOKENS.TWO_FACTOR_CODE_OPTIONS`:
 
 ```ts
+// src/providers.ts
 import { defineProvider, Ms, TwoFactorCodeOptions, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({
@@ -421,7 +514,7 @@ For a new way of sending a code, extend `CodeTwoFactorMethod`. Give it a `channe
 
 ```ts
 // src/two-factor/messenger.two-factor-method.ts
-import { BaseUser, CodeTwoFactorMethod, Newable, Property } from 'zibri';
+import { CodeTwoFactorMethod, Newable, Property, UserAccount } from 'zibri';
 
 import { messenger } from './messenger';
 
@@ -434,7 +527,7 @@ export class MessengerTwoFactorMethod extends CodeTwoFactorMethod<MessengerRegis
     readonly requestRegisterModel: Newable<MessengerRegisterData> = MessengerRegisterData;
     protected readonly channel: string = 'messenger';
 
-    protected async deliver(user: BaseUser<string>, destination: string | undefined, code: string): Promise<void> {
+    protected async deliver(user: UserAccount, destination: string | undefined, code: string): Promise<void> {
         await messenger.send(destination ?? '', `Your code is ${code}`);
     }
 
@@ -465,7 +558,22 @@ A method that sends no code implements `TwoFactorMethod`. The [auth routes](./au
 
 ## Sending the code
 
-Clients send it in the `x-authorization-otp` header. Rename it through `ZIBRI_DI_TOKENS.OTP_HEADER` — CORS follows the token, so a browser client keeps working without further configuration. A passkey goes in a header of its own, see [passkeys](./passkeys.md#as-a-second-factor).
+Clients send it in the `x-authorization-otp` header. Rename it through `ZIBRI_DI_TOKENS.OTP_HEADER`. CORS follows the token, so a browser client keeps working without further configuration. A passkey goes in a header of its own, see [passkeys](./passkeys.md#as-a-second-factor).
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `otpauth` | Creating and checking the codes of authenticator apps. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `TwoFactorFailureStreak` | A two-factor method is registered |
+| `LoginTicket` | `twoFactorAtLogin` is not `'never'` |
+| `OtpCredentials` | `OtpTwoFactorMethod` is registered |
+| `TwoFactorCodeCredentials`, `TwoFactorCode`, `RateLimitStateEntity` | `EmailTwoFactorMethod` or `SmsTwoFactorMethod` is registered |
+| `TwoFactorRecoveryCode` | `RecoveryCodeTwoFactorMethod` is registered |
 
 ## See also
 - [Auth](./auth.md) — who the user is, which this builds on

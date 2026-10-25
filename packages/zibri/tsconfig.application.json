@@ -1,0 +1,18 @@
+{
+    // the compiler options a Zibri application builds with. Extend it, and add what is the
+    // application's own: where its sources are, and where they are compiled to
+    "compilerOptions": {
+        "emitDecoratorMetadata": true,
+        "esModuleInterop": true,
+        "experimentalDecorators": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "zibri-tsx",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "sourceMap": true,
+        "strict": true,
+        "target": "ES2022"
+    }
+}

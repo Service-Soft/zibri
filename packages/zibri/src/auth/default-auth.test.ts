@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { AuthServiceInterface } from './auth-service.interface';
 import { Auth } from './decorators/auth.decorator';
+import { TestPermissions } from '../__testing__/mocks/entities/test-permissions.model';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -39,9 +40,9 @@ class DefaultAuthController {
         return 'said it does not need a login';
     }
 
-    @Get('/role-skipped')
-    @Auth.hasRole.skip()
-    roleSkipped(): string {
+    @Get('/permission-skipped')
+    @Auth.hasPermission.skip()
+    permissionSkipped(): string {
         return 'said nothing about a login';
     }
 }
@@ -58,7 +59,7 @@ class PublicControllerWithOneGuardedRoute {
     }
 
     @Get('/admins')
-    @Auth.hasRole(['ADMIN'])
+    @Auth.hasPermission(TestPermissions.MEMBER_ADMIN)
     admins(): string {
         return 'not covered by it';
     }
@@ -125,12 +126,12 @@ describe('defaultAuth: requireLogin', () => {
     });
 
     it('still refuses a route that skips only a check saying nothing about a login', async () => {
-        const res: Response = await fetch(`${baseUrl}/default-auth/role-skipped`);
+        const res: Response = await fetch(`${baseUrl}/default-auth/permission-skipped`);
 
         // the asymmetry, and the easiest thing to get wrong later: @Auth.isLoggedIn.skip opts a
         // route out of the application wide requirement because that requirement *is* a login.
-        // hasRole.skip, belongsTo.skip, require2fa.skip and isNotLoggedIn.skip say nothing about
-        // one, so they must not - a route that skipped a role check has not thereby become public.
+        // hasPermission.skip, require2fa.skip and isNotLoggedIn.skip say nothing about one, so they
+        // must not - a route that skipped a permission check has not thereby become public.
         expect(res.status).toBe(401);
     });
 
@@ -191,11 +192,11 @@ describe('defaultAuth: requireLogin', () => {
         // eslint-disable-next-line typescript/typedef
         const warnSpy = jest.spyOn(logger, 'warn');
 
-        authService().resolveRouteAuth(DefaultAuthController, 'roleSkipped');
+        authService().resolveRouteAuth(DefaultAuthController, 'permissionSkipped');
 
         // the control for the two above: making the isLoggedIn skips conditional must not quietly
-        // silence the other four, which have nothing to skip under either default
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Useless @Auth.hasRole.skip'));
+        // silence the others, which have nothing to skip under either default
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Useless @Auth.hasPermission.skip'));
         warnSpy.mockRestore();
     });
 
@@ -233,10 +234,10 @@ describe('defaultAuth: requireLogin', () => {
             expect(securityOf('/default-auth/undecorated')?.length).toBeGreaterThan(0);
         });
 
-        it('still documents a route that skips only a role check as requiring auth', () => {
-            // it answers 401 too: @Auth.hasRole.skip says nothing about a login, so the application
-            // wide requirement survives it
-            expect(securityOf('/default-auth/role-skipped')).toBeDefined();
+        it('still documents a route that skips only a permission check as requiring auth', () => {
+            // it answers 401 too: @Auth.hasPermission.skip says nothing about a login, so the
+            // application wide requirement survives it
+            expect(securityOf('/default-auth/permission-skipped')).toBeDefined();
         });
 
         it('documents a route on a controller that skips auth as requiring auth when it guards itself', () => {

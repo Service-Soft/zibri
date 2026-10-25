@@ -8,12 +8,18 @@ import { ArrayPropertyItemMetadata } from '../../entity/models/array-property-me
 import { ObjectPropertyMetadata } from '../../entity/models/object-property-metadata.model';
 import { OneOfPropertyMetadata, OneOfShapeMetadata } from '../../entity/models/one-of-property-metadata.model';
 import { Relation } from '../../entity/models/relation.enum';
-import { $ts } from '../../localization/translate.function';
 import { File } from '../../parsing/form-data/file.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
-import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, UnknownShapeValidationProblem, ValidationProblem } from '../validation-problem.model';
+import {
+    IsRequiredValidationProblem,
+    RelationsNotAllowedValidationProblem,
+    TypeMismatchValidationProblem,
+    UnknownKeyValidationProblem,
+    UnknownShapeValidationProblem,
+    ValidationProblem
+} from '../validation-problem.model';
 
 /**
  * The problems of a value as the given shape, judged by the value alone.
@@ -40,7 +46,7 @@ export function shapeProblems(fullKey: string, value: unknown, metadata: ArrayPr
             return numberValueProblems(fullKey, value, metadata);
         }
         case 'date': {
-            return dateValueProblems(fullKey, value, metadata);
+            return dateValueProblems(fullKey, value);
         }
         case 'boolean': {
             return booleanValueProblems(fullKey, value);
@@ -102,7 +108,7 @@ export function namedShapeOf(fullKey: string, value: unknown, metadata: Pick<One
     const record: Record<string, unknown> = value as Record<string, unknown>;
     const problems: ValidationProblem[] = ObjectUtilities.keys(record)
         .filter(key => key !== 'shape' && key !== 'value')
-        .map(key => ({ key: joinKey(fullKey, key), message: $ts`this key is unknown` }));
+        .map(key => new UnknownKeyValidationProblem(joinKey(fullKey, key)));
     const name: unknown = record['shape'];
     const shape: OneOfShapeMetadata | undefined = typeof name === 'string' ? metadata.shapes[name] : undefined;
     if (shape == undefined) {
@@ -144,7 +150,7 @@ function objectShapeProblems(fullKey: string, value: unknown, metadata: ObjectPr
     if (!metadata.allowAdditionalProperties) {
         for (const key of ObjectUtilities.keys(record)) {
             if (!(key in properties)) {
-                res.push({ key: joinKey(fullKey, key), message: $ts`this key is unknown` });
+                res.push(new UnknownKeyValidationProblem(joinKey(fullKey, key)));
             }
         }
     }

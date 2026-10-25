@@ -9,8 +9,9 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { HttpMethod } from './http-method.enum';
 import { HttpServerLimits } from './http-server-limits.model';
 import { HttpStatus } from './http-status.enum';
+import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { AlsUtilities } from '../context/als.utilities';
@@ -249,7 +250,8 @@ class LeaseController {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const limits: HttpServerLimits = {
@@ -311,7 +313,7 @@ beforeAll(async () => {
             return { ok: true };
         }
     });
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

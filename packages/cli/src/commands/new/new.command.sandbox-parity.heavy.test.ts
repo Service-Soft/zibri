@@ -7,7 +7,7 @@ import { NewCommand } from './new.command';
 import { acceptedSandboxDifferences } from '../../__testing__/accepted-sandbox-differences';
 import { diffFileContents } from '../../__testing__/diff-file-contents.function';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
-import { GENERATED_FILE_PATHS, SANDBOX_DIR } from '../../__testing__/generated-file-paths';
+import { EVERY_FEATURE, GENERATED_FILE_PATHS, SANDBOX_DIR } from '../../__testing__/generated-file-paths';
 import { normalizePackageJson } from '../../__testing__/normalize-package-json.function';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
@@ -40,7 +40,7 @@ describe('NewCommand (sandbox parity)', () => {
         process.env['ZIBRI_CLI_LOCAL_DEV'] = '1';
 
         // no ci workflow, for the reason the fast parity suite gives
-        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none', 'public']));
+        await quietly(async () => new NewCommand().start(['n', 'sandbox', 'none', 'public', EVERY_FEATURE]));
     }, TEST_TIMEOUT_MS);
 
     afterAll(async () => {

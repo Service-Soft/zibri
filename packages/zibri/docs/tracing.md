@@ -12,7 +12,7 @@ The default implementation uses OpenTelemetry.
 | `TracerInterface` | interface | What records spans. Implement it to record through something other than OpenTelemetry |
 | `TraceSpanInterface` | interface | One piece of work: `recordAttribute`, `recordAttributes`, `recordError`, `updateName`, `end` |
 | `TraceSpanContext` | type | What identifies a span and the trace it belongs to |
-| `TraceSpanKind` / `TraceSpanStatus` | enums | What kind of work a span covers and how it ended |
+| `TraceSpanKind` / `TraceSpanStatus` | enum | What kind of work a span covers and how it ended |
 | `TraceSpanAttributes` | type | What a span records besides its name and duration |
 | `TraceSpanRecord` | class | One finished span, as it is read back |
 | `TraceBufferInterface` | interface | Holds the spans recorded most recently: `findRecentSpans`, `findSpansOfTrace` |
@@ -21,19 +21,23 @@ The default implementation uses OpenTelemetry.
 | `ZIBRI_DI_TOKENS.TRACE_EXPORTER` | DI token | Sends finished spans somewhere |
 | `otlpTraceExporter` | function | An exporter that sends them to a collector |
 | `OpenTelemetryTracer` | class | The tracer registered by default |
+| `StartSpanOptions` | type | What a tracer is handed to start a span: its `kind`, its `parent` and its `attributes` |
 | `ZIBRI_DI_TOKENS.TRACER` | DI token | Overrides the tracer |
 | `TraceContextUtilities` | class | Reads and writes the `traceparent` and `tracestate` headers |
 
 ## Where spans go
-Into memory, and nowhere else until you say otherwise. The most recent thousand spans are kept in the trace buffer, so an application answers what it has been doing out of a bounded amount of its own memory, with nothing deployed beside it.
+Into memory, and nowhere else until you say otherwise. The trace buffer keeps the most recent thousand spans, so an application answers what it has been doing out of a bounded amount of its own memory, with nothing deployed beside it.
 
-Two packages carry the recording, and the default tracer names either one at startup when it is missing:
+> [!NOTE]
+> The buffer holds a number of spans, whatever their age. At the handful of spans a request produces, a thousand spans are a few hundred requests: seconds of a busy service, minutes of a quiet one. To keep spans longer, [send them somewhere](#sending-them-somewhere).
+
+The default tracer records through two packages you install:
 
 ```
 npm i @opentelemetry/api @opentelemetry/sdk-trace-node
 ```
 
-A project made with `zi new` has them already. They are optional peers rather than dependencies, so an application that registers a tracer of its own drops both with the default it replaced.
+A project made with `zi new` has them already. An application that registers its own tracer does not need them.
 
 ### Reading them back
 Inject the buffer and answer with what it holds:
@@ -63,10 +67,11 @@ export class TraceController {
 }
 ```
 
-Put it behind whatever the rest of the application is behind — a span names routes, entities and durations, which is a map of the application to anyone who reads it.
+> [!WARNING]
+> Protect this controller like the rest of your application. Spans name routes, entities and durations, which maps your application for anyone who reads them.
 
 ### Sending them somewhere
-Register an exporter and every finished span is sent there in batches, as well as kept. `ZIBRI_DI_TOKENS.TRACE_BUFFER` is where the buffer's size is said, so both live in the same file:
+Register an exporter, and every finished span is sent there in batches, as well as kept. `ZIBRI_DI_TOKENS.TRACE_BUFFER` sets the size of the buffer, so both live in the same file:
 
 ```ts
 // src/providers.ts
@@ -86,7 +91,7 @@ export const providers: DiProvider<unknown>[] = [
 ];
 ```
 
-`otlpTraceExporter` speaks the protocol every tracing backend reads, and needs two more packages:
+`otlpTraceExporter` speaks OTLP, the protocol every tracing backend reads, and needs two more packages:
 
 ```
 npm i @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources
@@ -95,11 +100,13 @@ npm i @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources
 | Option | Holds |
 |---|---|
 | `url` | The collector endpoint, including its path |
-| `headers` | Sent with each export, which is where a hosted collector's api key goes |
-| `timeoutMs` | How long one export may take. 10000 when nothing says |
-| `concurrencyLimit` | How many exports may be in flight at once. 30 when nothing says |
+| `headers` | Sent with each export, which is where a hosted collector's API key goes |
+| `timeoutMs` | How long one export may take. 10 seconds by default |
+| `concurrencyLimit` | How many exports may be in flight at once. 30 by default |
 
-Exported spans are reported under the application's own `name` and `version`, which is what a backend holding several services groups them by.
+Exported spans are reported under the application's own `name` and `version`, so a backend holding several services tells them apart.
+
+Sampling and batching are set through the OpenTelemetry SDK's own environment variables, such as `OTEL_TRACES_SAMPLER` and `OTEL_BSP_SCHEDULE_DELAY`.
 
 ## What the framework records
 | Span | Kind | Named | Recorded when |
@@ -113,22 +120,26 @@ Exported spans are reported under the application's own `name` and `version`, wh
 | A backup or a restore | `INTERNAL` | `createBackup` | Per run, as its own trace |
 | A thread job | `CONSUMER` | `runThreadJob` | Per run, under the trace it was queued in |
 
-Background work gets a trace of its own rather than hanging under whatever happened to be running. A cron tick that fired while a request was in flight is not part of that request, and a trace that said otherwise would make one request look responsible for everything the schedule did.
+Background work starts a trace of its own. A cron tick that fires while a request is in flight is not part of that request's trace.
 
-A [thread job](./multithreading.md#tracing) is the exception: it is work something asked for, so its run is recorded under the trace it was queued in, whenever and on whichever instance it runs. One queued outside any trace gets a trace of its own.
+A [thread job](./multithreading.md#tracing) is the exception: it is work something asked for, so its run is recorded under the trace it was queued in, whenever and on whichever instance it runs. One queued outside any trace gets a trace of its own. The worker thread it runs in has no tracer, so its run is one span. What the worker does inside it is recorded by whatever it passes the trace on to.
 
-Spans are named by what is written in the source — a route template, an operation, a job name — never by what arrived at runtime. A name taken from a url groups nothing, and a backend keeps every distinct one it has seen.
+[Cache](./caching.md) reads and writes record no span. [Metrics](./metrics.md) report them per cache and per operation, including hit rate, store duration and source duration.
+
+Spans are named by what is written in the source, such as a route template, an operation or a job name. A name never contains what arrived at runtime, so spans of the same work group together in a backend.
 
 ## What a trace gives you besides spans
-The trace *context* is established for every request whether or not anything is exporting:
+The trace *context* is established for every request, whether anything exports or not:
 
 - a request carrying a `traceparent` continues that trace, and one arriving without it starts a new one
 - every log line written while handling the request names the trace and the span under `context.request.traceId` and `context.request.spanId`
 - the response names the trace back under `traceresponse`
-- a failed request repeats the trace id in its body as `traceId`, which is the form it survives being pasted into a bug report
+- a failed request repeats the trace id in its body as `traceId`
 - every call the [http client](./http-client.md) makes while handling the request carries the trace onward, unless the call sets `traceparent` itself
 
-That last one is what makes a trace worth having at all: a call fanning out to three services otherwise produces four sets of logs that nothing joins.
+So the logs of a call that fans out to three services join on one trace id.
+
+This holds for a trace that is not sampled too. The `sampled` flag is a recommendation carried from whoever started the trace. A request that is not sampled still gets a trace id, writes it on every log line and passes it on, whether or not any spans exist.
 
 ## Tracing your own work
 `TracingUtilities.trace` records a function as one span. It hangs under whatever is already running, so a call inside a request becomes part of that request's trace with nothing passed down:
@@ -158,11 +169,11 @@ export class SearchService {
 }
 ```
 
-The span ends when the function does, whichever way it ends. An error is recorded on it and rethrown, so tracing never changes what the work does or what a caller sees.
+The span ends when the function does, whichever way it ends. An error is recorded on it and rethrown, so tracing changes neither what the work does nor what a caller sees.
 
-Pass `root: true` for work that is not part of whatever called it — anything scheduled, queued, or fired and forgotten.
+Pass `root: true` for work that is not part of whatever called it: anything scheduled, queued, or fired and forgotten.
 
-To hang something on the span that is already running rather than opening a new one:
+To add to the span that is already running, without opening a new one:
 
 ```ts
 // src/services/pricing.service.ts
@@ -178,6 +189,9 @@ export class PricingService {
     }
 }
 ```
+
+> [!WARNING]
+> Span attributes are kept for as long as the backend keeps them, and everyone who can read traces can read them. Put an id on a span, never a name or an address. The framework records a URL without its query string, and records no headers, bodies or cache keys.
 
 ## Recording through something else
 Register a `TracerInterface` under `ZIBRI_DI_TOKENS.TRACER` to send spans somewhere OpenTelemetry does not reach. It has one method, and the framework then traces itself through it:
@@ -197,28 +211,23 @@ export class QuietTracer implements TracerInterface {
 }
 ```
 
-Register it in `src/providers.ts` beside the others, with `defineProvider({ token: ZIBRI_DI_TOKENS.TRACER, useClass: QuietTracer })`. The buffer and the exporter go with the default it replaces — a tracer of your own decides both for itself.
+Register it in `src/providers.ts` beside the others, with `defineProvider({ token: ZIBRI_DI_TOKENS.TRACER, useClass: QuietTracer })`. The buffer and the exporter belong to the default tracer: a tracer of your own decides where its spans go.
 
-`TraceContextUtilities.resolveSpanContext` is what gives the span an identity that continues its parent's trace — the log lines and the propagation depend on it, so a tracer that records nothing still has to answer with one.
+`TraceContextUtilities.resolveSpanContext` gives the span an identity that continues its parent's trace. Log lines and propagation read that identity, so a tracer that records nothing still returns a span with one.
 
-A tracer must not throw. Tracing watches work, and a watcher that can fail the work is worse than no watcher.
+> [!WARNING]
+> A tracer must not throw. An error it throws fails the work it traces.
 
-## Caveats
+## Requirements
+| Package | Used for |
+|---|---|
+| `@opentelemetry/api` | Recording spans with the default tracer. You install it |
+| `@opentelemetry/sdk-trace-node` | Recording spans with the default tracer, and handing them to the buffer and the exporter. You install it |
+| `@opentelemetry/exporter-trace-otlp-http` | Sending spans to a collector over OTLP, with `otlpTraceExporter`. You install it |
+| `@opentelemetry/resources` | Naming the application on the spans it exports. You install it |
 
-### A worker records no spans
-A [thread job](./multithreading.md#tracing) runs in a worker thread, which has no tracer of its own. Its run is one span, and what the worker does inside it is recorded by whatever it passes the trace on to.
-
-### The buffer is a window, not a history
-What it holds is bounded by a number of spans rather than by an age. At the handful of spans a request produces, a thousand of them is a few hundred requests — seconds of a busy service, minutes of a quiet one. It answers what is happening now; anything that has to survive being asked about tomorrow leaves through an exporter.
-
-### Cache operations are not spans
-[Cache](./caching.md) reads and writes are not recorded as spans. What they cost is already reported per cache and per operation by [metrics](./metrics.md), including hit rate, store duration and source duration.
-
-### A span says which trace, not who
-Span attributes are kept for as long as the backend keeps them and are readable by everyone who can read traces. The framework records a url without its query string for that reason, and records no headers, no bodies and no cache keys. Anything you add is your decision — put an id on a span, not a name or an address.
-
-### Sampling belongs to the SDK
-What is sampled, how spans are batched and which resource attributes they carry are the SDK's questions, answered by its own environment variables. A second set of options here would be a second way to say the same thing, and a way for the two to disagree.
-
-### An unsampled trace still has an id
-The `sampled` flag is a recommendation carried from whoever started the trace, not a claim that anything was recorded. A request that is not sampled still gets a trace id, still writes it on every log line, and still passes it on — so the logs of one request join across services whether or not any spans exist.
+## See also
+- [Metrics](./metrics.md) — how often and how fast, in aggregate
+- [Logging](./logging.md) — the log lines of a request, found by its trace id
+- [Http client](./http-client.md) — the calls that carry the trace onward to other services
+- [Multithreading](./multithreading.md#tracing) — how a thread job is recorded under the trace it was queued in

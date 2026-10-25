@@ -6,8 +6,10 @@ import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model
 import { S3CompleteMultipartUploadResult } from './s3/s3-complete-multipart-upload-result.model';
 import { S3CompleteMultipartUpload } from './s3/s3-complete-multipart-upload.model';
 import { S3CompletedPart } from './s3/s3-completed-part.model';
+import { S3Credentials } from './s3/s3-credentials.model';
 import { S3InitiateMultipartUploadResult } from './s3/s3-initiate-multipart-upload-result.model';
 import { S3ListBucketResult } from './s3/s3-list-bucket-result.model';
+import { S3ServerSideEncryption } from './s3/s3-server-side-encryption.model';
 import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -128,7 +130,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         if (resource.size == undefined) {
             throw new InternalError(`The backup "${backup.name}" recorded no size for "${resource.name}", so it cannot be retrieved.`);
         }
-        const request: S3Request = this.resolveRequest(HttpMethod.GET, this.resolveResourceKey(backup, resource), {}, '');
+        const request: S3Request = await this.resolveRequest(HttpMethod.GET, this.resolveResourceKey(backup, resource), {}, '');
         // no larger than what was stored: an object that has grown since is refused while it arrives,
         // rather than after it was written to disk in full
         return (await this.httpClient.get(request.url, {
@@ -150,7 +152,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
     }
 
     private async deleteObject(key: string): Promise<void> {
-        const request: S3Request = this.resolveRequest(HttpMethod.DELETE, key, {}, '');
+        const request: S3Request = await this.resolveRequest(HttpMethod.DELETE, key, {}, '');
         await this.httpClient.delete(request.url, {
             headers: request.headers,
             timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -206,7 +208,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             if (continuationToken != undefined) {
                 query['continuation-token'] = continuationToken;
             }
-            const request: S3Request = this.resolveRequest(HttpMethod.GET, undefined, query, '');
+            const request: S3Request = await this.resolveRequest(HttpMethod.GET, undefined, query, '');
             const page: S3ListBucketResult = (await this.httpClient.get(request.url, {
                 headers: request.headers,
                 responseBody: {
@@ -225,7 +227,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
     }
 
     private async resolveMetadata(name: string): Promise<string> {
-        const request: S3Request = this.resolveRequest(HttpMethod.GET, this.resolveMetadataKey(name), {}, '');
+        const request: S3Request = await this.resolveRequest(HttpMethod.GET, this.resolveMetadataKey(name), {}, '');
         // as a stream and read as text: the record is handed back as it was stored, never parsed here
         const data: Readable = (await this.httpClient.get(request.url, {
             headers: request.headers,
@@ -237,7 +239,10 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
     }
 
     private async putObject(key: string, body: Buffer): Promise<void> {
-        const request: S3Request = this.resolveRequest(HttpMethod.PUT, key, {}, body);
+        const request: S3Request = await this.resolveRequest(HttpMethod.PUT, key, {}, body, {
+            ...this.resolveUploadHeaders(body),
+            ...this.resolveEncryptionHeaders()
+        });
         await this.httpClient.put(request.url, new Blob([new Uint8Array(body)]), {
             headers: request.headers,
             requestBodyType: MimeType.OCTET_STREAM,
@@ -247,7 +252,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
     }
 
     private async initiateMultipartUpload(key: string): Promise<string> {
-        const request: S3Request = this.resolveRequest(HttpMethod.POST, key, { uploads: '' }, '');
+        const request: S3Request = await this.resolveRequest(HttpMethod.POST, key, { uploads: '' }, '', this.resolveEncryptionHeaders());
         // the type the object is stored with is named here rather than by its parts. Without it, the service
         // stores a type of its own choosing, eg. binary/octet-stream, which the object is not read back as
         return (await this.httpClient.post(request.url, undefined, {
@@ -264,7 +269,13 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
                 + `Raise the partSize of the transport "${this.name}".`
             );
         }
-        const request: S3Request = this.resolveRequest(HttpMethod.PUT, key, { partNumber: String(partNumber), uploadId }, body);
+        const request: S3Request = await this.resolveRequest(
+            HttpMethod.PUT,
+            key,
+            { partNumber: String(partNumber), uploadId },
+            body,
+            this.resolveUploadHeaders(body)
+        );
         const { headers } = await this.httpClient.put(request.url, new Blob([new Uint8Array(body)]), {
             headers: request.headers,
             requestBodyType: MimeType.OCTET_STREAM,
@@ -277,7 +288,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
 
     private async completeMultipartUpload(key: string, uploadId: string, parts: S3CompletedPart[]): Promise<void> {
         const xml: XmlString = await XmlUtilities.generateFrom(S3CompleteMultipartUpload, { parts });
-        const request: S3Request = this.resolveRequest(HttpMethod.POST, key, { uploadId }, xml);
+        const request: S3Request = await this.resolveRequest(HttpMethod.POST, key, { uploadId }, xml);
         // the result is read even though nothing in it is needed: a service can answer this with a 200 whose
         // body is an error, and that body has no ETag
         await this.httpClient.post(request.url, xml, {
@@ -289,7 +300,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
     }
 
     private async abortMultipartUpload(key: string, uploadId: string): Promise<void> {
-        const request: S3Request = this.resolveRequest(HttpMethod.DELETE, key, { uploadId }, '');
+        const request: S3Request = await this.resolveRequest(HttpMethod.DELETE, key, { uploadId }, '');
         try {
             await this.httpClient.delete(request.url, {
                 headers: request.headers,
@@ -307,7 +318,13 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         }
     }
 
-    private resolveRequest(method: HttpMethod, key: string | undefined, query: Record<string, string>, body: Buffer | string): S3Request {
+    private async resolveRequest(
+        method: HttpMethod,
+        key: string | undefined,
+        query: Record<string, string>,
+        body: Buffer | string,
+        headers: Record<string, string> = {}
+    ): Promise<S3Request> {
         const url: URL = new URL(this.options.endpoint);
         const path: string = (key?.split('/') ?? [])
             .map(segment => S3SignatureUtilities.encode(segment))
@@ -331,17 +348,56 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             .map(parameter => parameter.join('='))
             .join('&');
 
-        const headers: Record<string, string> = S3SignatureUtilities.resolveHeaders({
+        // per request rather than once: credentials that expire are only good for as long as the
+        // function handing them out says, and a backup of many parts outlasts a short-lived one
+        const credentials: S3Credentials | (() => Promise<S3Credentials>) = this.options.credentials;
+        const signed: Record<string, string> = S3SignatureUtilities.resolveHeaders({
             method,
             url,
-            headers: {},
+            headers,
             payloadHash: S3SignatureUtilities.hash(body),
-            accessKeyId: this.options.accessKeyId,
-            secretAccessKey: this.options.secretAccessKey,
+            credentials: typeof credentials === 'function' ? await credentials() : credentials,
             region: this.options.region,
             date: new Date()
         });
-        return { url: url.toString(), headers };
+        return { url: url.toString(), headers: signed };
+    }
+
+    /**
+     * Resolves the headers an upload of a body is sent with.
+     *
+     * Its digest, which the service checks what it received against, and which a bucket with object lock
+     * refuses an upload without.
+     * @param body - The body.
+     * @returns The headers.
+     */
+    private resolveUploadHeaders(body: Buffer): Record<string, string> {
+        return { 'content-md5': S3SignatureUtilities.resolveContentMd5(body) };
+    }
+
+    /**
+     * Resolves the headers the request starting an object is sent with: the encryption it asks for.
+     *
+     * On the request that starts an object alone, a single upload or the start of one in parts: the
+     * parts belong to an upload that already says how it is encrypted.
+     * @returns The headers.
+     */
+    private resolveEncryptionHeaders(): Record<string, string> {
+        const encryption: S3ServerSideEncryption = this.options.serverSideEncryption;
+        if (encryption === 'bucket-default') {
+            return {};
+        }
+        switch (encryption.algorithm) {
+            case 'AES256': {
+                return { 'x-amz-server-side-encryption': encryption.algorithm };
+            }
+            case 'aws:kms': {
+                return {
+                    'x-amz-server-side-encryption': encryption.algorithm,
+                    ...encryption.keyId == undefined ? {} : { 'x-amz-server-side-encryption-aws-kms-key-id': encryption.keyId }
+                };
+            }
+        }
     }
 
     private resolvePartSize(): BigNumber {

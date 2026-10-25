@@ -5,7 +5,8 @@ import { CronExpression, CronExpressionString } from './cron-expression.utilitie
 import { CreateCronJobEntityData, CronJobEntity, CronJobState } from './cron-job-entity.model';
 import { CronJob, InitialCronConfig } from './cron-job.model';
 import { CronService } from './cron.service';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
@@ -13,6 +14,7 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
+import { Lease } from '../leases/lease.model';
 import { Ms } from '../utilities/ms';
 
 /**
@@ -97,7 +99,8 @@ class LocalStoppingCronJob extends ScriptedCronJob {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, CronJobEntity]
+    entities: [...defaultTestServerEntities, CronJobEntity],
+    repositories: defaultTestServerRepositories
 });
 
 describe('A cron job whose ticks throw', () => {
@@ -127,15 +130,18 @@ describe('A cron job whose ticks throw', () => {
         stopping = inject(StoppingCronJob);
         backingOff = inject(BackingOffCronJob);
         localStopping = inject(LocalStoppingCronJob);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     beforeEach(async () => {
         // eslint-disable-next-line unicorn/no-null
         await rows.updateAll({}, { state: CronJobState.ACTIVE, previousState: null, consecutiveFailures: 0, backedOffUntil: null });
+        // the claims on the slots too: a slot a case ran is held afterwards, and the next case
+        // naming the same slot would be told it is dealt with
+        await inject(repositoryTokenFor(Lease)).deleteAll({});
         await cronService.applyStoredChanges();
         // the one job without a row is reset where it keeps its state
         const local: CronJobEntity | undefined = localStopping['entity'];
@@ -167,11 +173,23 @@ describe('A cron job whose ticks throw', () => {
         return await rows.findOne({ where: { name } });
     }
 
+    let slotsNamed: number = 0;
+
+    /**
+     * A slot of its own for a tick to run at: no two ticks share a slot on a schedule, and a slot
+     * that ran is held afterwards, so two ticks named the same millisecond would be one.
+     * @returns The slot.
+     */
+    function nextSlot(): Date {
+        slotsNamed++;
+        return new Date(Date.now() + slotsNamed);
+    }
+
     describe('with a retry', () => {
         it('runs the slot again until it succeeds, and counts no failure', async () => {
             retrying.failuresAhead = 2;
 
-            await retrying.runOnTick(new Date());
+            await retrying.runOnTick(nextSlot());
 
             expect(retrying.ticks).toBe(3);
             expect((await findRow('retrying')).consecutiveFailures).toBe(0);
@@ -180,7 +198,7 @@ describe('A cron job whose ticks throw', () => {
         it('gives up after its attempts, and counts the slot as one failure', async () => {
             retrying.failuresAhead = 5;
 
-            await retrying.runOnTick(new Date());
+            await retrying.runOnTick(nextSlot());
 
             expect(retrying.ticks).toBe(3);
             expect((await findRow('retrying')).consecutiveFailures).toBe(1);
@@ -189,7 +207,7 @@ describe('A cron job whose ticks throw', () => {
         it('starts no attempt once the next slot is due', async () => {
             retryingPastTheNextSlot.failuresAhead = 1;
 
-            await retryingPastTheNextSlot.runOnTick(new Date());
+            await retryingPastTheNextSlot.runOnTick(nextSlot());
 
             expect(retryingPastTheNextSlot.ticks).toBe(1);
             expect((await findRow('retrying-past-the-next-slot')).consecutiveFailures).toBe(1);
@@ -200,11 +218,11 @@ describe('A cron job whose ticks throw', () => {
         it('stops after as many failures in a row as it allows, and not before', async () => {
             stopping.failuresAhead = 3;
 
-            await stopping.runOnTick(new Date());
-            await stopping.runOnTick(new Date());
+            await stopping.runOnTick(nextSlot());
+            await stopping.runOnTick(nextSlot());
             expect(stopping.state).toBe(CronJobState.ACTIVE);
 
-            await stopping.runOnTick(new Date());
+            await stopping.runOnTick(nextSlot());
             expect(stopping.state).toBe(CronJobState.STOPPED_ON_ERROR);
             expect(await findRow('stopping')).toMatchObject({
                 state: CronJobState.STOPPED_ON_ERROR,
@@ -215,13 +233,13 @@ describe('A cron job whose ticks throw', () => {
 
         it('starts counting again after a tick that succeeds', async () => {
             stopping.failuresAhead = 2;
-            await stopping.runOnTick(new Date());
-            await stopping.runOnTick(new Date());
-            await stopping.runOnTick(new Date());
+            await stopping.runOnTick(nextSlot());
+            await stopping.runOnTick(nextSlot());
+            await stopping.runOnTick(nextSlot());
 
             stopping.failuresAhead = 2;
-            await stopping.runOnTick(new Date());
-            await stopping.runOnTick(new Date());
+            await stopping.runOnTick(nextSlot());
+            await stopping.runOnTick(nextSlot());
 
             expect(stopping.state).toBe(CronJobState.ACTIVE);
             expect((await findRow('stopping')).consecutiveFailures).toBe(2);
@@ -232,7 +250,7 @@ describe('A cron job whose ticks throw', () => {
             await rows.updateAll({ name: 'stopping' }, { consecutiveFailures: 2 });
             stopping.failuresAhead = 1;
 
-            await stopping.runOnTick(new Date());
+            await stopping.runOnTick(nextSlot());
 
             expect(stopping.state).toBe(CronJobState.STOPPED_ON_ERROR);
         });
@@ -242,7 +260,7 @@ describe('A cron job whose ticks throw', () => {
         it('puts a stopped job back on the schedule once the cooldown has passed, and stops it again at its next failure', async () => {
             stopping.failuresAhead = 3;
             for (let i: number = 0; i < 3; i++) {
-                await stopping.runOnTick(new Date());
+                await stopping.runOnTick(nextSlot());
             }
             await rows.updateAll({ name: 'stopping' }, { lastRun: new Date(Date.now() - (2 * Ms.HOUR)) });
 
@@ -252,14 +270,14 @@ describe('A cron job whose ticks throw', () => {
             expect((await findRow('stopping')).state).toBe(CronJobState.ACTIVE);
 
             stopping.failuresAhead = 1;
-            await stopping.runOnTick(new Date());
+            await stopping.runOnTick(nextSlot());
             expect(stopping.state).toBe(CronJobState.STOPPED_ON_ERROR);
         });
 
         it('leaves a stopped job stopped while the cooldown runs', async () => {
             stopping.failuresAhead = 3;
             for (let i: number = 0; i < 3; i++) {
-                await stopping.runOnTick(new Date());
+                await stopping.runOnTick(nextSlot());
             }
 
             await cronService.applyStoredChanges();
@@ -277,7 +295,7 @@ describe('A cron job whose ticks throw', () => {
 
         it('puts a job back that keeps no row', async () => {
             localStopping.failuresAhead = 1;
-            await localStopping.runOnTick(new Date());
+            await localStopping.runOnTick(nextSlot());
             expect(localStopping.state).toBe(CronJobState.STOPPED_ON_ERROR);
             const local: CronJobEntity | undefined = localStopping['entity'];
             if (local) {
@@ -296,7 +314,7 @@ describe('A cron job whose ticks throw', () => {
             const slots: Date[] = backingOff['task']?.getNextRuns(2) ?? [];
             backingOff.failuresAhead = 1;
 
-            await backingOff.runOnTick(new Date());
+            await backingOff.runOnTick(nextSlot());
             expect((await findRow('backing-off')).backedOffUntil).toEqual(slots[1]);
 
             await backingOff.runOnTick(slots[0]);
@@ -310,7 +328,7 @@ describe('A cron job whose ticks throw', () => {
             await rows.updateAll({ name: 'backing-off' }, { consecutiveFailures: 1 });
             backingOff.failuresAhead = 1;
 
-            await backingOff.runOnTick(new Date());
+            await backingOff.runOnTick(nextSlot());
 
             expect((await findRow('backing-off')).backedOffUntil).toEqual(slots[2]);
         });
@@ -320,7 +338,7 @@ describe('A cron job whose ticks throw', () => {
             await rows.updateAll({ name: 'backing-off' }, { consecutiveFailures: 40 });
             backingOff.failuresAhead = 1;
 
-            await backingOff.runOnTick(new Date());
+            await backingOff.runOnTick(nextSlot());
 
             expect((await findRow('backing-off')).backedOffUntil).toEqual(slots[2]);
         });
@@ -328,7 +346,7 @@ describe('A cron job whose ticks throw', () => {
         it('runs every slot again after a tick that succeeds', async () => {
             const slots: Date[] = backingOff['task']?.getNextRuns(3) ?? [];
             backingOff.failuresAhead = 1;
-            await backingOff.runOnTick(new Date());
+            await backingOff.runOnTick(nextSlot());
 
             await backingOff.runOnTick(slots[1]);
             await backingOff.runOnTick(slots[2]);
@@ -340,7 +358,7 @@ describe('A cron job whose ticks throw', () => {
         it('skips a slot another instance backed off from', async () => {
             await rows.updateAll({ name: 'backing-off' }, { consecutiveFailures: 1, backedOffUntil: new Date(Date.now() + (Ms.DAY * 30)) });
 
-            await backingOff.runOnTick(new Date());
+            await backingOff.runOnTick(nextSlot());
 
             expect(backingOff.ticks).toBe(0);
         });

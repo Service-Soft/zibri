@@ -2,6 +2,7 @@ import { BaseEntity } from '../../../entity/base-entity.model';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { OneOfPropertyMetadata, OneOfShapeMetadata } from '../../../entity/models/one-of-property-metadata.model';
 import { Relation } from '../../../entity/models/relation.enum';
+import { type KeyWhere } from '../../../entity/models/unique-declaration.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { isNamedValue } from '../../../parsing/functions/parse-one-of.function';
 import { Newable } from '../../../types/newable.type';
@@ -71,22 +72,37 @@ export class WhereFilterEvaluator {
         // and the way a scope folding one into the other needs both to answer
         not: (value, filterValue, metadata) => filterValue === null
             ? value != undefined
-            : value == undefined || !WhereValueUtilities.equals(value, filterValue, metadata),
+            : value == undefined || !WhereValueUtilities.equals(
+                WhereValueUtilities.unwrapRelation(value, metadata),
+                WhereValueUtilities.unwrapRelation(filterValue, metadata),
+                metadata
+            ),
         oneOf: (value, filterValue, metadata) => value == undefined
             ? this.toArray(filterValue, 'oneOf').some(v => v === null)
-            : this.isListed(value, this.toArray(filterValue, 'oneOf'), metadata),
+            : this.isListed(WhereValueUtilities.unwrapRelation(value, metadata), this.listedOf(filterValue, 'oneOf', metadata), metadata),
         notOneOf: (value, filterValue, metadata) => value == undefined
             ? !this.toArray(filterValue, 'notOneOf').some(v => v === null)
-            : !this.isListed(value, this.toArray(filterValue, 'notOneOf'), metadata),
+            : !this.isListed(
+                WhereValueUtilities.unwrapRelation(value, metadata),
+                this.listedOf(filterValue, 'notOneOf', metadata),
+                metadata
+            ),
         like: (value, filterValue) => typeof value === 'string' && this.likeToRegex(String(filterValue), false).test(value),
         iLike: (value, filterValue) => typeof value === 'string' && this.likeToRegex(String(filterValue), true).test(value),
         // the complement of like: a row holding no value is like nothing, so it is unlike every pattern
         notLike: (value, filterValue) => typeof value !== 'string' || !this.likeToRegex(String(filterValue), false).test(value),
         notILike: (value, filterValue) => typeof value !== 'string' || !this.likeToRegex(String(filterValue), true).test(value),
         fuzzyLike: (value, filterValue) => this.matchesFuzzyLike(value, filterValue),
+        // a related row is compared by its id, the one thing both sides are sure to carry: the stored
+        // side may be the resolved row or its key, and the filter's row may have been read with
+        // other relations resolved
         is: (value, filterValue, metadata) => filterValue === null
             ? value == undefined
-            : WhereValueUtilities.equals(value, WhereValueUtilities.unwrapRelation(filterValue, metadata), metadata),
+            : WhereValueUtilities.equals(
+                WhereValueUtilities.unwrapRelation(value, metadata),
+                WhereValueUtilities.unwrapRelation(filterValue, metadata),
+                metadata
+            ),
         after: (value, filterValue) => WhereValueUtilities.compare(value, filterValue) > 0,
         afterOrOn: (value, filterValue) => WhereValueUtilities.compare(value, filterValue) >= 0,
         before: (value, filterValue) => WhereValueUtilities.compare(value, filterValue) < 0,
@@ -128,6 +144,21 @@ export class WhereFilterEvaluator {
      */
     matches<T extends object>(item: T, filter: Where<T>, entityClass: Newable<T>): boolean {
         return this.matchesAt(item, filter, entityClass, entityClass.name);
+    }
+
+    /**
+     * Checks whether a value of a model follows a check of the entity the model is, extends or is
+     * derived from.
+     * @param item - The value.
+     * @param check - The filter of the check.
+     * @param modelClass - The class of the value, used to resolve the property metadata.
+     * @returns True when the value matches the check.
+     */
+    matchesCheck(item: object, check: KeyWhere, modelClass: Newable<unknown>): boolean {
+        // one class types the item, the filter and the metadata below, and a check is written for the
+        // entity while the value is of the model. The model holds the properties of the entity that
+        // the check compares, declared alike, which is all an evaluation reads
+        return this.matchesAt<object>(item, check, modelClass as Newable<object>, modelClass.name);
     }
 
     /**
@@ -439,6 +470,22 @@ export class WhereFilterEvaluator {
      * @param metadata - The property the value belongs to.
      * @returns True when one of them equals it.
      */
+    /**
+     * The values a `oneOf` or `notOneOf` lists, each related row among them as its id.
+     * @param filterValue - The list as the filter holds it.
+     * @param key - The key, for the error when it holds no list.
+     * @param metadata - The property the list is for.
+     * @returns The list itself for any property but a relation to one row, so that the set read out
+     * of it is kept per list.
+     */
+    private listedOf(filterValue: unknown, key: WhereFilterKeys, metadata: PropertyMetadata | undefined): unknown[] {
+        const list: unknown[] = this.toArray(filterValue, key);
+        if (metadata?.type !== Relation.MANY_TO_ONE && metadata?.type !== Relation.BELONGS_TO_ONE) {
+            return list;
+        }
+        return list.map(v => WhereValueUtilities.unwrapRelation(v, metadata));
+    }
+
     private isListed(value: unknown, list: unknown[], metadata: PropertyMetadata | undefined): boolean {
         const listed: Set<unknown> | undefined = this.resolveListedSet(list);
         // where comparing is `===` on both sides a set answers the same, once per list rather than

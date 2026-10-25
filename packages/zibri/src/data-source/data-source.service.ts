@@ -3,6 +3,7 @@ import { ZibriApplication } from '../application/application';
 import { DataSourceInterface } from './data-sources/data-source.interface';
 import { RegisteredDataSource, resolveEntityOwnership } from './entity-ownership.function';
 import { OwnedRelationUtilities } from './owned-relation.utilities';
+import { RepositoryForUtilities } from './repository/repository-for.utilities';
 import { TenantUtilities } from './tenancy/tenant.utilities';
 import { ChangeSet } from '../change-sets/models/change-set.model';
 import { Change } from '../change-sets/models/change.model';
@@ -11,7 +12,7 @@ import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
+import { DiContainer } from '../di/di-container';
 import { BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
@@ -41,17 +42,22 @@ export class DataSourceService implements DataSourceServiceInterface {
             this.logger.info(`initializes ${dataSources.length} ${dataSources.length > 1 ? 'data sources' : 'data source'}`);
         }
 
-        const registeredDataSources: RegisteredDataSource[] = dataSources.map(dataSourceClass => {
+        // awaited, because a data source's options are where a secret from a vault ends up. One after
+        // the other: the container awaits each asynchronous value once, and two builds running at
+        // once could both find one not awaited yet
+        const registeredDataSources: RegisteredDataSource[] = [];
+        for (const dataSourceClass of dataSources) {
             if (!MetadataUtilities.getFilePath(dataSourceClass)) {
                 throw new InternalError(`The data source ${dataSourceClass.name} is not decorated with @DataSource.`);
             }
-            return { dataSourceClass, dataSource: inject(dataSourceClass) };
-        });
+            registeredDataSources.push({ dataSourceClass, dataSource: await DiContainer.getInstance().injectAsync(dataSourceClass) });
+        }
 
         // has to happen before any data source is initialized, because only here it is known
         // which entities belong to more than one of them
         resolveEntityOwnership(registeredDataSources);
         this.validateEntityNamesDistinct(registeredDataSources);
+        RepositoryForUtilities.validateListed(registeredDataSources);
 
         for (const { dataSourceClass, dataSource } of registeredDataSources) {
             this.validateTablesDistinct(dataSourceClass.name, dataSource);
@@ -66,6 +72,7 @@ export class DataSourceService implements DataSourceServiceInterface {
             this.logger.info(`  - ${dataSourceClass.name} (${dataSource.entities.length} entities)`);
             await dataSource.init();
         }
+        RepositoryForUtilities.validateBuilt(registeredDataSources);
 
         validateEntitiesRegistered(
             this.constructor.name,

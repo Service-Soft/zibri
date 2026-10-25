@@ -15,7 +15,8 @@ import { OmitStrict } from '../types/omit-strict.type';
  * the ones it has not seen, and they are deleted once old enough that no running instance can still
  * need them. An instance that was down for longer has empty caches anyway.
  */
-@Entity({ tenant: 'shared', allowOrphan: true })
+// indexed by when it happened, which is what the cleanup deletes by
+@Entity({ tenant: 'shared', allowOrphan: true, indexes: [['at']] })
 export class CacheInvalidation extends BaseEntity {
     /**
      * The tags that were invalidated.

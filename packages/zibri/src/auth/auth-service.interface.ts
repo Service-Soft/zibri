@@ -1,5 +1,7 @@
 import { BaseMembership } from '../tenancy/membership/base-membership.model';
+import { type CurrentMembership } from '../tenancy/membership/current-membership.model';
 import { Newable } from '../types/newable.type';
+import { TwoFactorMethod } from './2fa/methods/two-factor-method.interface';
 import { AuthenticatorInterface } from './authenticators/authenticator.interface';
 import { Authenticators } from './authenticators/authenticators.model';
 import { ConnectionCompletingAuthenticatorInterface } from './authenticators/connection-completing-authenticator.interface';
@@ -9,14 +11,18 @@ import { IdentityLinkingAuthenticators } from './authenticators/identity-linking
 import { LinkedIdentity } from './authenticators/linked-identity.model';
 import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
 import { RequestPasswordResetData } from './authenticators/password/request-password-reset-data.model';
+import { type CurrentUser } from './decorators/current-user.decorator';
 import { BaseUser } from './models/base-user.model';
-import { HasRoleMetadata } from './models/has-role-metadata.model';
+import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
 import { LogoutResult } from './models/logout-result.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
 import { ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
+import { type Permission } from './roles/permission.type';
+import { type PlatformPermission } from './roles/platform-permission.type';
+import { RoleLevel } from './roles/role-level.type';
 import { ApiKeyClientAuthentication } from './strategies/api-key/api-key-client-authentication.model';
 import { ApiKeyCreateData } from './strategies/api-key/api-key-create-data.model';
 import { ApiKey } from './strategies/api-key/api-key.model';
@@ -75,32 +81,49 @@ export interface AuthServiceInterface {
         allowedStrategies: AuthStrategies
     ) => Promise<boolean>,
     /**
-     * Checks whether the currently logged in user holds one of the provided roles in the active
-     * tenant, through their membership in it.
+     * Checks whether one of the roles the currently logged in user holds in the active tenant, through
+     * their membership in it, carries the provided permission.
+     *
+     * A permission that is not declared as a tenant permission in `ZIBRI_DI_TOKENS.PERMISSIONS` is
+     * carried by no role, and is reported once as a warning.
      */
-    hasRole: (
+    hasPermission: (
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
-        allowedRoles: string[]
+        permission: Permission
     ) => Promise<boolean>,
     /**
-     * Checks whether the currently logged in user holds one of the provided roles of their own.
+     * Checks whether one of the roles of the currently logged in user's own carries the provided
+     * permission.
+     *
+     * A permission that is not declared as a platform permission in `ZIBRI_DI_TOKENS.PERMISSIONS` is
+     * carried by no role, and is reported once as a warning.
      */
-    hasPlatformRole: (
+    hasPlatformPermission: (
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
-        allowedRoles: string[]
+        permission: PlatformPermission
     ) => Promise<boolean>,
     /**
-     * Gets the membership the currently logged in user acts through in the active tenant, its roles
-     * narrowed to what the credential of the request may use.
+     * Resolves the permissions a user's roles carry: of their own, and of their membership in a
+     * tenant, or of every membership of theirs when none is named. For what a credential may do
+     * outside of a request, such as the scope of a token.
+     * @param user - The user.
+     * @param tenantId - The tenant, or undefined for every tenant the user is a member of.
+     * @returns The permissions, each once.
+     */
+    resolveUserPermissions: (user: BaseUser<string>, tenantId: string | undefined) => Promise<(Permission | PlatformPermission)[]>,
+    /**
+     * Gets the membership the currently logged in user acts through in the active tenant, without its
+     * roles: what they let the caller do, narrowed to what the credential of the request may use, is
+     * in the `permissions` of {@link AuthServiceInterface.getCurrentUser}.
      * @throws A ForbiddenError when it is required and there is none.
      */
     getCurrentMembership: <Role extends string, MembershipType extends BaseMembership<Role>, B extends boolean = true>(
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         required: B
-    ) => Promise<B extends false ? MembershipType | undefined : MembershipType>,
+    ) => Promise<B extends false ? CurrentMembership<MembershipType> | undefined : CurrentMembership<MembershipType>>,
     /**
      * Resolves the tenant the credential of a request is bound to, such as an api key bound to one.
      *
@@ -131,6 +154,26 @@ export interface AuthServiceInterface {
      */
     requiresRouteAuthentication: (auth: RouteAuthConfiguration | undefined) => boolean,
     /**
+     * Refuses what a manually registered route states about who may reach it when it names a
+     * permission that is not declared. Called while the route is registered.
+     * @throws An InternalError naming the route and what it names.
+     */
+    validateRouteAuth: (auth: RouteAuthConfiguration | undefined, route: string) => void,
+    /**
+     * Refuses a permission that is not declared at a level in `ZIBRI_DI_TOKENS.PERMISSIONS`, for
+     * anything naming one outside a route. Called while the application starts.
+     * @param level - The level the permission is checked at.
+     * @param permission - The permission.
+     * @param usedBy - What names it, for the error.
+     * @throws An InternalError naming both.
+     */
+    validatePermissionIsDeclared: (level: RoleLevel, permission: string, usedBy: string) => void,
+    /**
+     * Refuses permissions a credential cannot list, such as those of a new api key.
+     * @throws A BadRequestError when a permission is declared at neither level.
+     */
+    validatePermissions: (permissions: string[]) => void,
+    /**
      * Resolves everything the \@Auth decorators of the provided controller method and its controller
      * mean for a caller, the application wide default included.
      *
@@ -159,20 +202,21 @@ export interface AuthServiceInterface {
         controllerMethod: string
     ) => IsNotLoggedInMetadata | undefined | Promise<IsNotLoggedInMetadata | undefined>,
     /**
-     * Resolves the has role metadata for the provided controller method.
-     * (Whether it's required for the user to have a certain role etc.).
+     * Resolves the has permission metadata for the provided controller method.
+     * @throws When the permission it names is not declared.
      */
-    resolveHasRoleMetadata: (
+    resolveHasPermissionMetadata: (
         controllerClass: Newable<unknown>,
         controllerMethod: string
-    ) => HasRoleMetadata | undefined | Promise<HasRoleMetadata | undefined>,
+    ) => HasPermissionMetadata<Permission> | undefined | Promise<HasPermissionMetadata<Permission> | undefined>,
     /**
-     * Resolves the has platform role metadata for the provided controller method.
+     * Resolves the has platform permission metadata for the provided controller method.
+     * @throws When the permission it names is not declared.
      */
-    resolveHasPlatformRoleMetadata: (
+    resolveHasPlatformPermissionMetadata: (
         controllerClass: Newable<unknown>,
         controllerMethod: string
-    ) => HasRoleMetadata | undefined | Promise<HasRoleMetadata | undefined>,
+    ) => HasPermissionMetadata<PlatformPermission> | undefined | Promise<HasPermissionMetadata<PlatformPermission> | undefined>,
     /**
      * Resolves the require 2fa metadata for the provided controller method.
      */
@@ -197,6 +241,62 @@ export interface AuthServiceInterface {
         authenticator: Newable<AuthenticatorInterface<Role, UserType, CredentialsType>>,
         strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         credentials: CredentialsType,
+        transaction: Transaction | undefined
+    ) => Promise<AuthDataType>,
+    /**
+     * Starts the second factor of a login that waits for one, with the given method: sends the user a
+     * code, or answers with a challenge for their device.
+     *
+     * The ticket is the one the login answered with, in its `SecondFactorRequiredError`.
+     */
+    startSecondFactorAtLogin: <
+        TwoFactorRequestRegisterData,
+        TwoFactorConfirmRegisterData,
+        SecondFactorStartType
+    >(
+        ticket: string,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, SecondFactorStartType>
+    ) => Promise<SecondFactorStartType>,
+    /**
+     * Requests the registration of the given two factor method for the user of a login that waits for
+     * a second factor, who has none yet.
+     * @throws A `ForbiddenError` when the user has a second factor, which a login presents instead.
+     */
+    requestRegisterTwoFactorMethodAtLogin: <
+        TwoFactorRequestRegisterData,
+        TwoFactorConfirmRegisterData,
+        TwoFactorRequestRegisterResult
+    >(
+        ticket: string,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult, unknown>,
+        data: TwoFactorRequestRegisterData
+    ) => Promise<TwoFactorRequestRegisterResult>,
+    /**
+     * Confirms the registration of the given two factor method for the user of a login that waits for
+     * a second factor, who has none yet.
+     * @throws A `ForbiddenError` when the user has a second factor, which a login presents instead.
+     */
+    confirmRegisterTwoFactorMethodAtLogin: <
+        TwoFactorRequestRegisterData,
+        TwoFactorConfirmRegisterData
+    >(
+        ticket: string,
+        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>,
+        data: TwoFactorConfirmRegisterData
+    ) => Promise<void>,
+    /**
+     * Completes a login that waits for its second factor, with the factor the current request
+     * presents, and starts the login of the provided auth strategy. Spends the ticket.
+     */
+    completeLogin: <
+        Role extends string,
+        UserType extends BaseUser<Role>,
+        AuthDataType,
+        RefreshLoginDataType,
+        LogoutDataType
+    >(
+        ticket: string,
+        strategy: Newable<LoginAuthStrategyInterface<Role, UserType, AuthDataType, RefreshLoginDataType, LogoutDataType>>,
         transaction: Transaction | undefined
     ) => Promise<AuthDataType>,
     /**
@@ -303,20 +403,20 @@ export interface AuthServiceInterface {
      */
     revokeProviderSignIn: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
-     * Creates an api key for a user, with the roles the key may use. A key that is a secret is sent
-     * by a request to act as the user through ApiKeyAuthStrategy, and answers with the key itself,
+     * Creates an api key for a user, with the permissions the key may use. A key that is a secret is
+     * sent by a request to act as the user through ApiKeyAuthStrategy, and answers with the key itself,
      * which is only ever handed out here. A key with `clientAuthentication` has no secret, and proves
      * itself that way at the token endpoint of the authorization server.
      */
     createApiKey: {
-        <Role extends string>(
+        (
             userId: string,
-            data: ApiKeyCreateData<Role, undefined>,
+            data: ApiKeyCreateData<undefined>,
             transaction: Transaction | undefined
         ): Promise<CreatedApiKey>,
-        <Role extends string>(
+        (
             userId: string,
-            data: ApiKeyCreateData<Role, ApiKeyClientAuthentication>,
+            data: ApiKeyCreateData<ApiKeyClientAuthentication>,
             transaction: Transaction | undefined
         ): Promise<ApiKey>
     },
@@ -370,7 +470,9 @@ export interface AuthServiceInterface {
         transaction: Transaction | undefined
     ) => Promise<UserType>,
     /**
-     * Get's the currently logged in user. When required is set to false this can return undefined.
+     * Gets the currently logged in user, without their roles and with the permissions the request
+     * may use, in the active tenant and of their own. When required is set to false this can return
+     * undefined.
      */
     getCurrentUser: <
         Role extends string,
@@ -380,7 +482,7 @@ export interface AuthServiceInterface {
         context: HttpRequestContext | WebsocketRequestContext,
         allowedStrategies: AuthStrategies,
         required: B
-    ) => Promise<B extends false ? UserType | undefined : UserType>,
+    ) => Promise<B extends false ? CurrentUser<UserType> | undefined : CurrentUser<UserType>>,
     /**
      * Mails the provided user a link to reset their password with.
      */

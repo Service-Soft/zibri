@@ -14,11 +14,17 @@ import { BackupService } from '../../backup/backup.service';
 import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
+import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
+import { Migration } from '../../data-source/migration/migration.model';
+import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
+import { Transaction } from '../../data-source/transaction/transaction.model';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -29,9 +35,10 @@ import { OmitStrict } from '../../types/omit-strict.type';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { zibriVersion } from '../../versioning/zibri-version.function';
 import { testFileFolder } from '../constants';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -60,6 +67,34 @@ const secondBackupFolder: FsPath = FsUtilities.getPath(testFileFolder, 'evaluati
 class EvalBackupItem extends BaseEntity {
     @Property.string()
     value!: string;
+}
+
+const EVAL_BACKUP_ENTITIES: Newable<BaseEntity>[] = [
+    ...defaultTestServerEntities,
+    EvalBackupItem,
+    BackupEntity,
+    BackupResourceEntity
+];
+
+@Injectable()
+class EvalCreateBackupSchemaMigration extends Migration {
+    version: SemVerVersion = '0.0.1';
+
+    constructor() {
+        super(EvalBackupDataSource);
+    }
+
+    override async up(transaction: Transaction): Promise<void> {
+        // the migration table is the one the data source creates itself, before any migration runs
+        for (const entity of EVAL_BACKUP_ENTITIES.filter(e => e !== MigrationEntity)) {
+            await this.dataSource.createEntity({ entity, properties: 'resolveFromEntity', transaction });
+        }
+    }
+
+    // eslint-disable-next-line typescript/require-await
+    override async down(): Promise<void> {
+        throw new Error('Not implemented yet.');
+    }
 }
 
 @BackupTransport()
@@ -93,6 +128,8 @@ class EvalFsBackupTransportSecond extends BaseFsBackupTransport {
 })
 class EvalBackupDataSource extends PostgresDataSource {
 
+    override backupScope: PostgresBackupScope = 'schema';
+
     override options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
         host: 'localhost',
         username: 'postgres',
@@ -101,14 +138,16 @@ class EvalBackupDataSource extends PostgresDataSource {
         ssl: false
     };
 
-    entities: Newable<BaseEntity>[] = [
-        ...defaultTestServerEntities,
-        EvalBackupItem,
-        BackupEntity,
-        BackupResourceEntity
-    ];
+    entities: Newable<BaseEntity>[] = EVAL_BACKUP_ENTITIES;
 
-    schemaManagement: SchemaManagement = 'synchronize';
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
+
+    override migrations: Newable<Migration>[] = [EvalCreateBackupSchemaMigration];
+
+    // migrations rather than synchronize, as a deployment whose backups matter runs. A restore ends
+    // the way a boot does, and synchronizing sets every entity table's comment to the one its entity
+    // declares - so under it a comment on a table would say what TypeORM did, not what the archive held
+    schemaManagement: SchemaManagement = 'migrations';
 }
 
 /**
@@ -504,6 +543,7 @@ describe('evaluation/01-data-layer MINOR - postgres never requires tls', () => {
                 database: 'db'
             };
             entities: Newable<BaseEntity>[] = [];
+            readonly repositories: RepositoryClass[] = [];
             schemaManagement: SchemaManagement = 'synchronize';
         }
 
@@ -511,6 +551,7 @@ describe('evaluation/01-data-layer MINOR - postgres never requires tls', () => {
             // @ts-expect-error - a valkey connection says whether it uses tls
             override options: ValKeyOptions = { host: 'localhost' };
             entities: Newable<BaseEntity>[] = [];
+            readonly repositories: RepositoryClass[] = [];
         }
 
         expect([EvalUnsaidPostgresDataSource, EvalUnsaidValKeyDataSource]).toHaveLength(2);

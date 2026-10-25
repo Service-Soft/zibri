@@ -1,7 +1,8 @@
 /* eslint-disable unicorn/no-null */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { startTestServer, StartedTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -78,17 +79,18 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [
             createTestDataSource({
-                entities: [...defaultTestServerEntities, Product, Category, Review]
+                entities: [...defaultTestServerEntities, Product, Category, Review],
+                repositories: defaultTestServerRepositories
             })
         ]
     });
     productRepo = inject(repositoryTokenFor(Product));
     categoryRepo = inject(repositoryTokenFor(Category));
-}, 15000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await productRepo.deleteAll({});
@@ -623,9 +625,9 @@ describe('Where filters', () => {
             await expect(productRepo.findAll({ where })).rejects.toThrow(/Unknown key/);
         });
 
-        it('"where" on an array of primitives (not objects) is rejected', async () => {
+        it('"where" on an array of primitives rejects a condition no item can be asked', async () => {
             const where: WhereFilter<Product> = { tags: { where: [{ anything: true }] } } as unknown as WhereFilter<Product>;
-            await expect(productRepo.findAll({ where })).rejects.toThrow('requires an array of objects');
+            await expect(productRepo.findAll({ where })).rejects.toThrow('Unknown JSONB filter operator "anything"');
         });
 
         it('fuzzyLike on a plain string column requires an object with a "value" property', async () => {

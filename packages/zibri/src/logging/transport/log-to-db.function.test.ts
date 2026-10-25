@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { logToDb } from './log-to-db.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -16,11 +17,11 @@ describe('logToDb', () => {
     beforeAll(async () => {
         server = await startTestServer();
         logRepository = inject(repositoryTokenFor(Log));
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('persists the given log to the data source, preserving its id', async () => {
         const log: Log = {

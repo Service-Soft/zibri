@@ -18,7 +18,7 @@ import { resolveStructuredBodyMetadata } from '../../../../routing/resolve-body-
 import { type SmsServiceInterface } from '../../../../sms/sms-service.interface';
 import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
-import { BaseUser } from '../../../models/base-user.model';
+import { UserAccount } from '../../../models/user-account.model';
 
 /**
  * A code sent as a text message to a phone number of the user as the second factor.
@@ -47,7 +47,7 @@ export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
         inject(ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE).addLimiter(inject(SmsCodeNumberRateLimiter));
     }
 
-    override async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    override async requestRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: SmsRegisterData
     ): Promise<void> {
@@ -86,7 +86,7 @@ export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async deliver(_user: BaseUser<string>, destination: string | undefined, code: string): Promise<void> {
+    protected async deliver(_user: UserAccount, destination: string | undefined, code: string): Promise<void> {
         if (destination == undefined) {
             throw new InternalError('Text message credentials without a phone number.');
         }

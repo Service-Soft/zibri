@@ -7,6 +7,7 @@ import { Log } from './log.model';
 import { Logger } from './logger';
 import { LoggerInterface } from './logger.interface';
 import { BaseLoggerTransportConfig, LoggerTransport } from './transport/logger-transport.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
@@ -45,7 +46,7 @@ describe('Logger — starting', () => {
         const start: Promise<void> = startAndStopTestServerWithout([Log], { controllers: [LoggerIntegrationController] });
 
         await expect(start).rejects.toThrow(/Error initializing Logger[\S\s]*- Log/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts without Log, and schedules no cleanup for it, when no transport writes to the data source', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([Log], {
@@ -60,7 +61,7 @@ describe('Logger — starting', () => {
         });
 
         await expect(start).resolves.toBeUndefined();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('Logger', () => {
@@ -211,11 +212,11 @@ describe('Logger — real error logged end to end through a request', () => {
         server = await startTestServer({ controllers: [LoggerIntegrationController] });
         baseUrl = await server.start();
         logRepository = inject(repositoryTokenFor(Log));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('persists a Log row with the error paragraphs and stack trace when a controller throws', async () => {
         const res: Response = await fetch(`${baseUrl}/logger-integration-test/boom`);

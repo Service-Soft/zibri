@@ -13,6 +13,7 @@ import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../.
 import { NumberParamMetadata } from '../../routing/models/number-param-metadata.model';
 import { BigNumber } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
+import { ValidationProblemCode } from '../validation-problem-code.enum';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**
@@ -75,18 +76,22 @@ export function numberValueProblems(
     assert(typeof property === 'bigint' || typeof property === 'number' || property instanceof BigNumber);
 
     if (!isFormatValid(meta.format, property)) {
-        return [{ key: fullKey, message: $ts`needs to be in format "${meta.format}"` }];
+        return [{ key: fullKey, code: ValidationProblemCode.FORMAT, message: $ts`needs to be in format "${meta.format}"` }];
     }
     // through a comparable form rather than the value itself, because a BigNumber compares by
     // reference against a plain number - it would match no enum member and pass any bound
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(comparableValueOf(property))) {
-        return [{ key: fullKey, message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"` }];
+        return [{
+            key: fullKey,
+            code: ValidationProblemCode.ENUM,
+            message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"`
+        }];
     }
     if (meta.min != undefined && comparableValueOf(property) < meta.min) {
-        return [{ key: fullKey, message: $ts`needs to be at least ${meta.min}` }];
+        return [{ key: fullKey, code: ValidationProblemCode.MIN, message: $ts`needs to be at least ${meta.min}` }];
     }
     if (meta.max != undefined && comparableValueOf(property) > meta.max) {
-        return [{ key: fullKey, message: $ts`needs to be at most ${meta.max}` }];
+        return [{ key: fullKey, code: ValidationProblemCode.MAX, message: $ts`needs to be at most ${meta.max}` }];
     }
     return [];
 }

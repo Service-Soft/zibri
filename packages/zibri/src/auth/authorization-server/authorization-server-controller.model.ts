@@ -38,8 +38,8 @@ const NO_STORE_HEADERS: Record<string, string> = { [KnownHeader.CACHE_CONTROL]: 
  * `/.well-known/oauth-authorization-server` (RFC 8414).
  * @param options - Who may introspect, and the services tokens may be issued for besides the application.
  */
-export function AuthorizationServerController<RoleType extends string>(
-    options: AuthorizationServerControllerOptions<RoleType>
+export function AuthorizationServerController(
+    options: AuthorizationServerControllerOptions
 ): AuthorizationServerControllerClass {
     // every route authenticates its caller itself, the way OAuth2 says: a client by its credentials,
     // and a revocation by the token it holds. `allowRedundant` for the reason AuthController gives
@@ -49,7 +49,7 @@ export function AuthorizationServerController<RoleType extends string>(
         /**
          * What the routes allow, which also marks the class as the authorization server's.
          */
-        static readonly authorizationServerOptions: AuthorizationServerControllerOptions<RoleType> = options;
+        static readonly authorizationServerOptions: AuthorizationServerControllerOptions = options;
 
         private get authorizationServerService(): AuthorizationServerServiceInterface {
             return inject(ZIBRI_DI_TOKENS.AUTHORIZATION_SERVER_SERVICE);
@@ -126,9 +126,9 @@ export function AuthorizationServerController<RoleType extends string>(
  * @returns The routes, and what they allow.
  * @throws When the application has no `baseUrl` yet.
  */
-function toEndpoint<RoleType extends string>(
+function toEndpoint(
     controller: Function,
-    options: AuthorizationServerControllerOptions<RoleType>
+    options: AuthorizationServerControllerOptions
 ): AuthorizationServerEndpoint {
     const baseUrl: string | undefined = GlobalRegistry.getAppData('baseUrl');
     if (baseUrl == undefined) {
@@ -137,7 +137,7 @@ function toEndpoint<RoleType extends string>(
     return {
         issuer: baseUrl.replace(/\/+$/, ''),
         url: ControllerUtilities.resolveUrl(controller),
-        introspectionRoles: options.introspectionRoles,
+        introspectionPermission: options.introspectionPermission,
         resources: options.resources
     };
 }

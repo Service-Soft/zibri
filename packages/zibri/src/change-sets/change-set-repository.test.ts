@@ -7,15 +7,15 @@ import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { Change } from './models/change.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository'; // adjust if needed
 import { AuthServiceInterface } from '../auth/auth-service.interface';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
 import { Auth } from '../auth/decorators/auth.decorator';
-import { BaseUserEntity } from '../auth/models/base-user.model';
 import { JwtAuthData } from '../auth/strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
 import { Repository } from '../data-source/repository/repository';
@@ -57,12 +57,6 @@ class Widget extends BaseEntity implements ChangeSetEntity {
 class CreateWidgetDto extends OmitClass(Widget, ['changeSets', 'id']) {}
 
 class UpdateWidgetDto extends PartialClass(OmitClass(Widget, ['changeSets', 'id'])) {}
-
-@Entity({ tenant: 'shared' })
-class TestUser extends BaseUserEntity(Roles) {
-    @Property.string({ hash: true })
-    password!: string;
-}
 
 // ---- Controller that uses the repository ----
 @Controller('/widgets')
@@ -145,7 +139,8 @@ beforeAll(async () => {
     server = await startTestServer({
         dataSources: [
             createTestDataSource({
-                entities: [...defaultTestServerEntities, Widget, TestUser]
+                entities: [...defaultTestServerEntities, Widget],
+                repositories: defaultTestServerRepositories
             })
         ],
         controllers: [WidgetController]
@@ -176,11 +171,11 @@ beforeAll(async () => {
         undefined
     );
     accessToken = authData.accessToken.value;
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 beforeEach(async () => {
     await changeSetRepo.deleteAll({});

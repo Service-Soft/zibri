@@ -93,6 +93,10 @@ describe('the published package', () => {
         expect(files).toContain('dist/cjs/index.js');
         expect(files).toContain('dist/cjs/index.d.ts');
         expect(files).toContain('package.json');
+        // what a generated project's webpack config and tsconfig name (round-2 07 §T5)
+        expect(files).toContain('dist/cjs/webpack/index.js');
+        expect(files).toContain('dist/cjs/webpack/index.d.ts');
+        expect(files).toContain('tsconfig.application.json');
     });
 
     it('ships the sources its maps point at', () => {
@@ -138,10 +142,10 @@ describe('the published package', () => {
     it('installs at a size a consumer would accept', () => {
         const megabytes: number = packed().unpackedSize / 1024 / 1024;
 
-        // `dist` is 8.2MB and the sources behind it 4.9MB, 13.1 all told, and the ceiling sits just above
+        // `dist` is 8.7MB and the sources behind it 5.3MB, 14.05 all told, and the ceiling sits just above
         // that: growing past it is a reason to look at what grew, which once found test cases, fonts
         // twice over and comments in code that runs. The number this was first written against is 50MB.
-        expect(megabytes).toBeLessThan(14);
+        expect(megabytes).toBeLessThan(16);
     });
 
     it('ships its comments once in the sources and the declarations, not in the code that runs', () => {
@@ -157,13 +161,29 @@ describe('the published package', () => {
     it('advertises no entry point that the build does not produce', () => {
         const advertised: string[] = [
             'dist/cjs/index.js',
-            'dist/cjs/index.d.ts'
+            'dist/cjs/index.d.ts',
+            'dist/cjs/webpack/index.js',
+            'dist/cjs/webpack/index.d.ts',
+            'tsconfig.application.json'
         ];
 
         for (const entry of advertised) {
             expect(existsSync(path.join(packageDir, entry))).toBe(true);
         }
     });
+
+    it('answers a require of its webpack configuration on its own, the way a webpack config makes one', () => {
+        const res: { typeofFactory: string } = inConsumerProcess(`
+            import { createRequire } from 'node:module';
+            const require = createRequire(process.cwd() + '/index.cjs');
+            const { resolveWebpackConfiguration } = require('zibri/webpack');
+            console.log(JSON.stringify({ typeofFactory: typeof resolveWebpackConfiguration }));
+        `);
+
+        // nothing has loaded the main entry point first in that process, and the decorators of the
+        // framework classes the build reaches for need what it loads (round-2 07 §T5)
+        expect(res.typeofFactory).toBe('function');
+    }, 60000);
 
     it('answers both a require and an import, with the same module', () => {
         const res: { sameClass: boolean, namedExports: number, typeofApplication: string } = inConsumerProcess(`

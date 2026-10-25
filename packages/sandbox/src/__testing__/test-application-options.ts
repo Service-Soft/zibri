@@ -3,6 +3,7 @@ import { createInMemoryDataSource, defaultTestProviders } from 'zibri-testing';
 
 import { baseApplicationOptions } from '../application-options.base';
 import { entities } from '../data-sources/db/entities';
+import { repositories } from '../data-sources/db/repositories';
 
 /**
  * What this application is when a test starts it.
@@ -15,6 +16,6 @@ import { entities } from '../data-sources/db/entities';
  */
 export const testApplicationOptions: ZibriApplicationOptions = {
     ...baseApplicationOptions,
-    dataSources: [createInMemoryDataSource({ entities })],
+    dataSources: [createInMemoryDataSource({ entities, repositories })],
     providers: [...baseApplicationOptions.providers ?? [], ...defaultTestProviders]
 };

@@ -69,6 +69,9 @@ export function createLogToEmail(): LoggerTransportSend<EmailLoggerTransportConf
     let suppressed: number = 0;
 
     return async (logs: Log[], config: EmailLoggerTransportConfig) => {
+        // one mail per batch, and at most one per interval: a mail per entry turns a log storm into
+        // a mail storm. A dependency failing at ten thousand errors a minute would queue ten thousand
+        // mails, and every ordinary mail would wait behind them long after the incident is over
         const minIntervalMs: number = config.minIntervalMs ?? Ms.MINUTE;
         const now: number = Date.now();
 

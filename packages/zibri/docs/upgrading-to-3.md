@@ -15,6 +15,7 @@ This page covers what compiles and still breaks: things that fail on the first s
 **Keep bcrypt.** Every password hash written by 2.x is a bcrypt hash, and bcrypt is no longer one of the default hash strategies. The application refuses to start with `There are missing strategies: bcrypt` until you add it back:
 
 ```ts
+// src/providers.ts
 import { BcryptHashStrategy, defineProvider, ScryptHashStrategy, Sha256HashStrategy, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({
@@ -25,20 +26,32 @@ defineProvider({
 
 The migration below marks bcrypt `DEPRECATED` and scrypt as the default, so each password is replaced with a scrypt hash the next time its user signs in. `BcryptHashStrategy` is deprecated: keep it registered while stored hashes need it.
 
-**Compare your build with a new project.** Templates are compiled by `zibri-tsx` now, which needs `"jsxImportSource": "zibri-tsx"` in `tsconfig.json` and its loader in the webpack config. Run `zi new` somewhere else and copy what differs.
+**Bring your project to what 3.x generates with `zi upgrade`.** Templates are compiled by `zibri-tsx` now, and the build, the jest configuration and the compiler options come from the packages, see [upgrade a project](./getting-started.md#upgrading-a-project). A 2.x project has no `zibri-scaffold.json`, so `zi upgrade` asks what `zi new` would have, and writes each file that differs from what 3.x generates beside yours as `<file>.zibri-upgrade`. Take what you need from each and delete it. Every later upgrade merges.
 
 **Choose how your schema is managed.** `schemaManagement` is required on every sql data source, see [data source](./data-source.md). 2.x synchronized the schema unless you turned it off.
 
 **Say whether your connections use tls.** `ssl` on every postgres data source and `useTLS` on every valkey data source are required, see [data source](./data-source.md). The `PGSSLMODE` environment variable does not apply to the postgres connection: if yours took its tls from there, set `ssl` instead.
 
-**Say how long failures are kept.** `failedRetentionInMs` is required in your `EMAIL_CONFIG`, and your providers need `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS`, which the application refuses to start without: a number of milliseconds, or `'forever'`. A failed mail or event is deleted once it is older, see [email](./email.md#what-happens-to-the-row) and [events](./events.md#when-an-event-cannot-be-handled).
+**Say whether a login asks for a second factor.** `twoFactorAtLogin` is required in your app options: `'never'` keeps logins as they were, `'ifEnrolled'` asks a user who enrolled a second factor for it, see [two factor](./two-factor.md#asking-for-a-second-factor-at-login). With anything but `'never'`, declare `LoginTicket` in your data source.
+
+**Say how long failures and finished jobs are kept.** `failedRetentionInMs` is required in your `EMAIL_CONFIG`, and your providers need `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS` and `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS`, which the application refuses to start without: a number of milliseconds, or `'forever'`. A failed mail or event, and a thread job that is over, is deleted once it is older, see [email](./email.md#what-happens-to-the-row), [events](./events.md#when-an-event-cannot-be-handled) and [multithreading](./multithreading.md#what-happens-to-a-finished-job).
+
+**Rewrite the routes in your version files.** Each route in `versions/*.json` names the shape of its versions: `"versions": "all"` becomes `"versions": { "shape": "All", "value": "all" }`, and `"versions": [...]` becomes `"versions": { "shape": "Matchers", "value": [...] }`, see [version files](./versioning.md#version-files). The application refuses to start while a file holds the 2.x form, and lists every such route.
+
+**Say how long the audit trail is kept.** Declare `AuditEntry` in your data source's `entities`, and provide `ZIBRI_DI_TOKENS.AUDIT_RETENTION_IN_MS`, which the application refuses to start without: a number of milliseconds, or `'forever'`. An entry is deleted once it is older, see [audit trail](./audit.md).
+
+**Attach the content of a file to a mail.** An `EmailAttachment` holds `base64Content` in place of `path`, such as `{ filename: 'invoice.pdf', base64Content: (await readFile(path)).toString('base64') }`, see [email](./email.md#attaching-files).
+
+**Bound your thread jobs.** If you provide `MULTITHREADING_OPTIONS` yourself, add `maxAttempts` and `workerResourceLimits`: how many times a job may be started before a takeover fails it instead, and the memory a worker thread may take, see [multithreading](./multithreading.md#configuration). A job that is over `maxAttempts` ends `FAILED` with a `ThreadJobAttemptsExhaustedError`, where 2.x took it over again without end.
 
 ## The migration
 Every 2.x database needs the same changes to the entities Zibri ships. Copy these three migrations into your data source and list them first in its `migrations`, in this order. They work under every `schemaManagement`, and skip what your data source does not hold. Run them against a copy of your production database before you deploy.
 
 ```ts
 // src/data-sources/db/migrations/upgrade-to-zibri-3.migration.ts
-import { ArrayPropertyMetadataInput, BackupEntity, BackupResourceEntity, BaseEntity, CacheInvalidation, Change, ChangeSet, CookieAuthRefreshSession, CookieAuthSession, CronJobEntity, CronJobState, Email, EncryptionRotationFailure, EncryptionRotationProgress, Event, EventSubscriberRegistration, EventSubscriberRun, EventSubscriberRunStatus, HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus, HttpStatus, Injectable, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, LoggedError, LogLevel, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MasterKeyReference, Migration, Newable, NumberInvoices, NumberPropertyMetadataInput, OtpCredentials, PasswordCredentials, PasswordResetToken, Payment, RateLimitStateEntity, Repository, SemVerVersion, ThreadJobEntity, timezoneEnum, Transaction, TwoFactorFailureStreak, TwoFactorRecoveryCode, ValueConversion, WebsocketChannel, WebsocketMessage } from 'zibri';
+import { readFile } from 'node:fs/promises';
+
+import { ArrayPropertyMetadataInput, AuditEntry, BackupEntity, BackupResourceEntity, BaseEntity, CacheInvalidation, Change, ChangeSet, CookieAuthRefreshSession, CookieAuthSession, CronJobEntity, CronJobState, Email, EmailAttachment, EmailStatus, EncryptionRotationFailure, EncryptionRotationProgress, Event, EventSubscriberRegistration, EventSubscriberRun, EventSubscriberRunStatus, HashStrategyEntity, HashStrategyEntityCreateData, HashStrategyStatus, HttpStatus, Injectable, Invoice, InvoiceRecipientAbbreviation, JwtRefreshToken, Lease, Log, LoggedError, LogLevel, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken, MasterKeyReference, Migration, Newable, NumberInvoices, NumberPropertyMetadataInput, OtpCredentials, PasswordCredentials, PasswordResetToken, Payment, RateLimitStateEntity, Repository, SemVerVersion, ThreadJobEntity, timezoneEnum, Transaction, TwoFactorFailureStreak, TwoFactorRecoveryCode, ValueConversion, WebsocketChannel, WebsocketMessage } from 'zibri';
 
 import { DbDataSource } from '../db.data-source';
 
@@ -64,6 +77,7 @@ export class UpgradeToZibri3Migration extends Migration {
         await this.upgradeBackups(transaction);
         await this.upgradeTheRest(transaction);
         await this.addTenantColumns(transaction);
+        await this.inlineMailAttachments(transaction);
         await this.addPluginTenantColumns(transaction);
         await this.upgradeMailingListConfirmations(transaction);
     }
@@ -106,6 +120,28 @@ export class UpgradeToZibri3Migration extends Migration {
             await this.dataSource.createEntity({
                 entity: Lease,
                 properties: { key: { type: 'string' }, expiresAt: { type: 'date' }, heldBy: { type: 'string' } },
+                transaction
+            });
+        }
+        if (this.holds(AuditEntry)) {
+            await this.dataSource.createEntity({
+                entity: AuditEntry,
+                properties: {
+                    tenantId: { type: 'string', format: 'uuid', required: false },
+                    action: { type: 'string' },
+                    outcome: { type: 'string' },
+                    reason: { type: 'string', required: false },
+                    subject: { type: 'string', required: false },
+                    userId: { type: 'string', required: false },
+                    scopes: { type: 'array', items: { type: 'string' }, required: false },
+                    role: { type: 'string', required: false },
+                    clientIp: { type: 'string', required: false },
+                    traceId: { type: 'string', required: false },
+                    occurredAt: { type: 'date' },
+                    lastOccurredAt: { type: 'date' },
+                    count: { type: 'number', format: 'integer' },
+                    collapsed: { type: 'string', required: false }
+                },
                 transaction
             });
         }
@@ -290,6 +326,17 @@ export class UpgradeToZibri3Migration extends Migration {
             property: { name: 'backedOffUntil', type: 'date', required: false },
             transaction
         });
+        // empty until the first start, which records what each class declares
+        await this.dataSource.addPropertyToEntity({
+            entity: CronJobEntity,
+            property: { name: 'declaredCron', type: 'string', required: false },
+            transaction
+        });
+        await this.dataSource.addPropertyToEntity({
+            entity: CronJobEntity,
+            property: { name: 'declaredActive', type: 'boolean', required: false },
+            transaction
+        });
     }
 
     private async upgradeEventSubscriberRuns(transaction: Transaction): Promise<void> {
@@ -417,6 +464,33 @@ export class UpgradeToZibri3Migration extends Migration {
             for (const name of ['traceparent', 'tracestate']) {
                 await this.dataSource.addPropertyToEntity({ entity: ThreadJobEntity, property: { name, type: 'string', required: false }, transaction });
             }
+            // how many times a job was started, which 2.x did not count: a job that is over was started
+            // at least once, and one that was not is owed its first start
+            await this.dataSource.addPropertyToEntity({
+                entity: ThreadJobEntity,
+                property: { name: 'attempts', type: 'number', format: 'integer', default: 0 },
+                transaction
+            });
+            await this.dataSource.changePropertyOfEntity({
+                entity: ThreadJobEntity,
+                currentProperty: { name: 'attempts', type: 'number', format: 'integer', default: 0 },
+                property: { name: 'attempts', type: 'number', format: 'integer' },
+                transaction
+            });
+        }
+        // when an event is next dispatched, which for everything 2.x left pending is now
+        if (this.holds(Event)) {
+            await this.dataSource.addPropertyToEntity({
+                entity: Event,
+                property: { name: 'nextDispatchAt', type: 'date', default: new Date() },
+                transaction
+            });
+            await this.dataSource.changePropertyOfEntity({
+                entity: Event,
+                currentProperty: { name: 'nextDispatchAt', type: 'date', default: new Date() },
+                property: { name: 'nextDispatchAt', type: 'date' },
+                transaction
+            });
         }
         if (this.holds(OtpCredentials)) {
             await this.dataSource.removePropertyFromEntity({ entity: OtpCredentials, propertyKey: 'qrCodeUrl', transaction });
@@ -493,6 +567,31 @@ export class UpgradeToZibri3Migration extends Migration {
                 property: { name: 'tenantId', type: 'string', format: 'uuid', required: false },
                 transaction
             });
+        }
+    }
+
+    // a queued mail carries the content of its attachments, where 2.x named a file on this disk
+    private async inlineMailAttachments(transaction: Transaction): Promise<void> {
+        if (!this.holds(Email)) {
+            return;
+        }
+        const emails: Repository<Email> = this.dataSource.getRepository(Email);
+        const queued: Email[] = await emails.findAll({ where: { status: EmailStatus.QUEUED }, take: 'all', acrossTenants: true, transaction });
+        for (const email of queued) {
+            if (!email.attachments?.length) {
+                continue;
+            }
+            try {
+                const attachments: EmailAttachment[] = await Promise.all(email.attachments.map(async a => ({
+                    filename: a.filename,
+                    base64Content: (await readFile(String(Reflect.get(a, 'path')))).toString('base64')
+                })));
+                await emails.updateById(email.id, { attachments }, { acrossTenants: true, transaction });
+            }
+            catch {
+                // a file that is gone fails the mail, as 2.x would have once it tried to send it
+                await emails.updateById(email.id, { status: EmailStatus.FAILED }, { acrossTenants: true, transaction });
+            }
         }
     }
 
@@ -624,7 +723,7 @@ What they change:
 | bcrypt is marked `DEPRECATED` in the hash strategy table, and scrypt the default | New passwords are hashed with scrypt, and each bcrypt hash is replaced with one the next time its user signs in |
 | Number columns without a format become doubles | 2.x stored them as decimals |
 | A cron job's `active` becomes `state`, and `timezone` is added | Both are required |
-| A cron job gets `source`, `'code'` for every job 2.x stored | `cronService.update()` refuses a job declared in code; `enable`, `disable` and `changeCron` change it on every instance, see [changing a job while the app runs](./cron.md#behaviour) |
+| A cron job gets `source`, `'code'` for every job 2.x stored | `cronService.update()` refuses a job declared in code; `enable`, `disable` and `changeCron` change it on every instance, see [changing a job while the app runs](./cron.md#changing-a-job-while-the-app-runs) |
 | A cron job loses `stopOnError`, and gets `consecutiveFailures` and `backedOffUntil` | A job declares what it does on a failure as `onFailure` in its class, `stopOnError: true` as `onFailure: { stopAfterFailures: 1 }`. The failures are counted on the row, see [when a tick throws](./cron.md#when-a-tick-throws) |
 | An event subscriber run gets `status`, `attempts` and `finishedAt` | Both are required. A run 2.x recorded with an error counts as failed, and every run counts as finished at the upgrade |
 | Backups 2.x took are marked as format `0`, and record no keys in `masterKeys` and `dataKeyIds` | A restore refuses them by name instead of misreading them, so they need no key |
@@ -640,6 +739,9 @@ What they change:
 | Emails get `listUnsubscribeUrl` | The [one-click unsubscribe](./email.md#sending-through-something-other-than-smtp) of a mail sent to a mailing list |
 | Thread jobs get `traceparent` and `tracestate` | The [trace](./tracing.md#what-the-framework-records) a job was queued in, which its run is recorded under |
 | Emails get `attempts` and `retryAt` | How many times sending a mail threw, and when it is [tried again](./email.md#what-happens-to-the-row). A mail is `FAILED` after `maxSendAttempts` such attempts |
+| A queued email's attachments get the content of their files | Any instance [sends the mail](./email.md#attaching-files). A mail whose file cannot be read is `FAILED` |
+| Thread jobs get `attempts` | How many times a job was started, which [bounds its takeovers](./multithreading.md#configuration) |
+| Events get `nextDispatchAt` | When an event is dispatched next. Everything 2.x left pending is dispatched right away |
 | Each mailing list subscriber gets a `secret` of their own, stored encrypted | The links to unsubscribe and to manage preferences carry it. Links in mails sent before the upgrade answer `400` |
 
 `EncryptOtpSecretsMigration` and `AddMailingListSecretsMigration` are migrations of their own so that they run after the schema changes are committed.
@@ -649,38 +751,58 @@ Once they have run, the first start [keeps the indexes and uniques](./data-sourc
 **When it fails.** A new unique fails the first start when the rows already stored break it, and the error names the values they share. Remove the duplicates in a migration listed after these two. **Never delete an encryption key**, because what was encrypted with it cannot be read without it. For a strategy with more than one `DEFAULT` key, set all but one of them to `'ACTIVE'`. For a duplicated strategy, point the keys of one at the other before deleting it. An event subscriber run whose error is not an empty object fails the conversion with that error, and you list it in `values`. A number that a double cannot hold exactly, like `0.1234567890123456789`, fails the conversion with that number. Give that property `format: 'bignumber'` instead and leave it out of `retypeNumbers`.
 
 ## Your own entities
-**Tenants.** Every entity holds the tenant of its rows in the uuid `tenantId`, unless it names another property or is shared, see [tenants](./tenancy.md); the compiler names each one that has no such property, and a tenant property that is not `@Property.string({ format: 'uuid' })` refuses the start. Declare `tenant: 'shared'` on what every tenant shares, such as your users. For an entity whose rows belong to a tenant, add its tenant property in a migration, eg. with `addPropertyToEntity`, `required: false` first, fill it in on the rows already stored, and then make it required. An application with one tenant gives every row that tenant's id, a uuid it picks once. On the first start, every unique and index of such an entity is replaced by one that starts with the tenant, and a relation between such an entity and a shared one refuses the start: keep the id of the shared row in a column instead.
+**Tenants.** Every entity holds the tenant of its rows in the uuid `tenantId`, unless it names another property or is shared, see [tenants](./tenancy.md); the compiler names each one that has no such property, and a tenant property that is not `@Property.string({ format: 'uuid' })` refuses the start. Declare `tenant: 'shared'` on what every tenant shares, such as your users. For an entity whose rows belong to a tenant, add its tenant property in a migration, for example with `addPropertyToEntity`, `required: false` first, fill it in on the rows already stored, and then make it required. An application with one tenant gives every row that tenant's id, a uuid it picks once. On the first start, every unique and index of such an entity is replaced by one that starts with the tenant, and a relation between such an entity and a shared one refuses the start: keep the id of the shared row in a column instead.
 
-**Memberships.** A request acts in the tenant its `x-tenant-id` header names; override `resolveTenant` in a `TenantService` of your own to read it from somewhere else, see [the tenant of a request](./tenancy.md#the-tenant-of-a-request). A logged in user acts in a tenant through their membership in it, so an application with users declares a membership entity, eg. one extending `BaseMembershipEntity(Roles)`, and marks its repository with `@MembershipRepo()`; it does not start otherwise. `@Auth.hasRole` checks the roles of that membership: give each user a membership with the roles they need there, in a migration, and turn the checks that are about the user's own roles into `@Auth.hasPlatformRole`. `createApiKey` takes `tenantId`: `undefined` keeps a key acting wherever its user is a member. Your membership repository implements `resolveMembership`, `updateDeactivatedAt` and `deleteMembership` too, and a `TenantService` of your own `resolveTenantUrl`, which puts the tenant into a link the way `resolveTenant` reads it, see [the tenant of a request](./tenancy.md#the-tenant-of-a-request).
+**Memberships.** A request acts in the tenant its `x-tenant-id` header names; override `resolveTenant` in a `TenantService` of your own to read it from somewhere else, see [the tenant of a request](./tenancy.md#the-tenant-of-a-request). A logged in user acts in a tenant through their membership in it, so an application with users declares a membership entity, such as one extending `BaseMembershipEntity()`, and its repository, see **Repositories** below; it does not start otherwise. `@Auth.hasPermission` checks the roles of that membership, see **Roles** below: give each user a membership with the roles they need there, in a migration. `createApiKey` takes `tenantId`: `undefined` keeps a key acting wherever its user is a member. Your membership repository implements `resolveMembership`, `updateDeactivatedAt` and `deleteMembership` too, and a `TenantService` of your own `resolveTenantUrl`, which puts the tenant into a link the way `resolveTenant` reads it, see [the tenant of a request](./tenancy.md#the-tenant-of-a-request).
 
-**Plugins.** Invoices, payments and mailing lists belong to a tenant. The invoicing plugin needs `InvoiceRecipientAbbreviation` in your data source's `entities`: each recipient's invoice numbers carry an abbreviation only they hold, see [the invoicing plugin](./plugin.md#zibriinvoicingplugin). Invoice amounts are rounded to the minor units of their currency, and the tax of each tax group is taxed once rather than summed from its items, so a total can differ from what 2.x calculated by a cent. An invoice totalling less than 0 is refused. An XRechnung names its guideline `urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0`, the identifier of XRechnung 3.0. A Peppol invoice requires the `electronicAddress` of the company and of the customer, see [the invoicing plugin](./plugin.md#zibriinvoicingplugin). An `EN16931ConformanceService` of your own checks an invoice in `validateInvoice` and names a party in `resolveElectronicAddress`. The item methods of `InvoiceCalcServiceInterface` take the invoice's currency after the item, and one of your own implements `getTaxGroups`; a `LocalizeServiceInterface` of your own implements `getCurrencyMinorUnits`. The `amount` of a payment and of `PayPalPaymentData` is a `BigNumber`, eg. `new BigNumber('9.99')`, with at most the decimals of its currency, see [the payment plugin](./plugin.md#zibripaymentplugin). The invoicing plugin reads the company of each tenant from a service under `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE`, see [the invoicing plugin](./plugin.md#zibriinvoicingplugin): move `companyInfo`, `logo`, `bankName` and `taxOffice` out of `OPTIONS_INPUT` into it. The links of the mailing list plugin are resolved with `resolveSubscribeConfirmationLink`, `resolveUnsubscribeLink` and `resolveManagePreferencesLink`, which name the tenant, and the base email template gets `unsubscribeLink` and `managePreferencesLink` instead of building them. `confirmSubscribeToList` takes the id of the list the link names ahead of the token, and an address already on other lists confirms a new one like any other address. `resolveUnsubscribeLink` and `resolveManagePreferencesLink` take the subscriber instead of their id, and a `MailingListServiceInterface` of your own implements `resolveSubscriberOfLink`. Opening an unsubscribe link no longer unsubscribes: the `UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE` gets `unsubscribed` and `unsubscribeUrl`, and renders a form posting to it while `unsubscribed` is false, see [the mailing list plugin](./plugin.md#zibrimailinglistplugin). A link in an email sent before the upgrade names no tenant and answers `400`; an application with one tenant can read that tenant for such a request in its own `resolveTenant`.
+**Plugins.** Invoices, payments and mailing lists belong to a tenant. The invoicing plugin needs `InvoiceRecipientAbbreviation` in your data source's `entities`: each recipient's invoice numbers carry an abbreviation only they hold, see [the invoicing plugin](./invoicing-plugin.md#numbering-invoices). Invoice amounts are rounded to the minor units of their currency, and the tax of each tax group is taxed once rather than summed from its items, so a total can differ from what 2.x calculated by a cent. An invoice totalling less than 0 is refused. An XRechnung names its guideline `urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0`, the identifier of XRechnung 3.0. A Peppol invoice requires the `electronicAddress` of the company and of the customer, see [the invoicing plugin](./invoicing-plugin.md#sending-electronic-invoices). An `EN16931ConformanceService` of your own checks an invoice in `validateInvoice` and names a party in `resolveElectronicAddress`. The item methods of `InvoiceCalcServiceInterface` take the invoice's currency after the item, and one of your own implements `getTaxGroups`; a `LocalizeServiceInterface` of your own implements `getCurrencyMinorUnits`. The `amount` of a payment and of `PayPalPaymentData` is a `BigNumber`, such as `new BigNumber('9.99')`, with at most the decimals of its currency, see [the payment plugin](./payment-plugin.md#stating-an-amount). The invoicing plugin reads the company of each tenant from a service under `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE`, see [the invoicing plugin](./invoicing-plugin.md#setting-it-up): move `companyInfo`, `logo`, `bankName` and `taxOffice` out of `OPTIONS_INPUT` into it. The links of the mailing list plugin are resolved with `resolveSubscribeConfirmationLink`, `resolveUnsubscribeLink` and `resolveManagePreferencesLink`, which name the tenant, and the base email template gets `unsubscribeLink` and `managePreferencesLink` instead of building them. `confirmSubscribeToList` takes the id of the list the link names ahead of the token, and an address already on other lists confirms a new one like any other address. `resolveUnsubscribeLink` and `resolveManagePreferencesLink` take the subscriber instead of their id, and a `MailingListServiceInterface` of your own implements `resolveSubscriberOfLink`. Opening an unsubscribe link no longer unsubscribes: the `UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE` gets `unsubscribed` and `unsubscribeUrl`, and renders a form posting to it while `unsubscribed` is false, see [the mailing list plugin](./mailing-list-plugin.md#unsubscribing). A link in an email sent before the upgrade names no tenant and answers `400`; an application with one tenant can read that tenant for such a request in its own `resolveTenant`.
 
-**SCIM.** Each tenant's identity provider provisions that tenant, see [provisioning through SCIM](./scim.md): give it an api key bound to the tenant, of a member holding one of the controller's `roles` there. A provisioner implements `findProvisionedUser` and `createProvisionedUser` in place of `resolveProvisionedUser`, and `resolveGroupMembership` gets the membership in the tenant instead of the user.
+**SCIM.** Each tenant's identity provider provisions that tenant, see [provisioning through SCIM](./scim.md): give it an api key bound to the tenant and listing the controller's `permission`, of a member holding a role there that carries it. The `permission` replaces the controller's `roles`: declare a permission for provisioning, such as `scim.provision`, and let the role you named carry it. A provisioner implements `findProvisionedUser` and `createProvisionedUser` in place of `resolveProvisionedUser`, and `resolveGroupMembership` gets the membership in the tenant instead of the user.
 
-**Work outside a request.** An event, a queued thread job or email, a log entry, a change set and a websocket channel or message belong to the tenant they were started in, see [work outside a request](./tenancy.md#work-outside-a-request). A cron job runs outside every tenant, so one that reads a tenant's rows uses `runAs` or `acrossTenants`. `sendToAll` inside a tenant reaches the connections of its members only, and a websocket channel's name is unique within its tenant. A cache key holds the active tenant, so a cache filled outside a tenant is empty inside one. A `Transaction`, `MembershipServiceInterface` or `WebsocketServiceInterface` of your own implements `afterCommit`, `isMembershipEntity` and `handleMembershipsChanged`, or `updateTenantRooms`. An `EventServiceInterface` of your own implements `dispatchPending`, `refreshSubscriberRegistrations` and `replayFailed`, see [events](./events.md), and an `EmailServiceInterface` of your own `deleteExpiredFailedEmails`.
+**Work outside a request.** An event, a queued thread job or email, a log entry, a change set and a websocket channel or message belong to the tenant they were started in, see [work outside a request](./tenancy.md#work-outside-a-request). A cron job runs outside every tenant, so one that reads a tenant's rows uses `runAs` or `acrossTenants`. `sendToAll` inside a tenant reaches the connections of its members only, and a websocket channel's name is unique within its tenant. A cache key holds the active tenant, so a cache filled outside a tenant is empty inside one. A `Transaction`, `MembershipServiceInterface` or `WebsocketServiceInterface` of your own implements `afterCommit`, `isMembershipEntity` and `handleMembershipsChanged`, or `updateTenantRooms`. An `EventServiceInterface` of your own implements `dispatchPending`, `refreshSubscriberRegistrations` and `replayFailed`, see [events](./events.md), and an `EmailServiceInterface` of your own `deleteExpiredFailedEmails`. A `LeaseServiceInterface` of your own hands the work of `withLease`, `withLeases` and `hold` an `AbortSignal` that aborts with a `LeaseLostError` once the grant is lost, and puts one on what `keepAlive` returns; the `renew` of a `HeldLease` of your own throws a `LeaseLostError` when the grant is no longer this holder's, see [leases](./leases.md#renewing).
 
-**Numbers.** A `@Property.number()` without a `format` is stored as a double, not as a decimal. For each of yours, either give it `format: 'bignumber'`, which keeps it an exact decimal and makes the property a `BigNumber`, or convert it in a migration the way `retypeNumbers` above does, eg. `changePropertyOfEntity({ entity: Order, currentProperty: { name: 'total', type: 'number', format: 'bignumber' }, property: { name: 'total', type: 'number' }, transaction })`. `'synchronize'` changes a type by dropping the column and adding it again, so a column left to it loses its values.
+**Numbers.** A `@Property.number()` without a `format` is stored as a double, not as a decimal. For each of yours, either give it `format: 'bignumber'`, which keeps it an exact decimal and makes the property a `BigNumber`, or convert it in a migration the way `retypeNumbers` above does, such as `changePropertyOfEntity({ entity: Order, currentProperty: { name: 'total', type: 'number', format: 'bignumber' }, property: { name: 'total', type: 'number' }, transaction })`. `'synchronize'` changes a type by dropping the column and adding it again, so a column left to it loses its values.
 
-**Text.** Every text column is created with the collation of your default locale, eg. `en-x-icu`, so queries order text the way that locale does. Your postgres needs icu support, which the official images have. `'synchronize'` changes the collation of existing columns and rebuilds their indexes during the first start, which takes a while on large tables. With `'migrations'` or `'external'`, the application starts and logs the columns that still have another collation. `changePropertyOfEntity` gives a column the collation.
+**Text.** Every text column is created with the collation of your default locale, such as `en-x-icu`, so queries order text the way that locale does. Your postgres needs icu support, which the official images have. `'synchronize'` changes the collation of existing columns and rebuilds their indexes during the first start, which takes a while on large tables. With `'migrations'` or `'external'`, the application starts and logs the columns that still have another collation. `changePropertyOfEntity` gives a column the collation.
 
-**Users.** `BaseUserEntity` declares `deactivatedAt`, an optional date that says a user is [deactivated](./auth.md#deactivating-a-user). `'synchronize'` adds the column; with `'migrations'` or `'external'`, add it to your user table yourself, eg. with `addPropertyToEntity`. Every user repository implements `updateDeactivatedAt`, which writes it.
+**Roles.** Roles are rows, see [roles and permissions](./roles-and-permissions.md#roles): declare a role entity extending `BaseRoleEntity` with `@Entity()` and its repository, see **Repositories** below, and declare it in the data source your users live in, next to `CacheInvalidation`; an application with users does not start without them. Create a row for every role your users and memberships hold, at the level it is held at, `'platform'` for the roles of a user and `'tenant'` for the roles of a membership, with no `tenantId`, in a migration that runs before anything else writes roles and outside every tenant. The name of a role is unique across both levels, so an enum used for both splits into two with different values, such as `Roles` and `MemberRoles`, and a migration renames the roles stored on your memberships. Users and memberships hold the names of roles: write `BaseUserEntity()` and `BaseMembershipEntity()`, and type a `UserRepositoryInterface` or `MembershipRepositoryInterface` with `string`. Your user repository and membership repository implement `updateRoles`, which writes them. An application does not start while a stored user or membership holds a role that no role of its level is. `BaseScimProvisioner` takes the user and the membership entity only, such as `BaseScimProvisioner<User, Membership>`.
 
-**Soft delete.** `SoftDeleteEntity` declares `deletedWith`, an optional string holding the row whose soft delete took this one along. `'synchronize'` adds the column; with `'migrations'` or `'external'`, add it to each soft deleting table yourself, eg. with `addPropertyToEntity`. An entity that soft deletes and whose `oneToMany` or `hasOne` removes rows of an entity that does not refuses the start: extend `SoftDeleteEntity` on the target, or leave `'remove'` out of the relation's `cascade`.
+**Permissions.** Every permission is declared in `ZIBRI_DI_TOKENS.PERMISSIONS`, made with `definePermissions` for those a tenant role carries and `definePlatformPermissions` for those a platform role carries, see [declaring permissions](./roles-and-permissions.md#declaring-permissions). Spread `ZIBRI_PERMISSIONS` and `ZIBRI_PLATFORM_PERMISSIONS` into them to let your administrators [manage roles](./roles-and-permissions.md#managing-roles). Routes and your code ask for a permission, never for a role: `@Auth.hasRole` and `@Auth.hasPlatformRole` are gone, and so are `hasRole` and `hasPlatformRole` of the `AuthService`. For each role check, declare a permission, let the roles it named carry it, and ask for it with `@Auth.hasPermission` where the check named roles of a membership, or `@Auth.hasPlatformPermission` where it named roles of the user's own; the `auth` of a manually registered route and `ZIBRI_DI_TOKENS.OPEN_API_AUTH` take `hasPermission` and `hasPlatformPermission` the same way. Each of these takes a `Permission` or a `PlatformPermission` from the two functions, and so do the `permission` of a SCIM controller, the `introspectionPermission` of an authorization server and the `permissions` of an api key: a plain string does not compile. The refusal is audited as `missing-permission`. The user `@CurrentUser()` and `getCurrentUser` hand you is a `CurrentUser<User>`: your user without `roles`, with the `permissions` and `platformPermissions` the request may use. Type the parameters, such as `@CurrentUser() user: CurrentUser<User>`, and read the permissions where your code read the roles. The membership `getCurrentMembership` answers and the user and membership a scope is told have no `roles` either; code that needs the roles stored, such as before giving somebody a role, reads them through the repository or `findMembership` of the `MembershipService`. `isAllowedToConnect` of the websocket options gets a `CurrentUser`. The two factor service and methods take a `UserAccount`, a user without roles: a method of your own declares its user as `UserType extends UserAccount`, and `deliver` of a `CodeTwoFactorMethod` takes a `UserAccount`. The OpenAPI document carries no `x-roles` and `x-platform-roles`, and its explorer shows the permission of a route in `zibri-permissions-container` and `zibri-permission-badge`: rename the classes in your `assets/public/open-api/custom.css`.
+
+**Repositories.** Every data source lists its repository classes in `repositories`, an empty list when it has none, see [writing a repository of your own](./data-source.md#writing-a-repository-of-your-own). `@UserRepo`, `@MembershipRepo` and `@RoleRepo` are gone. Declare your user, membership and role repositories with `@RepositoryFor`, such as `@RepositoryFor(User) export class UserRepository extends BaseUserRepository<User, UserCreateData>() {}`, `BaseMembershipRepository<Membership>()` and `BaseRoleRepository<Role>()`, and list them in the `repositories` of the data source declaring their entities; the application does not start while a user, membership or role entity has none there. A repository of your own declares no constructor: remove it, along with the `@InjectRepository` it was given, and reach anything else it needs through `inject`. It is listed in `repositories` like the others, and `@InjectRepository` and `repositoryTokenFor` of its entity hand it out from then on.
+
+**Users.** `BaseUserEntity` declares `deactivatedAt`, an optional date that says a user is [deactivated](./auth.md#deactivating-a-user). `'synchronize'` adds the column; with `'migrations'` or `'external'`, add it to your user table yourself, for example with `addPropertyToEntity`. Every user repository implements `updateDeactivatedAt`, which writes it.
+
+**Soft delete.** `SoftDeleteEntity` declares `deletedWith`, an optional string holding the row whose soft delete took this one along. `'synchronize'` adds the column; with `'migrations'` or `'external'`, add it to each soft deleting table yourself, for example with `addPropertyToEntity`. An entity that soft deletes and whose `oneToMany` or `hasOne` removes rows of an entity that does not refuses the start: extend `SoftDeleteEntity` on the target, or leave `'remove'` out of the relation's `cascade`.
+
+**Models.** `before` and `after` of a `@Property.date` take a function returning the date, such as `after: () => new Date()` for a date in the future, see [bounding a date](./validation.md#bounding-a-date): a fixed date does not compile. A `ValidationProblem` your code builds, such as in a `ValidationServiceInterface` of your own, carries a `code`, see [reading a refused request](./validation.md#reading-a-refused-request).
 
 **Names and tables.** Two entities of the same name in one application refuse the start, and so do two entities of one data source stored in the same table: rename all but one of them, or give it a `tableName` on `@Entity`.
 
-**Data sources.** A `RepositoryDriverInterface` of your own implements `insert`, which writes rows whose ids were generated for them, so no stored row holds one, and `updateEach`, which writes each row's own values to the stored row with its id among the rows a filter matches. Handing the rows of `insert` to your `save` is enough, and so is writing the rows of `updateEach` one at a time with your `updateAll`. A `Transaction` of your own implements `afterFinish`, which runs work once it is committed, rolled back or its commit failed, and tells the work whether it was committed.
+**Data sources.** A `RepositoryDriverInterface` of your own implements `insert`, which writes rows whose ids were generated for them, so no stored row holds one, and `updateEach`, which writes each row's own values to the stored row with its id among the rows a filter matches. Handing the rows of `insert` to your `save` is enough, and so is writing the rows of `updateEach` one at a time with your `updateAll`. Its `updateAll` adds the amounts in `increments` to what each matching row stores, in the same write as `data`, a property holding no value counting as 0. It implements `aggregate`, which takes a sum, an average, a smallest or largest value or a count over the matching rows, per group when asked; `AggregateUtilities.resolveRows` answers it from rows you already read. A `Transaction` of your own implements `afterFinish`, which runs work once it is committed, rolled back or its commit failed, and tells the work whether it was committed. A `DataSourceInterface` of your own implements `runInTransaction`; `TransactionUtilities.runInTransaction(this, work, options)` answers it from your `startTransaction`.
+
+**Metrics.** A `MetricsServiceInterface` of your own implements `addCollector`, which runs work that sets gauges before the metrics are read, and `resolveExposition`, which answers a Prometheus scrape, see [metrics](./metrics.md#adding-gauges-of-your-own).
+
+**Polls.** The `dispatchPending` of an `EventServiceInterface` of your own resolves whether any event was due, and the `startQueuedJobs` of a `MultithreadingServiceInterface` of your own whether a job was started, see [how an instance finds work](./replication.md#how-an-instance-finds-work). A `PubSubDataSourceInterface` of your own declares `maxMessageBytes`, the largest message it carries, or `undefined` for any.
+
+**Audit events.** The logger has no `audit`: record an event of your own with `record` of `ZIBRI_DI_TOKENS.AUDIT_SERVICE`, which keeps it in the [audit trail](./audit.md) and logs it. A logger of your own that sent `audit` somewhere no longer receives the events; provide an audit service of your own instead, see [keeping the trail elsewhere](./audit.md#keeping-the-trail-elsewhere).
 
 ## Behavior
 ### Cron schedules are read in UTC
 2.x read a cron expression in the time zone of the machine it ran on. 3.0.0 reads it in UTC, so on a machine not set to UTC every job moves. To keep the times your jobs ran at, set the zone they were read in:
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT,
     useValue: { defaultTimezone: 'Europe/Berlin' }
 });
 ```
+
+### A `required` function is given the object it is on
+A `required` function of a property inside an object, or an item of an array, is given that object or item, not the whole body. A function that read another part of the body reads the object it is on instead.
 
 ### Every user signs in once
 Jwts name your application's `baseUrl` as their issuer, and access tokens name it as their audience too, see [what a jwt has to prove](./auth.md#what-a-jwt-has-to-prove). The tokens 2.x issued do not, so from the first start every access token and refresh token issued before the upgrade is refused with a `401`, and every user of `JwtAuthStrategy` logs in again. The migration deletes the cookie sessions, so every user of `CookieAuthStrategy` logs in again as well. Tell your users, or upgrade at a quiet time.
@@ -689,6 +811,9 @@ Every replica has to start with the same `baseUrl`, and changing it later logs e
 
 ### A password reset ends every login
 Confirming a password reset ends every login of that user, in every auth strategy, not only in the one whose controller took the reset. Refresh tokens and sessions are deleted, and an access token works until it expires.
+
+### Entra ID identities are known by the object id
+`BaseMicrosoftAuthenticator` knows an identity by the `oid` claim, see [Microsoft Entra ID](./sign-in-through-a-provider.md#microsoft-entra-id). An identity linked under 2.x holds the `sub` of your app registration as its `subject`, so a user who signed in through Entra ID before the upgrade lands on the registration at their next sign-in. Rewrite the `subject` of those `FederatedIdentity` rows to the account's object id before you deploy, with the tenant's user list, or set `subjectClaim` to `sub` on your authenticator to keep the links as they are and the tokens of other app registrations unlinked.
 
 ### The auth routes come from `AuthController`
 `JwtAuthController` and `CookieAuthController` are replaced by the controller `AuthController` defines, see [the auth routes](./auth-routes.md). `zi new` writes it as `AppAuthController` in `src/controllers/auth.controller.ts`. The routes keep their paths and bodies, with these differences:
@@ -714,11 +839,17 @@ A postgres statement that runs for longer than 30 seconds fails, outside a reque
 
 A call that waits longer than 30 seconds for a postgres connection fails as well. Set `connectTimeoutMS` in the options of the data source to wait longer.
 
+### A deadlock or a serialization failure fails with a `TransactionConflictError`
+A transaction ended to break a deadlock fails with a `TransactionDeadlockError`, on postgres and on valkey. A `REPEATABLE READ` or `SERIALIZABLE` transaction ended because another one changed what it read fails with a `TransactionSerializationError`, at a statement or at its commit. Both are a `TransactionConflictError`. Code that recognized them by the query error's sql state `40P01` or `40001` catches these errors instead, or runs its work through `runInTransaction`, which runs it again, see [using transactions](./data-source.md#using-transactions).
+
 ### The http client stops calling an upstream that keeps failing
 After 5 failures in a row, a connection error, a timeout or a `500`, `502`, `503` or `504`, every request of the http client to that origin fails at once with a `CircuitOpenError` for 30 seconds, without being sent. Code that catches a failed upstream call and tries again in a loop gets this error instead of a timeout. Set other thresholds, or turn it off, with `circuitBreaker` in `HTTP_CLIENT_OPTIONS_INPUT`, see [when an upstream keeps failing](./http-client.md#when-an-upstream-keeps-failing).
 
 ### A running backup is stopped when the application stops
 When the application stops during a backup, the backup is stopped at once and deleted, and `createBackup` fails. A running restore stops before its next resource and puts back what it applied. To let them finish, set `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS` to how long the application waits for them, within the time your orchestrator gives the process before it kills it, see [when the application stops](./backup.md#when-the-application-stops).
+
+### A backed up data source says what its backup covers
+A postgres data source marked with `@Backup` refuses to start without `backupScope`. Set `'schema'` to keep backing up everything in the schema it works in, or `'entity-tables'` when anything else keeps tables in that schema. A valkey data source marked with `@Backup` refuses to start without `backupMode`: `'snapshot'` to read every key at one moment, or `'walk'` to read them a batch at a time, see [backup](./backup.md).
 
 ### Pages on other origins may not send cookies with writes
 A request other than `GET`, `HEAD` and `OPTIONS` that a page on another origin sends with cookies is answered `403`, on every route, unless that origin is listed in `cors.origins` with `credentials: true`. A front end on a sibling subdomain counts as another origin. List every origin your front ends are served from, see [app settings](./app-settings.md#what-a-request-from-a-disallowed-origin-does).
@@ -727,10 +858,10 @@ A request other than `GET`, `HEAD` and `OPTIONS` that a page on another origin s
 A `findAll` without `take` is refused once it would return more than ten thousand rows. It works while your tables are small and fails once one grows. Search for `findAll` calls without a `take`, and give each one a limit or `take: 'all'`. See [data source](./data-source.md#accessing-the-data-source).
 
 ### Pages are whole numbers
-A page, a limit and a `take` below 1, a `skip` below 0, or a fraction of any of them throws. The `findAll` route of a `CrudController` answers such a `page` or `limit` with a 400, and a `limit` above 100 as well; pass `maxLimit` as its fourth argument to allow larger pages. See [creating endpoints](./creating-endpoints.md#inheritance-for-controllers).
+A page, a limit and a `take` below 1, a `skip` below 0, or a fraction of any of them throws. The `findAll` route of a `CrudController` answers such a `page` or `limit` with a 400, and a `limit` above 100 as well; pass `maxLimit` as its fourth argument to allow larger pages. See [creating endpoints](./creating-endpoints.md#extending-a-controller).
 
 ### Soft deleted rows are chosen by the `deleted` option
-`withDeleted: true` is `deleted: 'include'`, and `deleted: 'only'` reaches soft deleted rows alone. A filter that still names `deleted` with a value the option does not give it, eg. one typed as the entity's own `Where`, is refused. `deleteById` with `hardDelete: true` removes a row that is already soft deleted, and an `updateById` setting `deleted: true` on such a row answers `404`. See [data source](./data-source.md#softdeleterepository).
+`withDeleted: true` is `deleted: 'include'`, and `deleted: 'only'` reaches soft deleted rows alone. A filter that still names `deleted` with a value the option does not give it, such as one typed as the entity's own `Where`, is refused. `deleteById` with `hardDelete: true` removes a row that is already soft deleted, and an `updateById` setting `deleted: true` on such a row answers `404`. See [data source](./data-source.md#soft-deleting-rows).
 
 ### The rows of a relation are written through their own repository
 A `oneToMany` or `hasOne` value given to a write is the whole relation: a row there already that the value leaves out is deleted, or unlinked when its foreign key is optional. Its rows are written through the repository of their own entity, so its scope, hooks and change sets apply to them, and a row given by an `id` you may not see refuses the write. `updateAll` refuses a row given by its `id` when it matches more than one row. Soft deleting a row soft deletes the rows its relations remove, and restoring it restores them. Hard deleting a row that rows of a relation without `'remove'` still point at throws a `ConflictError` on every data source, so unlink or delete them first. Hard deleting a row deletes its change sets as well. See [data source](./data-source.md#saving-and-deleting-the-rows-of-a-relation).
@@ -745,10 +876,10 @@ A filter like `{ ownerId: { not: 'abc' } }` on a uuid property fails with a `Bad
 The `x-correlation-id` header is gone. The id of a request is returned as `traceresponse`, and a failed request repeats it in its body as `traceId`. Update clients and log queries that read the old header, see [logging](./logging.md).
 
 ### Metrics are labeled by route
-The `route` label of `http_requests_total` and `http_request_duration_ms` is the route template, eg. `/invoices/:id`, not the url that was requested. Update dashboards and alerts that filter on urls, see [metrics](./metrics.md).
+The `route` label of `http_requests_total` and `http_request_duration_ms` is the route template, such as `/invoices/:id`, not the url that was requested. Update dashboards and alerts that filter on urls, see [metrics](./metrics.md).
 
 ### The db logger transport writes 1000 rows a minute
-Past 1000 entries a minute on an instance, the db transport writes one row per kind of entry, which counts how many it stands for in `context.collapsed`. Queries that count log rows, eg. refused logins in the audit trail, add up `context.collapsed.count` instead. Pass `maxEntriesPerMinute` to `LoggerTransport.db` where you need more rows, see [logging](./logging.md#how-many-rows-the-db-transport-writes).
+Past 1000 entries a minute on an instance, the db transport writes one row per kind of entry, which counts how many it stands for in `context.collapsed`. Queries that count log rows add up `context.collapsed.count` instead. Pass `maxEntriesPerMinute` to `LoggerTransport.db` where you need more rows, see [logging](./logging.md#how-many-rows-the-db-transport-writes).
 
 ### A websocket connection that does not answer reports a `LoggedError`
 `sendToChannel` and `sendToAll` with `expectResponse: true` return a `WebsocketAnswer` per connection, on every instance. A connection that did not answer in time holds a `LoggedError` in `request.body.error`, not an `Error`. Code checking it with `instanceof Error` reads `name` and `paragraphs` instead, see [websocket](./websocket.md#waiting-for-answers).

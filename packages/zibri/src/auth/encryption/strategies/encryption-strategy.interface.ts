@@ -62,6 +62,9 @@ export type BaseDecryptOptions<TKey> = {
     binding?: EncryptionBinding
 };
 
+// no KMS, HSM or Vault strategy ships with the framework, since each would depend on one vendor's
+// sdk. TKey left to the strategy, with every key operation allowed to be async, is the seam an
+// application fills with its own instead
 /**
  * Interface for an encryption strategy.
  */

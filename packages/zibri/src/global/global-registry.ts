@@ -70,6 +70,10 @@ export abstract class GlobalRegistry {
      */
     static readonly entityClasses: Newable<BaseEntity>[] = [];
     /**
+     * All repository classes declared with \@RepositoryFor.
+     */
+    static readonly repositoryClasses: Newable<unknown>[] = [];
+    /**
      * The phases the running application has finished.
      */
     private static readonly finishedLifecyclePhases: Set<LifecyclePhase> = new Set();

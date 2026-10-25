@@ -8,7 +8,8 @@ export type ExcludePropertyValue = boolean
     // eslint-disable-next-line typescript/no-explicit-any
     | ((data: any, ctx: HttpRequestContext | WebsocketRequestContext | undefined) => boolean | Promise<boolean>);
 /**
- * Value for the required setting on a property.
+ * Value for the required setting on a property: a boolean, or a function given the object the
+ * property is on and the current request.
  */
 export type RequiredPropertyValue = boolean
     // eslint-disable-next-line typescript/no-explicit-any

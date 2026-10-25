@@ -5,6 +5,7 @@ import { IsRequiredValidationProblem,
     MimeTypeMismatchValidationProblem,
     RelationsNotAllowedValidationProblem,
     TypeMismatchValidationProblem } from './validation-problem.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../entity/base-entity.model';
 import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
@@ -22,11 +23,11 @@ describe('validation problems', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('IsRequiredValidationProblem carries the key and an "is required" message', () => {
         const problem: IsRequiredValidationProblem = new IsRequiredValidationProblem('name');

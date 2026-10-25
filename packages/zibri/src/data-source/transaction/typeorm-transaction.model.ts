@@ -1,5 +1,6 @@
 import { QueryRunner } from 'typeorm';
 
+import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
 import { Transaction } from './transaction.model';
 
 /**
@@ -13,7 +14,16 @@ export class TypeOrmTransaction implements Transaction {
 
     private readonly finishedWork: ((committed: boolean) => Promise<void>)[] = [];
 
-    constructor(readonly queryRunner: QueryRunner) {}
+    /**
+     * Wraps a runner whose transaction was started.
+     * @param queryRunner - The runner the transaction runs on.
+     * @param resolveCommitError - Resolves what a failed commit means, so that a conflict that ends
+     * the transaction at its commit fails it the way it fails any of its statements.
+     */
+    constructor(
+        readonly queryRunner: QueryRunner,
+        private readonly resolveCommitError: (error: unknown) => unknown
+    ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get isFinished(): boolean {
@@ -22,10 +32,16 @@ export class TypeOrmTransaction implements Transaction {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async commit(): Promise<void> {
+        if (this.finished) {
+            throw new TransactionAlreadyFinishedError();
+        }
         let committed: boolean = false;
         try {
             await this.queryRunner.commitTransaction();
             committed = true;
+        }
+        catch (error) {
+            throw this.resolveCommitError(error);
         }
         finally {
             await this.finish(committed);
@@ -47,6 +63,11 @@ export class TypeOrmTransaction implements Transaction {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async rollback(): Promise<void> {
+        // what a caller does on a commit that threw, or on a transaction the store already ended:
+        // there is nothing left to roll back, and the connection has been handed back
+        if (this.finished) {
+            return;
+        }
         this.committedWork.length = 0;
         try {
             await this.queryRunner.rollbackTransaction();
@@ -54,6 +75,19 @@ export class TypeOrmTransaction implements Transaction {
         finally {
             await this.finish(false);
         }
+    }
+
+    /**
+     * Ends a transaction that the database has already ended on its side, by closing its connection.
+     *
+     * Rolled back as far as everything waiting on it is concerned, which is what the database did.
+     */
+    async abandon(): Promise<void> {
+        if (this.finished) {
+            return;
+        }
+        this.committedWork.length = 0;
+        await this.finish(false);
     }
 
     /**

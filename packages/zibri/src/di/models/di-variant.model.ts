@@ -31,6 +31,7 @@ export const DiVariants = {
     CACHE: new DiVariant('cache'),
     USER_REPO: new DiVariant('user-repo'),
     MEMBERSHIP_REPO: new DiVariant('membership-repo'),
+    ROLE_REPO: new DiVariant('role-repo'),
     CONTROLLER: new DiVariant('controller'),
     WEBSOCKET_CONTROLLER: new DiVariant('websocket-controller'),
     BACKUP_RESOURCE: new DiVariant('backup-resource'),

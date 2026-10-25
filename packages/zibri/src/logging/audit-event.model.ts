@@ -10,6 +10,10 @@ export enum AuditAction {
      */
     LOGIN = 'auth.login',
     /**
+     * A login whose credentials were accepted and that waits for its second factor.
+     */
+    LOGIN_PENDING = 'auth.login.pending',
+    /**
      * Exchanging a refresh credential for a new one.
      */
     REFRESH_LOGIN = 'auth.refresh-login',
@@ -25,6 +29,10 @@ export enum AuditAction {
      * Setting a new password by presenting a reset token.
      */
     PASSWORD_RESET_CONFIRMED = 'auth.password-reset.confirmed',
+    /**
+     * Locking an account after too many wrong passwords in a row.
+     */
+    PASSWORD_LOCKED = 'auth.password.locked',
     /**
      * Presenting a second factor.
      */
@@ -69,6 +77,26 @@ export enum AuditAction {
      * Revoking one or every api key of a user.
      */
     API_KEY_REVOKED = 'auth.api-key.revoked',
+    /**
+     * Creating a role.
+     */
+    ROLE_CREATED = 'auth.role.created',
+    /**
+     * Changing what a role carries, or what the application keeps about it.
+     */
+    ROLE_UPDATED = 'auth.role.updated',
+    /**
+     * Deleting a role.
+     */
+    ROLE_DELETED = 'auth.role.deleted',
+    /**
+     * Giving a user a role, of their own or through their membership in a tenant.
+     */
+    ROLE_ASSIGNED = 'auth.role.assigned',
+    /**
+     * Taking a role from a user, of their own or from their membership in a tenant.
+     */
+    ROLE_UNASSIGNED = 'auth.role.unassigned',
     /**
      * A client asking the authorization server for an access token with its api key.
      */
@@ -171,6 +199,13 @@ export enum AuditReason {
      */
     DEACTIVATED = 'deactivated',
     /**
+     * The password was right, but the account is locked after too many wrong ones in a row.
+     *
+     * Recorded where the api answers as though the password were wrong, so that the lock is visible
+     * somewhere.
+     */
+    LOCKED = 'locked',
+    /**
      * The account the attempt named does not exist.
      *
      * Recorded where the api deliberately answers as though it did - a password reset for an unknown
@@ -188,9 +223,9 @@ export enum AuditReason {
      */
     ALREADY_LOGGED_IN = 'already-logged-in',
     /**
-     * The caller is logged in but holds none of the roles the route allows.
+     * The caller is logged in but none of their roles carries the permission the route needs.
      */
-    MISSING_ROLE = 'missing-role',
+    MISSING_PERMISSION = 'missing-permission',
     /**
      * The caller is logged in, and is no member of the tenant the request is for - or acts through a
      * credential bound to another tenant.
@@ -255,5 +290,10 @@ export type AuditEvent = {
     /**
      * The scopes of a provider's apis the access granted or revoked covers.
      */
-    scopes?: string[]
+    scopes?: string[],
+    /**
+     * The role created, changed, deleted, given or taken. `subject` is the user it was given to or
+     * taken from, and `userId` who did it.
+     */
+    role?: string
 };

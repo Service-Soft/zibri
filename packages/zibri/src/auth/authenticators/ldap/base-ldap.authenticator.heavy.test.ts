@@ -11,7 +11,7 @@ import { LdapServiceAccount } from './ldap-service-account.model';
 import { ContainerOutput } from '../../../__testing__/container-output.model';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -57,7 +57,7 @@ let ldapsUrl: string;
  */
 const firstSignIns: LdapEntry[] = [];
 
-abstract class TestDirectory extends BaseLdapAuthenticator<Roles, JwtUser> {
+abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
     readonly serviceAccount: LdapServiceAccount = DIRECTORY_MANAGER;
 
     readonly searchBase: string = PEOPLE;
@@ -264,6 +264,7 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
 
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, LdapIdentity],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({

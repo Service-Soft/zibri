@@ -6,9 +6,10 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
+import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
-import { Path } from '../../utilities';
+import { getPath, Path } from '../../utilities';
 
 /**
  * Whether the Dockerfile "zi new" writes produces an image that actually serves the application.
@@ -33,6 +34,7 @@ const IMAGE_TAG: string = 'zibri-scaffold-deployment-test';
 const NETWORK_NAME: string = 'zibri-scaffold-deployment-test';
 const DATABASE_CONTAINER: string = 'zibri-scaffold-deployment-db';
 const APPLICATION_CONTAINER: string = 'zibri-scaffold-deployment-app';
+const READ_ONLY_CONTAINER: string = 'zibri-scaffold-deployment-app-read-only';
 const REGISTRY_CONTAINER: string = 'zibri-scaffold-deployment-registry';
 const REGISTRY_IMAGE: string = 'verdaccio/verdaccio:6';
 const REGISTRY_PORT: number = 4873;
@@ -65,6 +67,11 @@ const WORKSPACE_VERSION: string = version;
 const HOST_PORT: number = 38_080;
 
 /**
+ * Where the container started on a read-only filesystem is published, beside the first one.
+ */
+const READ_ONLY_HOST_PORT: number = 38_081;
+
+/**
  * How long the image is given to build.
  *
  * It runs two npm installs and a webpack build, none of which are cached between runs, so this is
@@ -83,8 +90,14 @@ const PROBE_TIMEOUT_MS: number = 60_000;
  */
 const APPLICATION_TIMEOUT_MS: number = 180_000;
 
+/**
+ * How long the generated project's own tests are given, compiled by ts-jest from nothing.
+ */
+const PROJECT_TESTS_TIMEOUT_MS: number = 300_000;
+
 let workDir: Path;
 let appDir: Path;
+let containerEnvPath: Path;
 
 function run(command: string, cwd: string = REPOSITORY_ROOT): string {
     try {
@@ -224,10 +237,43 @@ async function waitFor(isReady: () => Promise<boolean>, timeoutMs: number, descr
 /**
  * Asks the running application something over http.
  * @param route - The route to request.
+ * @param port - The host port the container is published on.
  * @returns The response.
  */
-async function request(route: string): Promise<Response> {
-    return await fetch(`http://127.0.0.1:${HOST_PORT}${route}`);
+async function request(route: string, port: number = HOST_PORT): Promise<Response> {
+    return await fetch(`http://127.0.0.1:${port}${route}`);
+}
+
+/**
+ * Waits for an application container to answer its own health check.
+ * @param container - The container the application runs in.
+ * @param port - The host port the container is published on.
+ */
+async function waitForApplication(container: string, port: number): Promise<void> {
+    await waitFor(
+        async () => {
+            // a container that has stopped is never going to answer, and waiting out the timeout
+            // to say so turns a crash into three minutes of nothing followed by the same report
+            const status: string = run(`docker inspect -f '{{.State.Status}}' ${container}`).trim();
+            if (status !== 'running') {
+                throw new Error(
+                    `The application stopped before it answered.\n\n${containerDiagnostics(container)}`
+                );
+            }
+            try {
+                return (await request('/health/live', port)).ok;
+            }
+            catch {
+                return false;
+            }
+        },
+        APPLICATION_TIMEOUT_MS,
+        () => 'The application never answered its own health check.\n\n'
+            + `${containerDiagnostics(container)}\n\n`
+            // the application connects to the database before it listens, so a database that
+            // never became usable looks from the outside exactly like an application that hung
+            + containerDiagnostics(DATABASE_CONTAINER)
+    );
 }
 
 /**
@@ -318,6 +364,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // whatever a run that was interrupted left behind. Docker refuses to start a container under
         // a name that is already taken, so without this one killed run makes every later one fail.
         runQuietly(`docker rm -f ${APPLICATION_CONTAINER}`);
+        runQuietly(`docker rm -f ${READ_ONLY_CONTAINER}`);
         runQuietly(`docker rm -f ${DATABASE_CONTAINER}`);
         runQuietly(`docker rm -f ${REGISTRY_CONTAINER}`);
         runQuietly(`docker network create ${NETWORK_NAME}`);
@@ -338,7 +385,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // ZIBRI_CLI_LOCAL_DEV is deliberately not set: the generator is asked for the same project it
         // writes for anybody else, one that depends on the framework by name. What makes that
         // resolvable is the registry above rather than a path back into this repository.
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
         appDir = path.join(workDir, 'api') as Path;
 
         // the lock the generator just wrote resolves to "127.0.0.1", which inside the image is the
@@ -381,7 +428,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // where it runs pointed at the container network instead of at localhost. Everything else is
         // what "zi new" already decided, which is the point: a deployment sets these and nothing else.
         const generatedEnv: string = await FsUtilities.readFile(path.join(appDir, '.env') as Path);
-        const containerEnvPath: Path = path.join(workDir, 'container.env') as Path;
+        containerEnvPath = path.join(workDir, 'container.env') as Path;
         await FsUtilities.createFile(
             containerEnvPath,
             generatedEnv
@@ -394,30 +441,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
             + ` --env-file "${containerEnvPath}" -p ${HOST_PORT}:3000 ${IMAGE_TAG}`
         );
 
-        await waitFor(
-            async () => {
-                // a container that has stopped is never going to answer, and waiting out the timeout
-                // to say so turns a crash into three minutes of nothing followed by the same report
-                const status: string = run(`docker inspect -f '{{.State.Status}}' ${APPLICATION_CONTAINER}`).trim();
-                if (status !== 'running') {
-                    throw new Error(
-                        `The application stopped before it answered.\n\n${containerDiagnostics(APPLICATION_CONTAINER)}`
-                    );
-                }
-                try {
-                    return (await request('/health/live')).ok;
-                }
-                catch {
-                    return false;
-                }
-            },
-            APPLICATION_TIMEOUT_MS,
-            () => 'The application never answered its own health check.\n\n'
-                + `${containerDiagnostics(APPLICATION_CONTAINER)}\n\n`
-                // the application connects to the database before it listens, so a database that
-                // never became usable looks from the outside exactly like an application that hung
-                + containerDiagnostics(DATABASE_CONTAINER)
-        );
+        await waitForApplication(APPLICATION_CONTAINER, HOST_PORT);
     }, BUILD_TIMEOUT_MS);
 
     afterAll(() => {
@@ -426,6 +450,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         jest.restoreAllMocks();
 
         runQuietly(`docker rm -f ${APPLICATION_CONTAINER}`);
+        runQuietly(`docker rm -f ${READ_ONLY_CONTAINER}`);
         runQuietly(`docker rm -f ${DATABASE_CONTAINER}`);
         runQuietly(`docker rm -f ${REGISTRY_CONTAINER}`);
         runQuietly(`docker network rm ${NETWORK_NAME}`);
@@ -474,7 +499,49 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         expect(run(`docker exec ${APPLICATION_CONTAINER} id -un`).trim()).toBe('node');
         expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/versions`).trim()).toBe('node');
         expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/.zibri`).trim()).toBe('node');
-        expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/dist`).trim()).toBe('node');
+        expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/dist`).trim()).toBe('root');
+        expect(run(`docker exec ${APPLICATION_CONTAINER} stat -c %U /app/node_modules`).trim()).toBe('root');
+    });
+
+    describe('on a read-only filesystem, with a writable ".zibri"', () => {
+        afterAll(() => {
+            runQuietly(`docker rm -f ${READ_ONLY_CONTAINER}`);
+        });
+
+        it('serves once its versions record holds the version it runs', async () => {
+            // the record the first container wrote at boot: a fresh project ships "versions" empty. Mounted
+            // read only, it is what an image built from a folder that already recorded the release carries
+            const recordedVersions: Path = path.join(workDir, 'recorded-versions') as Path;
+            run(`docker cp ${APPLICATION_CONTAINER}:/app/versions/. "${recordedVersions}"`);
+
+            run(
+                `docker run -d --name ${READ_ONLY_CONTAINER} --network ${NETWORK_NAME}`
+                + ` --read-only --tmpfs /app/.zibri -v "${recordedVersions}":/app/versions:ro`
+                + ` --env-file "${containerEnvPath}" -p ${READ_ONLY_HOST_PORT}:3000 ${IMAGE_TAG}`
+            );
+            await waitForApplication(READ_ONLY_CONTAINER, READ_ONLY_HOST_PORT);
+
+            expect((await request('/', READ_ONLY_HOST_PORT)).status).toBe(200);
+        }, APPLICATION_TIMEOUT_MS);
+
+        it('stops at startup when its versions record lacks the version it runs', async () => {
+            runQuietly(`docker rm -f ${READ_ONLY_CONTAINER}`);
+            // the image's own "versions", as "zi new" wrote it: nothing recorded, so the application
+            // has to write the first record and cannot
+            run(
+                `docker run -d --name ${READ_ONLY_CONTAINER} --network ${NETWORK_NAME}`
+                + ` --read-only --tmpfs /app/.zibri`
+                + ` --env-file "${containerEnvPath}" -p ${READ_ONLY_HOST_PORT}:3000 ${IMAGE_TAG}`
+            );
+            await waitFor(
+                // eslint-disable-next-line typescript/require-await
+                async () => run(`docker inspect -f '{{.State.Status}}' ${READ_ONLY_CONTAINER}`).trim() !== 'running',
+                APPLICATION_TIMEOUT_MS,
+                () => `The application kept running.\n\n${containerDiagnostics(READ_ONLY_CONTAINER)}`
+            );
+
+            expect(containerDiagnostics(READ_ONLY_CONTAINER)).toMatch(/EROFS[^\n]*\/app\/versions/);
+        }, APPLICATION_TIMEOUT_MS);
     });
 
     it('leaves the secrets it was generated with out of the image', () => {
@@ -482,4 +549,21 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // context. An image carrying one is a set of credentials handed to everyone it is pushed to.
         expect(run(`docker exec ${APPLICATION_CONTAINER} ls -a /app`)).not.toContain('.env');
     });
+
+    it('passes the tests it was generated with, installed the way a consumer installs it', async () => {
+        const lock: string = await FsUtilities.readFile(getPath(appDir, 'package-lock.json'));
+        // inside the base image, on the node_modules the registry install above wrote. The heavy suite
+        // that runs these tests otherwise installs the harness as a `file:` link into this repository,
+        // where every optional peer resolves through the workspace - so a harness that cannot load
+        // without one passed there and failed every generated project (round-2 07 §T2)
+        const output: string = run(
+            `docker run --rm --user ${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`
+            + ` -e HOME=/tmp -v "${appDir}":/app -w /app ${BASE_IMAGE} npm test 2>&1`
+        );
+
+        // the precondition that makes the run mean something: npm installs no optional peer, and the
+        // generated test runs on the in-memory data source, which needs no container
+        expect(lock).not.toContain('"node_modules/testcontainers"');
+        expect(output).toMatch(/Tests:\s+\d+ passed, \d+ total/);
+    }, PROJECT_TESTS_TIMEOUT_MS);
 });

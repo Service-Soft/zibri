@@ -3,12 +3,11 @@
 What a running Zibri application is made of, and what has to travel with it.
 
 `zi new` generates a `Dockerfile` and a `.dockerignore` alongside the project, so a generated
-application is deployable as it stands. This page describes what they express, so that a deployment
-built by other means expresses the same things.
+application is deployable as it stands. A deployment built by other means needs the same things.
 
 ## What a deployment is
 
-A deployment is a directory with four things in it:
+A deployment is a directory with these entries:
 
 ```
 package.json      what to install, and the version this release is
@@ -21,16 +20,13 @@ The application resolves itself from the `package.json` above its entry point, s
 reads at a path of its own is found relative to that directory, whatever directory the process was
 started from.
 
-`dist` carries the bundle together with the assets, the compiled templates and the translations. The
-build puts them there because they are read from inside it — one folder to copy, and a bundle that
-answers for its own content.
+`dist` carries the bundle together with the assets, the compiled templates and the translations,
+which the bundle reads from inside it. Copy the one folder.
 
-`versions` sits beside `dist` instead, because the application writes to it: each release records
-the routes it serves, and the release after it is checked against that record. It is committed to
-version control for the same reason, and an application whose `versions` folder is absent stops at
-startup and says so. That refusal is what keeps the record meaningful — an application that treated
-the version it is on as the first one that ever existed would answer every later question about
-compatibility from an empty history.
+`versions` sits beside `dist`, because the application writes to it: each release records the routes
+it serves, and the release after it is checked against that record. Commit it to version control,
+and copy it into every deployment. The folder is required. Create it empty to start recording from
+the current version.
 
 ## Configuration
 
@@ -47,35 +43,36 @@ of the image: an image carrying one hands its secrets to everyone the image reac
 
 ## HTTPS
 
-The application serves plain http. HTTPS is terminated in front of it, by the load balancer, ingress
-or reverse proxy that receives the traffic, which is also where certificates are renewed.
+The application serves plain HTTP/1.1. HTTPS is terminated in front of it, by the load balancer,
+ingress or reverse proxy that receives the traffic, which is also where certificates are renewed.
+The same proxy speaks HTTP/2 or HTTP/3 to clients and HTTP/1.1 to the application.
 
-Tell the application how many proxies stand in front of it with `security.trustProxy` — see
+Tell the application how many proxies stand in front of it with `security.trustProxy`, see
 [running behind a proxy](./app-settings.md#running-behind-a-proxy). With it set, a request that
-reached the proxy over https counts as https, so session cookies are marked `Secure` and HSTS is sent.
+reached the proxy over HTTPS counts as HTTPS, so session cookies are marked `Secure` and HSTS is sent.
 
-Services that call your api with a client certificate show it to the proxy, which forwards it — see
+Services that call your API with a client certificate show it to the proxy, which forwards it, see
 [client certificates](./client-certificates.md).
 
 ## Health endpoints
 
-`zi new` generates a `HealthController` with two routes, because a process has two different states
-worth asking about:
+`zi new` generates a `HealthController` with two routes:
 
-- **`GET /health/live`** — whether the process is running. This is what a restart depends on, so it
-  answers on the process alone. A liveness check that reaches for the database turns an outage of
-  the database into a restart loop of the application.
-- **`GET /health/ready`** — whether this instance should be sent traffic. It answers `503` once the
-  application begins shutting down, which is the window a rolling deploy needs: the process is still
-  serving the requests it already accepted, and new ones belong to another instance.
+- **`GET /health/live`**: whether the process is running. An orchestrator restarts the process when
+  it fails, so it answers on the process alone. A liveness check that reads the database turns an
+  outage of the database into a restart loop of the application.
+- **`GET /health/ready`**: whether this instance should be sent traffic. It answers `503` once the
+  application begins shutting down. The instance still finishes the requests it already accepted,
+  and new ones go to another instance.
 
-Both routes carry `versions: 'all'`, so a version bump leaves the probe URL where the orchestrator
-already looks for it, and `@Auth.skip({ allowRedundant: true })`, so the probe keeps answering when
-the application switches its default to `'requireLogin'`.
+Both routes carry `versions: 'all'`, so the probe URL stays the same across a version bump. Both carry
+`@Auth.skip({ allowRedundant: true })`, so the probe keeps answering when the application switches
+its default to `'requireLogin'`.
 
-An application with dependencies of its own says so in the readiness half:
+An application with dependencies of its own checks them in the readiness half:
 
 ```ts
+// src/controllers/health.controller.ts
 import { $ts, Auth, Controller, Get, GlobalRegistry, ServiceUnavailableError } from 'zibri';
 
 @Auth.skip({ allowRedundant: true })
@@ -102,30 +99,82 @@ export class HealthController {
 begins shutting down. `start()` runs the startup hooks and only then listens, so the first request an
 instance accepts arrives at an application that is fully built.
 
+Keep a database every instance shares out of the readiness check: when that database is slow, a
+check that reads it takes every instance out of rotation at once.
+
 ## Shutting down
 
 A stop signal starts an orderly shutdown: the application runs its shutdown hooks, releases the
-leases it holds and closes its data sources. Send the signal to the process itself — in a container
-image that means the exec form of `CMD`, so that the signal arrives at node rather than at a shell
-holding it.
+leases it holds and closes its data sources. Send the signal to the process itself. In a container
+image, use the exec form of `CMD`, so the signal reaches Node and not a shell.
 
 The readiness endpoint answers `503` for the whole of that window, so an orchestrator polling it
 moves traffic away while the instance finishes what it accepted.
 
+### Draining traffic before shutting down
+
+A load balancer takes a moment to stop sending requests to an instance: the endpoint change travels
+through kube-proxy, an ingress controller or a proxy's own configuration. Requests keep arriving for
+a few seconds after readiness reports not ready. The sequence is:
+
+1. readiness reports not ready, and the balancer starts removing the instance
+2. the instance **keeps serving normally** for a few seconds
+3. the instance stops accepting connections and drains what is open
+
+A `preStop` hook gives you step 2. It sleeps while the instance serves traffic as usual:
+
+```yaml
+lifecycle:
+  preStop:
+    exec:
+      command: ['sleep', '5']   # longer than your ingress takes to notice
+terminationGracePeriodSeconds: 45
+```
+
+The grace period covers the sleep, plus the HTTP drain, plus the lease drain, plus your own hooks, see
+[shutting down](./replication.md#shutting-down). The application handles everything from the
+SIGTERM on. Size the sleep before it in your manifest.
+
 ## What the application writes
 
-Two paths are written while the application runs, and both live at the application root:
+Three paths are written while the application runs, and all of them live at the application root:
 
-- `versions` — the route record described above, updated at startup when the version changes.
-- `.zibri/uploads` — where an upload is written while a request is handled.
+- `versions`: the route record described above, updated at startup when the version changes.
+- `.zibri/uploads`: where an upload is written while a request is handled.
+- `.zibri/backups`: where a [backup](./backup.md) is staged on its way to and from a transport.
 
-The user the application runs as owns these two. Everything else can stay read only to it, which is
-what the generated image does: the bundle it is running is owned by another user entirely.
+The user the application runs as owns these three. Everything else stays read only to it: the generated `Dockerfile` hands the `node` user `versions` and `.zibri`, and leaves the bundle and its dependencies to the build.
+
+To keep the image unwritable for any user, run the container with a read-only root filesystem and mount a writable directory at `.zibri`. It can be empty and live as long as the container:
+
+```yaml
+securityContext:
+  readOnlyRootFilesystem: true
+volumeMounts:
+  - name: zibri
+    mountPath: /app/.zibri
+volumes:
+  - name: zibri
+    emptyDir: {}
+```
+
+With Docker, the same is `docker run --read-only --tmpfs /app/.zibri`, and with Docker Compose:
+
+```yaml
+services:
+  api:
+    image: api   # the image your Dockerfile builds
+    read_only: true
+    tmpfs:
+      - /app/.zibri
+```
+
+`versions` stays as the image ships it. The application writes to it only when the record does not hold the version it runs, so build the image from a `versions` folder that already records the release. A read-only container that starts on a version its record lacks stops at startup.
 
 ## What the application is made of
 
-Generate the software bill of materials for your application rather than for Zibri. It lists Zibri
-and every package it brings, at the versions your application installed:
+Generate the software bill of materials for your application. It lists Zibri and every package it
+brings, at the versions your application installed:
 
 ```sh
 npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
@@ -133,19 +182,20 @@ npm sbom --sbom-format cyclonedx --omit dev > sbom.cdx.json
 
 Every package Zibri installs, the [optional ones](./getting-started.md#optional-packages) included,
 is under one of these licenses: MIT, MIT-0, ISC, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD,
-BlueOak-1.0.0, CC0-1.0, Unlicense or Zlib. A release ships with no known high or critical advisory
-among them.
+BlueOak-1.0.0, CC0-1.0, Unlicense or Zlib. The one exception is `caniuse-lite` (CC-BY-4.0), browser
+support data that `zibri/webpack` reads while it builds. It is not part of the bundle, and a generated
+project's image leaves it out with the other dev dependencies. A release ships with no known high or
+critical advisory among them.
 
 ## Running more than one instance
 
-Every instance is equal, and coordination happens through the data source rather than between
-processes, so scaling out is a matter of starting more of them. [replication.md](./replication.md)
-describes what that guarantees — elected cron executions, claimed events, and the leases underneath
-both.
+Every instance is equal, and coordination happens through the data source, so you scale out by
+starting more of them. [replication.md](./replication.md) describes what that guarantees: elected cron
+executions, claimed events, and the leases underneath both.
 
-## Further reading
+## See also
 
-- [replication.md](./replication.md) — running several instances of the same application
-- [versioning.md](./versioning.md) — what the `versions` folder records, and what it validates
-- [application-lifecycle.md](./application-lifecycle.md) — the hooks that run on the way up and down
-- [logging.md](./logging.md) — where a deployment sends what it records
+- [Replication](./replication.md) — running several instances of the same application
+- [Versioning](./versioning.md) — what the `versions` folder records, and what it validates
+- [Application lifecycle](./application-lifecycle.md) — the hooks that run on the way up and down
+- [Logging](./logging.md) — where a deployment sends what it records

@@ -13,7 +13,8 @@ import { MailingListUnsubscribeConfirmationPageTemplate } from './models/mailing
 import { MailingList } from './models/mailing-list.model';
 import { MailingListServiceInterface } from './services/mailing-list-service.interface';
 import { compileTsxTemplate } from '../../__testing__/compile-tsx-template.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
@@ -54,7 +55,8 @@ const unsubscribeConfirmationPageTemplate: MailingListUnsubscribeConfirmationPag
 
 const dataSources: Newable<PostgresDataSource>[] = [
     createTestDataSource({
-        entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken]
+        entities: [...defaultTestServerEntities, MailingList, MailingListSubscriber, MailingListSubscriptionConfirmationToken],
+        repositories: defaultTestServerRepositories
     })
 ];
 
@@ -124,11 +126,11 @@ describe('MailingListController', () => {
             confirmationTokenRepository = inject(repositoryTokenFor(MailingListSubscriptionConfirmationToken));
 
             mailingList = await inTenant(async () => await mailingListRepository.create({ name: 'Newsletter', subscribers: [] }));
-        }, 30000);
+        }, TestTimeouts.postgres.start);
 
         afterAll(async () => {
             await server?.shutdown();
-        }, 15000);
+        }, TestTimeouts.postgres.shutdown);
 
         /**
          * Resolves a link the emails carry, aimed at the running test server.
@@ -351,7 +353,7 @@ describe('MailingListController', () => {
                     ...templateProviders.filter(p => p.token !== ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.PREFERENCES_PAGE_TEMPLATE)
                 ]
             })).rejects.toThrow(/preferences_page_template/);
-        }, 30000);
+        }, TestTimeouts.postgres.start);
 
         it('rejects startup when the unsubscribe confirmation page template is missing', async () => {
             await expect(startTestServer({
@@ -363,7 +365,7 @@ describe('MailingListController', () => {
                     ...templateProviders.filter(p => p.token !== ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE)
                 ]
             })).rejects.toThrow(/unsubscribe_confirmation_page_template/);
-        }, 30000);
+        }, TestTimeouts.postgres.start);
 
         it('rejects startup when the subscribe success page template is missing', async () => {
             await expect(startTestServer({
@@ -375,6 +377,6 @@ describe('MailingListController', () => {
                     ...templateProviders.filter(p => p.token !== ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.SUBSCRIBE_SUCCESS_PAGE_TEMPLATE)
                 ]
             })).rejects.toThrow(/subscribe_success_page_template/);
-        }, 30000);
+        }, TestTimeouts.postgres.start);
     });
 });

@@ -13,6 +13,7 @@ import { FileResponse } from '../../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -154,12 +155,12 @@ async function download(path: string): Promise<DownloadOutcome> {
 beforeAll(async () => {
     server = await startTestServer({ controllers: [EvaluationStreamingController] });
     baseUrl = await server.start();
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     // guarded so a failed beforeAll reports the real cause instead of a shutdown TypeError
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('evaluation/02-http-runtime-core M1 - a stream that fails mid download', () => {
 

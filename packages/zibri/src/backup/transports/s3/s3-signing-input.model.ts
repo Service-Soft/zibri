@@ -1,3 +1,5 @@
+import { S3Credentials } from './s3-credentials.model';
+
 /**
  * A request to an S3 compatible service, as far as its signature covers it.
  */
@@ -19,13 +21,9 @@ export type S3SigningInput = {
      */
     payloadHash: string,
     /**
-     * The key the request is signed with.
+     * What the request is signed with.
      */
-    accessKeyId: string,
-    /**
-     * The secret of that key.
-     */
-    secretAccessKey: string,
+    credentials: S3Credentials,
     /**
      * The region of the service.
      */

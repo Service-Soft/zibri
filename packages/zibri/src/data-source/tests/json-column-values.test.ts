@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Table } from 'typeorm';
 
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -71,7 +72,8 @@ class Reading extends BaseEntity {
 }
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, Reading]
+    entities: [...defaultTestServerEntities, Reading],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -108,11 +110,11 @@ describe('what a value inside a json column is read back as', () => {
         server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
         postgres = inject(postgresDataSourceClass).getRepository(Reading);
         valKey = inject(valKeyDataSourceClass).getRepository(Reading);
-    }, 30000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 30000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
     it.each([
         ['postgres', () => postgres],

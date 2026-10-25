@@ -9,7 +9,8 @@ import { Param } from './decorators/param.decorator';
 import { Post } from './decorators/post.decorator';
 import { Put } from './decorators/put.decorator';
 import { UndeclaredResultError } from './undeclared-result.error';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -241,15 +242,15 @@ let baseUrl: string;
 beforeAll(async () => {
     // routing reads and writes no rows, so the data source is the in memory one
     server = await startTestServer({
-        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+        dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
         controllers: [GreetController, StatusController]
     });
     baseUrl = await server.start();
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 describe('Router — HTTP dispatch', () => {
 
@@ -280,6 +281,31 @@ describe('Router — HTTP dispatch', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const body: { count: number, when: string, location: Coordinates, tags: string[], matrix: number[][] } = await res.json();
         expect(body).toEqual({ count: 42, when, location, tags, matrix });
+    });
+
+    it('reads an array query param given one value per item, and one value as a list of one', async () => {
+        const when: string = '2024-01-01T00:00:00.000Z';
+        const base: string = `${baseUrl}/greet/params/42/${encodeURIComponent(when)}`
+            + `?location=${encodeURIComponent('{"x":1,"y":2}')}&matrix=${encodeURIComponent('[[1]]')}`;
+
+        // the form the published document describes, which a generated client sends
+        const several: Response = await fetch(`${base}&tags=a&tags=b`);
+        const one: Response = await fetch(`${base}&tags=a`);
+        // a value that spells a number is still the text it was sent as
+        const numeric: Response = await fetch(`${base}&tags=42`);
+
+        expect(several.status).toBe(200);
+        expect(one.status).toBe(200);
+        expect(numeric.status).toBe(200);
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const severalBody: { tags: string[] } = await several.json();
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const oneBody: { tags: string[] } = await one.json();
+        // eslint-disable-next-line typescript/no-unsafe-assignment
+        const numericBody: { tags: string[] } = await numeric.json();
+        expect(severalBody.tags).toEqual(['a', 'b']);
+        expect(oneBody.tags).toEqual(['a']);
+        expect(numericBody.tags).toEqual(['42']);
     });
 
     it('rejects a request missing a required header param', async () => {

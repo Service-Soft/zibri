@@ -48,7 +48,7 @@ export type CompilerLike = {
             /**
              * Taps an async handler.
              */
-            tapPromise: (name: string, fn: () => Promise<unknown>) => void
+            tapPromise: (name: string, fn: () => Promise<void>) => void
         }
     }
 };

@@ -5,7 +5,7 @@ import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
 import { NewChange } from './models/change.model';
-import { BaseUser } from '../auth/models/base-user.model';
+import { type CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AlsUtilities } from '../context/als.utilities';
 import { HttpRequestContext } from '../context/request/http-request.context';
 import { WebsocketRequestContext } from '../context/request/websocket-request.context';
@@ -18,6 +18,7 @@ import { CreateAllOptions } from '../data-source/models/options/create-all-optio
 import { CreateOptions } from '../data-source/models/options/create-options.model';
 import { UpdateAllOptions } from '../data-source/models/options/update-all-options.model';
 import { UpdateByIdOptions } from '../data-source/models/options/update-by-id-options.model';
+import { UpdateAllData } from '../data-source/models/update-all-data.model';
 import { Where } from '../data-source/models/where/where-filter.model';
 import { Repository, WrittenUpdate } from '../data-source/repository/repository';
 import { ScopedWhere } from '../data-source/scopes/scope-where.utilities';
@@ -66,6 +67,28 @@ export class ChangeSetRepository<
      */
     protected readonly keysToExcludeFromChangeSets: Set<keyof T> = new Set();
 
+    private readonly authService: AuthServiceInterface;
+
+    private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>;
+
+    /**
+     * Builds a repository of your own on the one the data source built for the entity: it reads and
+     * writes through that one, with its logger, its data source, its hooks and its change sets.
+     * @param entityClass - The entity this repository reads and writes.
+     * @param repo - The repository the data source built for it, which this class has to extend.
+     */
+    constructor(entityClass: Newable<T>, repo: ChangeSetRepository<T>);
+    /**
+     * Builds a repository over a driver, or over another repository with hooks of its own.
+     * @param entityClass - The entity this repository reads and writes.
+     * @param repo - The driver, or the repository whose driver is read and written through.
+     * @param logger - What the repository logs through.
+     * @param dataSource - The data source the repository belongs to.
+     * @param beforeSave - What runs on every row before it is written.
+     * @param beforeReturn - What runs on every row before it is handed back.
+     * @param authService - Where the user making a change is read from.
+     * @param changeSetRepository - Where the change sets are written.
+     */
     constructor(
         entityClass: Newable<T>,
         repo: RepositoryDriverInterface<T> | Repository<T>,
@@ -73,11 +96,21 @@ export class ChangeSetRepository<
         dataSource: DataSourceInterface,
         beforeSave: BeforeSaveHook<T, CreateData, UpdateData>,
         beforeReturn: BeforeReturnHook<T>,
-        private readonly authService: AuthServiceInterface,
-        private readonly changeSetRepository: Repository<ChangeSet, CreateChangeSetData>
-
+        authService: AuthServiceInterface,
+        changeSetRepository: Repository<ChangeSet, CreateChangeSetData>
+    );
+    constructor(
+        entityClass: Newable<T>,
+        repo: RepositoryDriverInterface<T> | Repository<T>,
+        logger?: LoggerInterface,
+        dataSource?: DataSourceInterface,
+        beforeSave?: BeforeSaveHook<T, CreateData, UpdateData>,
+        beforeReturn?: BeforeReturnHook<T>,
+        authService?: AuthServiceInterface,
+        changeSetRepository?: Repository<ChangeSet, CreateChangeSetData>
     ) {
-        super(entityClass, repo, logger, dataSource, beforeSave, beforeReturn);
+        super(entityClass, repo, ...Repository.resolveParts(repo, logger, dataSource, beforeSave, beforeReturn));
+        [this.authService, this.changeSetRepository] = ChangeSetRepository.resolveChangeSetParts(repo, authService, changeSetRepository);
 
         this.keysToExcludeFromChangeSets.add('changeSets');
         const props: Record<string, PropertyMetadata> = MetadataUtilities.getModelProperties(entityClass);
@@ -86,6 +119,29 @@ export class ChangeSetRepository<
                 this.keysToExcludeFromChangeSets.add(key as keyof T);
             }
         }
+    }
+
+    /**
+     * What a change set repository runs with beyond what every repository does: given outright, or
+     * taken off the repository it is built on.
+     * @param repo - The driver, or the repository built on.
+     * @param authService - The auth service given, if any.
+     * @param changeSetRepository - The change set repository given, if any.
+     * @returns The auth service and the change set repository.
+     * @throws When something is missing and there is no change set repository to take it from.
+     */
+    protected static resolveChangeSetParts<T extends ChangeSetEntity>(
+        repo: RepositoryDriverInterface<T> | Repository<T>,
+        authService: AuthServiceInterface | undefined,
+        changeSetRepository: Repository<ChangeSet, CreateChangeSetData> | undefined
+    ): [AuthServiceInterface, Repository<ChangeSet, CreateChangeSetData>] {
+        if (repo instanceof ChangeSetRepository) {
+            return [authService ?? repo.authService, changeSetRepository ?? repo.changeSetRepository];
+        }
+        if (authService == undefined || changeSetRepository == undefined) {
+            throw new InternalError('A change set repository over a driver takes the auth service and the repository of the change sets.');
+        }
+        return [authService, changeSetRepository];
     }
 
     override async create(data: CreateData, options?: CreateOptions<T>): Promise<T> {
@@ -134,7 +190,7 @@ export class ChangeSetRepository<
 
     override async updateAll<R extends boolean = false>(
         where: Where<T>,
-        data: UpdateData,
+        data: UpdateAllData<T, UpdateData>,
         options?: UpdateAllOptions<T, R>
     ): Promise<R extends true ? T[] : number> {
         // one transaction over the read, the update and the change sets. Taken here rather than left
@@ -649,7 +705,7 @@ export class ChangeSetRepository<
         if (!context) {
             return undefined;
         }
-        const user: BaseUser<string> | undefined = await this.authService.getCurrentUser(
+        const user: CurrentUser | undefined = await this.authService.getCurrentUser(
             context,
             this.authService.strategies,
             false

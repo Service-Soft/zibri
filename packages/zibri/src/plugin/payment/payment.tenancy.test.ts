@@ -9,7 +9,8 @@ import { ZibriPaymentPlugin } from './payment.plugin';
 import { DefaultPaymentProviderArray, ZIBRI_PAYMENT_PLUGIN_DI_TOKENS } from './payment.tokens';
 import { AnyPaymentProviderInterface } from './providers/payment-provider.interface';
 import { PaymentServiceInterface } from './services/payment-service.interface';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -53,7 +54,7 @@ describe('payments across tenants', () => {
     beforeAll(async () => {
         server = await startTestServer({
             plugins: [new ZibriPaymentPlugin()],
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Payment] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Payment], repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -69,11 +70,11 @@ describe('payments across tenants', () => {
                 })
             ]
         });
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps the payments of each tenant apart, a transactionId repeating only within one', async () => {
         const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);

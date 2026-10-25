@@ -4,8 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
 import { XRechnungConformanceService } from './x-rechnung-conformance.service';
+import { TestTimeouts } from '../../../../../__testing__/constants';
 import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
-import { createTestDataSource, defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
 import { PostgresDataSource } from '../../../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
@@ -128,7 +129,8 @@ function createValidInvoiceData(): OmitStrict<Invoice, 'id' | 'tenantId'> {
 
 describe('EN16931ConformanceService (base class error branches, exercised via PeppolConformanceService)', () => {
     const dataSourceClass: Newable<PostgresDataSource & { entities: Newable<BaseEntity>[] }> = createTestDataSource({
-        entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation]
+        entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation],
+        repositories: defaultTestServerRepositories
     });
 
     let server: StartedTestServer;
@@ -165,29 +167,29 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
         });
         repo = inject(repositoryTokenFor(Invoice));
         conformanceService = inject(PeppolConformanceService);
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('rejects when no CEO/trade contact has been provided', async () => {
         await reInitWithCompany({ ...baseCompanyInfo, ceo: undefined });
         const invoice: Invoice = await createInvoice(createValidInvoiceData());
         await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No trade contact has been provided/);
-    }, 15000);
+    }, TestTimeouts.postgres.restart);
 
     it('rejects when the iban is missing', async () => {
         await reInitWithCompany({ ...baseCompanyInfo, iban: undefined });
         const invoice: Invoice = await createInvoice(createValidInvoiceData());
         await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/iban and bic need to be provided/);
-    }, 15000);
+    }, TestTimeouts.postgres.restart);
 
     it('rejects when the bic is missing', async () => {
         await reInitWithCompany({ ...baseCompanyInfo, bic: undefined });
         const invoice: Invoice = await createInvoice(createValidInvoiceData());
         await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/iban and bic need to be provided/);
-    }, 15000);
+    }, TestTimeouts.postgres.restart);
 
     it('rejects when a tax-exempt item has no exemption reason', async () => {
         await reInitWithCompany(baseCompanyInfo);
@@ -197,7 +199,7 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
         item.vat.exemptionReason = undefined;
         const invoice: Invoice = await createInvoice(data);
         await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No exemption reason has been provided/);
-    }, 15000);
+    }, TestTimeouts.postgres.restart);
 
     it('rejects when the customer email is missing, and so is their electronic address', async () => {
         await reInitWithCompany(baseCompanyInfo);
@@ -208,11 +210,11 @@ describe('EN16931ConformanceService (base class error branches, exercised via Pe
         // through XRechnung, as only a standard naming a party by its email without an electronic
         // address reaches this; Peppol refuses the missing address first
         await expect(inject(XRechnungConformanceService).generateXml(invoice, 'UTC')).rejects.toThrow(/No customer email has been provided/);
-    }, 15000);
+    }, TestTimeouts.postgres.restart);
 
     it('rejects when the company tax number is missing', async () => {
         await reInitWithCompany({ ...baseCompanyInfo, taxNumber: undefined });
         const invoice: Invoice = await createInvoice(createValidInvoiceData());
         await expect(conformanceService.generateXml(invoice, 'UTC')).rejects.toThrow(/No tax number has been provided/);
-    }, 15000);
+    }, TestTimeouts.postgres.restart);
 });

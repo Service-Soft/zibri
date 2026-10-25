@@ -9,15 +9,15 @@ import { Change } from './models/change.model';
 import { SoftDeleteEntity } from './models/soft-delete-entity.model';
 import { SoftDeleteWhere } from './models/soft-delete-where.model';
 import { SoftDeleteRepository } from './soft-delete-repository';
+import { TestTimeouts } from '../__testing__/constants';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DefaultTestServerUserRepository } from '../__testing__/test-server/user-repository';
 import { AuthServiceInterface } from '../auth/auth-service.interface';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
 import { Auth } from '../auth/decorators/auth.decorator';
-import { BaseUserEntity } from '../auth/models/base-user.model';
 import { JwtAuthData } from '../auth/strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../auth/strategies/jwt/jwt.auth-strategy';
 import { Where } from '../data-source/models/where/where-filter.model';
@@ -32,6 +32,7 @@ import { PartialClass } from '../entity/partial-class.model';
 import { ConflictError } from '../error-handling/errors/conflict.error';
 import { NotFoundError } from '../error-handling/errors/not-found.error';
 import { InternalError } from '../error-handling/internal-error.model';
+import { KeysetPage } from '../open-api/pagination-result.model';
 import { Body } from '../routing/decorators/body.decorator';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Delete } from '../routing/decorators/delete.decorator';
@@ -50,12 +51,6 @@ class Task extends SoftDeleteEntity {
 
 class CreateTaskDto extends OmitClass(Task, ['changeSets', 'id', 'deleted']) {}
 class UpdateTaskDto extends PartialClass(OmitClass(Task, ['changeSets', 'id', 'deleted'])) {}
-
-@Entity({ tenant: 'shared' })
-class TestUser extends BaseUserEntity(Roles) {
-    @Property.string({ hash: true })
-    password!: string;
-}
 
 // ---------- Controller ----------
 @Controller('/tasks')
@@ -130,7 +125,8 @@ beforeAll(async () => {
         // src/data-source/tests cover
         dataSources: [
             createInMemoryDataSource({
-                entities: [...defaultTestServerEntities, Task, TestUser]
+                entities: [...defaultTestServerEntities, Task],
+                repositories: defaultTestServerRepositories
             })
         ],
         controllers: [TaskController]
@@ -160,11 +156,11 @@ beforeAll(async () => {
         undefined
     );
     accessToken = authData.accessToken.value;
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.inMemory.shutdown);
 
 beforeEach(async () => {
     await changeSetRepo.deleteAll({});
@@ -362,6 +358,43 @@ describe('SoftDeleteRepository behavior', () => {
         });
     });
 
+    describe('stream and findAllAfter', () => {
+        let activeId: string;
+        let removedId: string;
+
+        beforeEach(async () => {
+            activeId = (await taskRepo.create({ title: 'Active' })).id;
+            removedId = (await taskRepo.create({ title: 'Removed' })).id;
+            await taskRepo.deleteById(removedId);
+        });
+
+        it('streams only what has not been soft deleted, unless asked for', async () => {
+            const streamed: string[] = [];
+            for await (const task of taskRepo.stream()) {
+                streamed.push(task.id);
+            }
+            const streamedWithDeleted: string[] = [];
+            for await (const task of taskRepo.stream({ deleted: 'include' })) {
+                streamedWithDeleted.push(task.id);
+            }
+
+            expect(streamed).toContain(activeId);
+            expect(streamed).not.toContain(removedId);
+            expect(streamedWithDeleted).toEqual(expect.arrayContaining([activeId, removedId]));
+        });
+
+        it('walks only what has not been soft deleted, unless asked for', async () => {
+            const page: KeysetPage<Task> = await taskRepo.findAllAfter(undefined, 1000);
+            const only: KeysetPage<Task> = await taskRepo.findAllAfter(undefined, 1000, { deleted: 'only' });
+
+            expect(page.items.map(t => t.id)).toContain(activeId);
+            expect(page.items.map(t => t.id)).not.toContain(removedId);
+            expect(page.totalAmount).toBe(await taskRepo.count());
+            expect(only.items.map(t => t.id)).toContain(removedId);
+            expect(only.items.map(t => t.id)).not.toContain(activeId);
+        });
+    });
+
     describe('count and exists', () => {
         beforeEach(async () => {
             await taskRepo.create({ title: 'Active' });
@@ -376,6 +409,8 @@ describe('SoftDeleteRepository behavior', () => {
             expect(await taskRepo.count()).toBe(1);
             expect(await taskRepo.count({ deleted: 'include' })).toBe(2);
             expect(await taskRepo.count({ deleted: 'only' })).toBe(1);
+            expect(await taskRepo.count({ groupBy: ['title'] })).toEqual([{ title: 'Active', count: 1 }]);
+            expect(await taskRepo.count({ groupBy: ['title'], deleted: 'only' })).toEqual([{ title: 'Removed', count: 1 }]);
         });
 
         it('reports a soft deleted row as gone unless it is asked for', async () => {

@@ -14,7 +14,7 @@ export type BelongsToOnePropertyMetadata<T extends BaseEntity> = BaseRelationMet
     /**
      * The column on the current entity that holds the foreign key.
      */
-    joinColumn: string | undefined
+    joinColumn: string
 };
 
 /**
@@ -23,12 +23,12 @@ export type BelongsToOnePropertyMetadata<T extends BaseEntity> = BaseRelationMet
 export type BelongsToOnePropertyMetadataInput<
     T extends BaseEntity,
     TJoinKey extends string
-> = Partial<OmitStrict<BelongsToOnePropertyMetadata<T>, 'type'>>
+> = Partial<OmitStrict<BelongsToOnePropertyMetadata<T>, 'type' | 'joinColumn'>>
     & Pick<BelongsToOnePropertyMetadata<T>, 'target' | 'inverseSide'>
     & {
         /**
-         * The column on the current entity that holds the foreign key.
+         * The property of the current entity that holds the foreign key.
          * Must be an existing key on the decorated class.
          */
-        joinColumn?: TJoinKey
+        joinColumn: TJoinKey
     };

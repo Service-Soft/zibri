@@ -12,7 +12,8 @@ import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 import { JwtTestAuthController } from '../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
@@ -43,7 +44,7 @@ class MeController {
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): { id: string } {
         return { id: user.id };
     }
@@ -119,6 +120,7 @@ describe('AuthService — deactivating a user', () => {
     beforeAll(async () => {
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, ApiKey],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -157,7 +159,7 @@ describe('AuthService — deactivating a user', () => {
         const user: JwtUser = await createUser('bob');
         const { key }: CreatedApiKey = await authService().createApiKey(
             user.id,
-            { name: 'ci', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            { name: 'ci', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
             undefined
         );
         expect(await me({ 'x-api-key': key })).toBe(200);

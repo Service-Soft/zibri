@@ -1,4 +1,5 @@
 import { BaseUser } from './base-user.model';
+import { ProviderAuthentication } from './provider-authentication.model';
 import { FederatedSession } from '../authenticators/federated/federated-session.model';
 
 /**
@@ -19,5 +20,11 @@ export type Authentication<UserType extends BaseUser<string>> = {
      * The session at a provider the user signed in through, when they did. A strategy keeps it for the
      * whole login, refreshes included, so a logout at the provider can end it.
      */
-    federatedSession?: FederatedSession
+    federatedSession?: FederatedSession,
+    /**
+     * How the user proved who they are at the provider they signed in through, when the provider
+     * says. A strategy keeps it for the whole login, refreshes included, so a route can take the
+     * second factor presented there in place of one presented here.
+     */
+    providerAuthentication?: ProviderAuthentication
 };

@@ -32,13 +32,14 @@ import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
 import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
 import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
-import { FederatedSession } from '../../authenticators/federated/federated-session.model';
 import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
 import { type HashServiceInterface } from '../../hash/hash-service.interface';
 import { type HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
+import { EndedLogin } from '../../models/ended-login.model';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
 import { CsrfTokenAuthStrategyInterface } from '../csrf-token-auth-strategy.interface';
@@ -149,6 +150,8 @@ export class CookieAuthStrategy<
         private readonly sessionExpiresInMs: number,
         @Inject(ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS)
         private readonly refreshSessionExpiresInMs: number,
+        @Inject(ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_REUSE_GRACE_IN_MS)
+        private readonly refreshSessionReuseGraceInMs: number,
         @Inject(ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET)
         secret: string | undefined,
         @Inject(ZIBRI_DI_TOKENS.HASH_SERVICE)
@@ -249,6 +252,18 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async resolveProviderAuthentication(
+        context: HttpRequestContext | WebsocketRequestContext
+    ): Promise<ProviderAuthentication | undefined> {
+        // the refresh session's, read without validating for the reason resolveAuthenticatedAt gives
+        const refreshSession: CookieAuthRefreshSession | undefined = (await this.resolveRefreshSession(context, undefined))?.refreshSession;
+        if (!refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now()) {
+            return undefined;
+        }
+        return refreshSession.providerAuthentication ?? undefined;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveExpiresAt(context: HttpRequestContext | WebsocketRequestContext): Promise<Date | undefined> {
         // the refresh session's, read without validating for the reason resolveAuthenticatedAt gives:
         // a session that lapses before it is rotated into a new one, so the pair is accepted until then
@@ -270,9 +285,10 @@ export class CookieAuthStrategy<
             UUIDUtilities.generate(),
             transaction,
             refreshToken,
-            // rotation carries both from here on
+            // rotation carries all three from here on
             authentication.authenticatedAt,
-            FederatedSessionUtilities.toColumns(authentication.federatedSession)
+            FederatedSessionUtilities.toColumns(authentication.federatedSession),
+            authentication.providerAuthentication
         );
         const sessionToken: string = this.generateToken();
         const session: CookieAuthSession = await this.createSession(refreshSession, sessionToken, transaction);
@@ -313,7 +329,7 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async logout(data: CookieAuthLogoutData): Promise<FederatedSession | undefined> {
+    async logout(data: CookieAuthLogoutData): Promise<EndedLogin | undefined> {
         // the login of the cookies the request carries. It used to be the refresh session the body
         // named by id: a browser cannot read an httpOnly cookie to send it, and with the cookie no
         // longer being the id, naming one would have ended whichever login it belonged to
@@ -329,28 +345,26 @@ export class CookieAuthStrategy<
      * @param refreshSession - The refresh session, if the request carried one.
      * @param clearCookies - Whether to clear the cookies of the request as well.
      * @param transaction - The transaction to run in, if any.
-     * @returns The session at a provider the login was started at, if any.
+     * @returns The login ended, or undefined when the request carried none.
+     * @throws When the login could not be ended, which leaves it live - for the caller to record
+     * rather than for this to hide behind the answer of a login that was ended.
      */
     private async endFamily(
         refreshSession: CookieAuthRefreshSession | undefined,
         clearCookies: boolean,
         transaction: Transaction | undefined
-    ): Promise<FederatedSession | undefined> {
-        try {
-            if (refreshSession) {
-                await this.sessionRepository.deleteAll({ familyId: refreshSession.familyId }, { transaction });
-                await this.refreshSessionRepository.deleteAll({ familyId: refreshSession.familyId }, { transaction });
-            }
+    ): Promise<EndedLogin | undefined> {
+        if (refreshSession) {
+            await this.sessionRepository.deleteAll({ familyId: refreshSession.familyId }, { transaction });
+            await this.refreshSessionRepository.deleteAll({ familyId: refreshSession.familyId }, { transaction });
+        }
 
-            if (clearCookies) {
-                this.clearCookies();
-            }
-            return refreshSession == undefined ? undefined : FederatedSessionUtilities.fromColumns(refreshSession);
+        if (clearCookies) {
+            this.clearCookies();
         }
-        catch {
-            // ignore
-            return undefined;
-        }
+        return refreshSession == undefined
+            ? undefined
+            : { userId: refreshSession.userId, federatedSession: FederatedSessionUtilities.fromColumns(refreshSession) };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -366,8 +380,10 @@ export class CookieAuthStrategy<
             throw new UnauthorizedError($ts`No valid refresh session`);
         }
         const currentRefreshSession: CookieAuthRefreshSession = presented.refreshSession;
-        if (currentRefreshSession.blacklisted) {
-            await this.endFamily(currentRefreshSession, true, data.transaction);
+        if (currentRefreshSession.blacklisted && !this.isWithinReuseGrace(currentRefreshSession)) {
+            // outside the request's transaction: the refusal below rolls it back, and a family ended
+            // inside it came back with the rollback - reuse was detected and ended nothing
+            await this.endFamily(currentRefreshSession, true, undefined);
             // split out from the expiry check below only so that the trail can tell them apart. The
             // answer is identical - same status, same message - because whoever presented a spent
             // session is the last party who should learn that it was noticed.
@@ -423,36 +439,43 @@ export class CookieAuthStrategy<
         currentRefreshSession: CookieAuthRefreshSession,
         transaction: Transaction | undefined
     ): Promise<SessionPair> {
-        if (currentRefreshSession.blacklisted) {
+        if (currentRefreshSession.blacklisted && !this.isWithinReuseGrace(currentRefreshSession)) {
             // ends here. This used to log out and then carry on to mint a new refresh session and a
             // new access session in the same family, handing the presenter of a spent credential a
             // working session - the opposite of what detecting reuse is for. Both callers happen to
             // check `blacklisted` before getting here, so nothing could reach it, but that made it
             // untested code on the critical path rather than code that was correct.
-            await this.endFamily(currentRefreshSession, true, transaction);
+            // Outside the transaction, for the reason refreshLogin gives: the throw rolls it back
+            await this.endFamily(currentRefreshSession, true, undefined);
             throw new CredentialReusedError($ts`The given refresh session has already been used.`);
         }
         // 1. claim the old refresh, only while it is still usable (reuse detection). Reading it took
         // no lock, so two requests carrying the same cookie both reach this - the condition on the
         // write is what decides between them.
-        try {
-            await this.refreshSessionRepository.updateById(
-                currentRefreshSession.id,
-                { blacklisted: true },
-                { transaction, where: { blacklisted: false } }
-            );
-        }
-        catch (error) {
-            if (!(error instanceof NotFoundError)) {
-                throw error;
+        //
+        // A refresh session replaced within the grace is already claimed, and nothing is claimed
+        // again: the request was on the wire with the old cookies when another one rotated them, and
+        // it is minted a pair of its own in the same family. The grace runs from the first replacement
+        if (!currentRefreshSession.blacklisted) {
+            try {
+                await this.refreshSessionRepository.updateById(
+                    currentRefreshSession.id,
+                    { blacklisted: true, replacedAt: new Date() },
+                    { transaction, where: { blacklisted: false } }
+                );
             }
-            // only reachable by a session that was *not* blacklisted when it was read and then lost
-            // the claim to a concurrent request, because the branch above returns for one that was.
-            // So: a client with two requests in flight, not reuse. No logout, since ending the family
-            // would turn its own retry into an attack on itself, and deliberately not a
-            // CredentialReusedError - that retry would otherwise read as a stolen credential in the
-            // audit trail.
-            throw new UnauthorizedError($ts`The given refresh session has already been used.`);
+            catch (error) {
+                if (!(error instanceof NotFoundError)) {
+                    throw error;
+                }
+                // only reachable by a session that was *not* blacklisted when it was read and then
+                // lost the claim to a concurrent request, because the branch above returns for one
+                // that was. So: a client with two requests in flight, not reuse. No logout, since
+                // ending the family would turn its own retry into an attack on itself, and
+                // deliberately not a CredentialReusedError - that retry would otherwise read as a
+                // stolen credential in the audit trail.
+                throw new UnauthorizedError($ts`The given refresh session has already been used.`);
+            }
         }
 
         // 2. create new refresh (same family, new token, and with it a new csrf token). Carrying the
@@ -464,9 +487,11 @@ export class CookieAuthStrategy<
             currentRefreshSession.familyId,
             transaction,
             newRefreshToken,
-            // the login's time, not now: a rotation is not a login. Its session at a provider stays too
+            // the login's time, not now: a rotation is not a login. Its session at a provider stays
+            // too, and how the user proved who they are there
             currentRefreshSession.authenticatedAt,
-            FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(currentRefreshSession))
+            FederatedSessionUtilities.toColumns(FederatedSessionUtilities.fromColumns(currentRefreshSession)),
+            currentRefreshSession.providerAuthentication ?? undefined
         );
 
         // 3. create new access session
@@ -537,7 +562,10 @@ export class CookieAuthStrategy<
             return undefined;
         }
         const refreshSession: CookieAuthRefreshSession = presented.refreshSession;
-        if (new Date(refreshSession.expirationDate).getTime() <= Date.now() || refreshSession.blacklisted) {
+        if (
+            new Date(refreshSession.expirationDate).getTime() <= Date.now()
+                || (refreshSession.blacklisted && !this.isWithinReuseGrace(refreshSession))
+        ) {
             await this.endFamily(refreshSession, true, transaction);
             return undefined;
         }
@@ -546,10 +574,14 @@ export class CookieAuthStrategy<
         }
 
         const session: CookieAuthSession | undefined = await this.resolveSession(context, transaction);
-        if (!session) {
-            return undefined;
-        }
-        if (new Date(session.expirationDate).getTime() <= Date.now()) {
+        // the session cookie's maxAge is the session's lifetime and the row outlives it by five
+        // minutes, so a browser has dropped the cookie by the time the session lapses: the refresh
+        // cookie arriving alone is how a lapsed session shows. A cookie naming no row is neither,
+        // and is refused below
+        const lapsed: boolean = session == undefined
+            ? this.findCookieToken(context, this.sessionOptions) == undefined
+            : new Date(session.expirationDate).getTime() <= Date.now();
+        if (lapsed) {
             // a refresh like any other, so the authenticators have their say before anything rotates
             await this.resolveRefreshUser(refreshSession.userId, transaction);
             // the new csrf token reaches this caller through the response header, since this renewal
@@ -557,11 +589,21 @@ export class CookieAuthStrategy<
             return await this.rotateSessions(refreshSession, transaction);
         }
 
-        if (session.familyId !== refreshSession.familyId || session.userId !== refreshSession.userId) {
+        if (session?.familyId !== refreshSession.familyId || session.userId !== refreshSession.userId) {
             return undefined;
         }
 
         return { session, refreshSession, csrfToken: this.resolveCsrfTokenFor(presented.token) };
+    }
+
+    /**
+     * Whether a spent refresh session is still accepted: a rotation replaced it less than the grace ago.
+     * @param refreshSession - The stored refresh session.
+     * @returns True inside the grace.
+     */
+    private isWithinReuseGrace(refreshSession: CookieAuthRefreshSession): boolean {
+        return refreshSession.replacedAt != undefined
+            && Date.now() - new Date(refreshSession.replacedAt).getTime() < this.refreshSessionReuseGraceInMs;
     }
 
     private isCsrfTokenValid(
@@ -666,7 +708,8 @@ export class CookieAuthStrategy<
         transaction: Transaction | undefined,
         token: string,
         authenticatedAt: Date,
-        federatedSession: FederatedSessionColumns
+        federatedSession: FederatedSessionColumns,
+        providerAuthentication: ProviderAuthentication | undefined
     ): Promise<CookieAuthRefreshSession> {
         return await this.refreshSessionRepository.create({
             token,
@@ -675,6 +718,7 @@ export class CookieAuthStrategy<
             familyId,
             expirationDate: new Date(Date.now() + this.refreshSessionExpiresInMs + (Ms.MINUTE * 5)),
             authenticatedAt,
+            providerAuthentication,
             ...federatedSession
         }, { transaction });
     }

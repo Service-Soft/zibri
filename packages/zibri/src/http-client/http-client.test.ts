@@ -20,6 +20,8 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { register } from '../di/register.function';
 import { Property } from '../entity/decorators/property.decorator';
+import { ContentTooLargeError } from '../error-handling/errors/content-too-large.error';
+import { GlobalRegistry } from '../global/global-registry';
 import { HttpMethod } from '../http/http-method.enum';
 import { KnownHeader } from '../http/known-header.enum';
 import { MimeType } from '../http/mime-type.enum';
@@ -46,6 +48,20 @@ class FormDataItem {
     @Property.array({ items: { type: 'file', allowedMimeTypes: 'all' }, totalMaxSize: '5mb' })
     files!: File[];
 }
+
+const LARGE_ERROR_SIZE: number = 64 * 1024 * 1024;
+const LARGE_ERROR_CHUNK_SIZE: number = 64 * 1024;
+/**
+ * How much of the large error body the server managed to send during the last request for it.
+ */
+let largeErrorBytesSent: number = 0;
+
+// one application per file, not per describe - markAppAsCreated refuses a second one. The errors the
+// client builds for a refused body carry translated messages, which an application that is not at
+// least created refuses to build
+beforeAll(() => {
+    GlobalRegistry.markAppAsCreated();
+});
 
 describe('post', () => {
     let server: Server;
@@ -182,6 +198,23 @@ describe('get / put / patch / delete / headers / query params / error handling',
         app.get('/stream/labelled', (_req, res) => {
             res.type('binary/octet-stream').send(Buffer.from('raw bytes'));
         });
+        // a proxy answering a failure with a file: streamed, so what the client let through is countable
+        app.get('/error/large', (_req, res) => {
+            res.status(502).type('text/plain');
+            largeErrorBytesSent = 0;
+            const chunk: Buffer = Buffer.alloc(LARGE_ERROR_CHUNK_SIZE, 'x');
+            const writeMore: () => void = (): void => {
+                while (largeErrorBytesSent < LARGE_ERROR_SIZE && !res.destroyed) {
+                    largeErrorBytesSent += chunk.length;
+                    if (!res.write(chunk)) {
+                        res.once('drain', writeMore);
+                        return;
+                    }
+                }
+                res.end();
+            };
+            writeMore();
+        });
 
         server = createServer(app);
         await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -272,6 +305,16 @@ describe('get / put / patch / delete / headers / query params / error handling',
         await expect(http.get(`${baseUrl}/error/plain-text`)).rejects.toMatchObject({
             responseData: { body: 'something went wrong', status: 500 }
         });
+    });
+
+    it('stops reading the body of a failed response at the limit, and still names the status', async () => {
+        const error: unknown = await clientWith({ defaultMaxResponseSize: '1mb' }).get(`${baseUrl}/error/large`)
+            .catch((error_: unknown) => error_);
+
+        expect(error).toBeInstanceOf(HttpClientError);
+        expect(error).toMatchObject({ responseData: { status: 502, body: undefined } });
+        // the transfer was stopped, not read to the end and thrown away
+        expect(largeErrorBytesSent).toBeLessThan(LARGE_ERROR_SIZE);
     });
 
     it('throws a HttpClientError with requestData populated when no response can be received', async () => {
@@ -366,9 +409,11 @@ describe('fetchForLibrary', () => {
     });
 
     it('refuses a body larger than the application allows', async () => {
-        await expect(clientWith({ defaultMaxResponseSize: '1kb' }).fetchForLibrary(`${baseUrl}/large`, {}))
-            .rejects
-            .toThrow('Could not read the response body');
+        const refused: Promise<Response> = clientWith({ defaultMaxResponseSize: '1kb' }).fetchForLibrary(`${baseUrl}/large`, {});
+
+        await expect(refused).rejects.toThrow('Could not read the response body');
+        // for being too large, which is what the error carries as its cause
+        await expect(refused).rejects.toMatchObject({ cause: expect.any(ContentTooLargeError) });
     });
 
     it('reads a body larger than the application allows when the call allows it', async () => {

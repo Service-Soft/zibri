@@ -5,7 +5,8 @@ import { ChangeSetRepository } from './change-set-repository';
 import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
 import { Transaction } from '../data-source/transaction/transaction.model';
@@ -27,7 +28,8 @@ class Gauge extends BaseEntity implements ChangeSetEntity {
 
 // in memory, so a write still waiting in a transaction can be told apart from one that landed
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, Gauge]
+    entities: [...defaultTestServerEntities, Gauge],
+    repositories: defaultTestServerRepositories
 });
 
 describe('ChangeSetRepository, given the change set of another row', () => {
@@ -44,11 +46,11 @@ describe('ChangeSetRepository, given the change set of another row', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         gauges = repository;
         changeSets = inject(repositoryTokenFor(ChangeSet));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     /**
      * The id of the change set of a row of the given type.

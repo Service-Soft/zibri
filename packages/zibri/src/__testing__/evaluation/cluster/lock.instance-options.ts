@@ -3,6 +3,7 @@ import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServe
 import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../../data-source/repository/repository';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -11,7 +12,7 @@ import { type LeaseServiceInterface } from '../../../leases/lease-service.interf
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Post } from '../../../routing/decorators/post.decorator';
 import { Newable } from '../../../types/newable.type';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
 
 /**
@@ -72,6 +73,7 @@ class ClusterLockValKeyDataSource extends ValKeyDataSource {
         keyPrefix: 'cluster-lock'
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;
+    readonly repositories: RepositoryClass[] = [];
 }
 
 /**
@@ -138,7 +140,7 @@ const options: StartTestServerOptions = {
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark] }), ClusterLockValKeyDataSource],
+    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark], repositories: defaultTestServerRepositories }), ClusterLockValKeyDataSource],
     // spread rather than replaced: providers is the same field startTestServer takes, where what is
     // passed is what is used, so all the defaults have to be kept here
     providers: defaultClusterProviders

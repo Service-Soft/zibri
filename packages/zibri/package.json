@@ -12,9 +12,15 @@
             "types": "./dist/cjs/index.d.ts",
             "default": "./dist/cjs/index.js"
         },
+        "./webpack": {
+            "types": "./dist/cjs/webpack/index.d.ts",
+            "default": "./dist/cjs/webpack/index.js"
+        },
+        "./tsconfig.application.json": "./tsconfig.application.json",
         "./package.json": "./package.json"
     },
     "files": [
+        "./tsconfig.application.json",
         "./src",
         "!src/**/__testing__/**",
         "!src/**/test/**",
@@ -31,7 +37,7 @@
     },
     "scripts": {
         "test": "npm run test:normal && npm run test:heavy && npm run test:evaluation && npm run test:cluster && npm run test:benchmark",
-        "test:ci": "npm run test:coverage",
+        "test:ci": "npm run test:coverage && npm run test:evaluation && npm run test:cluster",
         "test:heavy": "jest --runInBand --testPathPatterns='(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts)'",
         "test:normal": "jest --testPathPatterns='^(?!.*(multithreading\\.service\\.performance\\.test\\.ts|pay-pal\\.payment-provider\\.test\\.ts|base-keycloak\\.authenticator\\.test\\.ts|\\.heavy\\.test\\.ts|\\.evaluation\\.test\\.ts|\\.cluster\\.test\\.ts|\\.benchmark\\.test\\.ts)).*'",
         "test:evaluation": "jest --testPathPatterns='\\.evaluation\\.test\\.ts$'",
@@ -71,9 +77,11 @@
         "@valkey/valkey-glide": "^2.5.0",
         "bcryptjs": "^3.0.3",
         "bignumber.js": "^11.1.1",
+        "copy-webpack-plugin": "^14.0.0",
         "handlebars": "^4.7.10",
         "jose": "^6.2.12",
         "ldapts": "^9.2.0",
+        "mini-css-extract-plugin": "^2.10.0",
         "nodemailer": "^10.0.13",
         "openid-client": "^6.8.8",
         "otpauth": "^9.5.1",
@@ -91,7 +99,8 @@
         "swagger2openapi": "^7.0.8",
         "systeminformation": "^5.31.6",
         "ts-node": "^10.9.2",
-        "typescript": "^5.9.2",
+        "typescript": "^5.9.2 || ^6.0.0",
+        "webpack": "^5.105.3",
         "zibri-tsx": "^3.0.0"
     },
     "peerDependenciesMeta": {
@@ -184,6 +193,15 @@
         },
         "@peculiar/x509": {
             "optional": true
+        },
+        "webpack": {
+            "optional": true
+        },
+        "copy-webpack-plugin": {
+            "optional": true
+        },
+        "mini-css-extract-plugin": {
+            "optional": true
         }
     },
     "dependencies": {
@@ -213,6 +231,7 @@
         "@types/swagger2openapi": "^7.0.4",
         "@valkey/valkey-glide": "^2.5.0",
         "bcryptjs": "^3.0.3",
+        "copy-webpack-plugin": "^14.0.0",
         "esbuild": "^0.25.12",
         "eslint": "^9.36.0",
         "eslint-config-service-soft": "^2.1.6",
@@ -221,6 +240,7 @@
         "jest": "^30.4.2",
         "jose": "^6.2.12",
         "ldapts": "^9.2.0",
+        "mini-css-extract-plugin": "^2.10.0",
         "nodemailer": "^10.1.0",
         "npm-run-all": "^4.1.5",
         "nyc": "^18.0.0",
@@ -244,6 +264,8 @@
         "ts-node": "^10.9.2",
         "typedoc": "^0.28.19",
         "typescript": "^5.9.2",
+        "typescript-6": "npm:typescript@^6.0.2",
+        "webpack": "^5.105.3",
         "zibri-testing": "^3.0.0"
     }
 }

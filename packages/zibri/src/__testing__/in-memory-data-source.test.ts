@@ -8,6 +8,7 @@ import { ZibriApplication } from '../application/application';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { FindAllPaginatedOptions } from '../data-source/models/options/find-all-paginated-options.model';
 import { Repository } from '../data-source/repository/repository';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { Transaction } from '../data-source/transaction/transaction.model';
 import { UniqueConstraintViolationError } from '../data-source/unique-constraint-violation.error';
 import { initDiContainer } from '../di/init-di-container.function';
@@ -23,13 +24,9 @@ import { Company } from './mocks/entities/company.entity';
 import { Profile } from './mocks/entities/profile.entity';
 import { Role } from './mocks/entities/role.entity';
 import { mockCreateUserData, User, UserCreateData } from './mocks/entities/user.entity';
-import { defaultTestServerEntities } from './test-server/create-test-data-source.function';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import './test-server/membership-repository';
+import { defaultTestServerEntities, defaultTestServerRepositories } from './test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from './test-server/plugins';
 import { defaultTestServerProviders } from './test-server/providers';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import './test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
 
 /**
  * The stub that keeps ZibriApplication.shutdown()'s unconditional process.exit from ending the run.
@@ -78,6 +75,7 @@ const testEntities: Newable<BaseEntity>[] = [...defaultTestServerEntities, User,
 @DataSource()
 class TestInMemoryDataSource extends InMemoryDataSource {
     entities: Newable<BaseEntity>[] = testEntities;
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 /**
@@ -106,7 +104,8 @@ async function bootApp(): Promise<StartedInMemoryApp> {
         cronJobs: [],
         authStrategies: [],
         twoFactorMethods: [],
-        defaultAuth: 'public'
+        defaultAuth: 'public',
+        twoFactorAtLogin: 'never'
     });
 
     try {

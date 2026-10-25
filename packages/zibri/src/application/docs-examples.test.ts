@@ -13,12 +13,11 @@ import ts from 'typescript';
  * enough to be written up as a finding rather than fixed, and `docs/caching.md` an import with no
  * `from` in it - see [07](../../../evaluation/07-documentation-vs-code.md).
  *
- * **A page is the unit, not a block.** Roughly three in five blocks are excerpts of what came
- * before them - a couple of lines of an options object, one decorated method, a provider added to a
- * list the page already showed - and they leave out the imports the page has already given. That is
- * how the pages are meant to be read, so it is how they are compiled: one module per page, blocks
- * in the order they appear, imports merged. What that still catches is everything about the code
- * itself, which is what rots.
+ * **A page is the unit the compiler sees, a block is the unit for imports.** Many blocks build on
+ * what came before them - an entity declared above, a provider added to a list the page already
+ * showed - so a page compiles as one module, blocks in the order they appear, imports merged. But a
+ * reader copies a block, not a page: each block imports exactly the names it uses. Checked per
+ * block, because the merge alone lets a block that forgot an import pass on another block's.
  */
 
 const DOCS_DIR: string = path.join(__dirname, '..', '..', 'docs');
@@ -48,7 +47,83 @@ type CompiledPage = {
     /**
      * The documentation line each emitted line came from, so a diagnostic points into the page.
      */
-    lineOrigins: number[]
+    lineOrigins: number[],
+    /**
+     * The index into `blocks` of the block each emitted line came from, -1 for the merged imports.
+     */
+    lineBlocks: number[],
+    /**
+     * The page's blocks, with what each of them imports itself.
+     */
+    blocks: ImportingBlock[],
+    /**
+     * The names the page declares at the top level without exporting them.
+     */
+    unexported: Set<string>
+};
+
+/**
+ * One block of a page, by what it imports.
+ */
+type ImportingBlock = {
+    /**
+     * The documentation line the block opens on.
+     */
+    line: number,
+    /**
+     * The file the block's first-line comment names, if it names one.
+     */
+    file: string | undefined,
+    /**
+     * The local names the block's own import lines bring in.
+     */
+    imported: Set<string>
+};
+
+/**
+ * What the code of each block of a page refers to, by block index.
+ */
+type BlockReferences = {
+    /**
+     * The names that resolve to the page's merged imports, which the block has to import itself.
+     */
+    imports: Map<number, Set<string>>,
+    /**
+     * Every name that resolves to an import or to something the page declares at the top level,
+     * which is what makes a name the block imports used.
+     */
+    referenced: Map<number, Set<string>>,
+    /**
+     * The names that come from another block's file, by an import the other block holds or a
+     * declaration in a block naming a different file.
+     */
+    fromOtherFiles: { block: number, name: string }[]
+};
+
+/**
+ * One page, assembled into a module.
+ */
+type AssembledPage = {
+    /**
+     * The module's lines: the merged imports, then every block's code.
+     */
+    lines: string[],
+    /**
+     * The documentation line each of the lines came from.
+     */
+    lineOrigins: number[],
+    /**
+     * The index into `blocks` of the block each of the lines came from, -1 for the merged imports.
+     */
+    lineBlocks: number[],
+    /**
+     * The page's blocks, with what each of them imports itself.
+     */
+    blocks: ImportingBlock[],
+    /**
+     * The names the page declares at the top level without exporting them.
+     */
+    unexported: Set<string>
 };
 
 /**
@@ -93,14 +168,25 @@ function blocksIn(content: string): { line: number, code: string[] }[] {
  * Merging rather than repeating, because the same name imported by two blocks of one page would
  * otherwise collide with itself - which says nothing about whether either block is right.
  * @param content - The page's content.
- * @returns The module's lines, and the documentation line each of them came from.
+ * @returns The module's lines, where each of them came from, and what each block imports itself.
  */
-function assemblePage(content: string): { lines: string[], lineOrigins: number[] } {
+// eslint-disable-next-line sonar/cognitive-complexity
+function assemblePage(content: string): AssembledPage {
     const importedFrom: Map<string, Set<string>> = new Map<string, Set<string>>();
+    // a reader's file is imported by a path relative to the block's own file, so `src/index.ts` and a
+    // controller name the same `User` as './models' and '../models'. Neither resolves here, and the
+    // second import would only collide with the first.
+    const importedFromReaderFiles: Set<string> = new Set<string>();
     const body: string[] = [];
     const bodyOrigins: number[] = [];
+    const bodyBlocks: number[] = [];
+    const blocks: ImportingBlock[] = [];
 
-    for (const block of blocksIn(content)) {
+    for (const [blockIndex, block] of blocksIn(content).entries()) {
+        const imported: Set<string> = new Set<string>();
+        // `// src/providers.ts - one more entry`, `// src/sign-in.ts, in the browser`
+        const file: string | undefined = /^\/\/\s+(\S+?\.tsx?)(?=[\s,]|$)/.exec(block.code[0] ?? '')?.[1];
+        blocks.push({ line: block.line, file, imported });
         for (const [offset, line] of block.code.entries()) {
             const match: RegExpExecArray | null = NAMED_IMPORT.exec(line.trim());
             const module: string | undefined = match?.[3];
@@ -110,6 +196,14 @@ function assemblePage(content: string): { lines: string[], lineOrigins: number[]
                     .map(entry => entry.trim())
                     .filter(entry => entry !== '');
                 for (const name of named) {
+                    const local: string = getLocalName(name);
+                    imported.add(local);
+                    if (module.startsWith('.')) {
+                        if (importedFromReaderFiles.has(local)) {
+                            continue;
+                        }
+                        importedFromReaderFiles.add(local);
+                    }
                     names.add(name);
                 }
                 importedFrom.set(module, names);
@@ -118,18 +212,134 @@ function assemblePage(content: string): { lines: string[], lineOrigins: number[]
             body.push(line);
             // +2: the fence line itself, and markdown lines counting from one
             bodyOrigins.push(block.line + offset + 1);
+            bodyBlocks.push(blockIndex);
         }
     }
 
+    // a reader's file the page itself shows, such as a service imported by the controller block
+    // below it, is that block's declaration here rather than an import
+    const declared: Map<string, boolean> = findTopLevelNames(body);
     const header: string[] = [...importedFrom.entries()]
-        .map(([module, names]) => `import { ${[...names].join(', ')} } from '${module}';`);
+        .map(([module, names]) => ({
+            module,
+            names: [...names].filter(name => !module.startsWith('.') || !declared.has(getLocalName(name)))
+        }))
+        .filter(({ names }) => names.length > 0)
+        .map(({ module, names }) => `import { ${names.join(', ')} } from '${module}';`);
 
     return {
         lines: [...header, ...body],
         // an import's own diagnostics belong to the page rather than to a line, since the statement
         // the compiler sees was assembled out of several
-        lineOrigins: [...header.map(() => 0), ...bodyOrigins]
+        lineOrigins: [...header.map(() => 0), ...bodyOrigins],
+        lineBlocks: [...header.map(() => -1), ...bodyBlocks],
+        blocks,
+        unexported: new Set([...declared.entries()].filter(([, exported]) => !exported).map(([name]) => name))
     };
+}
+
+/**
+ * Gets the name an entry of an import's braces brings into scope.
+ * @param entry - The entry, such as `Controller`, `type Ms` or `workerData as nodeWorkerData`.
+ * @returns Its last word.
+ */
+function getLocalName(entry: string): string {
+    return entry.split(/\s+/).at(-1) ?? entry;
+}
+
+/**
+ * Finds the names the code of a page declares at the top level.
+ * @param body - The page's code, without the import lines the assembly merges.
+ * @returns The names of its classes, functions, types, enums and variables, each with whether it is
+ * exported.
+ */
+function findTopLevelNames(body: string[]): Map<string, boolean> {
+    const names: Map<string, boolean> = new Map<string, boolean>();
+    const sourceFile: ts.SourceFile = ts.createSourceFile('page.tsx', body.join('\n'), ts.ScriptTarget.ES2022, false, ts.ScriptKind.TSX);
+    for (const statement of sourceFile.statements) {
+        const exported: boolean = ts.canHaveModifiers(statement)
+            && (ts.getModifiers(statement) ?? []).some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword);
+        if (ts.isVariableStatement(statement)) {
+            for (const declaration of statement.declarationList.declarations) {
+                if (ts.isIdentifier(declaration.name)) {
+                    names.set(declaration.name.text, exported);
+                }
+            }
+            continue;
+        }
+        if ((ts.isClassDeclaration(statement) || ts.isFunctionDeclaration(statement) || ts.isInterfaceDeclaration(statement)
+            || ts.isTypeAliasDeclaration(statement) || ts.isEnumDeclaration(statement)) && statement.name != undefined) {
+            names.set(statement.name.text, exported);
+        }
+    }
+    return names;
+}
+
+/**
+ * Resolves what the code of each block of a page refers to.
+ *
+ * A name counts when the compiler resolves it to an import or a top-level declaration of the page,
+ * so a property that happens to share an export's name does not.
+ * @param page - The page.
+ * @param sourceFile - The module the page was assembled into.
+ * @param checker - The checker of the program holding it.
+ * @returns The names each block refers to, and the ones it takes from another block's file.
+ */
+function resolveBlockReferences(page: CompiledPage, sourceFile: ts.SourceFile, checker: ts.TypeChecker): BlockReferences {
+    const references: BlockReferences = { imports: new Map(), referenced: new Map(), fromOtherFiles: [] };
+
+    // eslint-disable-next-line typescript/typedef
+    const blockOf = (node: ts.Node): number => {
+        const line: number = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line;
+        return page.lineBlocks[line] ?? -1;
+    };
+    // eslint-disable-next-line typescript/typedef
+    const add = (map: Map<number, Set<string>>, block: number, name: string): void => {
+        map.set(block, (map.get(block) ?? new Set<string>()).add(name));
+    };
+
+    // eslint-disable-next-line typescript/typedef, sonar/cognitive-complexity
+    const visit = (node: ts.Node): void => {
+        if (ts.isImportDeclaration(node)) {
+            return;
+        }
+        if (ts.isIdentifier(node)) {
+            const symbol: ts.Symbol | undefined = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
+                ? checker.getShorthandAssignmentValueSymbol(node.parent)
+                : checker.getSymbolAtLocation(node);
+            const declaration: ts.Declaration | undefined = symbol?.declarations?.[0];
+            if (symbol != undefined && declaration?.getSourceFile() === sourceFile) {
+                const block: number = blockOf(node);
+                const declaredIn: number = blockOf(declaration);
+                const isImport: boolean = ts.isImportSpecifier(declaration) || ts.isImportClause(declaration)
+                    || ts.isNamespaceImport(declaration);
+                const isTopLevel: boolean = ts.isSourceFile(declaration.parent)
+                    || (ts.isVariableDeclaration(declaration) && ts.isSourceFile(declaration.parent.parent.parent));
+                if (isImport && declaredIn === -1) {
+                    add(references.imports, block, symbol.name);
+                    add(references.referenced, block, symbol.name);
+                }
+                else if (isImport && declaredIn !== block) {
+                    // an import the assembly left in place, such as a default import, held by another block
+                    references.fromOtherFiles.push({ block, name: symbol.name });
+                }
+                else if (isTopLevel && declaredIn !== block) {
+                    add(references.referenced, block, symbol.name);
+                    const usingFile: string | undefined = page.blocks[block]?.file;
+                    const declaringFile: string | undefined = page.blocks[declaredIn]?.file;
+                    // a block without a path comment may well continue the file above it, so only
+                    // two blocks that both say which file they are can be told apart
+                    if (usingFile != undefined && declaringFile != undefined && usingFile !== declaringFile) {
+                        references.fromOtherFiles.push({ block, name: symbol.name });
+                    }
+                }
+            }
+        }
+        ts.forEachChild(node, visit);
+    };
+    ts.forEachChild(sourceFile, visit);
+
+    return references;
 }
 
 /**
@@ -155,6 +365,8 @@ const pages: CompiledPage[] = [];
 
 let workDir: string;
 
+let program: ts.Program;
+
 describe('the examples in docs/', () => {
 
     beforeAll(() => {
@@ -163,31 +375,24 @@ describe('the examples in docs/', () => {
         workDir = mkdtempSync(path.join(root, 'docs-examples-'));
 
         for (const name of readdirSync(DOCS_DIR).filter(entry => entry.endsWith('.md'))) {
-            const assembled: { lines: string[], lineOrigins: number[] } = assemblePage(
-                readFileSync(path.join(DOCS_DIR, name), 'utf8')
-            );
+            const assembled: AssembledPage = assemblePage(readFileSync(path.join(DOCS_DIR, name), 'utf8'));
             if (assembled.lines.length === 0) {
                 continue;
             }
             // .tsx throughout: the templating pages hold jsx, and a page without any is unaffected
             const filePath: string = path.join(workDir, `${name.replace('.md', '')}.tsx`);
             writeFileSync(filePath, assembled.lines.join('\n'));
-            pages.push({ documentation: name, filePath, lineOrigins: assembled.lineOrigins });
+            pages.push({
+                documentation: name,
+                filePath,
+                lineOrigins: assembled.lineOrigins,
+                lineBlocks: assembled.lineBlocks,
+                blocks: assembled.blocks,
+                unexported: assembled.unexported
+            });
         }
-    });
 
-    afterAll(() => {
-        rmSync(workDir, { recursive: true, force: true });
-    });
-
-    it('finds examples to check', () => {
-        // a guard on the extraction rather than on the docs: a fence format this stops recognizing
-        // would make the assertion below pass by having nothing left to say.
-        expect(pages.length).toBeGreaterThan(20);
-    });
-
-    it('compiles, every page of them', () => {
-        const program: ts.Program = ts.createProgram(pages.map(page => page.filePath), {
+        program = ts.createProgram(pages.map(page => page.filePath), {
             // what `zi new` scaffolds, because that is the project a reader pastes into
             strict: true,
             experimentalDecorators: true,
@@ -211,7 +416,58 @@ describe('the examples in docs/', () => {
                 'zibri-tsx/jsx-runtime': [path.join(__dirname, '..', '..', '..', 'tsx', 'src', 'jsx-runtime.ts')]
             }
         });
+    }, 120_000);
 
+    afterAll(() => {
+        rmSync(workDir, { recursive: true, force: true });
+    });
+
+    it('finds examples to check', () => {
+        // a guard on the extraction rather than on the docs: a fence format this stops recognizing
+        // would make the assertions below pass by having nothing left to say.
+        expect(pages.length).toBeGreaterThan(20);
+    });
+
+    // eslint-disable-next-line sonar/cognitive-complexity
+    it('imports in every block exactly what that block uses', () => {
+        const checker: ts.TypeChecker = program.getTypeChecker();
+
+        const failures: string[] = [];
+        for (const page of pages) {
+            const sourceFile: ts.SourceFile | undefined = program.getSourceFile(page.filePath);
+            if (sourceFile == undefined) {
+                continue;
+            }
+            const references: BlockReferences = resolveBlockReferences(page, sourceFile, checker);
+            for (const [index, block] of page.blocks.entries()) {
+                for (const name of references.imports.get(index) ?? []) {
+                    if (!block.imported.has(name)) {
+                        failures.push(`docs/${page.documentation}:${block.line} - uses ${name} without importing it`);
+                    }
+                }
+                const referenced: Set<string> = references.referenced.get(index) ?? new Set<string>();
+                for (const name of block.imported) {
+                    if (!referenced.has(name)) {
+                        failures.push(`docs/${page.documentation}:${block.line} - imports ${name} without using it`);
+                    }
+                    // the relative import is left out of the compiled module, so nothing else sees this
+                    if (page.unexported.has(name)) {
+                        failures.push(`docs/${page.documentation}:${block.line} - imports ${name}, which the page declares without exporting it`);
+                    }
+                }
+            }
+            for (const { block, name } of references.fromOtherFiles) {
+                if (page.blocks[block]?.imported.has(name) !== true) {
+                    const line: number = page.blocks[block]?.line ?? 0;
+                    failures.push(`docs/${page.documentation}:${line} - uses ${name} without importing it`);
+                }
+            }
+        }
+
+        expect([...new Set(failures)]).toEqual([]);
+    }, 120_000);
+
+    it('compiles, every page of them', () => {
         const byPath: Map<string, CompiledPage> = new Map(pages.map(page => [page.filePath, page]));
 
         const failures: string[] = [];

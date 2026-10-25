@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { NewCommand } from './new.command';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
+import { EVERY_FEATURE } from '../../__testing__/generated-file-paths';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities } from '../../encapsulation';
 import { Path } from '../../utilities';
@@ -37,7 +38,7 @@ describe('NewCommand (real npm install)', () => {
     });
 
     it('really installs devDependencies and links zibri to the local workspace build', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(await FsUtilities.exists(path.join(appDir, 'node_modules', 'webpack') as Path)).toBe(true);
@@ -52,7 +53,7 @@ describe('NewCommand (real npm install)', () => {
     }, TEST_TIMEOUT_MS);
 
     it('builds only what the bundle imports, so a broken test does not break the build', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
         const appDir: Path = path.join(workDir, 'api') as Path;
         // jest reports this when the tests run. The build used to compile every file the tsconfig
         // includes, so it failed here too and "start" never restarted the server
@@ -62,17 +63,37 @@ describe('NewCommand (real npm install)', () => {
     }, CI_WORKFLOW_TIMEOUT_MS);
 
     it('passes its own ci workflow on a checkout, which has no ".env"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin']));
-        const appDir: Path = path.join(workDir, 'api') as Path;
-        // what a clone has: everything committed. ".env" is git ignored, and it is what the tests
-        // would otherwise read their secrets from
-        await FsUtilities.rm(path.join(appDir, '.env') as Path);
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin', EVERY_FEATURE]));
+        await runWorkflowOnCheckout(path.join(workDir, 'api') as Path);
+    }, CI_WORKFLOW_TIMEOUT_MS);
 
-        // the first time anything runs a generated project's own tests - and the workflow's commands
-        // as written, in order, so a step that only works on the machine that ran "zi new" fails here
-        const workflow: string = await FsUtilities.readFile(path.join(appDir, '.github', 'workflows', 'ci.yml') as Path);
-        for (const command of findWorkflowCommands(workflow)) {
-            execSync(command, { cwd: appDir, stdio: 'pipe', shell: '/bin/bash' });
+    // round-2 08 §X14: the JSON API builds without the stylesheet's packages, which it never installed
+    it('builds and tests a project without features, which installs nothing for a stylesheet', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin', 'none']));
+        const appDir: Path = path.join(workDir, 'api') as Path;
+
+        await runWorkflowOnCheckout(appDir);
+
+        for (const name of ['tailwindcss', 'mini-css-extract-plugin', 'chart.js']) {
+            expect(await FsUtilities.exists(path.join(appDir, 'node_modules', name) as Path)).toBe(false);
         }
+        expect(await FsUtilities.exists(path.join(appDir, 'dist', 'bundle.js') as Path)).toBe(true);
     }, CI_WORKFLOW_TIMEOUT_MS);
 });
+
+/**
+ * Runs a generated project's ci workflow the way it runs on a checkout.
+ * @param appDir - The project.
+ */
+async function runWorkflowOnCheckout(appDir: Path): Promise<void> {
+    // what a clone has: everything committed. ".env" is git ignored, and it is what the tests
+    // would otherwise read their secrets from
+    await FsUtilities.rm(path.join(appDir, '.env') as Path);
+
+    // the first time anything runs a generated project's own tests - and the workflow's commands
+    // as written, in order, so a step that only works on the machine that ran "zi new" fails here
+    const workflow: string = await FsUtilities.readFile(path.join(appDir, '.github', 'workflows', 'ci.yml') as Path);
+    for (const command of findWorkflowCommands(workflow)) {
+        execSync(command, { cwd: appDir, stdio: 'pipe', shell: '/bin/bash' });
+    }
+}

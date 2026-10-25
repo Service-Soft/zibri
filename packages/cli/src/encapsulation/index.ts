@@ -3,3 +3,4 @@ export * from './figlet.utilities';
 export * from './inquirer.utilities';
 export * from './fs.utilities';
 export * from './cp.utilities';
+export * from './git.utilities';

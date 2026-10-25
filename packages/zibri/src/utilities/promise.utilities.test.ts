@@ -4,13 +4,15 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { PromiseUtilities, TimeoutError } from './promise.utilities';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 
 // this repository's own fixtures rather than an empty store: importing the harness registers
 // JwtUser, and a data source that does not carry it is refused by name
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 describe('PromiseUtilities', () => {
@@ -20,11 +22,11 @@ describe('PromiseUtilities', () => {
         // nothing here stores anything - what the server is for is an initialized application, since
         // `$ts` refuses to translate while one is offline
         server = await startTestServer({ dataSources: [dataSourceClass] });
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     describe('allChunked', () => {
         it('resolves all items in order', async () => {

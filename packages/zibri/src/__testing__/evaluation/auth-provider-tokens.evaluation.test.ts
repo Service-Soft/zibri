@@ -10,6 +10,7 @@ import { FederatedLoginAttempt } from '../../auth/authenticators/federated/feder
 import { FederatedRegistrationTicket } from '../../auth/authenticators/federated/federated-registration-ticket.model';
 import { OAuthClientAuthentication } from '../../auth/authenticators/oauth/oauth-client-authentication.model';
 import { BaseOidcAuthenticator } from '../../auth/authenticators/oidc/base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../../auth/authenticators/oidc/oidc-authentication-time.type';
 import { OidcBearerTokens } from '../../auth/authenticators/oidc/oidc-bearer-tokens.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
@@ -25,8 +26,9 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -36,12 +38,14 @@ const API_AUDIENCE: string = 'https://api.zibri.test';
 
 let provider: FakeOAuthProvider;
 
-class CompanyProviderAuthenticator extends BaseOidcAuthenticator<Roles, JwtUser> {
+class CompanyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
     readonly name: string = 'company';
 
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
+
+    readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     override readonly bearerTokens: OidcBearerTokens = { accessTokenAudiences: [API_AUDIENCE], accessTokenType: 'at+jwt', idTokenAudiences: [] };
 
@@ -63,7 +67,7 @@ class EvaluationProviderTokensController {
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): { id: string } {
         return { id: user.id };
     }
@@ -84,6 +88,7 @@ describe('evaluation/03-auth-and-security H14 - an identity provider\'s tokens a
                 FederatedRegistrationTicket,
                 FederatedConnectionCode
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -106,12 +111,12 @@ describe('evaluation/03-auth-and-security H14 - an identity provider\'s tokens a
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await provider?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('verifies a token the provider issued against the keys the provider publishes', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'mobile@example.com', roles: [Roles.USER] });

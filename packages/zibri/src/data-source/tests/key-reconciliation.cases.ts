@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
 
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -127,7 +127,22 @@ type ReconciledDataSource = {
      * The entities the class holds, the widget last - which the cases swap for another release of it
      * before each start.
      */
-    entities: Newable<BaseEntity>[]
+    entities: Newable<BaseEntity>[],
+    /**
+     * Runs a statement on the store as somebody other than the application, for a store that takes
+     * statements: what the cases create beside what the entity declares.
+     */
+    runStatement?: <T>(sql: string) => Promise<T[]>
+};
+
+/**
+ * One index of the widget's table, as postgres lists it.
+ */
+type WidgetIndexRow = {
+    /**
+     * The name of the index.
+     */
+    indexname: string
 };
 
 /**
@@ -145,6 +160,10 @@ type ReconciledServer = {
      */
     widgets: () => Repository<PlainWidget>,
     /**
+     * What the release started last logged at info while it booted.
+     */
+    bootLog: () => string[],
+    /**
      * Shuts the server down, and whatever it started for it.
      */
     shutdown: () => Promise<void>
@@ -160,7 +179,7 @@ type ReconciledServer = {
  */
 export function describeKeyReconciliation(dataSourceName: string, reconciled: ReconciledDataSource): void {
     // the framework's own entities, in a data source of their own that needs no container
-    const frameworkDataSourceClass: Newable<DataSourceInterface> = createInMemoryDataSource({ entities: defaultTestServerEntities });
+    const frameworkDataSourceClass: Newable<DataSourceInterface> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
     let widget: Newable<PlainWidget> = PlainWidget;
 
     /**
@@ -196,6 +215,7 @@ export function describeKeyReconciliation(dataSourceName: string, reconciled: Re
                 await server.reInit({ version: nextVersion });
             },
             widgets: () => inject(reconciled.dataSourceClass).getRepository(widget),
+            bootLog: () => server.bootLog,
             shutdown: async () => await server.shutdown()
         };
     }
@@ -339,6 +359,62 @@ export function describeKeyReconciliation(dataSourceName: string, reconciled: Re
             await server.restart(KeyedWidget, '2.1.0');
 
             await expect(server.restart(PlainWidget, '2.0.5')).rejects.toThrow(/zibri:indexes-and-uniques/);
+        }, 60000);
+    });
+
+    const runStatement: (<T>(sql: string) => Promise<T[]>) | undefined = reconciled.runStatement;
+    if (runStatement == undefined) {
+        return;
+    }
+
+    // evaluation/round-2/02-data-layer-stores.md S2: every index whose name merely looked like one
+    // the data source creates was dropped at the next boot, without a word
+    describe(`the indexes of ${dataSourceName} somebody else created`, () => {
+        let server: ReconciledServer;
+
+        /**
+         * Lists the indexes of the widget's table.
+         * @returns Their names.
+         */
+        const findWidgetIndexes: () => Promise<string[]> = async () => {
+            const rows: WidgetIndexRow[] = await runStatement<WidgetIndexRow>(
+                'SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() AND tablename = \'reconciled_widget\''
+            );
+            return rows.map(r => r.indexname);
+        };
+
+        beforeAll(async () => {
+            server = await start(KeyedWidget, '3.0.0');
+        }, 60000);
+
+        afterAll(async () => {
+            await server.shutdown();
+        }, 30000);
+
+        it('leaves an index it did not create alone, whatever it is named', async () => {
+            // the most common prefix of a hand-written index, and one that, unquoted, folds into the
+            // data source's own way of naming them
+            await runStatement('CREATE INDEX "IDX_by_hand" ON reconciled_widget (code, shelf)');
+            await runStatement('CREATE INDEX IDX_reconciled_widget_by_hand ON reconciled_widget (shelf, code)');
+
+            await server.restart(PlainWidget, '3.1.0');
+
+            expect(await findWidgetIndexes()).toEqual(expect.arrayContaining(['IDX_by_hand', 'idx_reconciled_widget_by_hand']));
+        }, 60000);
+
+        it('drops what a release no longer declares and what 2.x let the orm name, saying so', async () => {
+            await server.restart(KeyedWidget, '3.2.0');
+            // the orm's default name: its prefix, then 26 characters of a hash
+            await runStatement('CREATE INDEX "IDX_0123456789abcdef0123456789" ON reconciled_widget (code)');
+
+            await server.restart(PlainWidget, '3.3.0');
+
+            const indexes: string[] = await findWidgetIndexes();
+            expect(indexes).not.toContain('IDX_0123456789abcdef0123456789');
+            expect(indexes).not.toContain('idx_reconciled_widget_shelf');
+            const logged: string = server.bootLog().join('\n');
+            expect(logged).toMatch(/IDX_0123456789abcdef0123456789/);
+            expect(logged).toMatch(/idx_reconciled_widget_shelf/);
         }, 60000);
     });
 }

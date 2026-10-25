@@ -2,7 +2,7 @@ import { BaseEntity, Entity, File, MimeType, OmitClass, PartialClass, Property }
 
 @Entity()
 export class Test extends BaseEntity {
-    // the company the row belongs to
+    // the tenant the row belongs to
     @Property.string({ format: 'uuid' })
     tenantId!: string;
 

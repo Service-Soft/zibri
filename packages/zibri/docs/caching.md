@@ -1,5 +1,5 @@
 # Caching
-Caching in Zibri is based on first creating a cache class and then using that class with the help of decorators.
+A cache keeps what a method returned, so a repeated call is answered without running the method again. You define a cache as a class, and apply it to methods with decorators.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -15,23 +15,19 @@ Caching in Zibri is based on first creating a cache class and then using that cl
 | `MultiTierCache` | class | Combines multiple caches into tiers, checked in order |
 | `InMemoryCacheStore` | class | In-memory cache store implementation |
 | `ValKeyCacheStore` | class | Cache store shared by every instance of an app |
-| `CacheExpiryCleanupCronJob` | cron job | Gives back the room values whose time to live has run out were holding. Registered for you |
+| `CacheExpiryCleanupCronJob` | cron job | Gives back the room held by values whose time to live has run out. Registered for you |
 | `cacheKeyOf` | function | The value a store keys an entry by, holding the active tenant |
+| `SelfDescribing` | type | A value that names its class in a `className` property, so a shared store can read it back as that class |
 | `CacheServiceInterface` | interface | Service tracking the registered caches |
 | `ZIBRI_DI_TOKENS.CACHE_SERVICE` | DI token | Injects `CacheServiceInterface` |
-| `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` | DI token | Injects the current request context, usable eg. for cache keys |
+| `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` | DI token | Injects the current request context, for building cache keys for example |
 
-## Usage
-### Defining a cache
-Zibri provides caches for all combinations of write and read strategies.
+## Defining a cache
+There is a cache base class for every combination of a write strategy and a read strategy.
 
 ```ts
 // src/caching/static-pages.cache.ts
-import { Cache, Cached, CacheServiceInterface, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, Inject, inject, InMemoryCacheStore, LoggerInterface, MetricsServiceInterface, MultiTierCache, Response, TsxUtilities, ValKeyCacheStore, WebsocketRequestContext, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
-
-import { CacheDbDataSource } from '../data-sources';
-import { FastCache, SlowCache } from './tiers';
-import { HomePage } from '../templates/pages/home';
+import { Cache, CacheServiceInterface, HtmlResponse, Inject, InMemoryCacheStore, LoggerInterface, MetricsServiceInterface, WriteThroughReadThroughCache, ZIBRI_DI_TOKENS } from 'zibri';
 
 @Cache()
 export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlResponse, 'StaticPagesCache'> {
@@ -48,48 +44,51 @@ export class StaticPagesCache extends WriteThroughReadThroughCache<string, HtmlR
 }
 ```
 
-### Using a cache
-As you can see, the above uses a really simple in memory cache store. Zibri also ships a `ValKeyCacheStore`, which shares the cache between all instances of an app. It takes the `ValKeyDataSource` whose connection it should use:
+## Using a cache
+The cache above keeps its values in an `InMemoryCacheStore`, inside the process. A `ValKeyCacheStore` shares the cache between all instances of an application. It takes the `ValKeyDataSource` whose connection it uses:
 
 ```ts
+// src/caching/static-pages.store.ts
+import { HtmlResponse, inject, ValKeyCacheStore } from 'zibri';
+
+import { CacheDbDataSource } from '../data-sources';
+
 const sharedStore: ValKeyCacheStore<string, HtmlResponse> = new ValKeyCacheStore(
     inject(CacheDbDataSource),
     { model: HtmlResponse, maxEntries: 5000 }
 );
 ```
 
-`model` says what the store holds, and it is required rather than optional. A store outside the
-process writes json and reads json back, and json carries neither a `Date` nor a `bigint` nor an
-exact decimal — each goes out as text and comes back as text, with nothing saying what the text
-stood for. Naming the class lets the store read a value back the same way a request body is read, so
-a cached entity comes back with the types it was cached with.
+`model` is required, and says what the store holds. The store reads a value back the way a request
+body is read, so a cached entity comes back with the types it was cached with, a `Date`, a `bigint`
+and an exact decimal included.
 
-Pass `'plain'` when there is no shape to read — a number, a string, a plain object of them:
+Pass `'plain'` for a value with no shape to read, such as a number, a string or a plain object of them:
 
 ```ts
+// src/caching/counter.store.ts
+import { inject, ValKeyCacheStore } from 'zibri';
+
+import { CacheDbDataSource } from '../data-sources';
+
 const counterStore: ValKeyCacheStore<string, number> = new ValKeyCacheStore(
     inject(CacheDbDataSource),
     { model: 'plain' }
 );
 ```
 
-The `InMemoryCacheStore` takes no `model`, because it never serializes: it hands back the object it
-was given.
+`InMemoryCacheStore` takes no `model`. It never serializes, and hands back the object it was given.
 
-A model has to be a class whose instances say what they are, because a class itself does not survive
-json — the values come back and the prototype does not, so `instanceof` answers no for a value that
-merely went into a shared store and came back. Saying it in a property instead is what keeps that
-answerable:
+A value read back from a shared store has lost the prototype of its class, so `instanceof` answers
+no for it. A model therefore implements `SelfDescribing`: its instances name their class in a
+property.
 
 ```ts
 // src/models/invoice.model.ts
-import { BaseEntity, BigNumber, Entity, Property, SelfDescribing } from 'zibri';
+import { BaseTenantEntity, BigNumber, Entity, Property, SelfDescribing } from 'zibri';
 
 @Entity()
-export class Invoice extends BaseEntity implements SelfDescribing {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Invoice extends BaseTenantEntity implements SelfDescribing {
     @Property.string({ exclude: true })
     readonly className: 'Invoice' = 'Invoice';
 
@@ -101,20 +100,23 @@ export class Invoice extends BaseEntity implements SelfDescribing {
 }
 ```
 
-`exclude` keeps it wiring rather than part of what a caller is answered with. With it declared, an
-`Invoice` read out of a shared cache still has a `BigNumber` for its total and a `Date` for its
-date, and anything asking what it is still gets an answer.
+`exclude` keeps `className` out of what a caller is answered with. An `Invoice` read out of a shared
+cache has a `BigNumber` for its total, a `Date` for its date, and a `className` that says what it is.
 
-Both stores hold at most `maxEntries` entries and at most `maxBytes` of them, and go past either limit by removing entries the configured `removeOnOverflow` strategy picks. You can of course still provide your own store instead.
+Both stores hold at most `maxEntries` entries and at most `maxBytes` of them. Past either limit, they remove the entries the configured `removeOnOverflow` strategy picks. You can also provide a store of your own.
 
-To use your cache, you can use the provided decorators on whichever method that should be cached:
+Apply your cache with the decorators, on the method to cache:
 
 ```ts
 // src/controllers/page.controller.ts
+import { Cached, Controller, Get, GlobalRegistry, HtmlResponse, HttpRequestContext, inject, Response, TsxUtilities, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
+
+import { StaticPagesCache } from '../caching/static-pages.cache';
+import { HomePage } from '../templates/pages/home';
+
 @Controller('/')
 export class PageController {
     @Cached(StaticPagesCache, () => {
-        // if you only have a single locale configured you could also just use 'index' here.
         const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         return ctx?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_LOCALE) + 'index';
     })
@@ -127,53 +129,58 @@ export class PageController {
 }
 ```
 
-Other decorators include:
-- CacheDelete
-- CacheInvalidate
-- CacheWrite
+The key holds the locale, so each locale gets its own page. With a single locale, `'index'` is key enough.
 
-#### What a key may be
+The other decorators are:
+- `CacheDelete`
+- `CacheInvalidate`
+- `CacheWrite`
 
-A key provider can return a string or an object — `{ userId, tenantId }` built from the arguments is
-an ordinary key. Keys are compared by what they contain rather than by identity, so a provider
-building a fresh object on every call finds what the previous call stored, and two call sites
-building the same key find each other's entries even when they write the properties in a different
-order.
+### What a key may be
 
-Array order is kept, because it carries meaning: a key holding `['name', 'createdAt']` is a different
-key from one holding `['createdAt', 'name']`, so a cached sort is never served for another one.
+A key provider returns a string or an object. `{ userId, tenantId }` built from the arguments is an
+ordinary key. Keys are compared by what they contain, not by identity. A provider that builds a
+fresh object on every call finds what the previous call stored, and two call sites that build the
+same key find each other's entries, in whatever order they write the properties.
+
+Array order counts: a key holding `['name', 'createdAt']` is a different key from one holding
+`['createdAt', 'name']`, so a cached sort is never served for another sort.
 
 A key holds the [tenant](./tenancy.md#work-outside-a-request) active while it is used, so each tenant
 reads and fills its own entries under the same key. A tag invalidates its entries in every tenant.
 To invalidate the entries of one tenant only, put the tenant id in the tag.
 
-A store of your own keys each entry by what `cacheKeyOf(key)` returns, which is how both stores Zibri
-ships compare keys.
+A store of your own keys each entry by what `cacheKeyOf(key)` returns. Both stores Zibri ships
+compare keys that way.
 
-#### One call per key at a time
+### One call per key at a time
 
 When several callers miss the same key at once, the first one runs the method and the rest wait for
-its result instead of running their own. That holds for every cache, multi tier ones included, and it
-is what keeps a popular key expiring from reaching the origin as a burst rather than as one call.
+its result. That holds for every cache, multi tier ones included. A popular key that expires reaches
+the origin as one call, not as a burst.
 
-It coalesces within one instance. Two replicas missing the same key at the same moment are two calls
-— what they share is the store, so the second sees the value once the first has written it.
+This holds within one instance. Two instances missing the same key at the same moment make two
+calls. They share the store, so either one sees the value once the other has written it.
 
-### Expiry and the size budget
+## Expiry and the size budget
 
-A time to live decides how long a value stays usable, and a cache answers with what is still usable: a value whose time has run out is reported as a miss and taken out of the store, so the next caller gets a fresh one. Reading it is not what keeps it — an expired value gives up its place immediately, and the entries eviction protects are the ones still being used.
+A time to live decides how long a value stays usable. A value whose time has run out is reported as a miss and taken out of the store, so the next caller gets a fresh one. Reading an expired value does not keep it: it gives up its place at once, and eviction protects the entries that are still in use.
 
-Room comes back on its own, too. `CacheExpiryCleanupCronJob` is registered for you as soon as your app has a cache, and takes the values whose time has run out out of every cache once a minute. Without it a value that nobody asks for a second time would go on taking up room until something else needed the space, and `cache_size` would count entries that can no longer answer anything. `cache_expired_evictions_total` counts what leaves for having expired, labelled by cache.
+`CacheExpiryCleanupCronJob` is registered for you once your application has a cache. Once a minute it takes the values whose time has run out out of every cache, so a value nobody asks for again gives its room back, and `cache_size` counts only entries that can still answer. `cache_expired_evictions_total` counts what leaves for having expired, labeled by cache.
 
-The byte budget means the same thing on every instance. Writing a value and removing one each happen in a single step, so instances writing the same key at the same time agree about how much the store holds, and `maxBytes` stays the size the cache actually keeps rather than a number that drifts away from it.
+The byte budget means the same thing on every instance. Instances writing the same key at the same time agree on how much the store holds, so `maxBytes` is the size the cache keeps.
 
-### Multi Tier Caches
-Multi Tier Caches are natively built into Zibri. They provide a clean way to define:<br>
-Use the in memory cache if available. If it's not available: Look it up inside the redis cache. If that's also not available: Actually run the underlying method and fill all caches.
+## Combining caches into tiers
+A `MultiTierCache` checks its caches in order, fastest first. With an in-memory cache over a cache on a `ValKeyCacheStore`, a call is answered from memory when it can be, from the shared store otherwise, and runs the method only when neither holds the value. A hit in a slower tier fills the faster ones, and running the method fills every tier.
 
 ```ts
+// src/caching/task-count.cache.ts
+import { Cache, CacheServiceInterface, Inject, LoggerInterface, MetricsServiceInterface, MultiTierCache, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { FastCache, SlowCache } from './tiers';
+
 @Cache()
-class TestMultiTierCache extends MultiTierCache<string, number, [FastCache, SlowCache]> {
+export class TaskCountCache extends MultiTierCache<string, number, [FastCache, SlowCache]> {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         protected readonly logger: LoggerInterface,
@@ -186,25 +193,62 @@ class TestMultiTierCache extends MultiTierCache<string, number, [FastCache, Slow
         @Inject(SlowCache)
         slow: SlowCache
     ) {
-        super('TestMulti', [fast, slow]);
+        super('TaskCountCache', [fast, slow]);
     }
 }
 ```
 
-### Running more than one instance
+## Running more than one instance
 
-Invalidating a tag takes effect on **every** instance, not just the one that handled the request.
+Invalidating a tag takes effect on every instance, not only the one that handled the request.
 
-That matters most for the arrangement multi-tier exists for: a fast in-memory L1 over a shared `ValKeyCacheStore` L2. Invalidating clears the L2 for everybody, but each instance's L1 is in its own memory and no store choice changes that — being local is what L1 *is*. Without a way to tell the other instances, they would keep answering with the old value for the full TTL: a permissions change that does not take effect, a price that stays wrong on two pods out of three.
+`invalidateTags` clears the caches of this instance at once, then records a `CacheInvalidation` row that every other instance picks up and applies to its own caches. An in-memory cache, on its own or as the fast tier over a shared `ValKeyCacheStore`, is cleared on every instance.
 
-So `invalidateTags` does two things: it clears this instance's caches immediately, then records a `CacheInvalidation` row that every other instance picks up and applies to its own.
+> [!NOTE]
+> Invalidation is eventually consistent across a deployment. The instance handling the write is
+> never stale, and the others catch up within a couple of seconds. For a read that has to see a
+> write at once, read on a path that is not cached.
 
-Two consequences worth knowing:
+`CacheInvalidation` rows are deleted once they are older than `ZIBRI_DI_TOKENS.CACHE_INVALIDATION_RETENTION_IN_MS`, one minute by default. An instance that was down for longer starts with empty local caches.
 
-- **Invalidation is eventually consistent across a deployment.** The instance handling the write is never stale; the others catch up within a couple of seconds. If you need an immediately consistent read after a write, read it on a path that is not cached.
-- Rows are a notification, not a record. They are deleted once older than `ZIBRI_DI_TOKENS.CACHE_INVALIDATION_RETENTION_IN_MS` (one minute by default), which is comfortably longer than any instance needs to notice them. An instance that was down for longer starts with empty local caches anyway.
+A cache on `ValKeyCacheStore` alone keeps its values on the server, so removing them removes them for every instance.
 
-A single-tier cache on `ValKeyCacheStore` is already coherent without any of this — the values live on the server, so removing them removes them for everyone. The mechanism costs it nothing, and means an in-memory single-tier cache is coherent too.
+## Keeping your own memory coherent
+
+Keep something else in memory coherent the same way, such as rows read once into a lookup table. Register a listener for a tag in `onAppInit`, and invalidate the tag whenever the rows change. The listener runs at once on the instance that invalidated, and within a couple of seconds on every other one. Registering needs `CacheInvalidation` declared in a data source. The roles of an application are kept this way, see [roles and permissions](./roles-and-permissions.md#roles).
+
+A listener takes a tag, a regular expression or a function that says which tags it listens for. It is handed the tag that was invalidated, for example to forget only the part of what it keeps that the tag names: `tag => tag.startsWith('prices:')` listens for `prices:<shop>` of every shop.
+
+```ts
+// src/services/price-list.service.ts
+import { CacheServiceInterface, inject, Injectable, OnAppInit, ZIBRI_DI_TOKENS, ZibriApplication } from 'zibri';
+
+@Injectable()
+export class PriceList implements OnAppInit {
+    private prices: Map<string, number> = new Map();
+
+    onAppInit(app: ZibriApplication): void {
+        const cacheService: CacheServiceInterface = inject(ZIBRI_DI_TOKENS.CACHE_SERVICE);
+        cacheService.registerInvalidationListener(app, PriceList.name, 'prices', async () => await this.readPrices());
+    }
+
+    async updatePrice(product: string, price: number): Promise<void> {
+        // write the row, then tell every instance
+        await inject(ZIBRI_DI_TOKENS.CACHE_SERVICE).invalidateTags(['prices']);
+    }
+
+    private async readPrices(): Promise<void> {
+        // read the rows again into this.prices
+    }
+}
+```
+
+## Requirements
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `CacheInvalidation` | A cache is registered, or the application has roles |
 
 ## See also
 - [Replication](./replication.md) — keeping a local cache tier coherent across instances

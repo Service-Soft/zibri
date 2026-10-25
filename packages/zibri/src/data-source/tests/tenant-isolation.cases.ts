@@ -265,6 +265,22 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
             });
         });
 
+        it('refuses a new row given the id of another tenant\'s row', async () => {
+            const other: TenantNote = await createNote(tenantB, 'theirs');
+
+            await tenants().runAs(tenantA, async () => {
+                // the data is in the tenant and in scope, so every check a create makes passed, and
+                // the save behind it rewrote the other tenant's row as this tenant's
+                await expect(notes().create(
+                    { id: other.id, code: UUIDUtilities.generate(), title: 'taken', archived: false },
+                    { allowId: true }
+                )).rejects.toThrow(UniqueConstraintViolationError);
+            });
+
+            const stored: TenantNote = await notes().findById(other.id, { acrossTenants: true });
+            expect([stored.tenantId, stored.title]).toEqual([tenantB, 'theirs']);
+        });
+
         it('never changes the tenant of a row', async () => {
             const note: TenantNote = await createNote(tenantA, 'staying');
 

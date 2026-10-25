@@ -1,5 +1,6 @@
 import { InvalidTwoFactorCodeError } from './invalid-two-factor-code.error';
 import { ZibriApplication } from '../../application/application';
+import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { Repository } from '../../data-source/repository/repository';
@@ -20,7 +21,7 @@ import { auditReasonFor } from '../../logging/audit-reason-for.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
 import { Ms } from '../../utilities/ms';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
-import { BaseUser } from '../models/base-user.model';
+import { UserAccount } from '../models/user-account.model';
 import { TwoFactorMethod } from './methods/two-factor-method.interface';
 import { TwoFactorFailureLimit, TwoFactorLock } from './two-factor-failure-limit.model';
 import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from './two-factor-failure-streak.model';
@@ -43,6 +44,10 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     // declare it by init, instead of failing on a repository token while this is built
     private get failureStreakRepository(): Repository<TwoFactorFailureStreak, CreateTwoFactorFailureStreakData> {
         return inject(repositoryTokenFor(TwoFactorFailureStreak));
+    }
+
+    private get auditService(): AuditServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE);
     }
 
     constructor(
@@ -80,8 +85,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async requestRegisterTwoFactorMethodForUser<
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData,
         TwoFactorRequestRegisterResult
@@ -95,8 +99,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async startSecondFactor<
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData,
         SecondFactorStartType
@@ -109,8 +112,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async confirmRegisterTwoFactorMethodForUser<
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData
     >(
@@ -123,8 +125,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async unregisterTwoFactorMethodForUser<
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData
     >(
@@ -135,14 +136,19 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegistered(user: BaseUser<string>, allowedMethods: TwoFactorMethods = this.twoFactorMethods): Promise<boolean> {
+    async isRegistered(user: UserAccount, allowedMethods: TwoFactorMethods = this.twoFactorMethods): Promise<boolean> {
+        return (await this.findRegisteredMethods(user, allowedMethods)).length > 0;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async findRegisteredMethods(user: UserAccount, allowedMethods: TwoFactorMethods = this.twoFactorMethods): Promise<TwoFactorMethods> {
         const registered: boolean[] = await Promise.all(allowedMethods.map(async m => await inject(m).isRegisteredForUser(user)));
-        return registered.includes(true);
+        return allowedMethods.filter((_, index) => registered[index] === true);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async has2fa(
-        user: BaseUser<string>,
+        user: UserAccount,
         context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods: TwoFactorMethods = this.twoFactorMethods
     ): Promise<boolean> {
@@ -162,7 +168,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async validate2fa(
-        user: BaseUser<string>,
+        user: UserAccount,
         context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods: TwoFactorMethods = this.twoFactorMethods
     ): Promise<void> {
@@ -195,7 +201,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         catch (error) {
             // every method's error is kept, so a wrong code and a data source that is down stay
             // apart in the trail
-            this.logger.audit({
+            this.auditService.record({
                 action: AuditAction.TWO_FACTOR,
                 outcome: AuditOutcome.FAILURE,
                 reason: auditReasonFor(error),
@@ -215,7 +221,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
      * @throws When no allowed method accepts the request.
      */
     private async validateWithinStreak(
-        user: BaseUser<string>,
+        user: UserAccount,
         context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods: TwoFactorMethods
     ): Promise<void> {
@@ -257,7 +263,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     private async handleValidateError(
         error: unknown,
-        user: BaseUser<string>,
+        user: UserAccount,
         streak: TwoFactorFailureStreak | undefined,
         locked: boolean
     ): Promise<void> {
@@ -321,7 +327,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
      * @param userId - The user whose second factor was locked.
      */
     private async lock(userId: string): Promise<void> {
-        this.logger.audit({ action: AuditAction.TWO_FACTOR_LOCKED, outcome: AuditOutcome.SUCCESS, userId });
+        this.auditService.record({ action: AuditAction.TWO_FACTOR_LOCKED, outcome: AuditOutcome.SUCCESS, userId });
         if (this.failureLimit !== false && this.failureLimit.lock === 'account') {
             // ended rather than left to expire: whoever is guessing already holds a session, since
             // presenting a code takes one, and refusing new logins alone would leave them that
@@ -330,7 +336,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveLock(user: BaseUser<string>): Promise<TwoFactorLock | undefined> {
+    async resolveLock(user: UserAccount): Promise<TwoFactorLock | undefined> {
         // asked on every login, so an application without a limit is not charged a read for it
         if (this.failureLimit === false) {
             return undefined;
@@ -343,7 +349,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resetSecondFactors(user: BaseUser<string>): Promise<void> {
+    async resetSecondFactors(user: UserAccount): Promise<void> {
         await this.removeSecondFactors(user, this.twoFactorMethods);
         await this.failureStreakRepository.deleteAll({ userId: user.id });
     }
@@ -353,9 +359,9 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
      * @param user - The user.
      * @param methods - The methods to remove.
      */
-    private async removeSecondFactors(user: BaseUser<string>, methods: TwoFactorMethods): Promise<void> {
+    private async removeSecondFactors(user: UserAccount, methods: TwoFactorMethods): Promise<void> {
         await Promise.all(methods.map(async m => await inject(m).unregisterForUser(user)));
-        this.logger.audit({ action: AuditAction.TWO_FACTOR_RESET, outcome: AuditOutcome.SUCCESS, userId: user.id });
+        this.auditService.record({ action: AuditAction.TWO_FACTOR_RESET, outcome: AuditOutcome.SUCCESS, userId: user.id });
     }
 
     /**

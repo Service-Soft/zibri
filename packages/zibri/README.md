@@ -8,7 +8,7 @@
 ![NPM License](https://img.shields.io/npm/l/zibri)
 [![codecov](https://codecov.io/gh/Service-Soft/zibri/graph/badge.svg)](https://codecov.io/gh/Service-Soft/zibri)
 
-Zibri is an opiniated typescript backend framework based on express. It's heavily inspired by frameworks like [LoopBack](https://loopback.io/doc/en/lb4/index.html) and [Nest](https://docs.nestjs.com/).
+Zibri is an opinionated typescript backend framework based on express. It's heavily inspired by frameworks like [LoopBack](https://loopback.io/doc/en/lb4/index.html) and [Nest](https://docs.nestjs.com/).
 
 What differentiates it from such frameworks can be found in our [goals section](#-goals).
 
@@ -44,8 +44,8 @@ Due to it's dependency injection system you can always swap things out if they a
 - controller based route definition, including websocket controllers ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html), [websocket docs](https://service-soft.github.io/zibri/documents/websocket.html))
 - OmitClass, PickClass, PartialClass, IntersectionClass helpers to extend from and easily build new entity or even controller classes ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
 - automatic open api generation ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
-- body parsers for json and form-data ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
-- automatic model based validation ([docs](https://service-soft.github.io/zibri/documents/data-source.html))
+- body parsers for json, xml, form-data and form-url-encoded ([docs](https://service-soft.github.io/zibri/documents/creating-endpoints.html))
+- automatic model based validation ([docs](https://service-soft.github.io/zibri/documents/validation.html))
 - cron job service out of the box ([docs](https://service-soft.github.io/zibri/documents/cron.html))
 - email service out of the box, with templating, mail queue, persistence and priority handling ([docs](https://service-soft.github.io/zibri/documents/email.html))
 - multithreading service with builtin support for worker files or function ([docs](https://service-soft.github.io/zibri/documents/multithreading.html))
@@ -82,7 +82,7 @@ With Zibri you can rely on a strong foundation of battle tested libraries that h
 - typeorm for handling everything database related
 - nodemailer for sending emails
 - handlebars and/or tsx for templating
-- busboy for file uploads (the foundation of multer)
+- @fastify/busboy for file uploads
 - socket.io for websockets
 - node-cron for cron jobs
 
@@ -93,7 +93,7 @@ We have more than 2500 tests running in our pipeline and strive to be as close t
 - mocking the least amount of things possible
 
 ### 🪖 Making "shooting your foot" as hard as possible
-All the public facing classes, interfaces and functions are as strictly typed as possible. Zibri even includes a custom parser for handlebar files, that automtically infers the type of the data that is needed to render the template.
+All the public facing classes, interfaces and functions are as strictly typed as possible. Zibri even includes a custom parser for handlebar files, that automatically infers the type of the data that is needed to render the template.
 
 In addition to that, you will get warnings whenever there is something off. Like an endpoint that is marked to skip auth, although there isn't anything auth related to skip for it.
 

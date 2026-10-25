@@ -8,7 +8,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -59,14 +60,15 @@ class EvalBook extends BaseEntity {
 }
 
 const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, EvalLedger, EvalShelf, EvalBook]
+    entities: [...defaultTestServerEntities, EvalLedger, EvalShelf, EvalBook],
+    repositories: defaultTestServerRepositories
 });
 
 let server: StartedTestServer | undefined;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [dataSourceClass] });
-}, 15000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     await server?.shutdown();

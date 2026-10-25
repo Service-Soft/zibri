@@ -4,6 +4,7 @@ import { Entity, EntityMetadata } from './entity.decorator';
 import { Property } from './property.decorator';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
+import { $t } from '../../localization/translate.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BaseEntity } from '../base-entity.model';
 
@@ -251,8 +252,12 @@ describe('declaring the checks of an entity', () => {
             tenant: 'shared',
             allowOrphan: true,
             allowDuplicate: true,
-            // eslint-disable-next-line unicorn/no-null
-            checks: [whereFor<Ticket>([{ state: { oneOf: ['open', null] } }, { points: { lesserThan: 10 }, state: { not: 'closed' } }])]
+            checks: [{
+                // eslint-disable-next-line unicorn/no-null
+                where: whereFor<Ticket>([{ state: { oneOf: ['open', null] } }, { points: { lesserThan: 10 }, state: { not: 'closed' } }]),
+                code: 'closedTicketPoints',
+                message: $t`a closed ticket has fewer than 10 points`
+            }]
         })
         class Ticket extends BaseEntity {
             @Property.string({ required: false })
@@ -263,6 +268,18 @@ describe('declaring the checks of an entity', () => {
         }
 
         expect(MetadataUtilities.getEntityMetadata(Ticket)?.checks).toHaveLength(1);
+    });
+
+    it('takes a check written as its filter alone, as one answered with the code check', () => {
+        @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, checks: [whereFor<Ticket>({ points: { lesserThan: 10 } })] })
+        class Ticket extends BaseEntity {
+            @Property.number()
+            points!: number;
+        }
+
+        const [check] = MetadataUtilities.getEntityMetadata(Ticket)?.checks ?? [];
+        expect(check?.code).toBe('check');
+        expect(check?.message.getValue('en')).toBe('breaks the check on "points"');
     });
 
     it('refuses a check that matches text by a pattern', () => {

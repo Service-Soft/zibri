@@ -7,7 +7,9 @@ import { BcryptHashStrategy } from '../../auth/hash/strategies/bcrypt.hash-strat
 import { ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { BaseEntity } from '../base-entity.model';
 import { type OneOf } from '../models/one-of.model';
+import { Relation } from '../models/relation.enum';
 
 /**
  * Encryption and hashing declared on a string, wherever the string sits: a property, an item of an
@@ -155,5 +157,49 @@ describe('encryption and hashing on a string', () => {
         const secret: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Vault)['secret'];
         expect(secret?.type === 'oneOf' && secret.shapes['Local']?.type === 'string' ? secret.shapes['Local'].encryption : undefined)
             .toEqual({ strategy: AesGcmEncryptionStrategy, encrypt: { aad: 'vault' } });
+    });
+});
+
+// round-2 08 §X15: every store refuses a to one relation without the column of its foreign key, and
+// the type let one through
+describe('a to one relation', () => {
+    it('names the property of its class that holds the foreign key, while compiling', () => {
+        class Team extends BaseEntity {
+            @Property.oneToMany({ target: () => Seat, inverseSide: 'team' })
+            seats!: Seat[];
+        }
+
+        class Seat extends BaseEntity {
+            @Property.manyToOne({ target: () => Team, joinColumn: 'teamId', inverseSide: 'seats' })
+            team!: Team;
+
+            @Property.string({ format: 'uuid' })
+            teamId!: string;
+
+            @Property.belongsToOne({ target: () => Team, joinColumn: 'homeTeamId', inverseSide: 'seats' })
+            homeTeam!: Team;
+
+            @Property.string({ format: 'uuid' })
+            homeTeamId!: string;
+
+            // @ts-expect-error - a many to one relation names the column of its foreign key
+            @Property.manyToOne({ target: () => Team, inverseSide: 'seats' })
+            withoutColumn!: Team;
+
+            // @ts-expect-error - "teamUuid" is no property of the class
+            @Property.manyToOne({ target: () => Team, joinColumn: 'teamUuid', inverseSide: 'seats' })
+            misnamed!: Team;
+
+            // @ts-expect-error - a belongs to one relation names the column of its foreign key
+            @Property.belongsToOne({ target: () => Team, inverseSide: 'seats' })
+            belongingWithoutColumn!: Team;
+
+            // @ts-expect-error - "homeTeamUuid" is no property of the class
+            @Property.belongsToOne({ target: () => Team, joinColumn: 'homeTeamUuid', inverseSide: 'seats' })
+            belongingMisnamed!: Team;
+        }
+
+        const team: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(Seat)['team'];
+        expect(team?.type === Relation.MANY_TO_ONE ? team.joinColumn : undefined).toBe('teamId');
     });
 });

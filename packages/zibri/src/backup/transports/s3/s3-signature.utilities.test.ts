@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { S3Credentials } from './s3-credentials.model';
 import { S3SignatureUtilities } from './s3-signature.utilities';
 
 // the examples AWS publishes for signature version 4 on S3, with their credentials and their results:
 // https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
-const accessKeyId: string = 'AKIAIOSFODNN7EXAMPLE';
-const secretAccessKey: string = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
+const credentials: S3Credentials = { accessKeyId: 'AKIAIOSFODNN7EXAMPLE', secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' };
 const date: Date = new Date('2013-05-24T00:00:00.000Z');
 const emptyHash: string = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -16,8 +16,7 @@ describe('S3SignatureUtilities', () => {
             url: new URL('https://examplebucket.s3.amazonaws.com/test.txt'),
             headers: { range: 'bytes=0-9' },
             payloadHash: emptyHash,
-            accessKeyId,
-            secretAccessKey,
+            credentials,
             region: 'us-east-1',
             date
         });
@@ -38,8 +37,7 @@ describe('S3SignatureUtilities', () => {
             url: new URL(`https://examplebucket.s3.amazonaws.com/${S3SignatureUtilities.encode('test$file.text')}`),
             headers: { date: 'Fri, 24 May 2013 00:00:00 GMT', 'x-amz-storage-class': 'REDUCED_REDUNDANCY' },
             payloadHash: S3SignatureUtilities.hash(body),
-            accessKeyId,
-            secretAccessKey,
+            credentials,
             region: 'us-east-1',
             date
         });
@@ -57,8 +55,7 @@ describe('S3SignatureUtilities', () => {
             url: new URL('https://examplebucket.s3.amazonaws.com/?lifecycle'),
             headers: {},
             payloadHash: emptyHash,
-            accessKeyId,
-            secretAccessKey,
+            credentials,
             region: 'us-east-1',
             date
         });
@@ -72,13 +69,32 @@ describe('S3SignatureUtilities', () => {
             url: new URL('https://examplebucket.s3.amazonaws.com/?prefix=J&max-keys=2'),
             headers: {},
             payloadHash: emptyHash,
-            accessKeyId,
-            secretAccessKey,
+            credentials,
             region: 'us-east-1',
             date
         });
 
         expect(headers['authorization']).toContain('Signature=34b48302e7b5fa45bde8084f4b7868a86f0a534bc59db6670ed5711ef69dc6f7');
+    });
+
+    // evaluation/round-2/02-data-layer-stores.md S8: temporary credentials could not be signed with
+    it('signs the session token of temporary credentials', () => {
+        const signWith: (sessionToken: string) => Record<string, string> = sessionToken => S3SignatureUtilities.resolveHeaders({
+            method: 'GET',
+            url: new URL('https://examplebucket.s3.amazonaws.com/test.txt'),
+            headers: {},
+            payloadHash: emptyHash,
+            credentials: { ...credentials, sessionToken },
+            region: 'us-east-1',
+            date
+        });
+
+        const signed: Record<string, string> = signWith('a-session');
+
+        expect(signed['x-amz-security-token']).toBe('a-session');
+        expect(signed['authorization']).toContain('SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-security-token,');
+        // covered by the signature: another token is another signature
+        expect(signWith('another-session')['authorization']).not.toBe(signed['authorization']);
     });
 
     it('encodes what the signature counts as reserved', () => {

@@ -1,6 +1,10 @@
 import { Logger as TypeOrmLogger } from 'typeorm';
 import { RoundTripCounter } from 'zibri-testing';
 
+import { DefaultTestServerMembershipRepository } from './membership-repository';
+import { DefaultTestServerRoleRepository } from './role-repository';
+import { DefaultTestServerUserRepository } from './user-repository';
+import { AuditEntry } from '../../audit/audit-entry.model';
 import { OtpCredentials } from '../../auth/2fa/methods/otp/otp-credentials.model';
 import { TwoFactorFailureStreak } from '../../auth/2fa/two-factor-failure-streak.model';
 import { PasswordCredentials } from '../../auth/authenticators/password/password-credentials.model';
@@ -9,6 +13,7 @@ import { EncryptionRotationFailure } from '../../auth/encryption/encryption-rota
 import { EncryptionRotationProgress } from '../../auth/encryption/encryption-rotation-progress.model';
 import { EncryptionStrategyEntity } from '../../auth/encryption/strategies/encryption-strategy-entity.model';
 import { HashStrategyEntity } from '../../auth/hash/strategies/hash-strategy-entity.model';
+import { LoginTicket } from '../../auth/models/login-ticket.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { CacheInvalidation } from '../../caching/cache-invalidation.model';
@@ -20,6 +25,7 @@ import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
 import { Migration } from '../../data-source/migration/migration.model';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { Email } from '../../email/models/email.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { EventSubscriberRegistration } from '../../event/event-subscriber-registration.model';
@@ -35,9 +41,15 @@ import { WebsocketMessageSequence } from '../../websocket/models/websocket-messa
 import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { TestMembership } from '../mocks/entities/test-membership.entity';
+import { TestRole } from '../mocks/entities/test-role.entity';
 
 export type CreateTestDataSourceOptions = {
     entities?: Newable<BaseEntity>[],
+    /**
+     * The repository classes of the data source. The test server's own when `entities` is not given
+     * either, none otherwise.
+     */
+    repositories?: RepositoryClass[],
     host?: string,
     username?: string,
     password?: string,
@@ -95,13 +107,16 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     WebsocketMessage,
     WebsocketMessageSequence,
     Log,
+    AuditEntry,
     PasswordResetToken,
     JwtUser,
     TestMembership,
+    TestRole,
     JwtRefreshToken,
     PasswordCredentials,
     OtpCredentials,
     TwoFactorFailureStreak,
+    LoginTicket,
     Event,
     EventSubscriberRun,
     EventSubscriberRegistration,
@@ -112,8 +127,19 @@ export const defaultTestServerEntities: Newable<BaseEntity>[] = [
     EncryptionRotationFailure
 ];
 
+/**
+ * The repositories of the test server's users, memberships and roles, which a data source declaring
+ * `defaultTestServerEntities` lists beside them.
+ */
+export const defaultTestServerRepositories: RepositoryClass[] = [
+    DefaultTestServerUserRepository,
+    DefaultTestServerMembershipRepository,
+    DefaultTestServerRoleRepository
+];
+
 export function createTestDataSource({
-    entities = defaultTestServerEntities,
+    entities,
+    repositories = entities == undefined ? defaultTestServerRepositories : [],
     host = 'localhost',
     username = 'postgres',
     password = 'password',
@@ -129,6 +155,8 @@ export function createTestDataSource({
     options: OmitStrict<PostgresOptions, 'type' | 'entities'>,
     /** The entities of the data source. */
     entities: Newable<BaseEntity>[],
+    /** The repository classes of the data source. */
+    repositories: RepositoryClass[],
     /** Who manages the schema. Named here so a class extending this one counts as concrete. */
     schemaManagement: SchemaManagement
 }> {
@@ -148,7 +176,8 @@ export function createTestDataSource({
             ...connectionTimeoutInMs != undefined ? { extra: { connectionTimeoutMillis: connectionTimeoutInMs } } : {},
             ...roundTrips != undefined ? { logging: true, logger: countingLogger(roundTrips) } : {}
         };
-        entities: Newable<BaseEntity>[] = entities;
+        entities: Newable<BaseEntity>[] = entities ?? defaultTestServerEntities;
+        override readonly repositories: RepositoryClass[] = repositories;
         override migrations: Newable<Migration>[] = migrations;
         // a suite that ships no migrations and needs tables synchronizes, which is the one
         // deployment shape that is actually right for. It used to be implicit, which is the finding

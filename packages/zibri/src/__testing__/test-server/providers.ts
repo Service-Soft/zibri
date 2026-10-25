@@ -1,14 +1,88 @@
 import { defaultTestProviders } from 'zibri-testing';
 
+import { DefaultTestServerRoleRepository } from './role-repository';
 import { PasswordResetEmailTemplate } from '../../auth/authenticators/password/password-reset-email-template.model';
+import { PermissionDeclaration } from '../../auth/roles/permission-declaration.model';
+import { RoleCreateData } from '../../auth/roles/role-create-data.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { inject } from '../../di/inject.function';
 import { defineProvider, DiProvider } from '../../di/models/di-provider.model';
+import { InjectionToken } from '../../di/models/injection-token.model';
+import { AfterAppInit } from '../../global/after-app-init.interface';
 import { LocalizeService } from '../../localization/localize.service';
 import { Ms } from '../../utilities/ms';
 import { compileTsxTemplate } from '../compile-tsx-template.function';
 import { testVersionsFolder } from '../constants';
+import { MemberRoles } from '../mocks/entities/member-roles.enum';
+import { Roles } from '../mocks/entities/roles.enum';
+import { TestPermissions, TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
+import { TestRole } from '../mocks/entities/test-role.entity';
 
 export { testMasterKey } from 'zibri-testing';
+
+/**
+ * A role a test server starts with.
+ */
+export type TestServerRole = RoleCreateData<TestRole>;
+
+/**
+ * The permissions of this repository's test fixtures: one per role, named like it. A suite about
+ * what roles carry declares its own.
+ */
+export const defaultTestServerPermissions: PermissionDeclaration = {
+    permissions: Object.values(TestPermissions),
+    platformPermissions: Object.values(TestPlatformPermissions)
+};
+
+/**
+ * The roles of this repository's test fixtures: `Roles` held by users, `MemberRoles` by memberships,
+ * each carrying the one permission named like it.
+ */
+export const defaultTestServerRoles: TestServerRole[] = [
+    { name: Roles.ADMIN, level: 'platform', permissions: [TestPlatformPermissions.ADMIN], description: undefined },
+    { name: Roles.USER, level: 'platform', permissions: [TestPlatformPermissions.USER], description: undefined },
+    { name: MemberRoles.ADMIN, level: 'tenant', permissions: [TestPermissions.MEMBER_ADMIN], description: undefined },
+    { name: MemberRoles.USER, level: 'tenant', permissions: [TestPermissions.MEMBER_USER], description: undefined }
+];
+
+/**
+ * The roles a test server is seeded with, which an application seeds in a migration.
+ */
+const TEST_SERVER_ROLES: InjectionToken<TestServerRole[]> = new InjectionToken('test.server_roles');
+
+/**
+ * Seeds the roles of `TEST_SERVER_ROLES` once the application is up, leaving those that exist alone,
+ * so that a restarted application on the same data starts with the same roles.
+ */
+class TestServerRoleSeeder implements AfterAppInit {
+    async afterAppInit(): Promise<void> {
+        const repository: DefaultTestServerRoleRepository = inject(DefaultTestServerRoleRepository);
+        const existing: Set<string> = new Set((await repository.findAll({ take: 'all' })).map(role => role.name));
+        const missing: TestServerRole[] = inject(TEST_SERVER_ROLES).filter(role => !existing.has(role.name));
+        if (missing.length) {
+            await repository.createAll(missing);
+        }
+    }
+}
+
+/**
+ * The providers declaring the permissions of a test server and seeding its roles. For a suite about
+ * what roles carry, in place of those of the fixtures, and for one booting without
+ * `defaultTestServerProviders`, such as an instance of a cluster.
+ * @param declaration - The permissions, or undefined for none.
+ * @param roles - The roles the test server starts with.
+ * @returns The providers, to put after `defaultTestServerProviders` or the harness's own.
+ */
+export function rolesAndPermissionsProviders(
+    declaration: PermissionDeclaration | undefined,
+    roles: TestServerRole[]
+): DiProvider<unknown>[] {
+    return [
+        defineProvider({ token: ZIBRI_DI_TOKENS.PERMISSIONS, useFactory: (): PermissionDeclaration | undefined => declaration }),
+        defineProvider({ token: TEST_SERVER_ROLES, useValue: roles }),
+        defineProvider({ token: TestServerRoleSeeder, useClass: TestServerRoleSeeder })
+    ];
+}
 
 class TestLocalizeService extends LocalizeService {
     override async onAppInit(): Promise<void> {
@@ -49,5 +123,8 @@ export const defaultTestServerProviders: DiProvider<unknown>[] = [
     defineProvider({
         token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
         useValue: { messageRetentionInMs: Ms.DAY }
-    })
+    }),
+    // the permissions and roles of this repository's fixtures, for the reason above: an application's
+    // own tests declare their own permissions, and seed their own roles
+    ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles)
 ];

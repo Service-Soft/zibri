@@ -25,5 +25,10 @@ export type FakeOAuthIdentity = {
     /**
      * The `family_name` claim.
      */
-    familyName?: string
+    familyName?: string,
+    /**
+     * Claims on top, put into every ID token and access token the provider issues for the identity, the
+     * way a provider adds `groups`, `oid` or `amr`.
+     */
+    claims?: Record<string, unknown>
 };

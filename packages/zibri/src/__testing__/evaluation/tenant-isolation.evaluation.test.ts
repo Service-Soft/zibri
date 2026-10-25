@@ -39,8 +39,10 @@ import { WebsocketMessage } from '../../websocket/models/websocket-message.model
 import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../mocks/entities/member-roles.enum';
 import { Roles } from '../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../test-server/membership-repository';
 import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
@@ -356,7 +358,7 @@ function describeTenantIsolationOverHttp(name: string, dataSourceClass: Newable<
             for (const tenantId of memberOf) {
                 await tenants().runAs(
                     tenantId,
-                    async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [Roles.USER] })
+                    async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [MemberRoles.USER] })
                 );
             }
             const authData: JwtAuthData<Roles> = await inject<AuthServiceInterface>(ZIBRI_DI_TOKENS.AUTH_SERVICE)
@@ -447,7 +449,7 @@ function describeTenantIsolationOverHttp(name: string, dataSourceClass: Newable<
             carol = await createAccount('carol', [tenantA, tenantB]);
             carolsKeyForA = (await inject<AuthServiceInterface>(ZIBRI_DI_TOKENS.AUTH_SERVICE).createApiKey(
                 carol.user.id,
-                { name: 'bound to a', roles: [Roles.USER], expiresAt: undefined, tenantId: tenantA, clientAuthentication: undefined, requireDpop: false },
+                { name: 'bound to a', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: tenantA, clientAuthentication: undefined, requireDpop: false },
                 undefined
             )).key;
 
@@ -729,6 +731,6 @@ function describeTenantIsolationOverHttp(name: string, dataSourceClass: Newable<
 }
 
 // each may be left out of the application the other one is booted in
-describeTenantIsolationOverHttp('the in memory data source', createInMemoryDataSource({ entities, allowOrphan: true }));
+describeTenantIsolationOverHttp('the in memory data source', createInMemoryDataSource({ entities, repositories: defaultTestServerRepositories, allowOrphan: true }));
 
-describeTenantIsolationOverHttp('postgres', createTestDataSource({ entities, allowOrphan: true }));
+describeTenantIsolationOverHttp('postgres', createTestDataSource({ entities, repositories: defaultTestServerRepositories, allowOrphan: true }));

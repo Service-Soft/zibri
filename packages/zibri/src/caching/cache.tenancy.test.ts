@@ -5,7 +5,8 @@ import { WriteThroughReadThroughCache } from './cache/read-through/write-through
 import { type CacheServiceInterface } from './cache-service.interface';
 import { Cache } from './decorators/cache.decorator';
 import { InMemoryCacheStore } from './store/in-memory.cache-store';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -31,7 +32,8 @@ class TenancyTestCache extends WriteThroughReadThroughCache<string, string, 'Ten
 
 // in memory, so that the cache of a running application can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 describe('caches across tenants', () => {
@@ -41,11 +43,11 @@ describe('caches across tenants', () => {
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
         tenants = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('keeps what each tenant cached under a key to that tenant, loading it at the same time included', async () => {
         const tenantA: string = UUIDUtilities.generate();

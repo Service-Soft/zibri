@@ -1,8 +1,9 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
 import { describeNullValues, Tag } from './null-values.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
@@ -12,7 +13,8 @@ import { MigrationEntity } from '../migration/migration-entity.model';
 import { Repository } from '../repository/repository';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, Tag]
+    entities: [...defaultTestServerEntities, Tag],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -27,11 +29,11 @@ beforeAll(async () => {
     server = await startTestServer({ dataSources: [postgresDataSourceClass, valKeyDataSourceClass] });
     postgres = inject(postgresDataSourceClass).getRepository(Tag);
     valKey = inject(valKeyDataSourceClass).getRepository(Tag);
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeNullValues('postgres', () => postgres);
 

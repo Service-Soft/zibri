@@ -1,6 +1,7 @@
 import { Dirent } from 'fs';
-import { access, writeFile, mkdir, readFile, readdir, rm, rename, cp } from 'fs/promises';
-import { dirname } from 'path';
+import { access, writeFile, mkdir, mkdtemp, readFile, readdir, rm, rename, cp } from 'fs/promises';
+import { tmpdir } from 'os';
+import { dirname, join, posix } from 'path';
 
 import { getPath, Path } from '../utilities';
 
@@ -239,6 +240,60 @@ export abstract class FsUtilities {
     }
 
     /**
+     * Reads the file content at the given path, byte for byte.
+     * @param path - The path of the file to read.
+     * @returns The content.
+     */
+    static async readFileBuffer(path: Path): Promise<Buffer> {
+        return readFile(path);
+    }
+
+    /**
+     * Writes the given content to the file at the given path, byte for byte, replacing whatever it held.
+     * Creates the folders above it when they are missing.
+     * @param path - The path of the file to write.
+     * @param content - What the file holds afterwards.
+     */
+    static async writeFileBuffer(path: Path, content: Buffer): Promise<void> {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, content);
+    }
+
+    /**
+     * Creates an empty directory of its own in the system's temporary folder.
+     * @param prefix - What its name starts with.
+     * @returns Its path.
+     */
+    static async mkdtemp(prefix: string): Promise<Path> {
+        return getPath(await mkdtemp(join(tmpdir(), prefix)));
+    }
+
+    /**
+     * Finds every file below a directory.
+     * @param path - The directory to search.
+     * @param exclude - Paths relative to it that are skipped, with everything below them.
+     * @returns The paths of the files, relative to it and separated by "/" on every platform.
+     */
+    static async findFiles(path: Path, exclude: string[] = []): Promise<string[]> {
+        const files: string[] = [];
+        const visit: (relativeDir: string) => Promise<void> = async relativeDir => {
+            for (const entry of await this.readdir(getPath(path, relativeDir))) {
+                const relativePath: string = relativeDir === '' ? entry.name : posix.join(relativeDir, entry.name);
+                if (exclude.includes(relativePath)) {
+                    continue;
+                }
+                if (entry.isDirectory()) {
+                    await visit(relativePath);
+                    continue;
+                }
+                files.push(relativePath);
+            }
+        };
+        await visit('');
+        return files;
+    }
+
+    /**
      * Same as readFile, but returns the content as an array of lines instead.
      * @param path - The path of the file to read the lines from.
      * @returns The content as an array of line strings.
@@ -288,31 +343,38 @@ export abstract class FsUtilities {
      * Overrides any contents that might already exist inside the destination.
      * @param sourcePath - The source folder to move the content of.
      * @param destinationPath - The destination folder where the content should be moved inside.
-     * @param excludeElements - Optional array of elements which should not be moved.
+     * @param isIncluded - Whether a file is copied, by the path it is copied to. Every file by default.
      */
-    static async copyDirectoryContent(sourcePath: Path, destinationPath: Path, excludeElements: string[] = []): Promise<void> {
-        const entries: Dirent[] = (await this.readdir(sourcePath)).filter(e => !excludeElements.includes(e.name));
-        await Promise.all(entries.map(e => this.copyEntry(e, destinationPath)));
+    static async copyDirectoryContent(
+        sourcePath: Path,
+        destinationPath: Path,
+        isIncluded: (destination: Path) => boolean = () => true
+    ): Promise<void> {
+        const entries: Dirent[] = await this.readdir(sourcePath);
+        await Promise.all(entries.map(e => this.copyEntry(e, destinationPath, isIncluded)));
     }
 
     private static async copyEntry(
         entry: Dirent,
-        destination: string
+        destination: string,
+        isIncluded: (destination: Path) => boolean
     ): Promise<void> {
         const source: Path = getPath(entry.parentPath, entry.name);
         const destName: string = entry.name.split('.tpl')[0];
         const dest: Path = getPath(destination, destName);
 
         if (entry.isDirectory()) {
-            // Create the destination folder and recurse into it
-            await mkdir(dest, { recursive: true });
             const children: Dirent[] = await this.readdir(source);
-            await Promise.all(children.map(child => this.copyEntry(child, dest)));
+            await Promise.all(children.map(child => this.copyEntry(child, dest, isIncluded)));
+            return;
         }
-        else {
-            // It's a file — copy it with the (possibly renamed) destination
-            // eslint-disable-next-line angular/no-experimental
-            await cp(source, dest, { errorOnExist: true });
+        if (!isIncluded(dest)) {
+            return;
         }
+        // the folder is created for the files copied into it, so a folder none of them is copied to is never created
+        await mkdir(dirname(dest), { recursive: true });
+        // It's a file — copy it with the (possibly renamed) destination
+        // eslint-disable-next-line angular/no-experimental
+        await cp(source, dest, { errorOnExist: true });
     }
 }

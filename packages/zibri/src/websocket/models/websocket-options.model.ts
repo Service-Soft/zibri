@@ -1,4 +1,4 @@
-import { BaseUser } from '../../auth/models/base-user.model';
+import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
 import { HandlerTimeout } from '../../http/handler-timeout.type';
 import { Newable } from '../../types/newable.type';
@@ -23,6 +23,15 @@ export type WebsocketOptions = {
      */
     handlerInMs: HandlerTimeout,
     /**
+     * When the websocket server is started.
+     *
+     * `'whenDeclared'` starts it for an application that registers a websocket controller or names
+     * an `adapterDataSource`. `'always'` starts it either way, for an application whose clients only
+     * listen to what it sends, from its http routes for example.
+     * @default 'whenDeclared'
+     */
+    startServer: 'whenDeclared' | 'always',
+    /**
      * The data source that carries broadcasts between instances.
      *
      * A socket belongs to the instance that accepted it, so `sendToChannel` reaches only the
@@ -30,9 +39,9 @@ export type WebsocketOptions = {
      * the rest were missed. Naming a data source here makes broadcasts travel to the others through
      * it.
      *
-     * Has to be a data source that can carry messages between instances, which today means a
-     * ValKeyDataSource - see PubSubDataSourceInterface. Startup fails with a message saying so if it
-     * cannot.
+     * Has to be a data source that can carry messages between instances: one implementing
+     * PubSubDataSourceInterface, such as a ValKeyDataSource. Startup fails with a message saying so
+     * if it cannot.
      *
      * Left undefined, broadcasts stay inside the instance that sent them. Correct for exactly one
      * instance, and wrong the moment there are two.
@@ -43,7 +52,7 @@ export type WebsocketOptions = {
      * Whether or not the provided user is allowed to connect to a websocket at all.
      * @default () => true
      */
-    isAllowedToConnect: <T extends BaseUser<string>>(user: T | undefined) => boolean | Promise<boolean>,
+    isAllowedToConnect: (user: CurrentUser | undefined) => boolean | Promise<boolean>,
     /**
      * How long a sent message is kept to be replayed to a client that reconnects. A client that was
      * away for longer is sent a `ws:replay-incomplete` instead.

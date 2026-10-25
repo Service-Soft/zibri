@@ -1,8 +1,13 @@
 import { CronExpression } from './cron-expression.utilities';
-import { CronJob, InitialCronConfig } from './cron-job.model';
+import { CronJobEntity } from './cron-job-entity.model';
+import { InitialCronConfig } from './cron-job.model';
 import { type CronServiceInterface } from './cron-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { BaseEntity } from '../entity/base-entity.model';
+import { PollingCronJob } from '../polling/polling-cron-job.model';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { Newable } from '../types/newable.type';
 
 /**
  * Applies the changes other instances made to the cron jobs: a job enabled, disabled, stopped on an
@@ -10,7 +15,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  *
  * Registered for you whenever the application has cron jobs.
  */
-export class CronSyncCronJob extends CronJob {
+export class CronSyncCronJob extends PollingCronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Cron Sync',
@@ -24,6 +29,12 @@ export class CronSyncCronJob extends CronJob {
         syncToDataSource: false
     };
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected readonly wakeUpTopic: string = WAKE_UP_TOPICS.CRON_JOBS;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    protected readonly polledEntity: Newable<BaseEntity> = CronJobEntity;
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.CRON_SERVICE)
         private readonly cronService: CronServiceInterface
@@ -32,7 +43,10 @@ export class CronSyncCronJob extends CronJob {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async onTick(): Promise<void> {
+    protected async poll(): Promise<boolean> {
         await this.cronService.applyStoredChanges();
+        // one read applies every change, so there is nothing to look again for until the next one
+        // wakes it
+        return false;
     }
 }

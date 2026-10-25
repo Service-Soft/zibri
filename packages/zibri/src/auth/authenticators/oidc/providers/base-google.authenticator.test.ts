@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
 import { BaseGoogleAuthenticator } from './base-google.authenticator';
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../../data-source/repository/repository';
@@ -35,7 +36,7 @@ const CALENDAR_SCOPE: string = 'calendar.readonly';
 
 let google: FakeOAuthProvider;
 
-class GoogleAuthenticator extends BaseGoogleAuthenticator<Roles, JwtUser> {
+class GoogleAuthenticator extends BaseGoogleAuthenticator<string, JwtUser> {
     readonly clientId: string = CLIENT_ID;
 
     readonly clientAuthentication: OAuthClientAuthentication = { method: 'client_secret_basic', clientSecret: CLIENT_SECRET };
@@ -58,11 +59,13 @@ describe('BaseGoogleAuthenticator', () => {
     let baseUrl: string;
 
     beforeAll(async () => {
-        // the prompts Google documents, and the only ones it takes
+        // the prompts Google documents, and the only ones it takes; and no word on when the user
+        // signed in, since Google puts no auth_time into its ID tokens and takes no max_age
         google = await startFakeOAuthProvider({
             clientId: CLIENT_ID,
             clientSecret: CLIENT_SECRET,
-            supportedPrompts: ['none', 'consent', 'select_account']
+            supportedPrompts: ['none', 'consent', 'select_account'],
+            issuesAuthTime: false
         });
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [
@@ -76,6 +79,7 @@ describe('BaseGoogleAuthenticator', () => {
                 FederatedConnectionCode,
                 OAuthProviderTokens
             ],
+            repositories: defaultTestServerRepositories,
             allowOrphan: true
         });
         server = await startTestServer({
@@ -99,12 +103,31 @@ describe('BaseGoogleAuthenticator', () => {
             ]
         });
         baseUrl = await server.start();
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
         await google?.stop();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
+
+    it('signs a linked user in although Google says nothing about when they signed in, which never counts as a recent login', async () => {
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'ada@example.com', roles: [Roles.USER] });
+        await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
+            .create({ issuer: google.issuer, subject: 'google-ada', userId: user.id, signIn: true, grantedScopes: [] });
+        google.identity = { subject: 'google-ada' };
+        const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
+
+        const atGoogle: string = await browser.follow(`${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`);
+        const landing: string = await browser.follow(await browser.follow(atGoogle));
+
+        // every sign-in through Google was refused as invalid, since the ID token was required to say
+        // when the user signed in, which Google's never does
+        expect(landing).toBe(REDIRECT_TO);
+        // and Google was asked for max_age, which it does not know
+        expect(new URL(atGoogle).searchParams.has('max_age')).toBe(false);
+        const sessions: CookieAuthRefreshSession[] = await inject(repositoryTokenFor(CookieAuthRefreshSession)).findAll({ where: { userId: user.id } });
+        expect(sessions.map(s => new Date(s.authenticatedAt).getTime())).toStrictEqual([0]);
+    });
 
     it('signs a user in again with a prompt Google takes, which a connection always does', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'grace@example.com', roles: [Roles.USER] });

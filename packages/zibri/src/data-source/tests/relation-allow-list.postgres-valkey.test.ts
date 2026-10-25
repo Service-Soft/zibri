@@ -1,7 +1,8 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
 import { describeRelationAllowList, Genre, Playlist, RelationAllowListRepositories, Track } from './relation-allow-list.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -11,7 +12,8 @@ import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.mo
 import { MigrationEntity } from '../migration/migration-entity.model';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, Playlist, Track, Genre]
+    entities: [...defaultTestServerEntities, Playlist, Track, Genre],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -28,11 +30,11 @@ beforeAll(async () => {
     const valKeyDataSource: ValKeyDataSource = inject(valKeyDataSourceClass);
     postgres = { playlists: postgresDataSource.getRepository(Playlist), genres: postgresDataSource.getRepository(Genre) };
     valKey = { playlists: valKeyDataSource.getRepository(Playlist), genres: valKeyDataSource.getRepository(Genre) };
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeRelationAllowList('postgres', () => postgres);
 

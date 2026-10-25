@@ -6,7 +6,7 @@ import { POSTGRES_TEST_IMAGE } from 'zibri-testing';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -25,6 +25,7 @@ import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
+import { RepositoryClass } from '../repository/repository-class.type';
 import { Transaction } from '../transaction/transaction.model';
 
 @Entity({ tenant: 'shared', tableName: 'workshop' })
@@ -105,6 +106,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Workshop, Tool, Ledger];
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     override migrations: Newable<Migration>[] = [CreateEverythingMigration];
     schemaManagement: SchemaManagement = 'migrations';
 }

@@ -1,10 +1,13 @@
 import { BaseEntity } from '../../entity/base-entity.model';
 import { type RelationTree } from '../../entity/models/entity-relations.model';
+import { type SelectionTree } from '../../entity/models/entity-selection.utilities';
 import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { AggregateFunction, AggregateRow } from '../models/aggregate.model';
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { type StreamOptions } from '../models/options/stream-options.model';
+import { type RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
@@ -34,6 +37,21 @@ export type DriverFindOptions<T extends BaseEntity> = {
      */
     relations?: FindAllOptions<T>['relations'] | RelationTree,
     /**
+     * What the rows of each entity the read reaches through a relation are narrowed to.
+     *
+     * Applied wherever a relation is resolved or judged: the rows it holds, a filter through it and
+     * a count of it. Absent when nothing the read reaches is narrowed.
+     */
+    related?: RelatedNarrowing,
+    /**
+     * The properties of each entity the read has to hand back, and of each related row it resolves.
+     *
+     * A driver that can read part of a row reads at least these, the `id` of every entity always; one
+     * that cannot reads whole rows. Either is right: the repository narrows the rows to the caller's
+     * selection once it has them. A related row whose relation is not named is not resolved.
+     */
+    select?: SelectionTree,
+    /**
      * The amount of entities to skip.
      */
     skip?: number,
@@ -52,6 +70,24 @@ export type DriverFindOptions<T extends BaseEntity> = {
  * answer for. See {@link StreamOptions} for why each one is absent.
  */
 export type DriverStreamOptions<T extends BaseEntity> = OmitStrict<DriverFindOptions<T>, 'take' | 'skip' | 'order'>;
+
+/**
+ * The resolved options for taking a value over the rows a filter matches.
+ */
+export type DriverAggregateOptions<T extends BaseEntity> = Pick<DriverFindOptions<T>, 'where' | 'related' | 'transaction'> & {
+    /**
+     * What is taken over the rows.
+     */
+    fn: AggregateFunction,
+    /**
+     * The property it is taken of. Undefined for a count.
+     */
+    property: string | undefined,
+    /**
+     * The properties the rows are grouped by, empty for one value over every row.
+     */
+    groupBy: string[]
+};
 
 /**
  * The resolved options for reading a window and the total it is part of.
@@ -82,10 +118,20 @@ export type DriverUpdateAllOptions<T extends BaseEntity, R extends boolean = fal
      */
     data: DeepPartial<T>,
     /**
+     * The amounts to add to what every matching entity stores, by property, in the same write as
+     * `data`. A property holding no value counts as 0.
+     */
+    increments?: Record<string, number>,
+    /**
      * The transaction to run the operation in. A driver that needs one to be atomic takes its own
      * when this is undefined.
      */
     transaction?: Transaction,
+    /**
+     * What the rows of each entity the filter reaches through a relation are narrowed to, as a
+     * read's `related`.
+     */
+    related?: RelatedNarrowing,
     /**
      * Whether the updated entities are wanted back, instead of how many there were.
      */
@@ -131,9 +177,16 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @param rows - The values to write, each with the id of the row to write them to.
      * @param where - The rows that may be written, naming the ids of every one of them.
      * @param transaction - The transaction to run the operation in.
+     * @param related - What the rows of each entity the filter reaches through a relation are
+     * narrowed to, as a read's `related`.
      * @returns The rows written, as they are stored now. A row the filter does not match is neither.
      */
-    updateEach: (rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined) => Promise<T[]>,
+    updateEach: (
+        rows: DeepPartial<T>[],
+        where: Where<T>,
+        transaction: Transaction | undefined,
+        related?: RelatedNarrowing
+    ) => Promise<T[]>,
 
     /**
      * Finds all entities that match the given options.
@@ -155,6 +208,18 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * @returns The amount of matching entities.
      */
     count: (options: DriverFindOptions<T>) => Promise<number>,
+
+    /**
+     * Takes a value over the entities that match the given options: a sum, an average, a smallest or
+     * largest value, or a count, per group when asked to.
+     *
+     * Answered the way a sql database answers it: an entity holding no value for the property is
+     * left out, and a group with no value to take answers undefined or null. With nothing to group by,
+     * the answer is one row, or none when no entity matched.
+     * @param options - What to take of which property, over which entities, grouped by what.
+     * @returns One row per group.
+     */
+    aggregate: (options: DriverAggregateOptions<T>) => Promise<AggregateRow[]>,
 
     /**
      * Reads one window of what a filter matches, and how many it matches in total, as of one moment.
@@ -265,12 +330,15 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * the identity would be - judged within the same window as the write, so the row cannot change
      * between the two. Rows written before the refused one may stay written; run the call in a
      * transaction when a refusal has to leave nothing behind.
+     * @param related - What the rows of each entity `reachable` or a row's `where` reaches through a
+     * relation are narrowed to, as a read's `related`.
      * @returns The rows as they are after the insert or the update, in the order they were given.
      */
     upsert: (
         identity: string[],
         rows: UpsertRow<T>[],
         transaction: Transaction | undefined,
-        reachable: Where<T> | undefined
+        reachable: Where<T> | undefined,
+        related?: RelatedNarrowing
     ) => Promise<T[]>
 }

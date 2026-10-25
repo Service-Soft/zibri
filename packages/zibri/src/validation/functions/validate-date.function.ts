@@ -8,6 +8,7 @@ import { $f } from '../../localization/format.function';
 import { $ts } from '../../localization/translate.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { DateParamMetadata } from '../../routing/models/date-param-metadata.model';
+import { ValidationProblemCode } from '../validation-problem-code.enum';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**
@@ -28,8 +29,8 @@ export async function validateDate(
 ): Promise<ValidationProblem[]> {
     const meta: DatePropertyMetadata | DateParamMetadata = metadata as DatePropertyMetadata | DateParamMetadata;
     const fullKey: string = parentKey ? `${parentKey}.${key}` : key;
+    const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
     if (property == undefined) {
-        const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         const isRequired: boolean = typeof metadata.required === 'boolean' ? metadata.required : await metadata.required(entity, context);
         if ((meta as DatePropertyMetadata).default == undefined && isRequired) {
             return [new IsRequiredValidationProblem(fullKey)];
@@ -38,29 +39,53 @@ export async function validateDate(
             return [];
         }
     }
-    return dateValueProblems(fullKey, property, meta);
+    const problems: ValidationProblem[] = dateValueProblems(fullKey, property);
+    if (problems.length || !(property instanceof Date)) {
+        return problems;
+    }
+    return dateBoundProblems(fullKey, property, meta, entity, context);
 }
 
 /**
  * The problems of a date value, judged by the value alone.
  *
- * Everything about a date except whether it may be left out, which can depend on the request.
- * What decides which of several shapes a value is uses exactly this, so it cannot disagree with
- * validation about any rule it looks at.
+ * Everything about a date except whether it may be left out and its bounds, which can depend on the
+ * request and on the object the date is on. What decides which of several shapes a value is uses
+ * exactly this, so it cannot disagree with validation about any rule it looks at.
  * @param fullKey - The key the problems are reported under.
  * @param property - The value.
- * @param meta - What the date is declared as.
  * @returns All validation problems found.
  */
-export function dateValueProblems(fullKey: string, property: unknown, meta: DatePropertyMetadata | DateParamMetadata): ValidationProblem[] {
+export function dateValueProblems(fullKey: string, property: unknown): ValidationProblem[] {
     if (!(property instanceof Date)) {
         return [new TypeMismatchValidationProblem(fullKey, 'date')];
     }
-    if (meta.before != undefined && new Date(property).getTime() >= meta.before.getTime()) {
-        return [{ key: fullKey, message: $ts`should be before "${$f.dateTime(meta.before)}"` }];
+    return [];
+}
+
+/**
+ * The problems of a date with the bounds of its property, which are asked for each value.
+ * @param fullKey - The key the problems are reported under.
+ * @param property - The date.
+ * @param meta - What the date is declared as.
+ * @param entity - The object the date is on.
+ * @param context - The current request.
+ * @returns All validation problems found.
+ */
+function dateBoundProblems(
+    fullKey: string,
+    property: Date,
+    meta: DatePropertyMetadata | DateParamMetadata,
+    entity: unknown,
+    context: HttpRequestContext | WebsocketRequestContext | undefined
+): ValidationProblem[] {
+    const before: Date | undefined = meta.before?.(entity, context);
+    if (before != undefined && property.getTime() >= before.getTime()) {
+        return [{ key: fullKey, code: ValidationProblemCode.BEFORE, message: $ts`should be before "${$f.dateTime(before)}"` }];
     }
-    if (meta.after != undefined && new Date(property).getTime() <= meta.after.getTime()) {
-        return [{ key: fullKey, message: $ts`should be after "${$f.dateTime(meta.after)}"` }];
+    const after: Date | undefined = meta.after?.(entity, context);
+    if (after != undefined && property.getTime() <= after.getTime()) {
+        return [{ key: fullKey, code: ValidationProblemCode.AFTER, message: $ts`should be after "${$f.dateTime(after)}"` }];
     }
     return [];
 }

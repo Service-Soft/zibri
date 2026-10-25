@@ -27,6 +27,7 @@ import { Ms } from '../../../utilities/ms';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { UrlUtilities } from '../../../utilities/url.utilities';
 import { BaseUser } from '../../models/base-user.model';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { BaseFederatedAuthenticator } from '../federated/base-federated.authenticator';
 import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
 import { FederatedLogoutAnswer } from '../federated/federated-logout-answer.model';
@@ -183,6 +184,13 @@ export abstract class BaseSamlAuthenticator<
      * Which NameID the identity provider is asked for, which links the user to an account.
      */
     readonly nameIdFormat: SamlNameIdFormat = SamlNameIdFormat.PERSISTENT;
+
+    /**
+     * The classes of authentication a sign-in asks the identity provider for, as the
+     * RequestedAuthnContext of the request names them, such as one that stands for a second factor.
+     * None by default, which leaves how the user signs in to the identity provider.
+     */
+    readonly requestedAuthnContext: string[] = [];
 
     /**
      * The key requests to the identity provider are signed with, for a provider that asks for signed
@@ -584,8 +592,13 @@ export abstract class BaseSamlAuthenticator<
         }
         const createService: (binding: string, location: string) => Element = (binding, location) => {
             const service: Element = document.createElementNS(METADATA_NAMESPACE, 'SingleLogoutService');
-            service.setAttribute('binding', binding);
-            service.setAttribute('location', location);
+            // capitalized, as SAML names them: xml attributes are case sensitive, and an identity
+            // provider reading `binding` finds a service with no binding at all. Set as the xml
+            // attributes of no namespace they are, rather than as html ones
+            // eslint-disable-next-line unicorn/no-null
+            service.setAttributeNS(null, 'Binding', binding);
+            // eslint-disable-next-line unicorn/no-null
+            service.setAttributeNS(null, 'Location', location);
             return service;
         };
         posted.parentNode.insertBefore(createService(HTTP_REDIRECT_BINDING, this.resolveRouteUrl('logout')), posted);
@@ -627,10 +640,74 @@ export abstract class BaseSamlAuthenticator<
             sessionIndex: profile.sessionIndex
         };
         return {
-            identity: { issuer: this.issuer, subject: profile.nameID, authenticatedAt, profile: this.resolveProfile(profile) },
+            identity: {
+                issuer: this.issuer,
+                subject: profile.nameID,
+                authenticatedAt,
+                profile: this.resolveProfile(profile),
+                claims: this.toClaims(profile),
+                providerAuthentication: this.findProviderAuthentication(profile)
+            },
             tokens: undefined,
             session: { id: profile.sessionIndex, logout: JsonUtilities.stringify(logout) }
         };
+    }
+
+    /**
+     * Reads how the user proved who they are at the identity provider: the class of the authentication
+     * the assertion's authentication statement names.
+     * @param profile - What the identity provider sent about the user.
+     * @returns The class, or undefined when the assertion names none.
+     */
+    private findProviderAuthentication(profile: Profile): ProviderAuthentication | undefined {
+        const context: unknown = this.findAuthnStatement(profile)?.['AuthnContext'];
+        const first: unknown = Array.isArray(context) ? context[0] : undefined;
+        if (typeof first !== 'object' || first == undefined || !('AuthnContextClassRef' in first)) {
+            return undefined;
+        }
+        const classes: unknown = first.AuthnContextClassRef;
+        const contextClass: string | undefined = this.findText(Array.isArray(classes) ? classes[0] : undefined);
+        return contextClass == undefined ? undefined : { methods: [], contextClass };
+    }
+
+    /**
+     * The text of an element as the library parses it, which keeps text and attributes apart.
+     * @param element - The parsed element.
+     * @returns Its text, or undefined when it has none.
+     */
+    private findText(element: unknown): string | undefined {
+        if (typeof element === 'string') {
+            return element;
+        }
+        if (typeof element !== 'object' || element == undefined || !('_' in element)) {
+            return undefined;
+        }
+        return typeof element._ === 'string' ? element._ : undefined;
+    }
+
+    /**
+     * The authentication statement of the assertion, as the library parsed it.
+     * @param profile - What the identity provider sent about the user.
+     * @returns The statement, or undefined when the assertion has none.
+     */
+    private findAuthnStatement(profile: Profile): Record<string, unknown> | undefined {
+        const assertion: unknown = profile.getAssertion?.()['Assertion'];
+        if (typeof assertion !== 'object' || assertion == undefined || !('AuthnStatement' in assertion)) {
+            return undefined;
+        }
+        const statements: unknown = assertion.AuthnStatement;
+        const statement: unknown = Array.isArray(statements) ? statements[0] : undefined;
+        return typeof statement === 'object' && statement != undefined ? statement as Record<string, unknown> : undefined;
+    }
+
+    /**
+     * What the identity provider said about the user, as plain values: the attributes of the assertion
+     * and its NameID, without the functions the library hangs on the profile.
+     * @param profile - What the identity provider sent about the user.
+     * @returns The values by name.
+     */
+    private toClaims(profile: Profile): Record<string, unknown> {
+        return Object.fromEntries(Object.entries(profile).filter(([, value]) => typeof value !== 'function'));
     }
 
     /**
@@ -640,16 +717,7 @@ export abstract class BaseSamlAuthenticator<
      * @returns The time, or undefined when the assertion does not say.
      */
     private findAuthnInstant(profile: Profile): Date | undefined {
-        const assertion: unknown = profile.getAssertion?.()['Assertion'];
-        if (typeof assertion !== 'object' || assertion == undefined || !('AuthnStatement' in assertion)) {
-            return undefined;
-        }
-        const statements: unknown = assertion.AuthnStatement;
-        const statement: unknown = Array.isArray(statements) ? statements[0] : undefined;
-        if (typeof statement !== 'object' || statement == undefined || !('$' in statement)) {
-            return undefined;
-        }
-        const attributes: unknown = statement.$;
+        const attributes: unknown = this.findAuthnStatement(profile)?.['$'];
         if (typeof attributes !== 'object' || attributes == undefined || !('AuthnInstant' in attributes)) {
             return undefined;
         }
@@ -728,9 +796,11 @@ export abstract class BaseSamlAuthenticator<
             idpIssuer: this.issuer,
             identifierFormat: this.nameIdFormat,
             forceAuthn,
-            // asking for a password-protected sign-in turns away one with a passkey, a smart card or
-            // windows authentication, which is the identity provider's to decide
-            disableRequestedAuthnContext: true,
+            // only the classes the authenticator names: the library's own default asks for a
+            // password-protected sign-in, which turns away one with a passkey, a smart card or
+            // windows authentication, and that is the identity provider's to decide
+            authnContext: this.requestedAuthnContext,
+            disableRequestedAuthnContext: !this.requestedAuthnContext.length,
             // either the whole response or the assertion has to be signed, and whichever is checked
             // covers the assertion. Both are what identity providers commonly sign
             wantAssertionsSigned: false,

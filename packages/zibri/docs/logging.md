@@ -1,8 +1,7 @@
 # Logging
-The logging system in Zibri consists of the logger itself and one or multiple logger transports.
+The logger records what your application does, at a level from `debug` to `critical`. Logger transports decide where an entry goes.
 
-A logger transport defines WHERE a logged message goes.
-Zibri provides some by default, but you can of course create your own transports:
+Three transports come with the framework, and you can write your own:
 - console logger transport (prints the log to the console)
 - db logger transport (saves a log entry in a data source)
 - email logger transport (sends an email with the log to a specified email)
@@ -10,37 +9,31 @@ Zibri provides some by default, but you can of course create your own transports
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `LoggerInterface` | interface | Log at `debug`/`info`/`warn`/`error`/`critical` levels, `audit` for security events, and `flush` to wait for the queue |
-| `AuditEvent` | type | What `audit` records: an action, an outcome, and who it was about |
-| `AuditAction` / `AuditOutcome` / `AuditReason` | enums | The closed sets an `AuditEvent` is built from |
+| `LoggerInterface` | interface | Log at `debug`/`info`/`warn`/`error`/`critical` levels, and `flush` to wait for the queue |
 | `ZIBRI_DI_TOKENS.LOGGER` | DI token | Injects `LoggerInterface` |
-| `LoggerTransport` | class | Builder for a logger transport (eg. `.console()`, `.db()`) |
+| `LoggerTransport` | class | Builder for a logger transport (such as `.console()`, `.db()`) |
 | `LogLevel` | enum | Minimum level a transport should log at |
 | `ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS` | DI token | Overrides the transports used by the logger |
 | `ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY` | DI token | How many entries may queue before the least important are dropped |
 | `ZIBRI_DI_TOKENS.ACCESS_LOG` | DI token | Turns on one log entry per finished request |
+| `Log` | entity | One log entry: its `level`, `message`, `context` and `tenantId`. What a transport is handed, and what the db transport stores |
+| `LoggedError` | class | An error as an entry carries it: its `name`, its `paragraphs` (the message and the chain of causes) and its `stackTrace` |
 
-## Usage
-### Using the logger
-You can inject the logger by its token:
+## Using the logger
+Inject the logger by its token:
 
 ```ts
-// src/controllers/test.controller.ts
-import { AuditAction, AuditOutcome, AuditReason, Controller, defineProvider, inject, Inject, Log, LoggerInterface, LoggerTransport, LogLevel, Repository, ZIBRI_DI_TOKENS } from 'zibri';
+// src/controllers/task.controller.ts
+import { Controller, Inject, LoggerInterface, ZIBRI_DI_TOKENS } from 'zibri';
 
-import { MyAuditingLogger } from '../logging/my-auditing.logger';
-import { myAggregator } from '../logging/my-aggregator';
-
-@Controller('/tests')
-export class TestController {
+@Controller('/tasks')
+export class TaskController {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface
-    ) {
-        const alternative: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-    }
+    ) {}
 
-    logStuff(): void {
+    logAtEveryLevel(): void {
         this.logger.debug('debug message');
         this.logger.info('info message');
         this.logger.warn('warn message');
@@ -51,64 +44,21 @@ export class TestController {
 }
 ```
 
-Note that none of these return a promise, so there is nothing to await. See [caveats](#caveats) for what follows from that.
+Outside a constructor, `inject(ZIBRI_DI_TOKENS.LOGGER)` returns the same logger.
+
+None of these return a promise, so there is nothing to await. The entry is written shortly after, see [when entries are written](#when-entries-are-written).
 
 An entry records the [tenant](./tenancy.md#work-outside-a-request) it was logged in, in `tenantId`.
 
-### The audit trail
-`audit` is the sixth method, and it is not a level — it is what the framework calls when something
-security relevant happens. Failed and successful logins, refused routes, password reset requests, a
-refresh credential presented twice: see [auth](./auth.md#what-gets-recorded) for the list and what
-each one carries.
-
-```ts
-export function recordFailedLogin(logger: LoggerInterface): void {
-    logger.audit({
-        action: AuditAction.LOGIN,
-        outcome: AuditOutcome.FAILURE,
-        reason: AuditReason.REFUSED,
-        subject: 'someone@example.com'
-    });
-}
-```
-
-It goes through the ordinary transports — `info` when the outcome is success, `warn` when it is not —
-and the event itself is attached under `context.metadata.audit`, so the trail can be queried out of
-the rest:
-
-```ts
-export async function readAuditTrail(logRepository: Repository<Log>): Promise<unknown[]> {
-    const logs: Log[] = await logRepository.findAll({});
-    return logs.map(l => l.context.metadata?.['audit']).filter(a => a != undefined);
-}
-```
-
-Past the db transport's [budget](#how-many-rows-the-db-transport-writes), events are counted per kind like every other entry, and the whole event is part of the kind: a run of refused logins naming one address is one row with a count.
-
-`action` and `outcome` are the pair a detection rule keys on, and both are closed sets. `reason`
-is too, deliberately: messages are localized and are allowed to change wording, so nothing worth
-alerting on should have to be parsed out of one.
-
-**`audit` is the seam.** An application that has to ship these somewhere specific — a SIEM, a
-separate retention, an append-only store — replaces the logger and routes `audit` on its own, and
-none of the code that emits the events has to know:
-
-```ts
-defineProvider({ token: ZIBRI_DI_TOKENS.LOGGER, useClass: MyAuditingLogger })
-```
-
-Two things it deliberately does not do. There is no event for an *allowed* request — that is an
-access log, it has a different volume, and burying the refusals in one would defeat the point. And
-audit entries share the retention of their level (`LOGGER_CLEANUP_AFTER_MS`), so if you need to keep
-them longer than two weeks, that is a reason to route them somewhere of their own rather than to
-raise the retention of every `warn` you emit.
+## Security events
+Every event the [audit trail](./audit.md) records is logged as well: at `info` when the outcome is success, at `warn` when it is not, with the event under `context.metadata.audit`. Like every other entry, these count toward the queue's capacity and the db transport's [budget](#how-many-rows-the-db-transport-writes), and are kept for the retention of their level. The audit trail keeps every event, for as long as you say.
 
 ## Configuration
-You can configure the transports that should be used by adding them to your providers array:
+Configure the transports by adding them to your providers array:
 
 ```ts
 // src/providers.ts
-import { ZIBRI_DI_TOKENS, LoggerTransport, LogLevel } from 'zibri';
+import { defineProvider, LoggerTransport, LogLevel, ZIBRI_DI_TOKENS } from 'zibri';
 
 
 defineProvider({
@@ -120,123 +70,144 @@ defineProvider({
 });
 ```
 
-As you can see we provide a log level for each transport here. This is especially useful if you want to use something like the email transport, which should probably only activate for critical errors.
+Each transport takes the lowest level it logs. Give the email transport `LogLevel.CRITICAL`, for example, to mail only critical errors.
 
 ### How entries reach a transport
 
-Logging never waits for a transport. An entry goes into a bounded buffer and the call returns, so nothing on a request path blocks on a database write or an SMTP conversation.
-
-Entries then **gather for a moment before they are written**, and a transport is handed all of them at once:
+A log call returns at once and never waits for a transport. Entries logged close together are handed to a transport at once:
 
 ```ts
-LoggerTransport.create({ name: 'MyTransport', level: LogLevel.WARN, register: 'directly' }, async (logs, config) => {
-    await myAggregator.send(logs);
+// src/logging/aggregator.transport.ts
+import { LoggerTransport, LogLevel } from 'zibri';
+
+import { logAggregator } from './log-aggregator';
+
+LoggerTransport.create({ name: 'AggregatorTransport', level: LogLevel.WARN, register: 'directly' }, async (logs, config) => {
+    await logAggregator.send(logs);
 });
 ```
 
-`send` receives only the entries this transport's level admits, oldest first, and is never called with an empty list. Writing a batch as one operation is the point — one statement rather than one per line.
+`send` receives only the entries this transport's level admits, oldest first, and is never called with an empty list. Write them in one operation where the target allows it, such as one statement for all of them.
 
 A transport that holds entries back takes a third argument, `flush`, which writes them out. The logger calls it on `flush()` and at shutdown, after every queued entry was sent.
 
 | Token | Meaning |
 |---|---|
 | `LOGGER_FLUSH_INTERVAL_MS` | How long entries gather before a write. Defaults to one second. `0` writes each entry on its own, which costs one write per log call |
-| `LOGGER_BUFFER_CAPACITY` | How many entries may wait. When it is full the least important entry gives way, and the next batch carries a note saying how many were dropped |
+| `LOGGER_BUFFER_CAPACITY` | How many entries may wait. When it is full the least important entry gives way, and the next write carries a note saying how many were dropped |
 
-The interval is how much a crash can lose. Shutdown flushes what is queued before the data sources close, so an orderly stop loses nothing.
+The interval is how much a crash can lose. Shutdown flushes what is queued before the data sources close, and once more after they have closed for the transports that need none, so an orderly stop loses nothing. An uncaught exception is written before the process ends on it.
 
-Raise it for an application that logs constantly and can afford to lose more on an unclean stop; lower it to keep that window small. Note that shortening it also shortens the window entries have to find each other in — an application handling a few requests a second is quiet on a 100ms window, so each line ends up written on its own again.
+Raise the interval for an application that logs constantly and can afford to lose more on an unclean stop. Lower it to keep that window small. With a short interval, fewer entries share a write: an application handling a few requests a second writes each line on its own on a 100ms window.
 
 ### How many rows the db transport writes
 
 The db transport writes at most 1000 entries a minute as rows of their own, on each instance. Past that, entries with the same level, message and metadata become one row per kind, written when the minute ends. That row carries the first entry's message and context, and `context.collapsed` says how many entries it stands for and when the last one was logged:
 
 ```ts
+// src/services/log-count.service.ts
+import { Log } from 'zibri';
+
 export function countEntries(logs: Log[]): number {
     return logs.reduce((sum, l) => sum + (l.context.collapsed?.count ?? 1), 0);
 }
 ```
 
-When a batch is larger than what is left of the budget, its more important entries keep their rows. Each minute keeps at most 100 kinds apart; anything beyond them is counted in one row per level.
+When more entries arrive at once than the budget has left, the more important ones keep their rows. Each minute keeps at most 100 kinds apart, and anything beyond them is counted in one row per level.
 
 Set the budget on the transport:
 
 ```ts
+// src/providers.ts, one of the transports
+import { LoggerTransport, LogLevel } from 'zibri';
+
 LoggerTransport.db(LogLevel.INFO, { maxEntriesPerMinute: 5000 })
 ```
 
 ### The access log
 
-One `info` entry per finished request, carrying the method, the url, the status and how long it took:
+One `info` entry per finished request, carrying the method, the path, the status and how long it took. The query string of a request is on no entry, the access log's or any other's:
 
 ```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 defineProvider({
     token: ZIBRI_DI_TOKENS.ACCESS_LOG,
     useValue: true
 });
 ```
 
-**Reach for [metrics](./metrics.md) first.** A 404 storm, a spike of 400s after a client release and a route that got slower are all questions about counts and distributions, and `http_requests_total` and `http_request_duration_ms` already answer them — labelled by method, route and status, at a fixed cost that does not grow with traffic. That is what you build a dashboard and an alert on.
+For counts and durations per route, use [metrics](./metrics.md). `http_requests_total` and `http_request_duration_ms` are labeled by method, route and status, at a fixed cost that does not grow with traffic. Build dashboards and alerts on them.
 
-Turn the access log on when you need the individual requests rather than the shape of them: which client asked for what, in what order, with which user agent. That is a debugging and forensics question, and it is worth the cost only while you have it. The cost is real — the default transports include the database one, which keeps everything from `info` upwards, so a busy application makes the log table its busiest table. That transport writes 1000 entries a minute as rows of their own and [counts the rest](#how-many-rows-the-db-transport-writes), so on a busy application most requests end up counted rather than written. Enable it together with a transport that can take the volume, or raise the db transport's budget and set `LOGGER_CLEANUP_AFTER_MS` low enough for it.
+Turn the access log on when you need the individual requests: which client asked for what, in what order, with which user agent. The default transports include the db transport, which keeps every entry from `info` up, so on a busy application the log table becomes its busiest table. The db transport writes 1000 entries a minute as rows of their own and [counts the rest](#how-many-rows-the-db-transport-writes), so on a busy application most requests are counted, not written. Enable the access log together with a transport that takes the volume, or raise the db transport's budget and set `LOGGER_CLEANUP_AFTER_MS` low enough for it.
 
-The entry is written once the response has closed, which includes a client that hung up mid-response and a request that matched no route at all.
+The entry is written once the response has closed. That includes a client that hung up mid-response and a request that matched no route.
 
 ### Finding the lines of one request
 
-Every request belongs to a trace, and every entry written while handling it carries that trace under `context.request.traceId` and the span it was written in under `context.request.spanId`. So one report — a status, a timestamp, a screenshot — turns into the exact set of lines the request produced, rather than into a window of everything the application logged at that minute.
+Every request belongs to a trace. Every entry written while handling it carries that trace under `context.request.traceId`, and the span it was written in under `context.request.spanId`. Filter by the trace id to read the lines one request produced.
 
-The trace is continued from the caller's `traceparent` header when one arrived and started here when it did not, so a request crossing several services reads as one story. The response names it back under `traceresponse`, and a failed request repeats the trace id in its body as `traceId` — which is the form it survives being pasted into a bug report. Requests the application makes with the [http client](./http-client.md) carry it onward automatically.
+The trace continues from the caller's `traceparent` header when one arrived, and starts here when it did not, so a request crossing several services reads as one. The response names it back under `traceresponse`, and a failed request repeats the trace id in its body as `traceId`. Requests the application makes with the [http client](./http-client.md) carry it onward.
 
 See [tracing](./tracing.md) for the spans inside that trace, and for what the ids mean.
 
-## Caveats
+## When entries are written
 
-Logging never waits for its transports. A log call stamps the entry, puts it on a queue and returns, which keeps a request from paying for a slow transport and keeps a failing transport from surfacing at whatever line happened to log — a transport that throws is reported to the console instead. Two things follow from that.
+A log call stamps the entry, queues it and returns. A transport that throws is reported to the console.
 
-### An entry is not written when the call returns
+### Waiting for an entry to be written
 
-Anything that has to *see* an entry has to wait for the queue to drain:
+To read an entry back, wait for the queue to drain:
 
 ```ts
+// src/services/error-log.service.ts
+import { inject, Log, LogLevel, Repository, ZIBRI_DI_TOKENS } from 'zibri';
+
 export async function readErrorsAfterFlush(logRepository: Repository<Log>): Promise<Log[]> {
     await inject(ZIBRI_DI_TOKENS.LOGGER).flush();
     return await logRepository.findAll({ where: { level: LogLevel.ERROR } });
 }
 ```
 
-This mostly comes up in tests. A test asserting something was **not** logged needs the flush just as much as one asserting it was — without it, "no entry" and "not written yet" are the same result, so the test passes for the wrong reason.
+In a test, flush before asserting that something was logged, and also before asserting that it was not.
 
-The gap is at least `LOGGER_FLUSH_INTERVAL_MS` — a second by default, since entries are deliberately given time to gather. `flush()` skips that wait rather than sitting through it.
+An entry waits up to `LOGGER_FLUSH_INTERVAL_MS` before it is written, a second by default. `flush()` writes it without that wait.
 
-Shutdown flushes on its own, in `onAppShutdown`, while the data sources are still open.
+Shutdown flushes on its own: after the `OnAppShutdown` hooks, while the data sources are still open, and again after the `AfterAppShutdown` hooks for the transports that need none.
 
-### The email transport sends digests, not one mail per entry
+### Sending entries by email
 
-One email per log entry is how a log storm becomes a mail storm: a dependency failing at ten thousand errors a minute queues ten thousand mails, and the mail queue outlives the incident by hours while every ordinary mail waits behind it.
-
-So the email transport sends **one mail per batch**, and two options bound it:
+The email transport sends one mail for all the entries it is handed at once, and two options bound it:
 
 | Option | Meaning |
 |---|---|
-| `maxEntriesPerEmail` | How many entries one mail carries. Defaults to 20 — the rest are counted, and the subject says how many there were |
+| `maxEntriesPerEmail` | How many entries one mail carries. Defaults to 20. The rest are counted, and the subject says how many there were |
 | `minIntervalMs` | The shortest gap between two mails from this transport. Defaults to one minute. Entries arriving inside the gap are counted and reported by the next mail, whose subject says how many were suppressed |
 
-The template receives the batch:
+The template receives the entries:
 
 ```tsx
+// src/templates/emails/log.tsx
+import { Log } from 'zibri';
+
 export const LogEmail = ({ logs }: { logs: Log[] }) => <ul>{logs.map(l => <li>{l.message}</li>)}</ul>;
 ```
 
-Every configuration function — `recipients`, `subject`, `cc`, `priority` and the rest — receives the whole batch too, including the entries that did not fit in the mail.
+Every configuration function, `recipients`, `subject`, `cc`, `priority` and the rest, receives all of them too, including the entries that did not fit in the mail.
 
-### Entries are dropped rather than queued without limit
+### Dropping entries when the queue is full
 
-Nothing throttles the code producing logs any more, so the queue refuses work instead of growing. An unbounded one would turn a slow transport into an out-of-memory kill, and it would do it during an incident — exactly when the database those entries describe is already struggling.
+The queue holds `ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY` entries, 10000 by default. When it is full, the least important entry in play gives way, and among equals the oldest does. A queue full of errors does not evict one for a debug line. A queue full of debug lines gives way to a single error at once.
 
-When the queue is full the least important entry in play gives way, and among equals the oldest does. A queue full of errors will not evict one to make room for a debug line; a queue full of debug lines gives way to a single error immediately. Anything dropped is counted and reported as a warning of its own, so a gap is visible rather than something you infer from a hole in the timestamps.
+Dropped entries are counted and reported as a warning of their own, and in the `log_entries_dropped_total` [metric](./metrics.md#what-a-snapshot-contains).
 
-The size of the queue is `ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY`, 10000 entries by default.
+## Requirements
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `Log` | The db transport is one of `LOGGER_TRANSPORTS`, which it is by default |
 
 ## See also
 - [Metrics](./metrics.md) — counts and durations per route, and the first place to look before enabling the access log

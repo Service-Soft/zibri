@@ -5,8 +5,9 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { WriteThroughReadThroughCache } from '../caching/cache/read-through/write-through-read-through.cache';
 import { type CacheServiceInterface } from '../caching/cache-service.interface';
@@ -152,11 +153,11 @@ describe('the content security policy a response is written with', () => {
     beforeAll(async () => {
         server = await startTestServer({
             controllers: [CspController],
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             providers
         });
         baseUrl = await server.start();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();

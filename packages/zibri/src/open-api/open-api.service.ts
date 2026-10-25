@@ -354,7 +354,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '(function() {',
                             '    let isInjecting = false;',
                             '',
-                            '    function injectRoles() {',
+                            '    function injectPermissions() {',
                             '        if (isInjecting) return;',
                             '        if (!window.ui || typeof window.ui.specSelectors !== \'object\') return;',
                             '',
@@ -387,18 +387,21 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '                    const operationObj = pathObj[method];',
                             '                    if (!operationObj) return;',
                             '',
-                            '                    const roles = operationObj[\'x-roles\'];',
-                            '                    if (!roles || !Array.isArray(roles) || roles.length === 0) return;',
+                            '                    const permissions = [',
+                            '                        operationObj[\'x-permission\'],',
+                            '                        operationObj[\'x-platform-permission\']',
+                            '                    ].filter((p) => typeof p === \'string\');',
+                            '                    if (permissions.length === 0) return;',
                             '',
-                            '                    if (op.querySelector(\'.zibri-roles-container\')) return;',
+                            '                    if (op.querySelector(\'.zibri-permissions-container\')) return;',
                             '',
                             '                    const container = document.createElement(\'div\');',
-                            '                    container.className = \'zibri-roles-container\';',
+                            '                    container.className = \'zibri-permissions-container\';',
                             '                    container.setAttribute(\'aria-hidden\', \'true\');',
                             '',
-                            '                    roles.forEach((r) => {',
+                            '                    permissions.forEach((r) => {',
                             '                        const badge = document.createElement(\'span\');',
-                            '                        badge.className = \'zibri-role-badge\';',
+                            '                        badge.className = \'zibri-permission-badge\';',
                             '                        badge.textContent = String(r);',
                             '                        container.appendChild(badge);',
                             '                    });',
@@ -407,7 +410,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '                    const summary = op.querySelector(\'.opblock-summary-path-description-wrapper\');',
                             '                    if (summary) summary.appendChild(container);',
                             '                } catch (e) {',
-                            '                    console.warn(\'zibri openapi role injection failed\', e);',
+                            '                    console.warn(\'zibri openapi permission injection failed\', e);',
                             '                }',
                             '            });',
                             '        } finally {',
@@ -429,7 +432,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '        }',
                             '',
                             '        // Initial injection',
-                            '        injectRoles();',
+                            '        injectPermissions();',
                             '',
                             '        // Watch for version switches / re-renders',
                             '        const swaggerContainer = document.getElementById(\'swagger-ui\');',
@@ -439,7 +442,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                             '        const observer = new MutationObserver(() => {',
                             '            clearTimeout(debounceTimer);',
                             '            debounceTimer = setTimeout(() => {',
-                            '                injectRoles();',
+                            '                injectPermissions();',
                             '            }, 200);',
                             '        });',
                             '',
@@ -496,7 +499,9 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         const res: OpenApiDefinition = {
             openapi: '3.1.0',
             info: {
-                title: `${GlobalRegistry.getAppData('name')} | Explorer`,
+                // the name alone, unlike the explorer's page title: a gateway lists the api under it,
+                // and a client generator names the client after it
+                title: app.options.name,
                 version: version.value
             },
             tags,
@@ -556,7 +561,10 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
 
                 const responses: OpenApiResponse[] = MetadataUtilities.getRouteResponses(controllerClass, route.controllerMethod);
 
-                const { hasRole: hasRoleMetadata, hasPlatformRole: hasPlatformRoleMetadata }: ResolvedAuthMetadata = RouteRegistry.get(
+                const {
+                    hasPermission: hasPermissionMetadata,
+                    hasPlatformPermission: hasPlatformPermissionMetadata
+                }: ResolvedAuthMetadata = RouteRegistry.get(
                     controllerClass,
                     route.controllerMethod
                 ).auth.metadata;
@@ -572,8 +580,8 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                     ],
                     requestBody: this.buildOpenApiBody(bodyMetadata),
                     security: await this.resolveOperationSecurity(controllerClass, route.controllerMethod),
-                    ['x-roles']: hasRoleMetadata?.allowedRoles,
-                    ['x-platform-roles']: hasPlatformRoleMetadata?.allowedRoles
+                    ['x-permission']: hasPermissionMetadata?.permission,
+                    ['x-platform-permission']: hasPlatformPermissionMetadata?.permission
                 };
                 res[fullPath][httpMethodKey(route.httpMethod)] = operation;
             }
@@ -604,8 +612,8 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
                 // that it states one - or inherits `defaultAuth` by stating nothing - the spec says
                 // the same thing about it that it says about a controller route
                 security: this.resolveRouteSecurity(route.auth),
-                ['x-roles']: route.auth?.hasRole?.allowedRoles,
-                ['x-platform-roles']: route.auth?.hasPlatformRole?.allowedRoles
+                ['x-permission']: route.auth?.hasPermission?.permission,
+                ['x-platform-permission']: route.auth?.hasPlatformPermission?.permission
             };
             res[fullPath][httpMethodKey(route.httpMethod)] = operation;
         }
@@ -1224,6 +1232,10 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
             name: meta.name,
             in: location,
             required: typeof meta.required === 'boolean' ? meta.required : undefined,
+            // said rather than left to the default it is, since it is what the router reads: one
+            // value per item, and a value alone a list of one
+            style: location === 'query' && meta.type === 'array' ? 'form' : undefined,
+            explode: location === 'query' && meta.type === 'array' ? true : undefined,
             content: meta.type === 'object'
                 ? {
                     [MimeType.JSON]: {

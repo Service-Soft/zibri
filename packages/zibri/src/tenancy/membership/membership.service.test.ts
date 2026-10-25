@@ -3,9 +3,10 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { MembershipServiceInterface } from './membership-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -43,7 +44,7 @@ async function joinNewTenant(user: JwtUser): Promise<string> {
     const tenantId: string = UUIDUtilities.generate();
     await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
         tenantId,
-        async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [Roles.USER] })
+        async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [MemberRoles.USER] })
     );
     return tenantId;
 }
@@ -62,7 +63,7 @@ async function createMemberOfTwoTenants(name: string): Promise<JwtUser> {
 
 describe('MembershipService', () => {
     beforeAll(async () => {
-        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
     });
 
     afterAll(async () => {
@@ -106,7 +107,7 @@ describe('MembershipService', () => {
         expect(await memberships().findMembership(user.id, first)).toBeUndefined();
         expect((await memberships().findMemberships(user.id)).map(m => m.tenantId)).toEqual([second]);
         // still stored, with its roles, rather than made anew
-        expect((await memberships().resolveMembership<Roles, TestMembership>(user.id, first, undefined)).roles).toEqual([Roles.USER]);
+        expect((await memberships().resolveMembership<string, TestMembership>(user.id, first, undefined)).roles).toEqual([MemberRoles.USER]);
 
         await memberships().deleteMembership(user.id, second, undefined);
         expect(await memberships().findMemberships(user.id)).toEqual([]);
@@ -114,7 +115,7 @@ describe('MembershipService', () => {
         // null rather than undefined: it clears the column
         // eslint-disable-next-line unicorn/no-null
         await memberships().updateDeactivatedAt(user.id, first, null, undefined);
-        expect((await memberships().findMembership(user.id, first))?.roles).toEqual([Roles.USER]);
+        expect((await memberships().findMembership(user.id, first))?.roles).toEqual([MemberRoles.USER]);
     });
 
     it('deletes the memberships of a user in every tenant with the user, whichever way the user is deleted', async () => {

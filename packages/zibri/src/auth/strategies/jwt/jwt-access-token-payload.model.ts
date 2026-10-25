@@ -33,7 +33,18 @@ export type JwtAccessTokenPayload<Role extends string, T extends BaseUser<Role>>
     /**
      * The DPoP key the token is bound to, when the login was started with a proof.
      */
-    cnf?: JwtConfirmation
+    cnf?: JwtConfirmation,
+    /**
+     * How the user proved who they are at the provider the login went through, as the OpenID Connect
+     * `amr` claim names the methods. Left out for a login that went through none, or one whose
+     * provider does not say.
+     */
+    amr?: string[],
+    /**
+     * The class of that authentication, as the OpenID Connect `acr` claim. Left out when the provider
+     * does not say.
+     */
+    acr?: string
 };
 
 /**
@@ -59,5 +70,7 @@ export function isJwtAccessTokenPayload<Role extends string>(
         && 'roles' in payload && Array.isArray(payload.roles) && payload.roles.every(r => typeof r === 'string')
         && 'auth_time' in payload && typeof payload.auth_time === 'number'
         && 'sid' in payload && typeof payload.sid === 'string'
-        && (!('cnf' in payload) || isJwtConfirmation(payload.cnf));
+        && (!('cnf' in payload) || isJwtConfirmation(payload.cnf))
+        && (!('amr' in payload) || (Array.isArray(payload.amr) && payload.amr.every(m => typeof m === 'string')))
+        && (!('acr' in payload) || typeof payload.acr === 'string');
 }

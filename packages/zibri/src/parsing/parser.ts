@@ -28,6 +28,7 @@ import { parseAnyOf } from './functions/parse-one-of.function';
 import { parseString } from './functions/parse-string.function';
 import { BodyMetadata } from '../routing/decorators/body-metadata.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 /**
@@ -92,7 +93,7 @@ export class Parser implements ParserInterface, OnAppInit {
         },
         array: (rawValue, meta) => {
             assert(meta.type === 'array');
-            return parseArray(rawValue, meta.items);
+            return parseArray(this.queryList(rawValue), meta.items);
         },
         oneOf: (rawValue, meta) => {
             assert(meta.type === 'oneOf');
@@ -137,6 +138,28 @@ export class Parser implements ParserInterface, OnAppInit {
         const rawValue: string | undefined = req.query?.[metadata.name];
         const res: unknown = this.queryParamParseFunctions[metadata.type](rawValue, metadata);
         return res;
+    }
+
+    /**
+     * The list an array query parameter holds.
+     *
+     * A list is given one value per item, `?tags=a&tags=b`, which arrives as a list - and `?tags=a`
+     * alone arrives as the one value, which is a list of one. A single value that spells a json list
+     * is read as that list.
+     * @param rawValue - The parameter as the query string reader handed it over.
+     * @returns The list, or the value as it is when it is no string.
+     */
+    private queryList(rawValue: unknown): unknown {
+        if (typeof rawValue !== 'string') {
+            return rawValue;
+        }
+        try {
+            const parsed: unknown = JsonUtilities.parse(rawValue);
+            return Array.isArray(parsed) ? parsed : [rawValue];
+        }
+        catch {
+            return [rawValue];
+        }
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

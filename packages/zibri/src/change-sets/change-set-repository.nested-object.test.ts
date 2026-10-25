@@ -5,7 +5,8 @@ import { ChangeSetRepository } from './change-set-repository';
 import { ChangeSetEntity } from './models/change-set-entity.model';
 import { ChangeSetType } from './models/change-set-type.enum';
 import { ChangeSet, CreateChangeSetData } from './models/change-set.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -41,7 +42,8 @@ class Household extends BaseEntity implements ChangeSetEntity {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: [...defaultTestServerEntities, Household]
+    entities: [...defaultTestServerEntities, Household],
+    repositories: defaultTestServerRepositories
 });
 
 describe('ChangeSetRepository, given an update of part of an object', () => {
@@ -58,11 +60,11 @@ describe('ChangeSetRepository, given an update of part of an object', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         households = repository;
         changeSets = inject(repositoryTokenFor(ChangeSet));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('records the object as the update left it', async () => {
         const household: Household = await households.create({ name: 'ada', mailbox: { street: 'Main', number: '1' } });

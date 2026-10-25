@@ -10,6 +10,7 @@ import { JwtAssertionVerifyOptions } from './jwt-assertion-verify-options.model'
 import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type';
 import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
 import { JwtKey } from './jwt-key.model';
+import { JwtLogoutTokenVerifyOptions } from './jwt-logout-token-verify-options.model';
 import { JwtProviderTokenVerifyOptions } from './jwt-provider-token-verify-options.model';
 import { JwtRemoteKeySet } from './jwt-remote-key-set.type';
 import { JwtSignOptions } from './jwt-sign-options.model';
@@ -264,6 +265,38 @@ export abstract class JwtUtilities {
                 header: { alg: verified.protectedHeader.alg, kid: verified.protectedHeader.kid, typ: verified.protectedHeader.typ },
                 payload: verified.payload
             };
+        }
+        catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * Verifies a logout token an identity provider signed (OpenID Connect Back-Channel Logout 1.0):
+     * signed with a key of the set the provider publishes, by one of the algorithms, issued by it, for
+     * the audience, with an `iat` within the age given, a `jti` and an `events` claim.
+     *
+     * The event itself, the `sid` and `sub`, and the absence of a `nonce` are left to the caller.
+     * @param token - The jwt.
+     * @param keySet - The key set the provider publishes.
+     * @param options - The provider, who the jwt must be for, the algorithms and how old it may be.
+     * @returns The payload, or undefined when it does not verify.
+     */
+    static async verifyLogoutToken(
+        token: string,
+        keySet: JwtRemoteKeySet,
+        options: JwtLogoutTokenVerifyOptions
+    ): Promise<JWTPayload | undefined> {
+        const jose: Jose = JwtUtilities.resolveJose();
+        try {
+            const verified: JWTVerifyResult = await jose.jwtVerify(token, keySet, {
+                algorithms: options.algorithms,
+                issuer: options.issuer,
+                audience: options.audiences,
+                requiredClaims: ['iat', 'jti', 'events'],
+                maxTokenAge: Math.floor(options.maxAgeInMs / Ms.SECOND)
+            });
+            return verified.payload;
         }
         catch {
             return undefined;

@@ -25,5 +25,10 @@ export enum FederatedSignInFailure {
     /**
      * The identity is linked to a user for access to the provider's apis only, and does not sign in.
      */
-    NOT_FOR_SIGN_IN = 'not_for_sign_in'
+    NOT_FOR_SIGN_IN = 'not_for_sign_in',
+    /**
+     * The user may not sign in: their account is deactivated or locked, or the application refused
+     * the sign-in.
+     */
+    REFUSED = 'refused'
 }

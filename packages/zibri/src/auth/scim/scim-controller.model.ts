@@ -28,7 +28,6 @@ import { Put } from '../../routing/decorators/put.decorator';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { Auth } from '../decorators/auth.decorator';
-import { BaseUser } from '../models/base-user.model';
 import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
 
 /**
@@ -61,24 +60,24 @@ const LIST_QUERY_OPTIONS: QueryParamMetadataInput = { type: 'string', required: 
  * `/Users`, `/Groups`, `/Bulk`, `/ServiceProviderConfig`, `/ResourceTypes` and `/Schemas`, below the
  * path of the controller that extends it.
  *
- * Each tenant's identity provider calls them with an api key bound to the tenant, of a user holding
- * one of the `roles` there, sent as a bearer token.
+ * Each tenant's identity provider calls them with an api key bound to the tenant, of a user holding a
+ * role there that carries the `permission`, sent as a bearer token.
  * @param provisioner - What provisioning does to the users of the application.
  * @param options - Who may provision, and how much one bulk request may do.
  */
-export function ScimController<RoleType extends string>(
-    provisioner: Newable<BaseScimProvisioner<RoleType, BaseUser<RoleType>>>,
-    options: ScimControllerOptions<RoleType>
+export function ScimController(
+    provisioner: Newable<BaseScimProvisioner>,
+    options: ScimControllerOptions
 ): Newable<object> {
     const maxBulkPayloadSize: FileSize = options.bulk?.maxPayloadSize ?? DEFAULT_MAX_BULK_PAYLOAD_SIZE;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    @Auth.hasRole(options.roles, [ApiKeyAuthStrategy])
+    @Auth.hasPermission(options.permission, [ApiKeyAuthStrategy])
     class Temp {
         /**
          * The provisioner the routes provision with, which also marks the class as SCIM's.
          */
-        static readonly scimProvisioner: Newable<BaseScimProvisioner<RoleType, BaseUser<RoleType>>> = provisioner;
+        static readonly scimProvisioner: Newable<BaseScimProvisioner> = provisioner;
 
         private get scimService(): ScimServiceInterface {
             return inject(ZIBRI_DI_TOKENS.SCIM_SERVICE);

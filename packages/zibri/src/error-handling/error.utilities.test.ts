@@ -5,6 +5,7 @@ import { HttpError } from './errors/http.error';
 import { InternalServerError } from './errors/internal-server.error';
 import { NotFoundError } from './errors/not-found.error';
 import { InternalError } from './internal-error.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { $ts } from '../localization/translate.function';
 
@@ -13,11 +14,11 @@ describe('ErrorUtilities', () => {
 
     beforeAll(async () => {
         server = await startTestServer({});
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     describe('toHttpError', () => {
         it('returns the value unchanged when it is already an HttpError', () => {

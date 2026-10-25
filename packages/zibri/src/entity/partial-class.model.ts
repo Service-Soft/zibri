@@ -20,6 +20,7 @@ export function PartialClass<T>(
         partialMeta[prop] = { ...meta, required: false };
     }
     MetadataUtilities.setModelProperties(PartialClass, partialMeta);
+    MetadataUtilities.stopInheritingCustomValidations(PartialClass);
 
     return PartialClass as Newable<Partial<T>>;
 }

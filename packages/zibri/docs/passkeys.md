@@ -1,5 +1,5 @@
 # Passkeys
-Users sign in with a passkey: a key their phone, laptop or security key holds, which it only uses once they have touched a fingerprint reader, shown their face or typed the device's PIN. There is nothing to type and nothing to steal from your database, and a passkey only works on your site, so a phishing page cannot use it. The sign-in ends in the same jwt or cookie login a password gives, and a passkey is also a second factor for `@Auth.require2fa`.
+Users sign in with a passkey: a key their phone, laptop or security key holds, which it only uses once they have touched a fingerprint reader, shown their face or typed the device's PIN. There is nothing to type and nothing to steal from your database, and a passkey only works on your site, so a phishing page cannot use it. The sign-in ends in the same JWT or cookie login a password gives, and a passkey is also a second factor for `@Auth.require2fa`.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -73,12 +73,15 @@ export const passkeyOptionsProvider = defineProvider({
 
 | Option | What it is |
 |---|---|
-| `relyingPartyId` | The domain passkeys are bound to. A passkey works on this domain and its subdomains. Changing it later makes every passkey unusable |
-| `relyingPartyName` | The name a device shows when it creates a passkey |
-| `origins` | The origins of the pages passkeys are created and used on. An answer from any other page is refused |
+| `relyingPartyId` | The domain passkeys are bound to. A passkey works on this domain and its subdomains. Required |
+| `relyingPartyName` | The name a device shows when it creates a passkey. Required |
+| `origins` | The origins of the pages passkeys are created and used on. An answer from any other page is refused. Required |
 | `attestation` | Which models of device may hold a passkey, see [restricting the devices](#restricting-the-devices). Any by default |
 | `challengeExpiresInMs` | How long a device may take to answer. 5 minutes by default |
 | `registrationTicketExpiresInMs` | How long your sign-up may take after the passkey was created. 30 minutes by default |
+
+> [!WARNING]
+> Changing `relyingPartyId` makes every passkey unusable.
 
 ## Signing in
 The frontend asks for a challenge, has the browser use a passkey with it, and sends the answer to the login route:
@@ -100,7 +103,7 @@ export async function signInWithPasskey(apiUrl: string): Promise<Response> {
 }
 ```
 
-The browser offers the passkeys the device holds for your site, and the one the user picks names them, so a sign-in asks for no email. The login route answers like the password login of the same strategy: with the tokens for a jwt login, with the session cookies for a cookie login. Name the authenticator in `authenticator` when your auth controller has more than one, see [naming the strategy and the authenticator](./auth-routes.md#naming-the-strategy-and-the-authenticator).
+The browser offers the passkeys the device holds for your site, and the one the user picks names them, so a sign-in asks for no email. The login route answers like the password login of the same strategy: with the tokens for a JWT login, with the session cookies for a cookie login. Name the authenticator in `authenticator` when your auth controller has more than one, see [naming the strategy and the authenticator](./auth-routes.md#naming-the-strategy-and-the-authenticator).
 
 A challenge takes one answer, from the origins you listed, within `challengeExpiresInMs`. A device has to have verified its user.
 
@@ -165,21 +168,22 @@ A device that cannot store a passkey, such as an older security key, is added as
 ### Listing and removing
 A passkey is an identity linked to its user, like an account at a provider. `GET /auth/identities` lists the passkeys among the user's identities, under the authenticator name `passkey`, each with when it was created and last used, whether it is synced to the user's other devices, whether the device stores it and so signs in with it as `discoverable`, and the model of the device as its `aaguid`. `DELETE /auth/identities/{identityId}` removes one. See [listing and unlinking](./sign-in-through-a-provider.md#listing-and-unlinking).
 
-A user left without a passkey that signs in has no way in unless they have a password or a provider.
+> [!WARNING]
+> A user without a password or a provider has no way to sign in once their last passkey that signs in is removed.
 
 ## As a second factor
 Register `PasskeyTwoFactorMethod`, name it in the `twoFactorMethods` of your auth controller, and declare `Passkey` and `PasskeyChallenge`:
 
 ```ts
 // src/application-options.ts
-import { PasskeyTwoFactorMethod } from 'zibri';
+import { PasskeyTwoFactorMethod, ZibriApplicationOptions } from 'zibri';
 
 export const twoFactorOptions: Pick<ZibriApplicationOptions, 'twoFactorMethods'> = {
     twoFactorMethods: [PasskeyTwoFactorMethod]
 };
 ```
 
-Before a guarded request, the frontend asks `POST /auth/2fa/start?method=passkey` for a challenge, logged in, has the browser use a passkey with it, and sends `credential.toJSON()` as base64url encoded json in the `x-authorization-passkey` header. Rename the header through `ZIBRI_DI_TOKENS.PASSKEY_HEADER`; CORS follows the token.
+Before a guarded request, the frontend asks `POST /auth/2fa/start?method=passkey` for a challenge, logged in, has the browser use a passkey with it, and sends `credential.toJSON()` as base64url encoded JSON in the `x-authorization-passkey` header. Rename the header through `ZIBRI_DI_TOKENS.PASSKEY_HEADER`; CORS follows the token.
 
 The device always verifies its user. A passkey counts for the user it belongs to only, and each answer once. The passkeys are those the user signs in with: enrolling the method at `POST /auth/2fa/register?method=passkey` and `POST /auth/2fa/confirm?method=passkey` adds a passkey, and removing it removes every passkey of the user. A security key that cannot store a passkey is a second factor too.
 
@@ -190,6 +194,8 @@ Every device can hold a passkey unless you list the models allowed. A device the
 
 ```ts
 // src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
 export const companyKeysOnly = defineProvider({
     token: ZIBRI_DI_TOKENS.PASSKEY_OPTIONS,
     useValue: {
@@ -223,6 +229,18 @@ Adding a passkey to a user is recorded as `auth.identity.linked`, removing it as
 
 ## Replacing how passkeys are checked
 Everything the authenticator, the second factor and the routes do with a passkey goes through `ZIBRI_DI_TOKENS.PASSKEY_SERVICE`, and the metadata through `ZIBRI_DI_TOKENS.FIDO_METADATA_SERVICE`. Provide your own implementation of `PasskeyServiceInterface` or `FidoMetadataServiceInterface` to change either.
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `@simplewebauthn/server` | Checking what the browser answers. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `Passkey`, `PasskeyChallenge` | `PasskeyAuthenticator` or `PasskeyTwoFactorMethod` is registered |
+| `PasskeyRegistrationTicket` | `PasskeyAuthenticator` is registered |
 
 ## See also
 - [Auth](./auth.md) — strategies and authenticators

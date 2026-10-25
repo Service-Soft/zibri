@@ -8,6 +8,7 @@ import { EncryptionService } from './encryption.service';
 import { EncryptionString } from './encryption.utilities';
 import { AesGcmEncryptionStrategy } from './strategies/aes-gcm.encryption-strategy';
 import { EncryptionStrategyEntity } from './strategies/encryption-strategy-entity.model';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -26,7 +27,7 @@ describe('EncryptionService — starting', () => {
 
         await expect(start).rejects.toThrow('Error initializing EncryptionService');
         await expect(start).rejects.toThrow(/EncryptionStrategyEntity[\S\s]*EncryptionKey/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     test('refuses to start without the master key options, whether or not anything is encrypted', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([], {
@@ -37,7 +38,7 @@ describe('EncryptionService — starting', () => {
         });
 
         await expect(start).rejects.toThrow('No provider for token "zi.encryption_master_options"');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('EncryptionService', () => {
@@ -51,11 +52,11 @@ describe('EncryptionService', () => {
         strategyRepository = inject(repositoryTokenFor(EncryptionStrategyEntity));
         keyRepository = inject(repositoryTokenFor(EncryptionKey));
         encryptionService = inject(ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE) as EncryptionService;
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     test('creates strategy metadata and key metadata on first encrypt', async () => {
         const strategiesBeforeEncryption: EncryptionStrategyEntity[] = await strategyRepository.findAll();

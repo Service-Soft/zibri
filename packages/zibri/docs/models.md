@@ -4,17 +4,20 @@ Models are plain classes with their properties decorated by `@Property`. The sam
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `Property` | namespace | Decorators for defining model properties |
+| `Property` | decorator | Decorators for defining model properties |
+| `NumberPropertyMetadataInput` | type | What `@Property.number` takes |
+| `ArrayPropertyMetadataInput` | type | What `@Property.array` takes |
+| `timezoneEnum` | constant | Every IANA time zone as an enum, for `@Property.string({ enum: timezoneEnum })` |
 | `BigNumber` | class | An exact decimal of any size, which a `@Property.number({ format: 'bignumber' })` holds |
-| `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes — `number`, `bigint`, `BigNumber` |
+| `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes: `number`, `bigint`, `BigNumber` |
 | `OmitClass` | function | Creates a class that omits given properties from a base class |
 | `PickClass` | function | Creates a class that picks given properties from a base class |
 | `PartialClass` | function | Creates a class where every property of a base class is optional |
 | `IntersectionClass` | function | Combines multiple classes into one |
+| `OmitStrict` | type | A type without the given keys, which have to be keys of it |
 | `OneOf` | type | A value of one of several named shapes, `{ shape, value }` |
 
-## Usage
-### Defining a model
+## Defining a model
 
 ```ts
 // src/models/article.model.ts
@@ -42,7 +45,7 @@ Every property is required unless it says otherwise. These are the kinds a prope
 | `@Property.string` | Text, optionally restricted by `format`, `regex`, `enum`, `minLength` and `maxLength` |
 | `@Property.number` | A number of the kind its `format` names, see [below](#what-kind-of-number-a-property-holds) |
 | `@Property.boolean` | `true` or `false` |
-| `@Property.date` | A `Date`, optionally restricted by `before` and `after` |
+| `@Property.date` | A `Date`, optionally [bounded](./validation.md#bounding-a-date) by `before` and `after` |
 | `@Property.object` | An instance of the class it names |
 | `@Property.array` | A list of items of one kind |
 | `@Property.file` | An uploaded file, see [handling file uploads](./creating-endpoints.md#handling-file-uploads) |
@@ -56,7 +59,9 @@ Every property is required unless it says otherwise. These are the kinds a prope
 
 The relation decorators connect [entities](./data-source.md#defining-entities) to each other.
 Each names its `target` and the `inverseSide`, the property of the target pointing back. The target
-declares that property with `@Property`, or the application refuses to start and names the relation.
+declares that property with `@Property`. `manyToOne` and `belongsToOne` keep the key of the row they
+point to, and name the property holding it as `joinColumn`, which the entity declares as well: it is
+what a filter or a write names to reach the row by its id, such as `{ teamId }`.
 
 A string's `format` is one of:
 
@@ -64,11 +69,10 @@ A string's `format` is one of:
 |---|---|
 | `'uuid'` | A uuid |
 | `'email'` | An email address |
-| `'phone'` | A phone number in international format, eg. `+4915112345678` |
+| `'phone'` | A phone number in international format, such as `+4915112345678` |
 
 A `regex` takes time linear to the value it checks, and needs the `re2` package. It cannot use
-lookarounds or backreferences: a `regex` with one is refused while the application starts, naming the
-property. The same goes for a `regex` on a parameter.
+lookarounds or backreferences. The same goes for a `regex` on a parameter.
 
 A `default` fills a property in when a row is created without a value for it. It applies to the
 models the row holds and to a related row a write creates, too. An update writes what it is given and
@@ -77,22 +81,24 @@ fills nothing in, a nested object or array it writes included. `null` is a value
 
 ```ts
 // src/models/member.model.ts
+import { Property } from 'zibri';
+
 export class Member {
     @Property.string({ default: 'active', required: false })
     status?: string | null;
 }
 ```
 
-### What kind of number a property holds
+## What kind of number a property holds
 
 A number property says which kind of number it is, and that decides what type it has in TypeScript:
 
 | `format` | TypeScript type | Holds |
 |---|---|---|
 | `number` (the default) | `number` | What a JavaScript number is: fractions, exact up to `Number.MAX_SAFE_INTEGER` |
-| `integer` | `number` | A whole number inside that same range — a counter, a duration, a status code |
+| `integer` | `number` | A whole number inside that same range, such as a counter, a duration or a status code |
 | `bigint` | `bigint` | A whole number of any size |
-| `bignumber` | `BigNumber` | An exact decimal of any size — what a price wants |
+| `bignumber` | `BigNumber` | An exact decimal of any size, such as a price |
 
 ```ts
 // src/models/line-item.model.ts
@@ -110,14 +116,7 @@ export class LineItem {
 }
 ```
 
-The TypeScript type has to match the format, and a declaration that doesn't is refused where it is written:
-
-```
-LineItem.sequence: The format "bigint" is held by BigInt, and the property is declared as Number.
-Declare it as BigInt, or name the format that Number holds.
-```
-
-When the type is written as a union, like `sequence?: bigint | null`, the value is checked against the format instead.
+The TypeScript type has to match the format. When the type is written as a union, like `sequence?: bigint | null`, the value is checked against the format instead.
 
 `bigint` and `bignumber` are sent as strings in JSON, and the OpenAPI document says so. A request can still send either as a plain JSON number where it fits.
 
@@ -135,7 +134,7 @@ export class LineItemService {
 }
 ```
 
-### What an object or array property holds
+## What an object or array property holds
 
 The class an object property names says what each value inside it is, all the way down: a date inside an object comes back as a `Date`, a whole number of any size as a `bigint`, an exact decimal as a `BigNumber`. Array properties work the same way, whatever their items are.
 
@@ -165,7 +164,7 @@ export class Reading {
 
 `@Property.unknown` describes nothing about its contents, so what you get back is plain JSON: objects, arrays, strings, numbers and booleans. Name a class wherever you know the shape.
 
-### A value of several shapes
+## A value of several shapes
 
 When a value can take one of several shapes, like one of several classes or `Date | string`, give each shape a name and list them with `@Property.oneOf`. The property is typed as `OneOf` of the same names:
 
@@ -173,12 +172,12 @@ When a value can take one of several shapes, like one of several classes or `Dat
 // src/models/notification.model.ts
 import { OneOf, Property } from 'zibri';
 
-class EmailChannel {
+export class EmailChannel {
     @Property.string({ format: 'email' })
     address!: string;
 }
 
-class SmsChannel {
+export class SmsChannel {
     @Property.string({ regex: /^\+\d+$/ })
     number!: string;
 }
@@ -215,6 +214,8 @@ Checking `shape` narrows `value` to that shape:
 // src/services/notification.service.ts
 import { Injectable, OneOf } from 'zibri';
 
+import { EmailChannel, SmsChannel } from '../models/notification.model';
+
 @Injectable()
 export class NotificationService {
     destinationOf(channel: OneOf<{ Email: EmailChannel, Sms: SmsChannel }>): string {
@@ -232,19 +233,13 @@ export class NotificationService {
 
 A value is read and validated as the shape it names, and nothing else. A name that is none of the shapes is reported on `channel.shape`, a problem with the value on `channel.value` and below. In the OpenAPI document the property is `oneOf` its shapes, told apart by `shape`.
 
-The type of the property has to match the shapes, and a declaration that doesn't is refused while compiling: a missing, extra or renamed shape, a shape of another type, or a property that isn't a `OneOf` at all. `?`, `| null` and `| undefined` are fine, and so is narrower text under a shape of text, like `OneOf<{ All: 'all', Matchers: string[] }>`. The check needs the property to be visible from outside the class, so it doesn't work on `private` properties.
+The type of the property has to match the shapes, which the compiler checks: the same names, each with the type of its shape. `?`, `| null` and `| undefined` are fine, and so is narrower text under a shape of text, like `OneOf<{ All: 'all', Matchers: string[] }>`. The check needs the property to be visible from outside the class, so it doesn't work on `private` properties.
 
-Shapes can be array items, and a class used as a shape can have `oneOf` properties of its own. Encrypted, hashed, excluded and defaulted properties of a class used as a shape work the same as anywhere else. These are refused when the class is declared:
-
-- fewer than two shapes
-- an empty name
-- two names that differ only in the case of their first letter
-- a `oneOf` directly as a shape
-- a `file` as a shape
+Shapes can be array items, and a class used as a shape can have `oneOf` properties of its own. Encrypted, hashed, excluded and defaulted properties of a class used as a shape work the same as anywhere else. A `oneOf` has at least two shapes. Their names are not empty, and differ in more than the case of their first letter. A shape is neither a `oneOf` nor a `file`.
 
 A request body, a parameter and a response read by the http client can be one of several shapes too. Those are sent by whoever calls you, so they carry no name and become the first shape they fit, see [request bodies](./creating-endpoints.md#a-body-of-several-shapes), [parameters](./creating-endpoints.md#path-query-and-header-params) and [the http client](./http-client.md#body).
 
-### Deriving models
+## Deriving models
 
 A model can be built from another one instead of repeating its properties:
 
@@ -273,13 +268,23 @@ changed once it is made, so a derived model that needs a property declared diffe
 again:
 
 ```ts
+// src/models/user.model.ts
+import { Property } from 'zibri';
+
 export class UserSignUpDTO extends UserCreateDTO {
     @Property.string({ required: false })
     override name: string = '';
 }
 ```
 
+## Requirements
+| Package | Used for |
+|---|---|
+| `bignumber.js` | Exact decimals of any size, the `BigNumber` of a `bignumber` property |
+| `re2` | Checking a `regex` in time linear to the value. You install it |
+
 ## See also
+- [Validating requests](./validation.md) — what a refused value is answered with, and rules of your own
 - [Creating endpoints](./creating-endpoints.md) — models as request bodies and responses
 - [Data sources](./data-source.md) — models as entities
 - [Excluding properties](./excluding-properties.md) — keeping a property from leaving the server

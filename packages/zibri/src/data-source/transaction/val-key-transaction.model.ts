@@ -4,6 +4,7 @@ import { applyGuardedValKeyWrites } from './apply-guarded-val-key-writes.functio
 import { KeyDeclarationsChangedError } from './key-declarations-changed.error';
 import { queueValKeyWrite } from './queue-val-key-write.function';
 import { TransactionAlreadyFinishedError } from './transaction-already-finished.error';
+import { TransactionDeadlockError } from './transaction-deadlock.error';
 import { Transaction } from './transaction.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { LoggerInterface } from '../../logging/logger.interface';
@@ -89,7 +90,9 @@ export type ValKeyTransactionGrants = {
     /**
      * Takes a grant on each of the keys in sorted order, queueing on each one while somebody else
      * holds it. A claim that completes after the grants were released hands its keys straight back.
-     * @throws When a wait ran out, which is also how a deadlock ends.
+     * @throws TransactionDeadlockError when the transaction waits in a cycle of transactions waiting
+     * on each other, and is the one of them that ends it.
+     * @throws When a wait ran out.
      */
     claim: (keys: string[]) => Promise<void>,
     /**
@@ -116,11 +119,13 @@ export type ValKeyTransactionGrants = {
  * are left free, the same way a database does not hold an index locked for the length of a
  * transaction that inserted into it.
  *
- * Two differences from a real database remain, and neither is fixable here. Readers outside the
+ * A cycle of transactions waiting on each other's keys ends the way it does in a database: one of
+ * them is rolled back and fails with a TransactionDeadlockError, a moment after the cycle formed, and
+ * the others go on.
+ *
+ * One difference from a real database remains, and it is not fixable here. Readers outside the
  * transaction are not blocked; they see the state from before the commit, because nothing is applied
- * until EXEC. And a cycle of transactions waiting on each other's keys is resolved by the acquisition
- * timing out rather than by being detected, so a deadlock costs the wait rather than being reported
- * the moment it forms.
+ * until EXEC.
  */
 export class ValKeyTransaction implements Transaction {
 
@@ -183,8 +188,8 @@ export class ValKeyTransaction implements Transaction {
     /**
      * Rolls the transaction back once nothing has happened on it for long enough.
      *
-     * Armed by the first write rather than by the constructor, because a transaction that has not
-     * written anything is holding nothing and costs nobody else anything.
+     * Armed by the first write or the first work waiting for its end rather than by the constructor,
+     * because a transaction with neither is holding nothing and costs nobody else anything.
      */
     private idleTimer: NodeJS.Timeout | undefined;
 
@@ -208,9 +213,10 @@ export class ValKeyTransaction implements Transaction {
      * commit, so without it two transactions would each buffer a write of the same key and the
      * later commit would silently win.
      * @param write - The write to buffer.
+     * @throws TransactionDeadlockError when this transaction waits in a cycle of transactions waiting
+     * on each other and is the one ended to break it, which rolls it back.
      * @throws When the transaction has already been committed or rolled back, or when the grant
-     * could not be taken in time - which is also how a cycle of transactions waiting on each other
-     * ends.
+     * could not be taken in time.
      */
     async add(write: ValKeyBufferedWrite): Promise<void> {
         if (this.finished) {
@@ -413,7 +419,17 @@ export class ValKeyTransaction implements Transaction {
             }
             pending.push(claim);
         }
-        await Promise.all(pending);
+        try {
+            await Promise.all(pending);
+        }
+        catch (error) {
+            // ended here rather than left to the caller: the others in the cycle wait on what this
+            // holds, and go on the moment it is handed back rather than when the caller gets to it
+            if (error instanceof TransactionDeadlockError) {
+                await this.rollback();
+            }
+            throw error;
+        }
     }
 
     /**
@@ -528,6 +544,9 @@ export class ValKeyTransaction implements Transaction {
     // eslint-disable-next-line jsdoc/require-jsdoc
     afterFinish(work: (committed: boolean) => Promise<void>): void {
         this.finishedWork.push(work);
+        // work waiting for the end is something held, like a grant: a lease held until this
+        // transaction ends is renewed until it does, written or not
+        this.touch();
     }
 
     /**

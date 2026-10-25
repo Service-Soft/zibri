@@ -1,12 +1,8 @@
-# Data Sources
-Data sources in Zibri are used to connect eg. to databases.
-
-They provide a lot of functionality out of the box, including:
-- defining entity classes that are mapped to the data source
-- repositories used to access the items of an entity in the data source
-- migrations
-- transactions 
-- using multiple data sources simultaneously
+# Data sources
+A data source connects your application to a database, such as Postgres or Valkey. You declare
+your entities on it, and get a repository for each of them to read and write its rows. A data source
+also runs your migrations and transactions, and an application can use several data sources side by
+side.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -15,38 +11,49 @@ They provide a lot of functionality out of the box, including:
 | `DataSourceInterface` | interface | Contract a data source must implement |
 | `PostgresDataSource` | class | Predefined data source for Postgres, extend from this instead of implementing `DataSourceInterface` directly |
 | `PostgresOptions` | interface | Connection/config options for `PostgresDataSource` |
-| `ValKeyDataSource` | class | Predefined data source for ValKey, extend from this instead of implementing `DataSourceInterface` directly |
+| `SchemaManagement` | type | Who makes the database match the entities of a SQL data source: `'synchronize'`, `'migrations'` or `'external'`. Required |
+| `ValKeyDataSource` | class | Predefined data source for Valkey, extend from this instead of implementing `DataSourceInterface` directly |
 | `ValKeyOptions` | interface | Connection/config options for `ValKeyDataSource` |
 | `RepositoryDriverInterface` | interface | The storage specific part of a repository, implemented once per data source type |
 | `BaseEntity` | class | Base class entities must extend, defines an id property |
+| `BaseTenantEntity` | class | `BaseEntity` with the uuid `tenantId`, for an entity whose rows each belong to a tenant |
 | `Entity` | decorator | Registers a class as an entity, and declares the `scope` restricting its rows |
+| `whereFor` | function | Types a filter in `uniques`, `unique` or `checks` against the entity it is declared on |
 | `scopeFor` | function | Types a `scope` against the entity it is declared on |
-| `denyAll` | value | Returned from a `scope` to give the caller no rows at all |
+| `EntityScopeContext` | type | What a `scope` is told about the caller it decides for |
+| `denyAll` | constant | Returned from a `scope` to give the caller no rows at all |
 | `Property` | decorator | Maps a class property to a data source column, also used for validation |
 | `BigNumber` | class | An exact decimal of any size, which a `@Property.number({ format: 'bignumber' })` holds |
-| `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes — `number`, `bigint`, `BigNumber` |
+| `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes: `number`, `bigint`, `BigNumber` |
 | `Newable` | type | Helper type for referencing a class (constructor) |
 | `InjectRepository` | decorator | Injects a `Repository` for a given entity into a constructor parameter |
-| `Repository` | class | Generic repository exposing `findAll`, `findAllPaginated`, `stream`, `findOne`, `findById`, `count`, `exists`, `createAll`, `create`, `updateAll`, `updateById`, `upsert`, `upsertAll`, `deleteAll`, `deleteById` |
-| `StreamOptions` | type | What `stream` accepts — a filter and relations, with no limit and no order |
-| `ChangeSetRepository` | class | Extended `Repository` that automatically tracks who changed what & when |
+| `RepositoryFor` | decorator | Declares a class as the repository of an entity, in every data source that lists it in its `repositories` |
+| `RepositoryClass` | type | A repository class, as a data source lists them in `repositories` |
+| `Repository` | class | Generic repository exposing `findAll`, `findAllPaginated`, `findAllAfter`, `stream`, `findOne`, `findById`, `count`, `sum`, `average`, `minimum`, `maximum`, `exists`, `createAll`, `create`, `updateAll`, `updateById`, `upsert`, `upsertAll`, `deleteAll`, `deleteById` |
+| `StreamOptions` | type | What `stream` accepts: a filter and relations, with no limit and no order |
+| `KeysetPage` | type | A page `findAllAfter` reads: the items, how many rows match, and the cursor of the next page |
+| `ChangeSetRepository` | class | Extended `Repository` that tracks who changed what, and when |
+| `ChangeSetEntity` | class | Base class for an entity whose changes are recorded, which gets a `ChangeSetRepository` |
 | `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds soft delete functionality |
+| `SoftDeleteEntity` | class | Base class for an entity that deletes softly, which gets a `SoftDeleteRepository` |
 | `ChangeSet`, `Change` | entity | The recorded change sets |
 | `Transaction` | class | Represents a started transaction (`commit`/`rollback`/`afterCommit`/`afterFinish`) |
+| `IsolationLevel` | enum | The isolation level a transaction is started with |
 | `Migration` | class | Base class to extend when defining a migration |
 | `SemVerVersion` | type | Version type used for `Migration.version` |
+| `ValueConversion` | enum | What `changePropertyOfEntity` does with a stored value its `convert` does not list |
 
-## Usage
-### Defining a data source
-A data source needs too implement DataSourceInterface. Zibri also provides more specific, predefined classes, like the PostgresDataSource that you can extend from instead.
-
-The data source then needs to be decorated with `@DataSource`.
-
-The example below illustrates how a data source might be setup:
+## Defining a data source
+A data source implements `DataSourceInterface`. Extend a predefined one such as `PostgresDataSource`
+instead of implementing it yourself, and decorate it with `@DataSource`:
 
 ```ts
 // src/data-sources/db/db.data-source.ts
-import { BaseEntity, DataSource, Migration, Newable, OmitStrict, PostgresDataSource, PostgresOptions, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Migration, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+
+import { Task } from '../../models/task.model';
+import { TaskRepository } from '../../repositories/task.repository';
+import { RenameTaskNameMigration } from './migrations/rename-task-name.migration';
 
 @DataSource()
 export class DbDataSource extends PostgresDataSource {
@@ -61,82 +68,91 @@ export class DbDataSource extends PostgresDataSource {
 
     entities: Newable<BaseEntity>[] = [
         // ...
-        Test
+        Task
     ];
-    // see "Handling migrations" below
-    migrations: Newable<Migration>[] = [RenameValuePropertyMigration];
+    repositories: RepositoryClass[] = [TaskRepository];
+    migrations: Newable<Migration>[] = [RenameTaskNameMigration];
     schemaManagement: SchemaManagement = 'synchronize';
 }
 ```
 
-`pg` and `pg-query-stream` are optional peer dependencies, install them alongside a postgres data
+`repositories` lists the repositories of your own, an empty list when there are none, see
+[writing a repository of your own](#writing-a-repository-of-your-own).
+
+`entities` holds your own entities and the ones the framework stores rows in. The page of each
+feature lists those under Requirements, with when they are needed: [audit](./audit.md#requirements),
+[cron](./cron.md#requirements), [email](./email.md#requirements), [events](./events.md#requirements),
+[encryption and hashing](./encryption-and-hashing.md#requirements), [leases](./leases.md#requirements)
+and [multithreading](./multithreading.md#requirements) need theirs in every application.
+
+`pg` and `pg-query-stream` are optional peer dependencies. Install them alongside a Postgres data
 source:
 
 ```bash
 npm i pg pg-query-stream
 ```
 
-They are optional so that an application on another store carries neither, and a postgres data source
-refuses to start without them — `pg-query-stream` is what a cursor is opened through, so it is what
-[`stream`](#accessing-the-data-source) reads a large table with.
-
-`ssl` says whether the connection is encrypted, and every postgres data source has to state it:
+`ssl` says whether the connection is encrypted. Every Postgres data source sets it:
 
 | Value | What happens |
 |---|---|
 | `true` | The connection is encrypted, and the server's certificate is verified against the system's certificate authorities |
-| an object | Node's tls options, for your own `ca`, a client certificate or anything else the connection needs |
-| `false` | The connection is unencrypted. For a database only reachable on the same machine or a network you trust (eg. docker) |
+| an object | Node's TLS options, for your own `ca`, a client certificate or anything else the connection needs |
+| `false` | The connection is unencrypted. For a database reachable only on the same machine or a network you trust, such as a Docker network |
 
 The `PGSSLMODE` environment variable does not apply to the connection. The client tools a
-[backup](./backup.md) runs read it, and use `require` when `ssl` is set and `disable` when it is
-`false` while it names no mode.
+[backup](./backup.md) runs read it. When it names no mode, they use `require` when `ssl` is set, and
+`disable` when it is `false`.
 
-`schemaManagement` says who makes the database match your entities, and every sql data source has to
-state it. There is no default because there is no answer that is safe everywhere:
+`schemaManagement` says who makes the database match your entities. Every SQL data source sets it,
+because no value is safe everywhere:
 
 | Value | What happens | When it is right |
 |---|---|---|
-| `'synchronize'` | Zibri alters the database to match your entity classes on every boot | While the model is still moving and nothing stored matters yet |
+| `'synchronize'` | The database is altered to match your entity classes on every start | While the model is still moving and nothing stored matters yet |
 | `'migrations'` | Only the data source's own migrations change the schema | Anywhere real data lives |
-| `'external'` | Zibri issues no ddl at all | The schema belongs to someone else — a dba, another service, a separate migration tool |
+| `'external'` | No DDL is issued at all | The schema belongs to someone else: a DBA, another service or a separate migration tool |
 
-`'synchronize'` issues the `ALTER` and `DROP` statements needed to make the database agree with the
-classes. Rename a property and the old column goes, taking what was in it. It also runs after
-migrations, so it can undo one. Use it while you are still shaping the model, and move to
-`'migrations'` before there is anything worth keeping.
+> [!WARNING]
+> `'synchronize'` issues the `ALTER` and `DROP` statements that make the database agree with the
+> classes. Rename a property and the old column is dropped, with what it held. It also runs after
+> migrations, so it can undo one. Move to `'migrations'` before anything stored is worth keeping.
 
-Saying `'migrations'` and shipping none is refused at boot, because nothing would ever create a
-table — say `'external'` if that is deliberate.
+`'migrations'` needs at least one migration. Use `'external'` for a schema that something else
+creates. [Handling migrations](#handling-migrations) describes the migrations a data source lists.
 
 `createAll`, `upsertAll`, `updateAll` and `deleteAll` take as many rows as you pass them. A call that
 holds more values than one statement can is split into several statements inside one transaction, so
-it still lands whole or not at all. `maxBoundValuesPerStatement` in the options says how many values
-that is, and defaults to what the database accepts.
+it lands whole or not at all. `maxBoundValuesPerStatement` in the options says how many values that
+is, and defaults to what the database accepts.
 
-Every data source you define has to be listed in your application options, and one that is not is
-refused at boot: a data source the application meant to use connects to nothing, and the first query
-is where you would otherwise find out. Where defining one is not the same as intending to run it —
-a shared module offering several for its callers to choose between, or a factory that builds one per
-call — say so on the declaration:
+List every data source you define in your application options. A data source you define without
+always running it, such as one of several a shared module offers, or one a factory builds per call,
+says so on the declaration:
 
 ```ts
+// src/data-sources/reporting/reporting.data-source.ts
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+
 @DataSource({ allowOrphan: true })
 class ReportingDataSource extends PostgresDataSource {
     options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'reporting.internal', database: 'reporting', ssl: true };
     entities: Newable<BaseEntity>[] = [];
+    repositories: RepositoryClass[] = [];
     schemaManagement: SchemaManagement = 'external';
 }
 ```
 
-### Using ValKey
-Next to Postgres, Zibri ships a `ValKeyDataSource`. It is configured the same way and exposes the exact
-same repositories, so everything below (filters, transactions, migrations, change sets, soft deletes)
-works with it as well:
+## Using Valkey
+`ValKeyDataSource` connects to Valkey. It is configured the same way and has the same repositories,
+so everything below (filters, transactions, migrations, change sets, soft deletes) works with it as
+well:
 
 ```ts
 // src/data-sources/cache-db/cache-db.data-source.ts
-import { BaseEntity, DataSource, Newable, ValKeyDataSource, ValKeyOptions } from 'zibri';
+import { BaseEntity, DataSource, Newable, RepositoryClass, ValKeyDataSource, ValKeyOptions } from 'zibri';
+
+import { Session } from '../../models/session.model';
 
 @DataSource()
 export class CacheDbDataSource extends ValKeyDataSource {
@@ -151,94 +167,81 @@ export class CacheDbDataSource extends ValKeyDataSource {
         // ...
         Session
     ];
+    repositories: RepositoryClass[] = [];
 }
 ```
 
-`useTLS` says whether the connection is encrypted, and has to be stated the same way `ssl` has to on
-postgres: `true` encrypts it and verifies the server's certificate, `false` connects unencrypted.
+`useTLS` says whether the connection is encrypted, and is set like `ssl`: `true` encrypts it and
+verifies the server's certificate, `false` connects unencrypted.
 
-`@valkey/valkey-glide` is an optional peer dependency, install it when you use this data source:
+> [!NOTE]
+> `ValKeyDataSource` connects to a single Valkey server: a standalone one, or the primary endpoint of
+> a primary with replicas. Every instance of your application connects to that same server. A server
+> in cluster mode is refused when the application starts.
+
+`@valkey/valkey-glide` is an optional peer dependency. Install it when you use this data source:
 
 ```bash
 npm i @valkey/valkey-glide
 ```
 
-#### How entities are stored
-Every entity becomes a hash under `{keyPrefix}:{tableName}:{id}`, with one json encoded value per
-property. All ids of an entity are kept in the set `{keyPrefix}:{tableName}:ids` so that finding
-entities never has to scan the whole keyspace, and many to many relations are stored as a set of the
-related ids under `{keyPrefix}:{tableName}:{id}:{property}`.
+### Sharing one server
+`keyPrefix` separates data sources, or applications, that share one server. A backup of the data
+source holds exactly what is stored under its prefix.
 
-The `keyPrefix` is what separates multiple data sources (or multiple apps) that share one server. It
-is also the scope of a backup: `createBackupData` dumps exactly the keys below that prefix.
+### Differences to a SQL data source
+A Valkey data source answers every call the way a Postgres one does. Where they differ:
 
-#### Differences to a sql data source
-Valkey is a key value store, so a few things behave differently than they do with Postgres:
+- A filter costs more. One that names no id, no unique and no index of the entity reads every row of
+  the entity, and one on a relation reads the related rows first. Keep entities narrow. See
+  [costs](./costs.md).
+- A transaction applies all of its writes when it commits, or none of them. Reads inside it see its
+  own writes. Two transactions writing the same row run one after the other, and two writing
+  different rows do not wait for each other. A read outside the transaction sees the rows as they
+  were until the commit.
+- The isolation level of a transaction is ignored, and a warning says so.
+- A migration changes the stored values only: `addPropertyToEntity` writes the default, or `null`,
+  into every stored row, and `changePropertyOfEntity` moves each value to its new name and converts
+  it to its new type.
 
-- **Filtering happens in the app.** Valkey cannot filter hashes server side, so a `findAll` loads the
-  entities of that type and applies the where filter in process. Filters are therefore identical in
-  behaviour but not in cost — prefer narrow entity types over huge ones.
-- **Transactions are atomic and serialize per row, by a different mechanism.** Valkey has no
-  interactive transactions, it can only apply a queued batch atomically (`MULTI` / `EXEC`). A
-  `Transaction` therefore buffers every write until `commit` and applies them in one batch. To get
-  the isolation that buys nothing on its own, it takes a grant on each row key as the write is
-  buffered and holds it until the transaction ends — the same effect as a row lock, so two
-  transactions writing the same entity run one after the other and two writing different ones do not
-  wait for each other. Index updates are left free, exactly as a database does not hold an index
-  locked for a transaction that inserted into it.
+## Defining entities
 
-  Two things still differ from Postgres. Readers outside the transaction are not blocked; they see
-  the pre-commit state, because nothing is applied until `EXEC`. And a cycle of transactions waiting
-  on each other's rows ends by timing out after
-  `ZIBRI_DI_TOKENS.VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS` (ten seconds by default) rather than by
-  being detected, so a deadlock costs the wait instead of being reported the instant it forms.
-
-  `startTransaction` still ignores the isolation level and logs a warning when one is passed.
-- **Migrations only rewrite data.** There is no schema, so `addPropertyToEntity` writes the default
-  (or null) into the stored hashes and `changePropertyOfEntity` moves a value to its new field name.
-  A changed type needs no migration at all.
-- **Filtering by a relation resolves it first.** A where filter on a relation has to load the related
-  entities before it can be applied, so filtering by relations is considerably more expensive than
-  filtering by a column of the entity itself.
-
-### Defining entities
-
-As you can see, the configuration of a data source is pretty straightforward. We also added our first entity to the data source, `Test`:
+The data source above lists one entity, `Task`:
 
 ```ts
-// src/models/test.model.ts
-import { BaseEntity, Entity, Property } from 'zibri';
+// src/models/task.model.ts
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Test extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+export class Task extends BaseTenantEntity {
+    @Property.string()
+    title!: string;
 
     @Property.string()
-    value!: string;
+    status!: string;
 }
 ```
 
-An entity to be included in a data source needs to extend `BaseEntity`, which defines an id property.
+An entity to be included in a data source needs to extend `BaseEntity`, which defines an id property,
+or `BaseTenantEntity`, which adds the [tenant](./tenancy.md) of each row in `tenantId`.
 
-An entity is stored in the table its class is named after, `test` here, and `tableName` on `@Entity`
+An entity is stored in the table its class is named after, `task` here, and `tableName` on `@Entity`
 names another. Every entity of a data source needs a table of its own, and every entity of the
-application a name of its own: two entities named alike, or two in one data source stored in the same
-table, fail at startup.
+application a name of its own.
 
 Every entity says which tenant its rows belong to: the property holding the tenant of each row, or
 `'shared'` for rows every tenant shares. See [tenants](./tenancy.md).
 
-In order for the data source to map the properties, you need to decorate them with the `@Property` decorator, the same way as for any other [model](./models.md).
+Decorate every property the data source stores with `@Property`, as for any other [model](./models.md).
 
-A single column that has to be unique is expressed on the property itself with `@Property.string({ unique: true })`. When a *combination* has to be unique — neither column being unique on its own — declare it on the entity:
+A single column that has to be unique says so on the property: `@Property.string({ unique: true })`. When a *combination* has to be unique, and neither column is unique on its own, declare it on the entity:
 
 ```ts
-@Entity({ uniques: [['year', 'recipientId']] })
-export class NumberInvoices extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+// src/models/number-invoices.model.ts
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
+@Entity({ uniques: [['year', 'recipientId']] })
+export class NumberInvoices extends BaseTenantEntity {
     @Property.number()
     year!: number;
 
@@ -250,17 +253,18 @@ export class NumberInvoices extends BaseEntity {
 }
 ```
 
-The property names are checked against the entity, so a typo is a compile error rather than a constraint that silently covers the wrong columns. Besides rejecting duplicates, this is what [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) needs in order to have at most one row to change.
+The property names are checked against the entity, so a typo is a compile error. A unique declaration is also what [`upsert`](#changing-a-value-based-on-what-is-stored) identifies its row by.
 
 On a tenant's entity, a unique holds within each tenant, see [uniques and indexes](./tenancy.md#uniques-and-indexes).
 
-A write that would leave two rows carrying the same values is refused with a `UniqueConstraintViolationError`, whose `properties` name what is already taken. Every data source answers the declaration that way, so code that reacts to a duplicate — retrying, reporting it, falling back to a read — works the same wherever the entity is stored. When it reaches the response, it answers 409 Conflict.
+A write that would leave two rows carrying the same values is refused with a `UniqueConstraintViolationError`, on every data source. Its `properties` name what is already taken. In a response, it answers 409 Conflict.
 
 A row holding no value for one of the properties takes nothing up, so any number of rows without a value are stored side by side. The properties can be optional.
 
-> **Adding `uniques` to an entity that already has data.** A unique the stored rows already break cannot be created, so the application refuses to start and names the values they share. Remove the duplicates in a migration of the same release: migrations run first, and the unique is created right after them, see [keeping indexes and uniques](#keeping-indexes-and-uniques).
+> [!NOTE]
+> A unique the stored rows already break cannot be created. When you add `uniques` to an entity that has data, the application refuses to start and names the values the rows share. Remove the duplicates in a migration of the same release: migrations run first, and the unique is created right after them, see [keeping indexes and uniques](#keeping-indexes-and-uniques).
 
-#### Unique among only some rows
+### Unique among only some rows
 
 A `where` narrows which rows a unique declaration covers, so the value stays free for every row the filter leaves out. Both places take it, and `whereFor` names the entity the filter is written against:
 
@@ -286,11 +290,11 @@ export class Account extends SoftDeleteEntity {
 }
 ```
 
-`whereFor` is what type-checks the filter: a property decorator receives its options before it knows which class it was written on, so the entity has to be named for its columns and their value types to be checked. A filter that did not go through it is not accepted, which is what keeps a mistyped column a compile error.
+`whereFor` type-checks the filter against the entity you name: its columns and their value types. A filter written without it is not accepted.
 
-The filter compares properties against plain values — a string, a number, a boolean or null — as they are, or with `not`, `oneOf`, `notOneOf` or a comparison of numbers, because it becomes part of the schema rather than part of a query. Anything else is refused while the schema is built.
+The filter becomes part of the schema, so it compares properties against plain values only: a string, a number, a boolean or null, as they are, or with `not`, `oneOf`, `notOneOf` or a comparison of numbers. Anything else is refused while the schema is built.
 
-**On a `SoftDeleteEntity` this is not optional.** A soft deleted row is present and absent at once, and both readings are ordinary: an address that a deleted account no longer holds is what lets somebody register again, while one that stays taken is how deleting an account stops being a way to shed its history. Nothing in `unique: true` says which is meant, so a soft delete entity that does not answer is refused where it is declared:
+On a `SoftDeleteEntity`, every unique says whether a soft deleted row still holds its value. A unique that does not say is refused where it is declared:
 
 ```
 Account.email: "unique" on a soft delete entity has to say whether soft deleted rows still hold the value.
@@ -298,19 +302,22 @@ Add "where: whereFor<Account>({ deleted: false })" to it so a deleted row stops 
 or "where: {}" to keep the value taken for good.
 ```
 
-An empty filter is how the second answer is written down. Restoring a soft deleted row can then fail, because the value it held may have been taken while it was gone — which is the same conflict any other write gets, at the point the row comes back.
+| `where` | A soft deleted row |
+|---|---|
+| `whereFor<Account>({ deleted: false })` | Frees its value, so someone can sign up again with the same address. Restoring the row fails with a `UniqueConstraintViolationError` when another row took the value meanwhile |
+| `{}` | Keeps its value taken for good |
 
 A key covering only some rows is an `upsert` target like any other, and the rows it leaves out are not in its way. An `upsert` identified by an account's email and handle lands on the live row holding them, and inserts beside the deleted ones that still hold them.
 
-Indexes are declared the same way — `@Property.string({ index: true })` for a single column, and on the
+Indexes are declared the same way: `@Property.string({ index: true })` for a single column, and on the
 entity for a lookup that uses several:
 
 ```ts
-@Entity({ indexes: [['customerId', 'status']] })
-export class Order extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+// src/models/order.model.ts
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
+@Entity({ indexes: [['customerId', 'status']] })
+export class Order extends BaseTenantEntity {
     @Property.string()
     customerId!: string;
 
@@ -330,35 +337,36 @@ second one. On a tenant's entity, every index starts with the tenant property, s
 
 Each key is declared once. `primary`, `unique` and `index` beside each other on the same property are
 refused while the class is being declared, as is a group that names a column which is already unique
-on its own — that column matches at most one row wherever it sits in the group, so what follows it is
-never read. So is one key written twice: two unique groups over the same columns, or a group of one
-column that already carries the `index` flag. Each refusal names the class, the columns and the
-declaration to drop.
+on its own. That column matches at most one row wherever it sits in the group, so what follows it is
+never read. One key written twice is refused as well: two unique groups over the same columns, or a group of one
+column that already carries the `index` flag.
 
 An index that is the leading part of another is refused the same way: `index` on `customerId` beside
 the group `['customerId', 'status']`, or a group that begins a unique group in its order. The longer one
 already answers every lookup the shorter one does.
 
-#### Rules every row follows
+### Rules every row follows
 
-`checks` on the entity are rules every row has to follow, each written as a filter every row has to
-match:
+`checks` on the entity are rules every row has to follow, each a filter every row has to match. A
+check is written out with the `code` and `message` a request breaking it is answered with, or as the
+filter alone:
 
 ```ts
-// src/models/task.model.ts
-import { BaseEntity, Entity, Property, whereFor } from 'zibri';
+// src/models/project.model.ts
+import { $t, BaseTenantEntity, Entity, Property, whereFor } from 'zibri';
 
 @Entity({
     checks: [
-        // a task is not done, or has a completion date
-        whereFor<Task>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
-        whereFor<Task>({ estimate: { greaterThanEquals: 1 } })
+        {
+            // a project is not done, or has a completion date
+            where: whereFor<Project>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
+            code: 'completedAtRequired',
+            message: $t`a done project has a completion date`
+        },
+        whereFor<Project>({ budget: { greaterThanEquals: 0 } })
     ]
 })
-export class Task extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Project extends BaseTenantEntity {
     @Property.string()
     status!: string;
 
@@ -366,23 +374,24 @@ export class Task extends BaseEntity {
     completedAt?: Date | null;
 
     @Property.number()
-    estimate!: number;
+    budget!: number;
 }
 ```
 
 A create, update or upsert leaving a row that breaks a check is refused with a
 `CheckConstraintViolationError`, which answers 400 and names the properties the check compares. Nothing
-of the write is stored.
+of the write is stored. A request body of the entity, or of a model derived from it, is answered
+before the handler runs, see [answering the checks of an entity](./validation.md#answering-the-checks-of-an-entity).
 
 A check compares the same way a `where` on a unique does. A row holding null matches `not` and
-`notOneOf` unless they name null, and never matches a comparison, so `{ estimate: { greaterThanEquals: 1 } }`
-also says the estimate is there.
+`notOneOf` unless they name null, and never matches a comparison, so `{ budget: { greaterThanEquals: 0 } }`
+also says the budget is there.
 
-#### Keeping indexes and uniques
+### Keeping indexes and uniques
 
 Your data source keeps the indexes and uniques your entities declare. Every time the application
 starts, once the [migrations](#handling-migrations) have run, it creates each declared one it does not
-have yet, over the rows already stored, and removes each one no entity declares anymore. Declaring an
+have yet, over the rows already stored, and removes each one that no entity declares. Declaring an
 index or a unique, changing which rows it covers, or deleting it is all a release has to do.
 
 - Creating one does not block writes to the entity, so instances still serving the previous version
@@ -390,6 +399,8 @@ index or a unique, changing which rows it covers, or deleting it is all a releas
 - A unique the stored rows already break stops the start, naming the values they share. Remove the
   duplicates in a migration, which runs before the unique is created.
 - Checks are kept the same way. A check a stored row breaks stops the start, naming the row.
+- An index you create yourself on an entity's table is left alone, whatever you name it. Every index
+  the data source removes is logged at `info`.
 - Once a release has changed the indexes and uniques, an older release refuses to start, the same way
   it refuses a database migrated past it, see [going back](#going-back).
 - A transaction that commits while a newer release next to it changes the indexes and uniques of an
@@ -399,7 +410,7 @@ index or a unique, changing which rows it covers, or deleting it is all a releas
 With `schemaManagement: 'synchronize'`, synchronizing keeps them instead. With `'external'`, whoever
 owns the schema does.
 
-#### What a property holds
+### What a property holds
 
 The kinds a property can be, the number formats and what object and array properties hold are the
 same for entities as for any other model, see [models](./models.md). A value is read back from the
@@ -411,34 +422,42 @@ needs no `BigNumber` around the zero. A plain number property takes plain number
 
 A declaration can change after rows were written, and those rows keep the value they were written
 with. Such a value is read back as it is stored. A filter that compares a number, date or boolean
-property holding one — by the value itself, `not`, `oneOf`, `notOneOf` or an ordering — raises a
+property holding one, by the value itself, `not`, `oneOf`, `notOneOf` or an ordering, raises a
 `StoredValueTypeMismatchError` naming the property, the type it declares and the value found in its
 place. `null` and `{ not: null }` do not compare the value, so they answer for that row as for any
 other.
 
-### Accessing the data source
-To access data from the data source, you use repositories for specific entities. They can simply be injected without needing you to define them:
+## Accessing the data source
+You read and write the rows of an entity through its repository. Inject it; you do not define it:
 
 ```ts
-// src/services/test.service.ts
+// src/services/task.service.ts
 import { InjectRepository, Repository } from 'zibri';
 
-import { TestCreateData, TestUpdateData } from '../models';
+import { TaskCreateData, TaskUpdateData } from '../models';
+import { Task } from '../models/task.model';
 
-export class TestService {
+export class TaskService {
     constructor(
-        @InjectRepository(Test)                    // The last 2 generics are not required
-        private readonly testRepository: Repository<Test, TestCreateData, TestUpdateData>,
+        @InjectRepository(Task)
+        private readonly taskRepository: Repository<Task, TaskCreateData, TaskUpdateData>,
     ) {}
 }
 ```
 
-Outside a constructor — a helper function, a cron job, a migration — `repositoryTokenFor` resolves the same repository:
+The create and update data types are optional. Without them, a create or an update takes any part of
+a `Task`.
+
+Outside a constructor, such as in a helper function, a cron job or a migration, `repositoryTokenFor` resolves the same repository:
 
 ```ts
-import { inject, KeysetPage, repositoryTokenFor } from 'zibri';
+// src/services/task.functions.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
 
-const testRepository: Repository<Test, TestCreateData, TestUpdateData> = inject(repositoryTokenFor(Test));
+import { TaskCreateData, TaskUpdateData } from '../models';
+import { Task } from '../models/task.model';
+
+const taskRepository: Repository<Task, TaskCreateData, TaskUpdateData> = inject(repositoryTokenFor(Task));
 ```
 
 The examples below are written against that name.
@@ -446,10 +465,15 @@ The examples below are written against that name.
 A repository always exposes the methods:
 - findAll
 - findAllPaginated
+- findAllAfter
 - stream
 - findOne
 - findById
 - count
+- sum
+- average
+- minimum
+- maximum
 - exists
 - createAll
 - create
@@ -462,54 +486,64 @@ A repository always exposes the methods:
 
 The full, detailed definition can be found under the [repository typedoc](./generated/classes/data-source_repository.Repository.html).
 
-`findOne` and `findById` throw when nothing matches, because reading one specific thing that is not
-there is usually a bug rather than a result. When it is a result — checking whether a name is taken,
-resolving something optional — say so and get `undefined` instead:
+`findOne` and `findById` throw a `NotFoundError` when nothing matches. When a missing row is an
+answer, such as when you check whether a name is taken, pass `required: false` and get `undefined`
+instead:
 
 ```ts
-async function findExisting(): Promise<Test | undefined> {
-    return await testRepository.findOne({ where: { value: '42' }, required: false });
+// src/services/task.functions.ts
+import { Task } from '../models/task.model';
+
+async function findExisting(): Promise<Task | undefined> {
+    return await taskRepository.findOne({ where: { title: 'Write the release notes' }, required: false });
 }
 ```
 
-The return type follows the flag, so the case has to be handled where it can happen and nowhere else.
+The return type follows the flag.
 
-A `findAll` that names no limit throws when more than ten thousand rows match, so that a read which
-outgrows the heap says so. Say what is wanted instead:
+A `findAll` that names no limit throws when more than ten thousand rows match. Name the limit you
+want:
 
 ```ts
+// src/services/task.functions.ts
 async function readSome(): Promise<void> {
-    await testRepository.findAll({ take: 100 });       // at most this many
-    await testRepository.findAllPaginated(1, 100);     // a page at a time
-    await testRepository.findAll({ take: 'all' });     // every row that matches
+    await taskRepository.findAll({ take: 100 });       // at most this many
+    await taskRepository.findAllPaginated(1, 100);     // a page at a time
+    await taskRepository.findAll({ take: 'all' });     // every row that matches
 }
 ```
 
 A page, a limit and a `take` are whole numbers of at least 1, and a `skip` is one of at least 0. Any
 other value throws before the data source is asked.
 
+`create` and `createAll` give every row its id. With `allowId` a row is created with the id you give
+it, and an id a stored row holds already, deleted or not, is refused with a
+`UniqueConstraintViolationError`.
+
 A page comes with the total that belongs to it. `findAllPaginated` reads the rows and counts them as
-of one moment, so `items` and `totalAmount` describe the same table, and both narrow by the same
-[scopes](#restricting-which-rows-a-caller-may-see) — "20 of 137" is 137 rows this caller may see.
+of one moment, so `items` and `totalAmount` describe the same table. Both narrow by the same
+[scopes](#restricting-which-rows-a-caller-may-see): "20 of 137" is 137 rows this caller may see.
 
-Every read that takes part of a result is ordered down to the single row, by primary key after
-whatever order was asked for. That is what makes a page a page: an order that leaves two rows
-interchangeable leaves it to the data source which of them a position holds, and a table that is
-being written to answers differently each time it is asked. Say what the order should be —
-`defaultOrder` on the entity, or `order` on the call — and the primary key settles what is left. An
-order can also reach through a relation: see [Reading relations](#reading-relations).
+Every read that returns part of a result is ordered down to the single row: the primary key comes
+after whatever order you ask for, so a position on a page always holds the same row. Set the order
+with `defaultOrder` on the entity, or `order` on the call. An order can also reach through a
+relation, see [Reading relations](#reading-relations).
 
-Each page is its own read, so a walk through a table sees every page as that page is asked for. A row
-written before the walk reaches its position moves every page after it, which is what page numbers
-cost. `findAllAfter` reads by cursor instead, and continues from the row the last page ended at:
+Each page is its own read. A row written before the walk reaches its position moves every page after
+it. `findAllAfter` reads by cursor instead, and continues from the row the last page ended at:
 
 ```ts
+// src/services/task.functions.ts
+import { KeysetPage } from 'zibri';
+
+import { Task } from '../models/task.model';
+
 async function remindEveryone(): Promise<void> {
     let cursor: string | undefined = undefined;
     do {
-        const page: KeysetPage<Test> = await testRepository.findAllAfter(cursor, 100, { where: { value: 'new' } });
-        for (const test of page.items) {
-            await testRepository.updateById(test.id, { value: 'reminded' });
+        const page: KeysetPage<Task> = await taskRepository.findAllAfter(cursor, 100, { where: { status: 'new' } });
+        for (const task of page.items) {
+            await taskRepository.updateById(task.id, { status: 'reminded' });
         }
         cursor = page.nextCursor;
     }
@@ -517,86 +551,158 @@ async function remindEveryone(): Promise<void> {
 }
 ```
 
-**Every row that exists when the walk starts is handed back exactly once**, however much is written
-while it runs. Rows written during it are reached when they sort after the cursor and passed over
-when they sort before it — that is what "after this row" means, so order by properties that hold
-still: editing a row's ordering property mid-walk can move it across the cursor, and it is then read
-twice or not at all.
+Every row that exists when the walk starts is returned exactly once, however much is written while
+it runs. A row written during the walk is reached when it sorts after the cursor, and passed over
+when it sorts before it. Order by properties that do not change: a row whose ordering property is
+edited mid-walk can move across the cursor, and is then read twice or not at all.
 
-`totalAmount` counts what the filter matches, so a walk reports the same total throughout rather than
-counting down. `nextCursor` is absent on the last page. The cursor itself is opaque and belongs to
-the read that produced it — the same order, the same filter — so hand it back as it came, and read
-each walk with one filter. It is safe in a url or a json response, and `@Response.keysetPage()`
-documents an endpoint that hands one out.
+`totalAmount` counts what the filter matches, so a walk reports the same total on every page.
+`nextCursor` is absent on the last page. The cursor is opaque and belongs to the read that produced
+it, with its order and its filter. Hand it back as it came, and use one filter per walk. It is safe in
+a URL or a JSON response, and `@Response.keysetPage()` documents an endpoint that hands one out.
 
-The order has to decide a position for every row, so `findAllAfter` refuses one that cannot: a
-property that can hold null passes over every row that does, and one holding something with no order
-has no "after". The primary key is appended for you, so an order of your own only has to be one worth
-reading in.
+`findAllAfter` refuses an order that does not give every row a position: one on a property that can
+hold null, or on a value that has no order. The primary key is appended for you.
 
-Which of the three to reach for: `findAllPaginated` for a numbered page someone clicks, `findAllAfter`
-for a walk that spans requests, and `stream` for one that does not — a job reading everything in one
-go, holding only part of it at a time.
+| Use | When |
+|---|---|
+| `findAllPaginated` | A numbered page someone clicks |
+| `findAllAfter` | A walk that spans requests |
+| `stream` | A job that reads everything in one go, holding only part of it at a time |
 
-`take: 'all'` still hands you every row at once. When the point is that they do not fit, `stream`
-reads them without holding them:
+`take: 'all'` returns every row at once. `stream` reads them without holding them all:
 
 ```ts
+// src/services/task.functions.ts
 async function archiveEveryone(): Promise<void> {
-    for await (const test of testRepository.stream({ where: { value: 'new' } })) {
-        await testRepository.updateById(test.id, { value: 'archived' });
+    for await (const task of taskRepository.stream({ where: { status: 'new' } })) {
+        await taskRepository.updateById(task.id, { status: 'archived' });
     }
 }
 ```
 
-Only a bounded part of the result is in memory at any moment, and `break` stops the reading rather
-than leaving the rest to be fetched. A stream is narrowed by the same [scopes](#restricting-which-rows-a-caller-may-see)
-every other read is, and each row goes through the same decryption, so what it hands you is what
-`findAll` would have.
+Only a bounded part of the result is in memory at any moment, and `break` stops the reading. A
+stream is narrowed by the same [scopes](#restricting-which-rows-a-caller-may-see) every other read
+is, and each row is decrypted the same way, so it returns what `findAll` would.
 
-A stream takes no `take`, no `skip` and no order. The first two are what `findAll` is for. The order
-is missing because not every data source can give one: ordering means comparing all of the rows, and
-a data source that filters in the application would have to hold every one of them to do it — which
-is the thing a stream exists not to do. Order what you keep, or use `findAll` with an order and the
-bound that comes with it.
+A stream takes no `take`, no `skip` and no order. Order what you keep, or use `findAll` with an order
+and a limit.
 
-Asking how many there are, or whether there are any, is its own question and does not read them:
+`count` and `exists` answer how many rows match, and whether any do, without reading them:
 
 ```ts
+// src/services/task.functions.ts
 async function howMuchIsLeft(): Promise<void> {
-    const open: number = await testRepository.count({ where: { value: 'new' } });
-    const anyLeft: boolean = await testRepository.exists({ where: { value: 'new' } });
+    const open: number = await taskRepository.count({ where: { status: 'new' } });
+    const anyLeft: boolean = await taskRepository.exists({ where: { status: 'new' } });
 }
 ```
 
-Both narrow by the same scopes a read does, so a count reports what the caller may see rather than
-what is stored. `count` has no upper bound — how large something is stays answerable after it has
-grown past what fits in memory. `exists` asks for a single row and discards it, so no relation is
-loaded and nothing is decrypted for an answer that is a yes or a no.
+Both narrow by the same scopes a read does, so a count reports the rows the caller may see. `count`
+has no upper bound. `exists` loads no relation and decrypts nothing.
+
+### Adding up what rows hold
+
+`sum`, `average`, `minimum` and `maximum` take a value over the rows a filter matches, without reading
+them:
+
+```ts
+// src/models/sale.model.ts
+import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
+
+@Entity()
+export class Sale extends BaseTenantEntity {
+    @Property.string()
+    region!: string;
+
+    @Property.number({ format: 'integer' })
+    quantity!: number;
+
+    @Property.date()
+    soldAt!: Date;
+}
+
+// src/services/sale.service.ts
+const saleRepository: Repository<Sale> = inject(repositoryTokenFor(Sale));
+
+async function report(): Promise<void> {
+    const sold: number = await saleRepository.sum('quantity', { where: { region: 'north' } });
+    const latest: Date | undefined = await saleRepository.maximum('soldAt');
+    const perRegion: { region: string, sum: number }[] = await saleRepository.sum('quantity', { groupBy: ['region'] });
+    const salesPerRegion: { region: string, count: number }[] = await saleRepository.count({ groupBy: ['region'] });
+}
+```
+
+- `sum` and `average` take a number property; `minimum` and `maximum` a number or a date property.
+- A row that holds no value for the property is left out. A sum of no rows is 0; the others answer `undefined`.
+- `groupBy` answers one row per group instead, holding the values the group shares and the value under the name of the method, in no order. A group is formed by properties holding a single plain value, not by an encrypted property.
+- `count` takes `groupBy` as well.
+- Every one of them is narrowed by the same scopes a read is.
+
 
 `updateAll` and `deleteAll` answer with how many entities they changed. The entities themselves are
 handed back only when they are asked for:
 
 ```ts
+// src/services/task.functions.ts
+import { Task } from '../models/task.model';
+
 async function archive(): Promise<void> {
-    const archived: number = await testRepository.updateAll({ value: 'new' }, { value: 'archived' });
-    const rows: Test[] = await testRepository.updateAll({ value: 'new' }, { value: 'archived' }, { returnUpdated: true });
-    const removed: number = await testRepository.deleteAll({ value: 'archived' });
+    const archived: number = await taskRepository.updateAll({ status: 'new' }, { status: 'archived' });
+    const rows: Task[] = await taskRepository.updateAll({ status: 'new' }, { status: 'archived' }, { returnUpdated: true });
+    const removed: number = await taskRepository.deleteAll({ status: 'archived' });
 }
 ```
 
-The return type follows the flag the same way `required` decides it on `findOne`. Asking for the
-entities carries the bound `findAll` has: more than ten thousand matching is refused, before anything
-is written, so a bulk write that outgrows the heap says so instead of doing it. A count has no such
-limit — it is what an unbounded update is for.
+The return type follows the flag, as it follows `required` on `findOne`. With `returnUpdated`, the
+bound of `findAll` applies: when more than ten thousand rows match, the call is refused before
+anything is written. Without it, the call has no limit.
 
-#### Updating part of an object
+### Reading only some properties
+
+`select` names the properties a read hands back. Every read takes it: `findAll`, `findOne`, `findById`,
+`findAllPaginated`, `findAllAfter` and `stream`. Name them in a list, or as an object that also reaches
+into what a property holds:
+
+```ts
+// src/services/task.functions.ts
+async function listTitles(): Promise<{ id: string, title: string }[]> {
+    return await taskRepository.findAll({ select: ['title'], take: 'all' });
+}
+```
+
+The return type is narrowed to what you named, so a property you left out is a type error. Every
+entity keeps its `id`, the related ones included.
+
+The object form reaches into an object property, into the items of an array of objects, and into a
+relation the read includes, such as `{ name: true, orders: { total: true } }` with `relations: ['orders']`.
+With the `Customer` of [Updating part of an object](#updating-part-of-an-object) below:
+
+```ts
+// src/services/customer.service.ts
+async function listStreets(): Promise<{ id: string, address: { street: string } }[]> {
+    return await customerRepository.findAll({ select: { address: { street: true } }, take: 100 });
+}
+```
+
+`relations` decides which relations a read includes, the entity's `defaultRelations` among them, and
+`select` narrows what they hold. A relation the read includes and the selection leaves out is not
+handed back. A selection naming a relation the read does not include, a property the entity does not
+declare, or the inside of a value that has no properties is refused before anything is read.
+
+A property whose `exclude` or `encryption` is decided by a function is decided on the whole row. When
+you select one, its rows are read whole, the result is still narrowed to what you selected, and a
+warning says the selection saves no reading there.
+
+### Updating part of an object
 
 An update changes the properties it names and keeps the others, and an object property works the
 same way: the object you pass is merged into the stored one, as deep as the objects go.
 
 ```ts
 // src/models/customer.model.ts
+import { BaseTenantEntity, Entity, Property } from 'zibri';
+
 export class Address {
     @Property.string()
     street!: string;
@@ -609,15 +715,18 @@ export class Address {
 }
 
 @Entity()
-export class Customer extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Customer extends BaseTenantEntity {
     @Property.object({ cls: () => Address })
     address!: Address;
 }
+```
 
+```ts
 // src/services/customer.service.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Customer } from '../models/customer.model';
+
 const customerRepository: Repository<Customer> = inject(repositoryTokenFor(Customer));
 
 async function moveNextDoor(id: string): Promise<Customer> {
@@ -630,10 +739,10 @@ An array is a list, and is replaced whole, as is a value of several shapes. `nul
 for the whole object or for one property of it. An object passed where the row holds none is stored
 as you pass it.
 
-#### What a write hands back
+### What a write hands back
 
-Every write answers with the rows as they now stand — every column of them, not only the ones you
-wrote, and the same as finding them would give.
+Every write answers with the rows as they now stand: every column of them, not only the ones you
+wrote, the same as finding them would give.
 
 The data you pass stays as you passed it, the objects and arrays it holds included: values are
 encrypted, hashed and given their defaults in the write's own copy, so you can write the same data
@@ -644,24 +753,28 @@ them](#reading-relations), and the entity's `defaultRelations` are used when you
 
 ```ts
 // src/models/team.model.ts
-@Entity()
-export class Team extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
+import { Seat } from './seat.model';
+
+@Entity()
+export class Team extends BaseTenantEntity {
     @Property.string()
     name!: string;
 
     @Property.oneToMany({ target: () => Seat, inverseSide: 'team' })
     seats!: Seat[];
 }
+```
 
+```ts
 // src/models/seat.model.ts
-@Entity()
-export class Seat extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
+import { Team } from './team.model';
+
+@Entity()
+export class Seat extends BaseTenantEntity {
     @Property.string()
     occupant!: string;
 
@@ -671,8 +784,14 @@ export class Seat extends BaseEntity {
     @Property.string({ format: 'uuid', required: false })
     teamId?: string;
 }
+```
 
+```ts
 // src/services/seat.service.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Seat } from '../models/seat.model';
+
 const seatRepository: Repository<Seat> = inject(repositoryTokenFor(Seat));
 
 async function moveSeat(seatId: string, teamId: string): Promise<Seat> {
@@ -680,18 +799,19 @@ async function moveSeat(seatId: string, teamId: string): Promise<Seat> {
 }
 ```
 
-A relation lives in rows beside this one, so resolving one is a read of its own, taken once the write
-has landed. A write that has no relations to resolve answers on its own.
+Resolving the relations is a read of its own, after the write. A write with no relations to resolve
+makes no such read.
 
 `createAll`, `updateAll` and `deleteAll` take the same option and answer the same way. Their read
 covers the whole batch, so asking a bulk write for its rows costs one read however many rows come
 back.
 
-#### Reading relations
+### Reading relations
 
 Every read takes the same option, and a relation of a relation is asked for by naming it in turn:
 
 ```ts
+// src/services/seat.service.ts
 async function readSeats(): Promise<void> {
     await seatRepository.findAll({ take: 100, relations: ['team'] });
     await seatRepository.findAll({ take: 100, relations: { team: true } });
@@ -699,14 +819,18 @@ async function readSeats(): Promise<void> {
 }
 ```
 
-It goes as deep as the relations go, and every level is one read of its own — so what a tree asks for
-is what it costs. A relation nobody named comes back unset, which is not the same as empty.
-`defaultRelations` on the entity says what every read of it resolves; `relations` on the call takes
-the place of that rather than adding to it, and `relations: []` reads the row on its own.
+It goes as deep as the relations go, and what a tree asks for is what it costs, see
+[Costs](./costs.md). A relation nobody named comes back unset, which is not the same as empty.
+`defaultRelations` on the entity says what every read of it resolves. `relations` on the call
+replaces it, and `relations: []` reads the row on its own. A relation
+holds the rows of the related entity the caller may see, see
+[restricting which rows a caller may see](#restricting-which-rows-a-caller-may-see), and never a soft
+deleted one, see [soft deleting rows](#soft-deleting-rows).
 
 An order reaches through a relation the same way:
 
 ```ts
+// src/services/seat.service.ts
 async function readSeatsByTeam(): Promise<void> {
     await seatRepository.findAll({ take: 100, order: { team: { name: 'ASC' } } });
     await seatRepository.findAll({ take: 100, order: { team: { name: 'ASC' }, occupant: 'ASC' } });
@@ -716,16 +840,20 @@ async function readSeatsByTeam(): Promise<void> {
 An order reaches through a relation that holds one row: "the team's name" names one value, and "the
 seats' occupants" names none in particular.
 
-Ordering by a relation resolves it, and so does filtering on one — there is no comparing by a value
-that has not been read. Neither puts it on the rows you get back: what a read answers with is what
-its own `relations` asked for, so the same rows come back however they were found and sorted.
+Ordering or filtering by a relation reads it. The rows you get back hold only the relations their
+own `relations` asked for, however they were found and sorted.
 
-#### Saving and deleting the rows of a relation
+### Saving and deleting the rows of a relation
 
 A `oneToMany` or `hasOne` value you give a write is saved along with the row, in the same
 transaction:
 
 ```ts
+// src/services/team.service.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Team } from '../models/team.model';
+
 const teamRepository: Repository<Team> = inject(repositoryTokenFor(Team));
 
 async function createTeam(tenantId: string): Promise<Team> {
@@ -766,33 +894,34 @@ restricts:
 | Soft deleted | They are soft deleted |
 | Restored | The rows its soft delete took along are restored, and not the ones deleted on their own before |
 
-An entity that soft deletes can only remove rows of entities that soft delete as well. Otherwise the
-application refuses to start.
+An entity that soft deletes can only remove rows of entities that soft delete as well.
 
 When the relation's `cascade` leaves out `'remove'`, hard deleting a row that rows of the relation
 still point at, soft deleted ones included, throws a `ConflictError` and deletes nothing. Unlink or
 delete those rows first. Rows deleted in the same call may point at each other.
 
-#### Two people editing the same thing
+### Two people editing the same thing
 
-Last write wins. That is right for most properties and silent data loss for the ones two people edit
-at once: both read, both save, the second one lands, and neither is told the first ever happened.
-
-The property that must not be lost that way says so, and an update naming it then has to say what it
-was:
+By default the last write wins. When two people may edit a property at once, declare
+`optimisticLocking` on it. An update that writes it then names the value the edit was based on:
 
 ```ts
 // src/models/company.model.ts
-@Entity()
-export class Company extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
+@Entity()
+export class Company extends BaseTenantEntity {
     @Property.string({ optimisticLocking: true })
     name!: string;
 }
+```
 
+```ts
 // src/services/company.service.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Company } from '../models/company.model';
+
 const companyRepository: Repository<Company> = inject(repositoryTokenFor(Company));
 
 async function rename(id: string, name: string, seen: string): Promise<void> {
@@ -800,45 +929,45 @@ async function rename(id: string, name: string, seen: string): Promise<void> {
 }
 ```
 
-The condition is checked as part of the write, so nothing can slip in between, and the update lands
-only if the value is still the one the edit was based on.
+The condition is checked as part of the write. The update lands only when the property still holds
+the value the edit was based on.
 
-When it does not, what comes back depends on what the caller may see. A row they can read changed
-under them, and they are told so — a `ConflictError`, so the client can read it again and show the
-two versions. A row they were never allowed to see is a `NotFoundError`, exactly as if it did not
-exist, because any other answer would confirm the id to somebody who cannot read it. The difference
-is decided by reading the row again through its [scope](#scopes) rather than by which condition
-failed, so a scoped entity never leaks which of its rows are real.
+When it does not, the answer depends on what the caller may see:
 
-The unit is the property, so one person editing `name` and another editing `phone` do not collide.
-Locking on a property you are *reading* rather than writing works the same way — `{ where: { price:
-seenPrice } }` alongside a write to `discount` — which is what makes this worth doing over a
-row-level version counter, which would clash on both.
+- A caller who may read the row gets a `ConflictError`, so the client can read it again and show
+  both versions.
+- A caller who may not see the row gets a `NotFoundError`, the same as for an id that does not
+  exist.
 
-The expected value has to come from the caller because nothing on the server has it: by the time the
-update arrives, reading the property returns the value that already includes the other write. So the
-declaration cannot fill the condition in, only insist there is one — writing a locked property with
-no condition on it is refused. Name it with no value to overwrite regardless:
+Which one is decided by reading the row again through its
+[scope](#restricting-which-rows-a-caller-may-see), so a scoped entity reveals none of its ids.
+
+The lock is per property: one person editing `name` and another editing `phone` do not collide. A
+condition can also name a property the write only reads, such as `{ where: { price: seenPrice } }`
+beside a write to `discount`.
+
+Only the caller knows the value the edit was based on, so a write to a locked property without a
+condition on it is refused. Name the property with no value to overwrite it regardless:
 
 ```ts
+// src/services/company.service.ts
 async function renameRegardless(id: string, name: string): Promise<void> {
     await companyRepository.updateById(id, { name }, { where: { name: undefined } });
 }
 ```
 
-Which is told apart from having forgotten by the property being named at all, so a filter you built
-that came out empty is still refused.
+Naming the property is what counts, so a filter you built that came out empty is still refused.
 
-An [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) whose `onConflict` sets a locked
+An [`upsert`](#changing-a-value-based-on-what-is-stored) whose `onConflict` sets a locked
 property says what it read the same way, with `where` in its options. In `upsertAll` each row brings
 its own `where`:
 
 ```ts
-@Entity({ uniques: [['slug']] })
-export class Workspace extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+// src/models/workspace.model.ts
+import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
+@Entity({ uniques: [['slug']] })
+export class Workspace extends BaseTenantEntity {
     @Property.string()
     slug!: string;
 
@@ -846,6 +975,7 @@ export class Workspace extends BaseEntity {
     name!: string;
 }
 
+// src/services/workspace.service.ts
 const workspaceRepository: Repository<Workspace> = inject(repositoryTokenFor(Workspace));
 
 async function nameWorkspace(tenantId: string, slug: string, name: string, seen: string): Promise<void> {
@@ -858,42 +988,73 @@ async function nameWorkspace(tenantId: string, slug: string, name: string, seen:
 }
 ```
 
-The condition applies to the row that already holds the identity. When that row no longer matches,
-nothing is written and the call fails with a `ConflictError`; a row you may not see is answered as
+The condition applies to the row that already holds the identity. When that row does not match
+it, nothing is written and the call fails with a `ConflictError`. A row you may not see is answered as
 inserting its identity would be. An `increment` adds to whatever is stored, so it needs no condition.
 
-A filter asking for a value a property cannot hold is answered with no rows, rather than with an
-error. A property declares its format, so a value outside that format names nothing, and every method
-answers that the way it answers any other filter that matches nothing:
+A filter asking for a value a property cannot hold matches no rows. A property declares its format,
+and a value outside that format names nothing. Every method answers it the way it answers any other
+filter that matches nothing:
 
 ```ts
+// src/services/task.functions.ts
 async function lookUpAMistypedId(): Promise<void> {
-    await testRepository.findAll({ where: { id: 'not-an-id' } });     // []
-    await testRepository.findById('not-an-id', { required: false });  // undefined
-    await testRepository.findById('not-an-id');                       // NotFoundError
+    await taskRepository.findAll({ where: { id: 'not-an-id' } });     // []
+    await taskRepository.findById('not-an-id', { required: false });  // undefined
+    await taskRepository.findById('not-an-id');                       // NotFoundError
 }
 ```
 
-A path or query parameter somebody mistyped is a missing row, which is what makes it safe to hand one
-straight to the repository. Naming the format on the parameter as well — `@Param.path('id', { type:
-'string', format: 'uuid' })` — still buys something: the request is refused as invalid input before
-the handler runs, which tells the caller more than an empty result does.
+A mistyped path or query parameter is a missing row, so you can pass one straight to the repository.
+Name the format on the parameter as well, `@Param.path('id', { type: 'string', format: 'uuid' })`,
+to refuse the request as invalid input before the handler runs. That tells the caller more than an
+empty result does.
 
-Listing several values keeps the ones that are possible, so `{ oneOf: ['not-an-id', realId] }` still
-finds `realId`. The same holds for a filter reaching through a relation, eg. `{ team: { where: { id:
-'not-an-id' } } }`.
+Listing several values keeps the ones that are possible, so `{ oneOf: ['not-an-id', realId] }`
+finds `realId`. The same holds for a filter reaching through a relation, such as
+`{ team: { where: { id: 'not-an-id' } } }`.
+
+A number with a fraction is such a value for a property of the `integer` format: `{ count: 1.5 }`
+finds no row. A bound with a fraction on it asks what the bound on the whole number next to it asks,
+so `{ count: { greaterThan: 0.5 } }` finds the rows `{ count: { greaterThan: 0 } }` finds.
 
 Excluding a value a property cannot hold, with `not` or `notOneOf`, fails with a `BadRequestError`,
 which a request is answered `400` with.
 
-### Using one entity in multiple data sources
-An entity normally belongs to exactly one data source, which is why `@InjectRepository(Test)` does not
-have to name one. Sometimes the same entity should live in several though, for example when a valkey
-data source mirrors entities that postgres owns.
-
-That has to be declared on the entity:
+## Writing a repository of your own
+A repository with methods of its own extends the one the data source builds for the entity. Declare it with `@RepositoryFor`, and list it in the `repositories` of the data source, as in [defining a data source](#defining-a-data-source):
 
 ```ts
+// src/repositories/task.repository.ts
+import { Repository, RepositoryFor } from 'zibri';
+
+import { Task } from '../models/task.model';
+
+@RepositoryFor(Task)
+export class TaskRepository extends Repository<Task> {
+    async findNew(): Promise<Task[]> {
+        return await this.findAll({ where: { status: 'new' } });
+    }
+}
+```
+
+`@InjectRepository(Task)`, `repositoryTokenFor(Task)` and `inject(TaskRepository)` then hand out the one instance of it, and the framework reads and writes tasks through it too. It reads and writes the way the one it is built on does: through the same data source, with the same hooks, narrowed by the same scopes.
+
+The repository is built over the one the data source builds, so it declares no constructor. It reaches anything else it needs through `inject`, the way [dependency injection](./di.md) describes.
+
+An entity that records change sets or soft deletes is built as a `ChangeSetRepository` or a `SoftDeleteRepository`, and a repository of your own on it extends that class.
+
+The repositories of the users, the memberships and the roles extend the bases the framework ships, see [creating and registering user models](./auth.md#creating-and-registering-user-models), [members and their roles](./tenancy.md#members-and-their-roles) and [roles](./roles-and-permissions.md#roles).
+
+## Using one entity in multiple data sources
+An entity belongs to one data source, so `@InjectRepository(Task)` names none. To keep the same entity
+in several, such as a Valkey data source mirroring entities a Postgres one owns, declare it on the
+entity:
+
+```ts
+// src/models/session.model.ts
+import { BaseEntity, Entity, Property } from 'zibri';
+
 @Entity({ tenant: 'shared', allowDuplicate: true })
 export class Session extends BaseEntity {
     @Property.string()
@@ -901,13 +1062,16 @@ export class Session extends BaseEntity {
 }
 ```
 
-Adding an entity to a second data source without `allowDuplicate` fails at startup — that is almost
-always a copy-paste mistake, and silently writing to the wrong store is worse than not starting.
-
-Once an entity is duplicated, its repository can no longer be resolved by the entity alone, so the
-data source has to be named:
+The repository of a duplicated entity is resolved by the entity and its data source:
 
 ```ts
+// src/services/session.service.ts
+import { InjectRepository, Repository } from 'zibri';
+
+import { CacheDbDataSource } from '../data-sources/cache-db/cache-db.data-source';
+import { DbDataSource } from '../data-sources/db/db.data-source';
+import { Session } from '../models/session.model';
+
 export class SessionService {
     constructor(
         @InjectRepository(Session, DbDataSource)
@@ -918,33 +1082,32 @@ export class SessionService {
 }
 ```
 
-Injecting a duplicated entity without a data source throws an error that lists the data sources it
-belongs to. The same applies to `repositoryTokenFor(Session, DbDataSource)` when you resolve
+`repositoryTokenFor(Session, DbDataSource)` names the data source the same way when you resolve
 repositories dynamically.
 
-`MigrationEntity` is the built in example of this: every data source keeps track of its own
-migrations, so it is marked `allowDuplicate` and each data source resolves its own migration
-repository.
+`MigrationEntity` is a built-in example: every data source keeps track of its own migrations, so it
+is marked `allowDuplicate`, and each data source resolves its own migration repository.
 
-### Filtering data
-In most cases you probably don't want to get all entities from a data source, but a filtered selection. For that all retrieving methods have an optional where filter property:
+## Filtering data
+Every read takes a `where` filter:
 
 ```ts
-async function findByValue(): Promise<void> {
-    // returns all test entities where value is exactly '42'
-    await testRepository.findAll({ where: { value: '42' } });
-    // returns all test entities where value ends with '42'
-    await testRepository.findAll({ where: { value: { iLike: '%42' } } });
-    // returns all test entities where value ends with '42' AND is not '42'
-    await testRepository.findAll({ where: { value: { iLike: '%42', not: '42' } } });
-    // returns all test entities where value either:
+// src/services/task.functions.ts
+async function findByTitle(): Promise<void> {
+    // returns all tasks whose title is exactly '42'
+    await taskRepository.findAll({ where: { title: '42' } });
+    // returns all tasks whose title ends with '42'
+    await taskRepository.findAll({ where: { title: { iLike: '%42' } } });
+    // returns all tasks whose title ends with '42' AND is not '42'
+    await taskRepository.findAll({ where: { title: { iLike: '%42', not: '42' } } });
+    // returns all tasks whose title either:
     // - ends with '42' AND is not '42'
     // - OR is '43'
-    await testRepository.findAll({ where: { value: [{ iLike: '%42', not: '42' }, '43'] } });
-    // returns all test entities where value starts with 'rent' AND ends with '2026'
-    await testRepository.findAll({ where: { value: { like: ['rent%', '%2026'] } } });
-    // returns all test entities where value neither starts with 'rent' nor ends with '2026'
-    await testRepository.findAll({ where: { value: { notLike: ['rent%', '%2026'] } } });
+    await taskRepository.findAll({ where: { title: [{ iLike: '%42', not: '42' }, '43'] } });
+    // returns all tasks whose title starts with 'rent' AND ends with '2026'
+    await taskRepository.findAll({ where: { title: { like: ['rent%', '%2026'] } } });
+    // returns all tasks whose title neither starts with 'rent' nor ends with '2026'
+    await taskRepository.findAll({ where: { title: { notLike: ['rent%', '%2026'] } } });
 }
 ```
 
@@ -961,42 +1124,47 @@ nothing, and `{ oneOf: ['a'] }` does not. Name `null` to say otherwise:
 `{ oneOf: ['a', null] }` finds it as well, and `{ not: null }` or `{ notOneOf: ['a', null] }` leave it
 out. A list under `oneOf` or `notOneOf` can be as long as you need.
 
-Text is ordered by the application's default locale, so `after` and `before` sort alphabetically
-rather than by the bytes the text is written with, and a filter agrees with an `order` over the same
-property. [Localization](./localization.md) describes that order and what an application supporting
-several languages has to say about it.
+Text is ordered by the application's default locale, so `after` and `before` sort alphabetically,
+and a filter agrees with an `order` over the same property. [Localization](./localization.md)
+describes that order and what an application supporting several languages sets for it.
 
-An id is always a uuid the framework generates. When rows are named by something you choose — a slug,
-a key, an id from another system — give that its own property and declare it `unique`, rather than
-writing it into the id. A data source resolves a unique property directly, so looking a row up by one
-costs what looking it up by id costs.
+An id is always a UUID that is generated for you. To name rows by something you choose, such as a
+slug, a key or an id from another system, give it its own property and declare it `unique`. Looking a
+row up by a unique property costs what looking it up by id costs.
 
-A uuid is stored in lower case, whichever case it was written in, and a filter finds it in either case.
-That holds for the id, for every property declared `format: 'uuid'`, and for the ids of related rows.
+A UUID is stored in lower case, whichever case it was written in, and a filter finds it in either
+case. That holds for the id, for every property declared `format: 'uuid'`, and for the ids of related
+rows.
 
 Everything a filter carries is data, never part of the query. A search term forwarded from a request,
-an id taken out of a url, the name of a field inside a json object — each is handed to the data source
-as a value, so none of them can change what the query asks for. Filters are the supported way to turn
-caller input into a query, and building one out of request data needs no escaping of your own.
+an id taken out of a URL, the name of a field inside a JSON object: each is handed to the data source
+as a value, so none of them can change what the query asks for. Build filters out of request data
+without escaping anything yourself.
 
-#### Searching for something similar
+### Searching for something similar
 
-`fuzzyLike` finds the values that resemble what you searched for, rather than the ones that match it.
-`minSimilarity` is a percentage between 1 and 99 and defaults to 30 — 1 matches nearly everything, 99
-is close to an exact match:
+`fuzzyLike` finds the values that resemble what you searched for. `minSimilarity` is a percentage
+between 1 and 99, and defaults to 30. 1 matches nearly everything, and 99 is close to an exact match:
 
 ```ts
-@Entity()
-export class Contact extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+// src/models/contact.model.ts
+import { BaseTenantEntity, Entity, Property } from 'zibri';
 
+@Entity()
+export class Contact extends BaseTenantEntity {
     @Property.string()
     name!: string;
 
     @Property.string({ fuzzySearchable: false })
     notes!: string;
 }
+```
+
+```ts
+// src/services/contact.service.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Contact } from '../models/contact.model';
 
 const contactRepository: Repository<Contact> = inject(repositoryTokenFor(Contact));
 
@@ -1015,18 +1183,17 @@ per property that happens to. A data source that mostly answers looser searches 
 `searchesFromSimilarity`, and then that is the figure the two cases divide at. Searching a string
 inside an object property reads every row either way.
 
-`fuzzySearchable: false` takes the lookup away and refuses the search with it: nothing is kept for the
-property, and a `fuzzyLike` naming it is refused rather than answered slowly. Declare it on a column
-that is written far more often than it is searched.
+With `fuzzySearchable: false`, nothing is kept for the property, and a `fuzzyLike` naming it is
+refused. Declare it on a column that is written far more often than it is searched.
 
-A search is also refused where a similarity says nothing about the values — a property holding a
-uuid, one of an enum, a hashed value or an encrypted one. Each of those is answered exactly by `is`
-or `oneOf` instead.
+A search is also refused where a similarity says nothing about the values: a property holding a
+UUID, one of an enum, a hashed value or an encrypted one. Search those with `is` or `oneOf`.
 
 `{ similarTo }` in place of a direction orders by the same measure, the most similar values first and
 a property holding nothing last:
 
 ```ts
+// src/services/contact.service.ts
 async function findByNameClosestFirst(): Promise<void> {
     // the contacts whose name resembles 'Miller Holding', the closest one first
     await contactRepository.findAll({
@@ -1042,30 +1209,30 @@ is refused on the same properties a search is, apart from `fuzzySearchable: fals
 similarity as well.
 
 A similarity counts letters of every alphabet, so "Müller" and "Möller" are two different words. On
-postgres that needs a database created with a utf-8 character type, which the official images
-create. One created with `C` counts only ascii as a letter, and the data source says so when it
-starts.
+Postgres, create the database with a UTF-8 character type, as the official images do. With `C`, only
+ASCII counts as a letter, and the data source says so when it starts.
 
-#### Filtering inside an object property
+### Filtering inside an object property
 
 `where` reaches into an object property, and the properties inside it take the same operators as the
 ones on the entity itself:
 
 ```ts
+// src/models/product.model.ts
+import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
+
 class ProductMetadata {
     @Property.string({ required: false })
     color: string | undefined | null;
 }
 
 @Entity()
-export class Product extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Product extends BaseTenantEntity {
     @Property.object({ cls: () => ProductMetadata, required: false })
     metadata: ProductMetadata | undefined | null;
 }
 
+// src/services/product.service.ts
 const productRepository: Repository<Product> = inject(repositoryTokenFor(Product));
 
 async function findByColor(): Promise<void> {
@@ -1076,28 +1243,29 @@ async function findByColor(): Promise<void> {
 }
 ```
 
-`null` there asks for a property written as null together with one that was never written, because a
-value left undefined is absent once it is stored and the two are the same thing to whoever reads it
-back. `{ not: null }` answers with exactly the rows `null` leaves out, so the two together account
-for every row that has the object at all. A row whose object property is empty answers a question
-about the properties inside it the way it answers a question about a color it has no metadata to
-hold: it stays out of both halves.
+`null` there finds a property written as null and one that was never written: a value left
+undefined is absent once it is stored. `{ not: null }` finds exactly the rows `null` leaves out, so
+the two together cover every row that has the object. A row whose object property is empty is in
+neither of them.
 
-#### Filtering an array
+### Filtering an array
 
 `includes` asks for an array holding every value it lists. `isIncludedIn` asks for an array holding at
-least one item, each of them one it lists:
+least one item, each of them one it lists. `where` asks for an array holding at least one item that
+matches it, with the operators of the type the items have, and several conditions match an item
+that matches any of them:
 
 ```ts
-@Entity()
-export class Story extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+// src/models/story.model.ts
+import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
+@Entity()
+export class Story extends BaseTenantEntity {
     @Property.array({ items: { type: 'string' }, required: false })
     tags: string[] | undefined | null;
 }
 
+// src/services/story.service.ts
 const storyRepository: Repository<Story> = inject(repositoryTokenFor(Story));
 
 async function findByTags(): Promise<void> {
@@ -1107,6 +1275,10 @@ async function findByTags(): Promise<void> {
     await storyRepository.findAll({ where: { tags: { isIncludedIn: ['news', 'sport'] } } });
     // returns the stories tagged 'news' or 'sport', and maybe more
     await storyRepository.findAll({ where: [{ tags: { includes: ['news'] } }, { tags: { includes: ['sport'] } }] });
+    // returns the stories holding a tag that is neither 'news' nor 'sport'
+    await storyRepository.findAll({ where: { tags: { where: { notOneOf: ['news', 'sport'] } } } });
+    // returns the stories holding a tag that starts with 'local' or is 'weather'
+    await storyRepository.findAll({ where: { tags: { where: [{ like: 'local%' }, 'weather'] } } });
     // returns the stories whose tags are an empty list
     await storyRepository.findAll({ where: { tags: { length: 0 } } });
     // returns the stories without a list of tags
@@ -1122,14 +1294,15 @@ array passes over both, so `{ isIncludedIn: [] }` finds nothing. To find the sto
 A relation to many rows takes the same operators, with the related rows as its items. It always holds
 a list, so `{ length: 0 }` finds the rows without related rows.
 
-#### Filtering a value of several shapes
+### Filtering a value of several shapes
 
 A [property of several shapes](./models.md#a-value-of-several-shapes) is filtered by one filter per
 shape, named `when` followed by the name of the shape. Each row is matched by the filter of the shape
 it holds. Every shape has to be named: `false` matches no row of that shape, and `{}` every one.
 
 ```ts
-import { OneOf } from 'zibri';
+// src/models/lead.model.ts
+import { BaseTenantEntity, Entity, inject, OneOf, Property, Repository, repositoryTokenFor } from 'zibri';
 
 class Signup {
     @Property.string()
@@ -1142,14 +1315,12 @@ class Invite {
 }
 
 @Entity()
-export class Lead extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Lead extends BaseTenantEntity {
     @Property.oneOf({ shapes: { Signup: { type: 'object', cls: () => Signup }, Invite: { type: 'object', cls: () => Invite } } })
     contact!: OneOf<{ Signup: Signup, Invite: Invite }>;
 }
 
+// src/services/lead.service.ts
 const leadRepository: Repository<Lead> = inject(repositoryTokenFor(Lead));
 
 async function findLeads(): Promise<void> {
@@ -1163,12 +1334,12 @@ async function findLeads(): Promise<void> {
 The same filter works inside an object property, and in `where` on an array whose items are of
 several shapes.
 
-### Restricting which rows a caller may see
+## Restricting which rows a caller may see
 When an entity's rows are not all visible to everybody, say so on the entity. A scope is a function of the request: it returns the filter every query on that entity is narrowed by.
 
 ```ts
-// src/entities/invoice.entity.ts
-import { $ts, BaseEntity, Entity, Property, scopeFor, UnauthorizedError } from 'zibri';
+// src/models/invoice.model.ts
+import { $ts, BaseTenantEntity, Entity, Property, scopeFor, UnauthorizedError } from 'zibri';
 
 @Entity({
     scope: {
@@ -1180,10 +1351,7 @@ import { $ts, BaseEntity, Entity, Property, scopeFor, UnauthorizedError } from '
         })
     }
 })
-export class Invoice extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Invoice extends BaseTenantEntity {
     @Property.string()
     title!: string;
 
@@ -1195,12 +1363,17 @@ export class Invoice extends BaseEntity {
 }
 ```
 
-Wrap the function in `scopeFor<YourEntity>` so the filter is typed against the entity — its columns, their value types and the operators each one allows.
+Wrap the function in `scopeFor<YourEntity>` so the filter is typed against the entity: its columns, their value types and the operators each one allows.
 
 From then on every repository call is narrowed by it, reads and writes alike:
 
 ```ts
-const invoiceRepository: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
+// src/services/invoice.service.ts
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Invoice } from '../models/invoice.model';
+
+export const invoiceRepository: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
 
 async function readInvoices(id: string): Promise<void> {
     // only the rows the caller may see, without a filter to write or to forget
@@ -1214,43 +1387,59 @@ async function readInvoices(id: string): Promise<void> {
 }
 ```
 
-**A row the caller may not see is answered with a `404`.** That is deliberate: an id that exists and an id that does not are answered identically, so a route cannot be used to find out which ids are real.
+A row the caller may not see is answered with a `404`, so an id that exists and an id that does not are answered alike.
 
-**Writes are restricted too.** A row that would land outside the filter is refused with a `403`, whether it is created there or moved there by an update. Without that half a caller could create rows they are not allowed to see and then read them back entirely legitimately. An update is judged only on the columns it carries, so renaming a row you can already reach is never refused.
+Writes are restricted too. A row that would land outside the filter is refused with a `403`, whether it is created there or moved there by an update. An update is judged only on the columns it carries, so renaming a row you can already reach is never refused. A write that points a row at a row the caller may not see is refused with a `403` as well, the same as pointing it at a row of another tenant.
 
-An [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) only ever changes a row the caller may see. When its identity is held by a row they may not see, it is refused with the same `UniqueConstraintViolationError` inserting that identity would be. Its changes are judged the way an update's are: a value it sets before anything is written, and an amount it adds on the row once it is written, so an increment that carries the row outside the filter is refused and rolled back. Inside a transaction you passed, that increment stays until you roll the transaction back. An `upsertAll` is all or nothing: when one of its rows is refused, none of the others are written either.
+A relation holds only the rows the caller may see. Reading an account with `relations: ['invoices']` resolves the invoices the caller may see, a filter through the relation, `{ invoices: { where: { paid: false } } }`, is judged on those rows, and `{ invoices: { length: 0 } }` counts them. A relation to one row is `undefined` when the caller may not see that row. The same holds at every level of a relation of a relation.
 
-#### What a scope can answer
+An [`upsert`](#changing-a-value-based-on-what-is-stored) only ever changes a row the caller may see. When its identity is held by a row they may not see, it is refused with the same `UniqueConstraintViolationError` inserting that identity would be. Its changes are judged the way an update's are: a value it sets before anything is written, and an amount it adds on the row once it is written, so an increment that carries the row outside the filter is refused and rolled back. Inside a transaction you passed, that increment stays until you roll the transaction back. An `upsertAll` is all or nothing: when one of its rows is refused, none of the others are written either.
+
+### What a scope is told
+The function is handed an `EntityScopeContext`:
+
+| Field | What it is |
+|---|---|
+| `currentUser` | the requesting user, a `CurrentUser` with the [permissions](./roles-and-permissions.md#in-your-own-code) the request may use; undefined for an anonymous request and outside a request |
+| `tenantId` | the active [tenant](./tenancy.md), if there is one |
+| `currentMembership` | the membership the user acts through in that tenant, without its roles |
+| `hasPermission(permission)` | whether a role of that membership carries the [permission](./roles-and-permissions.md), answered as `@Auth.hasPermission` answers it; no outside a request |
+| `hasPlatformPermission(permission)` | whether a role of the user's own carries the permission, answered as `@Auth.hasPlatformPermission` answers it; no outside a request |
+| `requestContext` | the request being handled, if there is one |
+| `entityClass` | the entity being read or written, so one scope can serve several |
+
+### What a scope can answer
 | Returns | Meaning |
 |---|---|
 | a filter | the caller sees the rows matching it |
 | an array of filters | the caller sees the rows matching **any** of them |
 | `undefined` | the caller is not restricted at all |
-| `denyAll` | the caller sees no rows — an empty list, and `404` for a single row |
+| `denyAll` | the caller sees no rows: an empty list, and `404` for a single row |
 | *throws* | the request itself is refused, with whatever you threw |
 
-`denyAll` and throwing answer different questions. A caller who is simply outside the data gets `denyAll`; a caller who may not ask at all gets the exception.
+Return `denyAll` for a caller who sees none of the rows. Throw for a caller who may not ask at all.
 
-The array is what makes public rows and private rows in one table expressible:
+An array of filters lets one table hold public rows and private ones:
 
 ```ts
 // src/models/document.model.ts
+import { BaseTenantEntity, Entity, Property, scopeFor } from 'zibri';
+
+import { Permissions } from './permissions';
+
 @Entity({
     scope: {
-        restrictedTo: scopeFor<Document>(ctx => {
+        restrictedTo: scopeFor<Document>(async ctx => {
             // anonymous callers see what is published
             if (!ctx.currentUser) return { published: true };
-            // an administrator sees everything
-            if (ctx.currentUser.roles.includes('admin')) return undefined;
+            // a member whose role carries the permission sees everything
+            if (await ctx.hasPermission(Permissions.DOCUMENTS_READ_ALL)) return undefined;
             // everyone else sees what is published, plus their own
             return [{ published: true }, { userId: ctx.currentUser.id }];
         })
     }
 })
-export class Document extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Document extends BaseTenantEntity {
     @Property.boolean()
     published!: boolean;
 
@@ -1259,21 +1448,30 @@ export class Document extends BaseEntity {
 }
 ```
 
-Whatever the handler filters by is combined with the scope rather than replacing it, in both directions: asking for `{ userId: someoneElse }` against the scope above still reaches the published rows, and only those.
+The filter the handler passes is combined with the scope in both directions: asking for `{ userId: someoneElse }` against the scope above reaches the published rows, and only those.
 
-The return value is an ordinary where filter and means exactly what it means anywhere else — including that a condition whose value is `undefined` is dropped rather than matching nothing. Reach for `denyAll` when a caller should see no rows, rather than building a filter out of a value that may be absent.
+> [!WARNING]
+> A scope returns an ordinary where filter, and a condition whose value is `undefined` is dropped. For an anonymous caller, `{ userId: ctx.currentUser?.id }` is an empty filter and matches every row. Return `denyAll` for a caller who sees no rows, and never a filter built from a value that may be absent.
 
-#### When both sides filter the same property
-Both conditions have to hold, so they become the one condition that says both: two lists of allowed values become the values on both lists, two bounds become the one that allows the fewest rows, two patterns are both required, and a value of several shapes is combined shape by shape — a shape either side rules out is ruled out, and a shape whose two conditions contradict each other leaves the other shapes reachable. A pair nothing can satisfy, `{ userId: someoneElse }` against a scope of `{ userId: ctx.currentUser.id }`, is answered with no rows rather than queried.
+### When both sides filter the same property
+Both conditions have to hold, so they become the one condition that says both:
 
-What a property holds inside it is asked for both at once, of the same row. A scope requiring `{ payments: { where: { payerId: ctx.currentUser.id } } }` and a caller asking `{ payments: { where: { amount: { greaterThan: 100 } } } }` find the invoices with a payment of the caller's that is over 100 — not the ones with a payment of the caller's and some payment over 100.
+- Two lists of allowed values become the values on both lists.
+- Two bounds become the one that allows the fewest rows.
+- Two patterns are both required.
+- A value of several shapes is combined shape by shape. A shape either side rules out is ruled out, and a shape whose two conditions contradict each other leaves the other shapes reachable.
 
-#### Reading across the restriction
-`currentUser` is undefined for an anonymous request and for anything running outside a request at all — a cron job, a migration, a startup task. The scope decides what that means, which is why the first example throws: an entity whose every row belongs to somebody has nothing to offer a caller who is nobody.
+A pair nothing can satisfy, `{ userId: someoneElse }` against a scope of `{ userId: ctx.currentUser.id }`, is answered with no rows without asking the data source.
 
-Anything that genuinely has to read across the restriction says so:
+What a property holds inside it is asked for both at once, of the same row. A scope requiring `{ payments: { where: { payerId: ctx.currentUser.id } } }` and a caller asking `{ payments: { where: { amount: { greaterThan: 100 } } } }` find the invoices with a payment of the caller's that is over 100. An invoice with a payment of the caller's and a different payment over 100 is not found.
+
+### Reading across the restriction
+`currentUser` is undefined for an anonymous request, and for anything running outside a request: a cron job, a migration, a startup task. The scope decides what that means. The first example throws for it.
+
+Code that has to read across the restriction says so:
 
 ```ts
+// src/services/invoice.service.ts
 async function readAcrossTheRestriction(): Promise<void> {
     // every scope on the entity
     await invoiceRepository.findAll({ unscoped: true });
@@ -1282,24 +1480,22 @@ async function readAcrossTheRestriction(): Promise<void> {
 }
 ```
 
-`unscoped` is accepted by every repository method. Each use is a place the restriction does not hold, so it is spelled out at the call rather than configured somewhere central — and searching for it lists every one of them.
+`unscoped` is accepted by every repository method, and lifts the scopes of the related entities the call reaches as well. It is set per call, so searching for `unscoped` lists every place the restriction is lifted.
 
-#### Filling in who a row belongs to
+### Filling in who a row belongs to
 A scope says which rows a caller may see; it cannot supply a value. A property default does that:
 
 ```ts
-import { BaseUser, HttpRequestContext, WebsocketRequestContext, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
+// src/models/receipt.model.ts
+import { BaseTenantEntity, CurrentUser, Entity, HttpRequestContext, inject, Property, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
 
-async function currentUser(): Promise<BaseUser<string> | undefined> {
+async function currentUser(): Promise<CurrentUser | undefined> {
     const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
     return await ctx?.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
 }
 
 @Entity()
-export class Receipt extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Receipt extends BaseTenantEntity {
     @Property.string({ format: 'uuid', default: async () => (await currentUser())?.id ?? '' })
     userId!: string;
 }
@@ -1307,25 +1503,29 @@ export class Receipt extends BaseEntity {
 
 Defaults are applied before the scope checks the write, so the value a default produces is the one that gets checked.
 
-### Using transactions
+## Using transactions
 A transaction can be started from a data source:
 
 ```ts
-// src/services/test-batch.service.ts
+// src/services/task-batch.service.ts
 import { InjectRepository, Repository, Transaction } from 'zibri';
 
-export class TestBatchService {
+import { DbDataSource } from '../data-sources/db/db.data-source';
+import { TaskCreateData, TaskUpdateData } from '../models';
+import { Task } from '../models/task.model';
+
+export class TaskBatchService {
     constructor(
-        @InjectRepository(Test)
-        private readonly testRepository: Repository<Test, TestCreateData, TestUpdateData>,
+        @InjectRepository(Task)
+        private readonly taskRepository: Repository<Task, TaskCreateData, TaskUpdateData>,
         private readonly dataSource: DbDataSource
     ) {}
 
-    async doSomething(): Promise<void> {
+    async createReleaseTasks(): Promise<void> {
         const transaction: Transaction = await this.dataSource.startTransaction();
         try {
-            const test1: Test = await this.testRepository.create({ value: '42' }, { transaction });
-            const test2: Test = await this.testRepository.create({ value: '43' }, { transaction });
+            const notes: Task = await this.taskRepository.create({ title: 'Write the release notes', status: 'new' }, { transaction });
+            const publish: Task = await this.taskRepository.create({ title: 'Publish the release', status: 'new' }, { transaction });
             await transaction.commit();
         }
         catch (error) {
@@ -1336,22 +1536,55 @@ export class TestBatchService {
 }
 ```
 
-A transaction holds something from the moment it starts until it commits or rolls back: a connection
-out of the pool, and a grant on every row it writes. The `catch` above is what hands those back when
-the work fails, and it is worth writing.
+From the moment it starts until it commits or rolls back, a transaction holds a connection out of the
+pool and every row it writes. The `catch` above hands them back when the work fails.
+
+Two transactions that each hold a row the other one writes next wait on each other. One of them is
+ended to let the other go on, and its write fails with a `TransactionDeadlockError`: nothing it wrote
+is applied, so roll it back and run it again from the start.
+
+A transaction started with the isolation level `REPEATABLE READ` or `SERIALIZABLE` is ended the same
+way when another one changed what it read in a way that level does not allow, and fails with a
+`TransactionSerializationError`, at a write or at its commit. Both errors are a
+`TransactionConflictError`.
+
+`runInTransaction` starts a transaction, commits it once your work is done, rolls it back when your
+work fails, and runs your work again from the start after a `TransactionConflictError`, until it has
+run `maxAttempts` times:
+
+```ts
+// src/services/task-limit.function.ts
+import { IsolationLevel, Repository, Transaction } from 'zibri';
+
+import { DbDataSource } from '../data-sources/db/db.data-source';
+import { Task } from '../models/task.model';
+
+async function createTaskWithinLimit(dataSource: DbDataSource, taskRepository: Repository<Task>): Promise<Task | undefined> {
+    return await dataSource.runInTransaction(async (transaction: Transaction) => {
+        if (await taskRepository.count({ transaction }) >= 100) {
+            return undefined;
+        }
+        return await taskRepository.create({ title: 'Write the release notes', status: 'new' }, { transaction });
+    }, { isolationLevel: IsolationLevel.SERIALIZABLE, maxAttempts: 3 });
+}
+```
+
+Your work may run more than once, so keep it to what it writes through the transaction: an email sent
+from inside it goes out once per attempt. Send it from `afterCommit` instead.
 
 Work that has to follow the writes only once they landed goes to `afterCommit`. It runs once the
 commit is done, in the order it was added, and never after a rollback:
 
 ```ts
-// src/services/test-announcement.service.ts
+// src/services/task-announcement.service.ts
 import { Repository, Transaction } from 'zibri';
 
-import { announceTest } from './announce-test.function';
+import { Task } from '../models/task.model';
+import { announceTask } from './announce-task.function';
 
-async function createAndAnnounce(testRepository: Repository<Test>, transaction: Transaction): Promise<void> {
-    const test: Test = await testRepository.create({ value: '44' }, { transaction });
-    transaction.afterCommit(async () => await announceTest(test.id));
+async function createAndAnnounce(taskRepository: Repository<Task>, transaction: Transaction): Promise<void> {
+    const task: Task = await taskRepository.create({ title: 'Publish the release', status: 'new' }, { transaction });
+    transaction.afterCommit(async () => await announceTask(task.id));
 }
 ```
 
@@ -1361,11 +1594,17 @@ transaction is committed, rolled back or its commit failed, and is told whether 
 this way.
 
 A transaction that reaches neither a commit nor a rollback is rolled back once it has sat idle for
-ten seconds, and everything it held is handed back. The clock runs from the last thing it did, so a
+ten seconds: everything it held is handed back, its `afterFinish` work runs as for any rollback, and a
+later `commit` throws a `TransactionAlreadyFinishedError`. The clock runs from the last thing it did, so a
 transaction that keeps working keeps its full allowance however long it runs. A transaction that
 waits on something slow between two of its writes says so when it starts:
 
 ```ts
+// src/services/task.functions.ts
+import { inject, Transaction } from 'zibri';
+
+import { DbDataSource } from '../data-sources/db/db.data-source';
+
 async function startPatientTransaction(): Promise<Transaction> {
     return await inject(DbDataSource).startTransaction({
         idleTimeoutInMs: 60000
@@ -1375,20 +1614,21 @@ async function startPatientTransaction(): Promise<Transaction> {
 
 Set it to `0` for a transaction that may sit idle for as long as it likes.
 
-### Handling migrations
-Migrations are provided on the data source, next to its entities — the `migrations` property on
+## Handling migrations
+Migrations are listed on the data source, next to its entities: the `migrations` property on
 [`DbDataSource`](#defining-a-data-source) above lists them, in the order they are written.
 
-Let's take a look at what the `RenameValuePropertyMigration` does.
-
-For this we assume that the entity `Test` had a property before that was called `oldValue`, which has been renamend to the current property `value`. The migration handles that rename:
+`RenameTaskNameMigration` renames the property `name` of `Task` to `title`:
 
 ```ts
-// src/data-sources/db/migrations/rename-value-property.migration.ts
-import { Injectable, SemVerVersion } from 'zibri';
+// src/data-sources/db/migrations/rename-task-name.migration.ts
+import { Injectable, Migration, SemVerVersion, Transaction } from 'zibri';
+
+import { Task } from '../../../models/task.model';
+import { DbDataSource } from '../db.data-source';
 
 @Injectable()
-class RenameValuePropertyMigration extends Migration {
+export class RenameTaskNameMigration extends Migration {
     version: SemVerVersion = '0.0.1';
 
     constructor() {
@@ -1397,25 +1637,25 @@ class RenameValuePropertyMigration extends Migration {
 
     override async up(transaction: Transaction): Promise<void> {
         await this.dataSource.changePropertyOfEntity({
-            entity: Test,
-            currentProperty: { name: 'oldValue', type: 'string' },
-            property: { name: 'value', type: 'string' },
+            entity: Task,
+            currentProperty: { name: 'name', type: 'string' },
+            property: { name: 'title', type: 'string' },
             transaction
         });
     }
 
     override async down(transaction: Transaction): Promise<void> {
         await this.dataSource.changePropertyOfEntity({
-            entity: Test,
-            currentProperty: { name: 'value', type: 'string' },
-            property: { name: 'oldValue', type: 'string' },
+            entity: Task,
+            currentProperty: { name: 'title', type: 'string' },
+            property: { name: 'name', type: 'string' },
             transaction
         });
     }
 }
 ```
 
-A migration says how each property is stored, with the same metadata the `@Property` decorator takes plus its `type`, instead of reading it off the entity. It runs again on every new database, long after the entity may have changed. `unique`, `index` and `fuzzySearchable` are left out: the data source [keeps the indexes and uniques](#keeping-indexes-and-uniques) the entity declares now, once the migrations have run.
+A migration says how each property is stored, with the same metadata the `@Property` decorator takes plus its `type`, instead of reading it off the entity. It runs again on every new database, long after the entity may have changed. `unique`, `index` and `fuzzySearchable` are left out: the data source [keeps the indexes and uniques](#keeping-indexes-and-uniques) the entity declares, once the migrations have run.
 
 | Helper | What it does |
 |---|---|
@@ -1428,14 +1668,20 @@ A migration says how each property is stored, with the same metadata the `@Prope
 
 Something written out means the same in every later version. Something resolved means whatever the entity has become by the time the migration runs.
 
-Setting the schema up and running each migration take as long as they need: they run under the data
-source's `migrationTimeoutInMs` rather than [the time a statement may take](#how-long-a-call-may-take),
-and that is no limit unless the data source declares one. A migration that should stop sooner, or
+Setting the schema up and running each migration take as long as they need. They run under the data
+source's `migrationTimeoutInMs`, not under [the time a statement may take](#how-long-a-call-may-take),
+and it sets no limit unless the data source declares one. A migration that should stop sooner, or
 may take longer than the data source allows, declares a `timeoutInMs` of its own:
 
 ```ts
+// src/data-sources/db/migrations/remove-paid-invoices.migration.ts
+import { Injectable, Migration, SemVerVersion, Transaction } from 'zibri';
+
+import { invoiceRepository } from '../../../services/invoice.service';
+import { DbDataSource } from '../db.data-source';
+
 @Injectable()
-class RemovePaidInvoicesMigration extends Migration {
+export class RemovePaidInvoicesMigration extends Migration {
     version: SemVerVersion = '0.0.2';
 
     override readonly timeoutInMs: number = 15 * 60 * 1000;
@@ -1454,10 +1700,11 @@ class RemovePaidInvoicesMigration extends Migration {
 }
 ```
 
-#### Converting values
+### Converting values
 `changePropertyOfEntity` converts every stored value, and fails without changing anything when one of them cannot be converted. The error names each of those values. `convert` lists values that become specific other values, and its `default` says what happens to all the others:
 
 ```ts
+// src/data-sources/db/migrations/replace-active-with-state.function.ts
 import { CronJobEntity, CronJobState, DataSourceInterface, Transaction, ValueConversion } from 'zibri';
 
 async function replaceActiveWithState(dataSource: DataSourceInterface, transaction: Transaction): Promise<void> {
@@ -1483,22 +1730,30 @@ A cast keeps the value, or fails:
 |---|---|---|
 | any type | the same type | the new property can hold it: a string has to be one of its `enum`, at most `maxLength` characters long, and a uuid if it has to be one |
 | number | number of another `format` | it is the same number afterwards and the `format` holds it: `1.5` and `2 ** 53` fail as an `'integer'` |
-| number | string | always, written the way javascript writes it, eg. `'1.5'` or `'1e+21'`. A `'bigint'` or `'bignumber'` is written in decimal digits |
-| string | number | it is a number written out, eg. `'-1.5'` or `'2e3'`, and that number fits the `format`. An `'integer'` or `'bigint'` takes digits only. `' 7'` and `'0x10'` fail |
+| number | string | always, written the way JavaScript writes it, such as `'1.5'` or `'1e+21'`. A `'bigint'` or `'bignumber'` is written in decimal digits |
+| string | number | it is a number written out, such as `'-1.5'` or `'2e3'`, and that number fits the `format`. An `'integer'` or `'bigint'` takes digits only. `' 7'` and `'0x10'` fail |
 
 Any other change of type has no cast, so `convert` with `ValueConversion.NONE` is required. A missing value fails when the new property is required.
 
-`down` undoes what `up` did. It is worth writing even when you cannot imagine needing it: it is what [going back](#going-back) runs, and a release that has to be rolled back is exactly the release nobody planned for.
+`down` undoes what `up` did. [Going back](#going-back) runs it, so write it for every migration.
 
-#### Versioning
-As you can see, each migration needs to have a version for which it should run. That version is compared against the global one provided to zibri, which is the package.json version by default. It is the same version your routes declare themselves against, so one number says both which api a build serves and which schema it expects.
+### Versioning
+Each migration has a version. It is compared against the application's version, which is the
+version in `package.json` by default. Your routes declare themselves against the same version, so
+one number says which API a build serves and which schema it expects.
 
-A version says which app versions a schema state belongs to, so **several migrations share one whenever a release carries more than one schema change** — the ordinary case. Which migration a record is about is its class name instead, and that is what decides whether it has run and which record a revert removes. Two migrations therefore need two distinct class names, and renaming one after it has shipped makes it look unapplied.
+A version says which application versions a schema state belongs to, so several migrations share
+one when a release carries more than one schema change. A migration is recorded by its class name:
+the name decides whether it has run, and which record a revert removes. Give every migration a class
+name of its own.
 
-On boot, every migration up to and including the app's version that the database has not recorded yet is applied, in the order the data source lists them.
+> [!WARNING]
+> Renaming a migration after it shipped makes it look unapplied, and it runs again.
 
-#### Going back
-An app whose database has already been migrated **past** its own version refuses to start, and says which migrations it found:
+On boot, every migration up to and including the app's version that the database has not recorded yet is applied, in the order the data source lists them. A [restore](./backup.md#a-backup-of-another-release) applies them the same way to what it restored.
+
+### Going back
+An application whose database is migrated past its own version refuses to start, and says which migrations it found:
 
 ```
 This app is version 1.2.0, but its database has already been migrated to "AddInvoiceTable" (1.3.0).
@@ -1506,48 +1761,55 @@ Running an older instance against a newer schema is not supported, so it refuses
 than reverting the schema that the newer instances are using.
 ```
 
-It refuses rather than reverting because the schema is shared. An instance arriving late — a rollback, a restart, a scale event — would otherwise take the schema away from the instances already serving on it, and a `down()` that drops a column takes the data with it.
+The schema is shared with the instances already serving on it, so an instance that starts late, after
+a rollback, a restart or a scale event, never reverts it.
 
 A release that changed the [indexes and uniques](#keeping-indexes-and-uniques) counts the same: its version is recorded under `zibri:indexes-and-uniques`, and an older release refuses to start against it. `revertMigrationsAfter` removes that record along with the migrations, and the older build then brings the indexes and uniques back to what its own entities declare when it starts.
 
-Rolling back past a migration is therefore something you do on purpose, in this order:
+To roll back past a migration:
 
-1. stop the instances running the newer version
-2. `await dataSource.revertMigrationsAfter('1.2.0')` — runs `down()` for everything above that version, in the reverse of the order it was applied in
-3. deploy the older build
+1. Stop the instances running the newer version.
+2. Run `await dataSource.revertMigrationsAfter('1.2.0')`. It runs `down()` for everything above that version, in the reverse of the order it was applied in.
+3. Deploy the older build.
 
-Doing step 2 while a newer instance is still serving takes the schema out from under it, which is why step 1 comes first.
+> [!WARNING]
+> Step 2 takes the schema away from any newer instance still serving, and a `down()` that drops a column drops its data. Stop the newer instances first.
 
-Note what this means for a normal rolling deploy: while it is in progress, instances of both versions are live at the same time, and the framework cannot prevent that — it does not control your orchestrator. Keep a migration backward compatible with the version before it (add a nullable column, do not rename one in place; remove the old column in a later release) and that window is safe.
+During a rolling deploy, instances of both versions serve at the same time. Keep each migration backward compatible with the version before it: add a nullable column instead of renaming one in place, and remove the old column in a later release.
 
-#### Running more than one instance
-Schema setup — creating the migration table, running migrations, keeping the indexes and uniques, and whatever `schemaManagement` asks for — happens inside a lock that every instance of your deployment competes for. The first instance to boot sets the schema up and the rest find the work already done.
+### Running more than one instance
+Schema setup runs on one instance at a time: creating the migration table, running migrations, keeping the indexes and uniques, and whatever `schemaManagement` asks for. The first instance to start sets the schema up, and the others find the work done. There is nothing to configure.
 
-Without it, three replicas starting together all read an empty migration table and all run the same migration, and all issue the same `CREATE TABLE`. That surfaces as `duplicate key value violates unique constraint "pg_type_typname_nsp_index"` — a Postgres *catalog* index, which names nothing about your application — and the instances that lose crash-loop.
-
-Nothing to configure. `PostgresDataSource` uses `pg_advisory_lock`, `ValKeyDataSource` uses a key with a time to live. A custom data source implements `schemaLock` itself; it is on `DataSourceInterface` rather than optional, because a data source that cannot lock lets concurrent writers corrupt each other.
-
-This is the one lock in the framework that is not a [lease](./leases.md), and it cannot be: a lease is a row in a table that schema setup has not created yet. Everything else that needs one replica to go first uses `LeaseService` — `schemaLock` is not for application code, which is why it is `protected`.
-
-An instance that dies mid-setup would otherwise block every other instance forever, so acquisition is bounded by `ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS` (one minute by default) and fails loudly instead:
+An instance waits for the schema setup of another for one minute at most, then fails to start. `ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS` sets the wait:
 
 ```ts
+// src/providers.ts
 import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({ token: ZIBRI_DI_TOKENS.SCHEMA_LOCK_TIMEOUT_IN_MS, useFactory: () => Ms.MINUTE * 5 })
 ```
 
-Raise it if your migrations legitimately take longer than that to run.
+Raise it when your migrations take longer than that.
 
-### Making your own writes safe across instances
+## Making your own writes safe across instances
 
-There are two tools here and they are not interchangeable. Picking the wrong one produces something that looks safe and is not.
+| Use | When |
+|---|---|
+| [`upsert`](#changing-a-value-based-on-what-is-stored) | The new value of one row depends on the stored one, such as a counter or a running total |
+| [`updateAll`](#changing-every-row-that-matches-a-filter) | Every row that matches a filter changes, such as when claiming queued work |
+| [`{ increment }`](#adding-to-what-every-matching-row-stores) | An amount is added to what every matching row stores |
+| [a lease](#serializing-work-with-a-lease) | Only one instance may do a piece of work |
 
-#### Changing a value based on what is stored — `upsert`
+### Changing a value based on what is stored
 
-When the new value depends on the current one — a counter, a stock level, a running total — read-modify-write is the wrong shape no matter what you wrap it in. Use `upsert`, which leaves no window for another writer to interleave in:
+When the new value depends on the current one, such as a counter, a stock level or a running total, use `upsert`. It reads and writes in one step, so no other write lands in between:
 
 ```ts
+// src/services/invoice-number.service.ts
+import { inject, Repository, repositoryTokenFor, Transaction } from 'zibri';
+
+import { NumberInvoices } from '../models/number-invoices.model';
+
 const numberInvoicesRepository: Repository<NumberInvoices> = inject(repositoryTokenFor(NumberInvoices));
 
 async function nextNumber(year: number, recipientId: string, transaction: Transaction): Promise<number> {
@@ -1561,22 +1823,27 @@ async function nextNumber(year: number, recipientId: string, transaction: Transa
 }
 ```
 
-The properties you identify the row by have to be declared together on the entity, in any order —
-that is the `uniques: [['year', 'recipientId']]` on [`NumberInvoices`](#defining-entities) above.
-
-Without that declaration the identity does not name at most one row, and the call is refused rather than quietly picking one of them. `increment` is only offered on numeric properties; every other property takes `{ set: value }`.
+The properties you identify the row by are declared together as a unique on the entity, in any
+order: the `uniques: [['year', 'recipientId']]` on [`NumberInvoices`](#defining-entities) above.
+Without that declaration the call is refused. `increment` is offered on number properties; every
+other property takes `{ set: value }`.
 
 The identity holds the same values as the row you insert, and the changes leave it as it is. A call that breaks either is refused.
 
-It is safe to pass your `transaction`, and you should: the result comes back before the transaction commits, so you can use it while the transaction is still open, and it rolls back with everything else. For invoice numbering that is the point — an abandoned invoice leaves no gap in the sequence.
+Pass your `transaction`. The result comes back before the transaction commits, so you can use it while the transaction is open, and it rolls back with everything else. An abandoned invoice then leaves no gap in the numbering.
 
-A `belongsToOne` or `manyToOne` may be named in the row you insert, and is written as the foreign key it resolves to — pass the related entity or its id, whichever you have. The other three relation kinds keep their key somewhere else: on the row at the other end, or in a join table. Writing one of those means writing rows beside this one, and statements around the insert-or-update reopen the window `upsert` exists to close, so naming one is refused and says which property it means. Write that side separately, or use `create`.
+A `belongsToOne` or `manyToOne` may be named in the row you insert, and is written as the foreign key it resolves to. Pass the related entity or its id, whichever you have. The other three relation kinds keep their key on the row at the other end, or in a join table, so naming one is refused, and the error names the property. Write that side separately, or use `create`.
 
-What comes back has its relations resolved, the same as any other read — see [What a write hands back](#what-a-write-hands-back).
+What comes back has its relations resolved, the same as any other read, see [What a write hands back](#what-a-write-hands-back).
 
 To do the same for several rows in one call, use `upsertAll`. You name the identity once, and each row brings what to insert and its own changes:
 
 ```ts
+// src/services/invoice-number.service.ts
+import { Transaction } from 'zibri';
+
+import { NumberInvoices } from '../models/number-invoices.model';
+
 async function nextNumbers(year: number, recipientIds: string[], transaction: Transaction): Promise<number[]> {
     const counters: NumberInvoices[] = await numberInvoicesRepository.upsertAll(
         ['year', 'recipientId'],                     // read off each row's `create`
@@ -1590,22 +1857,23 @@ async function nextNumbers(year: number, recipientIds: string[], transaction: Tr
 }
 ```
 
-Every rule of `upsert` applies to each row. The rows come back in the order you passed them. No two rows may hold the same identity; such a call is refused before anything is written. Calls running at the same time may name the same rows in any order: each waits for the other rather than failing.
+Every rule of `upsert` applies to each row. The rows come back in the order you passed them. A call in which two rows hold the same identity is refused before anything is written. Calls running at the same time may name the same rows in any order: each waits for the other, and neither fails.
 
-#### Changing every row that matches a filter — `updateAll`
+### Changing every row that matches a filter
 
-`updateAll` carries the same guarantee without you doing anything. Claiming work by flipping a column is safe across instances: two callers cannot both come back with the same row, because the rows are held from the moment they are read until the change is committed. The loser gets the rows that are genuinely still theirs to take, which is usually none.
+`updateAll` is safe across instances with nothing to add. Claiming work by changing a column is safe: two callers never get back the same row, because each row is held from the moment it is read until the change commits. A caller that loses the race gets the rows still left to take, often none.
 
 ```ts
-@Entity()
-export class Job extends BaseEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
+// src/models/job.model.ts
+import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
+@Entity()
+export class Job extends BaseTenantEntity {
     @Property.string()
     status!: string;
 }
 
+// src/services/job.service.ts
 const jobRepository: Repository<Job> = inject(repositoryTokenFor(Job));
 
 async function claim(): Promise<Job[]> {
@@ -1621,13 +1889,54 @@ Claiming is the case that wants `returnUpdated`: the rows it comes back with are
 
 You do not have to pass a transaction for that. One is taken for the operation when you did not, and yours is used when you did, so the change rolls back with everything else.
 
-> **Rows that start matching while it runs are not covered**, on any data source. `updateAll` changes what matched when it looked; a row inserted a moment later was never a candidate. Only a serializable isolation level covers that, and it is a limit rather than a defect — for claiming rows that already exist, which is what this is for, it does not arise.
+> [!NOTE]
+> `updateAll` changes the rows that matched when it read them, on every data source. A row inserted a moment later is left as it is. Only a serializable isolation level covers rows that start matching while it runs.
 
-#### Serializing work that is not a single value — a lease
+### Adding to what every matching row stores
 
-When the thing you are protecting is *work* rather than a value — an import, a report, a third party call that must happen once — that is a [lease](./leases.md):
+A number property takes `{ increment: amount }` instead of a value. The amount is added to what each row stores, in the same write, so two callers adding at the same time both land:
 
 ```ts
+// src/models/page-view.model.ts
+import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
+
+@Entity()
+export class PageView extends BaseTenantEntity {
+    @Property.string()
+    path!: string;
+
+    @Property.number({ format: 'integer' })
+    views!: number;
+
+    @Property.string({ required: false })
+    lastReferrer?: string | null;
+}
+
+// src/services/page-view.service.ts
+const pageViewRepository: Repository<PageView> = inject(repositoryTokenFor(PageView));
+
+async function countView(path: string, referrer: string): Promise<void> {
+    await pageViewRepository.updateAll({ path }, { views: { increment: 1 }, lastReferrer: referrer });
+}
+```
+
+- A negative amount subtracts.
+- A property that holds no value counts as 0.
+- A property of whole numbers takes whole amounts only.
+- Only a number property takes an amount. For a property holding an object, `{ increment }` is a value like any other.
+- A change set records the value each row holds afterwards.
+- When your [scope](#restricting-which-rows-a-caller-may-see) reads the property, each row is judged on what it holds after the amount was added, and the whole update is undone with a `403` when one of them left what you may see.
+
+To add to one row that may not exist yet, use `upsert` above.
+
+### Serializing work with a lease
+
+When only one instance may do a piece of work, such as an import, a report or a third-party call that must happen once, take a [lease](./leases.md):
+
+```ts
+// src/services/feed.service.ts
+import { inject, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
 export class FeedService {
     async import(feedId: string): Promise<void> {
         await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
@@ -1642,25 +1951,24 @@ export class FeedService {
 }
 ```
 
-**Pick the narrowest key that makes the work correct.** `import:${feedId}` lets two feeds import at once; a plain `'import'` would serialize every import in the deployment. The key is a plain string and only callers using the same one wait for each other — prefix yours, the key space is shared with the framework's own.
+Pick the narrowest key that keeps the work correct. `import:${feedId}` lets two feeds import at once, and a plain `'import'` serializes every import in the deployment. The key is a plain string, and only callers using the same one wait for each other. Prefix your keys: the key space is shared with the framework's own.
 
-> **A lease cannot protect a value.** A write made with `{ transaction }` only becomes visible on **commit**. Commit inside the lease body and a read-modify-write is perfectly safe — the window covers all three steps. Accept a transaction from the caller and commit it later, and it is not: the grant is handed back while the write is still invisible, so the next holder reads a value that has already been claimed. Both callers held the grant, over a window that ended too early, and nothing errors.
+> [!WARNING]
+> A write made with `{ transaction }` becomes visible on commit. Commit inside the lease body, and reading, changing and writing a value is safe. Commit after the lease ends, in a transaction the caller passed in, and the next holder reads a value that is already taken, with no error. Pass that transaction as `heldUntil` to [hold the lease until it ends](./leases.md#holding-a-lease-until-a-transaction-ends), or use [`upsert`](#changing-a-value-based-on-what-is-stored) for the value.
 >
-> A lease cannot close that gap by holding longer, because it does not own the caller's transaction and has no way to know when it commits. A grant and a transaction have independent lifetimes, and an invariant spanning both is only as strong as the shorter one. That is what [`upsert`](#changing-a-value-based-on-what-is-stored--upsert) above is for.
->
-> Zibri warns when it catches this: if a write made while holding a lease used a transaction that is still open when the grant is released, you get a log line naming the lease. It is a runtime check on the path that actually ran, so treat it as a safety net rather than proof — a branch that never executes never warns.
+> A write made while holding a lease, in a transaction that is still open when the lease ends, logs a warning naming the lease. The check runs on the code path that ran, so a branch that never runs never warns.
 
-#### Acquisition order
+### Acquisition order
 
-Anything holding more than one grant at a time can deadlock, and Zibri does not protect you from **inconsistent ordering**: if one caller takes `a` then `b` while another takes `b` then `a`, they wait on each other, and nothing at the point of acquisition can see that coming. Decide an order for your keys and keep to it.
+Anything holding more than one grant at a time can deadlock when two callers take them in opposite orders: one takes `a` then `b`, the other `b` then `a`. Decide an order for your keys and keep to it.
 
-This is not only about leases you take yourself. Transactions and `upsert` take grants of their own, so two transactions touching the same rows in opposite orders can reach the same place.
+Transactions and `upsert` hold rows of their own, so two transactions touching the same rows in opposite orders can deadlock the same way.
 
-### ChangeSetRepository
-The `ChangeSetRepository` is an extended version of a Repository, that automatically tracks who changed what & when.
-It is automatically chosen with no further configuration on your end when the entity provided to `@InjectRepository` has a property called changeSets which is an array.
+## Recording who changed what
+A `ChangeSetRepository` is a `Repository` that tracks who changed what, and when. An entity with a
+`changeSets` property, such as one extending `ChangeSetEntity`, gets one, with nothing to configure.
 
-If you want to remove a property from tracking, you can set the `excludeFromChangeSets` flag:
+`excludeFromChangeSets` leaves a property out of the tracking:
 
 ```ts
 // src/models/note.model.ts
@@ -1688,18 +1996,21 @@ share a history. Resetting a change set or rolling back to one refuses a change 
 A change of an object property records the whole object, before and after. Resetting it writes the
 object back as it was, with `null` for a property added to it since.
 
-#### A change and its record are one write
+### A change and its record are one write
 
 Every method that writes a change set takes a transaction over both, so a row and the change set
 describing it arrive together or neither does. That holds for creating, updating, deleting,
-resetting a change set and rolling back to one, in bulk as well as singly — and a rollback covers
-every change set it walks through, so the row never stops between two of them.
+resetting a change set and rolling back to one, in bulk as well as singly. A rollback covers every
+change set it walks through, so the row never stops between two of them.
 
 Pass your own `transaction` and it is used instead, which is what puts the change sets in the same
 unit as the rest of your work:
 
 ```ts
-import { ChangeSetRepository } from 'zibri';
+// src/services/note.service.ts
+import { ChangeSetRepository, Transaction } from 'zibri';
+
+import { Note } from '../models/note.model';
 
 async function renameInside(noteRepository: ChangeSetRepository<Note>, id: string, transaction: Transaction): Promise<void> {
     // the note, its change set, and whatever else the transaction carries
@@ -1707,12 +2018,12 @@ async function renameInside(noteRepository: ChangeSetRepository<Note>, id: strin
 }
 ```
 
-Who made the change is read from the request, so a write driven from a cron job, a migration or a
-startup task records a change set with no user on it — the change is still tracked, and what is
-absent is the person, because there was none.
+The user who made a change is read from the request. A write from a cron job, a migration or a
+startup task records a change set with no user on it.
 
-### SoftDeleteRepository
-The `SoftDeleteRepository` is an extended version of a `ChangeSetRepository`, which adds soft delete functionality.
+## Soft deleting rows
+A `SoftDeleteRepository` is a `ChangeSetRepository` that deletes softly. An entity extending
+`SoftDeleteEntity` gets one.
 
 A delete marks the row as deleted and keeps it. Every read and write leaves soft deleted rows out,
 unless the call's `deleted` option says otherwise:
@@ -1724,7 +2035,10 @@ unless the call's `deleted` option says otherwise:
 | `'only'` | Soft deleted rows alone |
 
 ```ts
+// src/services/account.service.ts
 import { SoftDeleteRepository } from 'zibri';
+
+import { Account } from '../models/account.model';
 
 async function listTrash(accountRepository: SoftDeleteRepository<Account>): Promise<Account[]> {
     return await accountRepository.findAll({ deleted: 'only' });
@@ -1739,29 +2053,40 @@ The option is the only way to choose: a filter naming `deleted` with a value the
 give it is refused. An update hands back the row it wrote, whether or not that row is still reached
 afterwards.
 
+`deleted` chooses among the rows of the entity the call is on. A relation holds only the rows of the
+related entity that are not soft deleted, a filter through the relation is judged on those, and a
+count of it counts those; a soft deleted row is reached through the repository of its own entity.
+
 `hardDelete: true` on `deleteById` or `deleteAll` removes rows for good, soft deleted ones included.
 
-### How long a call may take
-Every statement a data source runs has a time limit, inside a request or not — a cron job, an event
-subscriber and a thread job included. A statement past it fails. A postgres data source gives a
-statement 30 seconds, and `statementTimeoutInMs` says otherwise. A valkey data source gives a command
-the `requestTimeout` of its options, 5 seconds by default.
+## How long a call may take
+Every statement a data source runs has a time limit, inside a request or not, in a cron job, an
+event subscriber and a thread job as well. A statement past it fails. A Postgres data source gives a
+statement 30 seconds, and `statementTimeoutInMs` sets another limit. A Valkey data source gives a
+command the `requestTimeout` of its options, 5 seconds by default.
 
 A call that needs longer, or should give up sooner, names `timeoutInMs` on its options. Each statement
 of the call may take that long, and the call as a whole as well: once it has run out of time, the
 statement still running is stopped where the store can stop one, and nothing further is asked of the
-store. `0` lifts the limit. A single valkey command keeps its `requestTimeout` either way.
+store. `0` lifts the limit. A single Valkey command keeps its `requestTimeout` either way.
 
 ```ts
+// src/data-sources/warehouse/warehouse.data-source.ts
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+
 @DataSource()
 class WarehouseDataSource extends PostgresDataSource {
     options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'warehouse.internal', database: 'warehouse', ssl: true };
     entities: Newable<BaseEntity>[] = [];
+    repositories: RepositoryClass[] = [];
     schemaManagement: SchemaManagement = 'external';
 
     protected override readonly statementTimeoutInMs: number = 60000;
 }
+```
 
+```ts
+// src/services/invoice.service.ts
 async function removePaidInvoices(): Promise<void> {
     await invoiceRepository.deleteAll({ paid: true }, { timeoutInMs: 10 * 60 * 1000 });
 }
@@ -1775,23 +2100,38 @@ for 30 seconds at most, and fails past that. `connectTimeoutMS` in the data sour
 otherwise. A call's `timeoutInMs`, and the request it belongs to, end the wait sooner. Starting a
 transaction waits the same way.
 
-### Reads and writes inside a request
+## Reads and writes inside a request
 A repository operation belongs to the request that asked for it. When that request runs out of the
-time its route allows, the next operation is refused rather than issued, and a statement already
-running is stopped where it runs when the store offers a way to do that. Both fail with the
-`GatewayTimeoutError` the caller was answered with.
+time its route allows, the next operation is refused, and a statement already running is stopped
+where the store can stop one. Both fail with the `GatewayTimeoutError` the caller was answered with.
 
-A statement inside a transaction is stopped the same way, and the transaction goes with it: nothing
-it wrote is going to be asked for, so it rolls back and the rows it was holding are free again.
+A statement inside a transaction is stopped the same way, and the transaction rolls back with it.
+The rows it held are free again.
 
 A call naming a [`timeoutInMs`](#how-long-a-call-may-take) inside a request ends with whichever of the
 two runs out first.
 
 See [deadlines](./creating-endpoints.md#deadlines).
 
+## Requirements
+| Package | Used for |
+|---|---|
+| `typeorm` | Reading and writing a Postgres data source |
+| `pg` | Connecting to Postgres. You install it |
+| `pg-query-stream` | Reading the rows of a Postgres data source with `stream`. You install it |
+| `@valkey/valkey-glide` | Connecting to Valkey. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `MigrationEntity` | Its `schemaManagement` is `'migrations'`, see [handling migrations](#handling-migrations) |
+| `ChangeSet`, `Change` | One of its entities records who changed what, see [recording who changed what](#recording-who-changed-what) |
+
 ## See also
 - [Costs](./costs.md) — how many round trips each repository call takes
 - [Models](./models.md) — the `@Property` decorators entities are declared with
+- [Validating requests](./validation.md) — the checks of an entity, answered for a request body
 - [Replication](./replication.md) — the shared data source every instance coordinates through
 - [Leases](./leases.md) — the grant behind everything only one instance may do at a time
 - [Cron](./cron.md) — cron jobs are persisted as entities in a data source

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, InMemoryDataSource } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { OtpCredentials } from './methods/otp/otp-credentials.model';
 import { OtpTwoFactorMethod } from './methods/otp/otp.two-factor-method';
 import { RecoveryCodeRegistration, RecoveryCodeTwoFactorMethod } from './methods/recovery-code/recovery-code.two-factor-method';
@@ -13,7 +14,7 @@ import { TwoFactorFailureStreak } from './two-factor-failure-streak.model';
 import { TwoFactorServiceInterface } from './two-factor-service.interface';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -65,6 +66,7 @@ class LimitedController {
 async function startApp(twoFactorFailureLimit: TwoFactorFailureLimit): Promise<[StartedTestServer, string]> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, TwoFactorRecoveryCode],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -86,7 +88,7 @@ describe('TwoFactorService — the limit on wrong codes, starting', () => {
     it.each([0, 101, 2.5])('refuses %s wrong codes as the limit', async maxFailures => {
         await expect(startAndStopTestServerWithout([], { twoFactorFailureLimit: { maxFailures, lock: 'secondFactor' } }))
             .rejects.toThrow(`twoFactorFailureLimit.maxFailures must be a whole number from 1 to 100, got ${maxFailures}.`);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 const locks: TwoFactorLock[] = ['secondFactor', 'account'];
@@ -158,7 +160,7 @@ for (const lock of locks) {
             user = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: EMAIL, roles: [Roles.USER] });
             await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
                 .create({ password: PASSWORD, userId: user.id });
-        }, 30000);
+        }, TestTimeouts.inMemory.start);
 
         beforeEach(async () => {
             await twoFactorService.resetSecondFactors(user);
@@ -176,7 +178,7 @@ for (const lock of locks) {
 
         afterAll(async () => {
             await server?.shutdown();
-        }, 15000);
+        }, TestTimeouts.inMemory.shutdown);
 
         it('locks the second factor at the limit, and says so on the code that locks it', async () => {
             const token: string = await accessToken();

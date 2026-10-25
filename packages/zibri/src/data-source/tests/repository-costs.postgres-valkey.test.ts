@@ -2,8 +2,9 @@ import { afterAll, beforeAll } from '@jest/globals';
 import { RoundTripCounter } from 'zibri-testing';
 
 import { CostGroup, CostItem, describeRepositoryCosts } from './repository-costs.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
@@ -16,7 +17,7 @@ const valKeyRoundTrips: RoundTripCounter = new RoundTripCounter();
 
 // the framework's own entities live in a data source of their own, so that no service of the
 // application - a cron poll, a lease being renewed - sends anything through the counted ones
-const frameworkDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: defaultTestServerEntities });
+const frameworkDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: [MigrationEntity, CostGroup, CostItem],
@@ -32,11 +33,11 @@ let server: StartedTestServer | undefined;
 
 beforeAll(async () => {
     server = await startTestServer({ dataSources: [frameworkDataSourceClass, postgresDataSourceClass, valKeyDataSourceClass] });
-}, 60000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeRepositoryCosts('Postgres', () => ({
     items: inject(postgresDataSourceClass).getRepository(CostItem),

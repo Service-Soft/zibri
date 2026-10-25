@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService, PersistedFunctionJobError } from './multithreading.service';
 import { ThreadJobWorker } from './thread-job-worker';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
@@ -88,7 +89,7 @@ describe('MultithreadingService — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing MultithreadingService[\S\s]*ThreadJobEntity/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('MultithreadingService', () => {
@@ -107,6 +108,8 @@ describe('MultithreadingService', () => {
                         defaultTimeoutMs: Ms.HOUR,
                         defaultTimeoutPriorityMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
+                        maxAttempts: 3,
+                        workerResourceLimits: {},
                         enableTsWorkerFiles: true
                     }
                 }),
@@ -117,11 +120,11 @@ describe('MultithreadingService', () => {
             ]
         });
         multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('can run a ts worker file', async () => {
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
@@ -411,6 +414,7 @@ describe('MultithreadingService', () => {
             status: ThreadJobStatus.IN_PROGRESS,
             priority: false,
             progress: 50,
+            attempts: 1,
             // long since expired, and deliberately so: the timeout used to be what decided this, and
             // by that rule this job would be taken over right now
             timeout: Ms.SECOND,
@@ -460,6 +464,7 @@ describe('MultithreadingService', () => {
             status: ThreadJobStatus.IN_PROGRESS,
             priority: false,
             progress: 50,
+            attempts: 1,
             timeout: Ms.HOUR,
             workerData
         });
@@ -470,6 +475,7 @@ describe('MultithreadingService', () => {
             status: ThreadJobStatus.IN_QUEUE,
             priority: false,
             progress: 0,
+            attempts: 0,
             timeout: Ms.HOUR,
             workerData
         });

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { validateBoolean } from './validate-boolean.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BooleanPropertyMetadata } from '../../entity/models/boolean-property-metadata.model';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
@@ -28,7 +29,7 @@ describe('validateBoolean', () => {
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('returns no problems for a valid boolean value', async () => {
         const problems: ValidationProblem[] = await validateBoolean('flag', true, meta(), undefined, undefined);

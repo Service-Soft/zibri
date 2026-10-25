@@ -14,6 +14,11 @@ import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model';
 import { OpenIdClient } from '../oauth/open-id-client.type';
 
 /**
+ * Who signed in at a provider that speaks plain OAuth2, as read from its api.
+ */
+export type OAuth2Identity = Pick<FederatedProviderIdentity, 'subject' | 'profile'> & Partial<Pick<FederatedProviderIdentity, 'claims'>>;
+
+/**
  * Authenticates a user by a sign-in at a provider that speaks plain OAuth2, without OpenID Connect,
  * such as GitHub.
  *
@@ -48,9 +53,11 @@ export abstract class BaseOAuth2Authenticator<
     /**
      * Reads who signed in from the provider's api, with the access token of the sign-in.
      * @param accessToken - The access token.
-     * @returns Who signed in, as the provider names them, and what it reports about them.
+     * @returns Who signed in, as the provider names them, what it reports about them, and everything
+     * else its api answered about them as `claims`, for the registration and the later sign-ins to
+     * read. Nothing, when left out.
      */
-    protected abstract resolveIdentity(accessToken: string): Promise<Pick<FederatedProviderIdentity, 'subject' | 'profile'>>;
+    protected abstract resolveIdentity(accessToken: string): Promise<OAuth2Identity>;
 
     /**
      * Reads json from the provider's api, with the access token of the sign-in.
@@ -117,7 +124,7 @@ export abstract class BaseOAuth2Authenticator<
         const tokens: TokenEndpointResponse & TokenEndpointResponseHelpers = await this.exchangeCode(answer, exchange, {
             idTokenExpected: false
         });
-        let identity: Pick<FederatedProviderIdentity, 'subject' | 'profile'>;
+        let identity: OAuth2Identity;
         try {
             identity = await this.resolveIdentity(tokens.access_token);
         }
@@ -137,7 +144,10 @@ export abstract class BaseOAuth2Authenticator<
                 // passing a provider session as a fresh login to a route that would take one for a second
                 // factor
                 authenticatedAt: new Date(0),
-                profile: identity.profile
+                profile: identity.profile,
+                claims: identity.claims ?? {},
+                // nor how they signed in there, for the same reason
+                providerAuthentication: undefined
             },
             tokens
         };

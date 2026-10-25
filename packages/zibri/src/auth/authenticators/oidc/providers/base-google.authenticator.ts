@@ -1,6 +1,7 @@
 import { BaseUser } from '../../../models/base-user.model';
 import { OAuthOfflineAccess } from '../../oauth/oauth-offline-access.model';
 import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
+import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
  * Authenticates a user by a sign-in with their Google account.
@@ -16,6 +17,11 @@ export abstract class BaseGoogleAuthenticator<
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly issuer: string = 'https://accounts.google.com';
+
+    // Google puts no auth_time into its ID tokens and documents no max_age, so a sign-in through it
+    // never says when the user signed in
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly authenticationTime: OidcAuthenticationTime = 'none';
 
     // Google refuses `prompt=login` with an error page, and has no prompt that asks for the password
     // again; letting the user pick the account at least shows them which one they sign in with

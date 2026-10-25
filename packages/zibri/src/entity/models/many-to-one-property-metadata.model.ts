@@ -14,7 +14,7 @@ export type ManyToOnePropertyMetadata<T extends BaseEntity> = BaseRelationMetada
     /**
      * The column on the current entity that holds the foreign key.
      */
-    joinColumn: string | undefined
+    joinColumn: string
 };
 
 /**
@@ -27,8 +27,8 @@ export type ManyToOnePropertyMetadataInput<
     & Pick<ManyToOnePropertyMetadata<T>, 'target' | 'inverseSide'>
     & {
         /**
-         * The column on the current entity that holds the foreign key.
+         * The property of the current entity that holds the foreign key.
          * Must be an existing key on the decorated class.
          */
-        joinColumn?: TJoinKey
+        joinColumn: TJoinKey
     };

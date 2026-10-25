@@ -471,6 +471,8 @@ export abstract class BaseFederatedAuthenticator<
                 provider: this.name,
                 userId: identity.userId,
                 authenticatedAt: signedIn.authenticatedAt,
+                claims: signedIn.claims,
+                providerAuthentication: signedIn.providerAuthentication,
                 ...session,
                 binding: proof.binding,
                 bindingCookie: proof.bindingCookie,
@@ -494,10 +496,14 @@ export abstract class BaseFederatedAuthenticator<
                 { where: { spent: false }, transaction }
             ), AuditAction.LOGIN);
             this.clearProofCookie(handover);
+            // inside the login's transaction, so what the authenticator changes about the user, such
+            // as their roles, is committed with the login or rolled back with its refusal
+            const user: UserType = await this.resolveSignInUser(handover.claims, await this.resolveUser(handover.userId), transaction);
             return {
-                user: await this.resolveUser(handover.userId),
+                user,
                 authenticatedAt: new Date(handover.authenticatedAt),
-                federatedSession: this.toFederatedSession(handover)
+                federatedSession: this.toFederatedSession(handover),
+                providerAuthentication: handover.providerAuthentication ?? undefined
             };
         }
 
@@ -521,7 +527,8 @@ export abstract class BaseFederatedAuthenticator<
         return {
             user: await this.resolveUser(identity.userId),
             authenticatedAt: new Date(ticket.authenticatedAt),
-            federatedSession: this.toFederatedSession(ticket)
+            federatedSession: this.toFederatedSession(ticket),
+            providerAuthentication: ticket.providerAuthentication ?? undefined
         };
     }
 
@@ -546,6 +553,7 @@ export abstract class BaseFederatedAuthenticator<
             name: ticket.name ?? undefined,
             givenName: ticket.givenName ?? undefined,
             familyName: ticket.familyName ?? undefined,
+            claims: ticket.claims,
             redirectTo: ticket.redirectTo
         };
     }
@@ -607,6 +615,30 @@ export abstract class BaseFederatedAuthenticator<
     abstract resolveFormPostOrigins(): Promise<string[]>;
 
     /**
+     * Answers the user a sign-in with an identity linked to them logs in as: updated from what the
+     * provider proved about them, such as their roles from a groups claim, or as they are. Throw an http
+     * error to refuse the sign-in. Runs inside the login's transaction.
+     *
+     * Not called for a first sign-in, whose user the registration creates from the same claims, and not
+     * when a login is refreshed, since the provider is not asked again then.
+     * @param claims - Everything the provider proved about who signed in: the claims of an OpenID
+     * Connect ID token, the attributes of a SAML assertion, or what a provider that speaks plain OAuth2
+     * answers about them.
+     * @param user - The user the identity is linked to.
+     * @param transaction - The transaction of the login, if any.
+     * @returns The user the sign-in logs in as.
+     */
+    // eslint-disable-next-line typescript/require-await
+    protected async resolveSignInUser(
+        claims: Record<string, unknown>,
+        user: UserType,
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        transaction: Transaction | undefined
+    ): Promise<UserType> {
+        return user;
+    }
+
+    /**
      * The document the authenticator publishes about the application at the `metadata` route, for the
      * provider to be set up with. None by default.
      * @returns The document, or undefined when the protocol has none.
@@ -660,6 +692,21 @@ export abstract class BaseFederatedAuthenticator<
         envelope: string
     ): Promise<FederatedSoapLogout> {
         throw new NotFoundError($ts`The provider "${this.name}" takes no logout requests sent server to server.`);
+    }
+
+    /**
+     * Reads a logout token the provider sent server to server, and answers which logins end.
+     * @param token - The token, exactly as it arrived.
+     * @returns The logins that end.
+     * @throws NotFoundError for a protocol without logout tokens.
+     * @throws UnauthorizedError when the token cannot be verified.
+     */
+    // eslint-disable-next-line typescript/require-await
+    async resolveBackChannelLogout(
+        // eslint-disable-next-line unusedImports/no-unused-vars
+        token: string
+    ): Promise<FederatedSessionMatch> {
+        throw new NotFoundError($ts`The provider "${this.name}" takes no logout tokens.`);
     }
 
     /**
@@ -775,13 +822,22 @@ export abstract class BaseFederatedAuthenticator<
      * @returns The keys.
      */
     protected resolveSessionKeys(subject: string, sessionId: string | undefined): FederatedSessionMatch {
-        const toKey: (parts: string[]) => string = parts => createHash('sha256').update(JSON.stringify(parts))
-            .digest('base64url');
         return {
             provider: this.name,
-            subjectKey: toKey([this.issuer, subject]),
-            sessionKey: sessionId == undefined ? undefined : toKey([this.issuer, subject, sessionId])
+            subjectKey: this.toSessionKey([this.issuer, subject]),
+            sessionKey: sessionId == undefined ? undefined : this.toSessionKey([this.issuer, subject, sessionId])
         };
+    }
+
+    /**
+     * A key a login is found by, made of what names the person or the session at the provider, without
+     * holding any of it.
+     * @param parts - What names them.
+     * @returns The key, in base64url.
+     */
+    protected toSessionKey(parts: string[]): string {
+        return createHash('sha256').update(JSON.stringify(parts))
+            .digest('base64url');
     }
 
     /**
@@ -951,6 +1007,8 @@ export abstract class BaseFederatedAuthenticator<
             issuer: signedIn.issuer,
             subject: signedIn.subject,
             ...signedIn.profile,
+            claims: signedIn.claims,
+            providerAuthentication: signedIn.providerAuthentication,
             redirectTo,
             authenticatedAt: signedIn.authenticatedAt,
             ...session,

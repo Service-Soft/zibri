@@ -6,8 +6,9 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { HttpServerLimits } from './http-server-limits.model';
 import { HttpStatus } from './http-status.enum';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
@@ -23,7 +24,8 @@ class LimitsController {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 /**
@@ -76,11 +78,11 @@ describe('the headers a request may carry, by default', () => {
     beforeAll(async () => {
         server = await startTestServer({ controllers: [LimitsController], dataSources: [dataSourceClass] });
         baseUrl = await server.start();
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('serves a request with a hundred headers', async () => {
         expect(await resolveStatus(baseUrl, headersOf(100))).toBe(HttpStatus.OK);
@@ -102,11 +104,11 @@ describe('the headers a request may carry, as the application limits them', () =
         ];
         server = await startTestServer({ controllers: [LimitsController], dataSources: [dataSourceClass], providers });
         baseUrl = await server.start();
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('serves a request with as many headers as the limit allows', async () => {
         expect(await resolveStatus(baseUrl, headersOf(10))).toBe(HttpStatus.OK);
@@ -132,5 +134,5 @@ describe('the header limits an application may give', () => {
             await expect(startTestServer({ controllers: [LimitsController], dataSources: [dataSourceClass], providers }))
                 .rejects.toThrow(/has to be a whole number of at least 1/);
         }
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 });

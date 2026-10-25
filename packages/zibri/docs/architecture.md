@@ -1,5 +1,5 @@
 # Architecture
-A Zibri application is one `ZibriApplication`, built from the options that say what it is made of, and one container holding everything it uses. This page shows how the pieces fit together, and each section links to the page that covers its piece in full.
+A Zibri application is one `ZibriApplication`, built from the options that say what it is made of, and one container holding everything it uses. Each section below covers one piece and links to the page about it.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -7,12 +7,11 @@ A Zibri application is one `ZibriApplication`, built from the options that say w
 | `ZibriApplication` | class | The application: built from its options, then initialized, started and shut down |
 | `ZibriApplicationOptions` | type | What the application is made of |
 | `ZibriPlugin` | class | A set of controllers, providers, cron jobs, body parsers and auth strategies added to an application as one |
-| `ZIBRI_DI_TOKENS` | object | The tokens every service of the framework is provided under |
+| `ZIBRI_DI_TOKENS` | constant | The tokens every service of the framework is provided under |
 | `MiddlewarePhase` | enum | Where a middleware sits in the request pipeline |
 | `HttpRequestContext` | class | Everything known about the request being handled |
 
-## Usage
-### The application
+## The application
 The options name what the application is made of: its controllers and websocket controllers, its data sources, its cron jobs, its body parsers, auth strategies and two-factor methods, its backup transports, its plugins and its own providers.
 
 ```ts
@@ -29,6 +28,7 @@ async function start(): Promise<void> {
         baseUrl: 'http://localhost:3000',
         version: '1.0.0',
         defaultAuth: 'public',
+        twoFactorAtLogin: 'never',
         controllers: [ReportController],
         websocketControllers: [],
         dataSources: [DbDataSource],
@@ -41,14 +41,14 @@ async function start(): Promise<void> {
 
 A plugin adds its controllers, providers, cron jobs, body parsers and auth strategies to the ones the application names. See [plugins](./plugin.md).
 
-### The container
+## The container
 Everything the application uses is a provider in one container: your services, the repository of every entity, and every service of the framework, such as the logger, the router, the parser, the validation service, the auth service, the error handler and the email service.
 
 Each service of the framework is provided under a token in `ZIBRI_DI_TOKENS`. Naming one of those tokens in your `providers` array replaces that service everywhere it is used, including inside the framework. A class becomes a provider when it is decorated with `@Injectable`, and any other value when it is listed in `providers`.
 
 A provider lives for the application, for one request, or for one injection. See [dependency injection](./di.md).
 
-### Starting up and shutting down
+## Starting up and shutting down
 `new ZibriApplication(options)` sets up the security part of the request pipeline. `app.init()` builds the container's values and runs the init hooks. `app.start(port)` runs the start hooks and binds the port, with the pipeline assembled in between. A class takes part in a phase by implementing its hook.
 
 | Step | What the framework does there |
@@ -62,7 +62,7 @@ A provider lives for the application, for one request, or for one injection. See
 
 `app.shutdown()`, or a `SIGTERM`, `SIGINT` or `SIGHUP`, stops accepting requests, waits for the ones still running, and then runs `beforeAppShutdown`, `onAppShutdown` and `afterAppShutdown`. The data sources close in `afterAppShutdown`, so every other hook can still use them. See [application lifecycle](./application-lifecycle.md).
 
-### A request, from arriving to answered
+## A request, from arriving to answered
 An http request passes through the pipeline phases in order. Your own middleware runs in `BEFORE_ROUTING` unless it names another phase.
 
 1. **`SECURITY`**: cors, the trace context, response compression and the security headers.
@@ -84,7 +84,7 @@ From the moment the context exists until the response is sent, any service the r
 
 A websocket message takes the same path from its own entry: it is validated, gets a `WebsocketRequestContext`, the route's access rules are checked, its parameters are parsed and validated, and the handler runs within its deadline. See [websockets](./websocket.md).
 
-### One declaration, read everywhere
+## One declaration, read everywhere
 A model is declared once, with `@Property` on each field, and that one declaration is what:
 
 - the validation service checks a body or a parameter against,
@@ -94,12 +94,12 @@ A model is declared once, with `@Property` on each field, and that one declarati
 
 A route is declared once as well. Its decorators are what the router mounts, what the auth service checks, and what the OpenAPI document describes. See [models](./models.md) and [creating endpoints](./creating-endpoints.md).
 
-### Reading and writing data
+## Reading and writing data
 A data source declares its entities, and each entity gets a `Repository` in the container. A repository call applies the entity's scope, runs the hooks that set defaults, encrypt, hash, decrypt and leave out excluded properties, and hands the rest to the data source. Every data source answers the same calls with the same results, so code using a repository works the same on any of them.
 
 A transaction is passed along as an option. A repository used inside a request also stops when the request's deadline passes. See [data sources](./data-source.md), and [costs](./costs.md) for what each call costs.
 
-### Work outside a request
+## Work outside a request
 Cron jobs, event subscribers, the email queue and thread jobs run outside any request. There is no request context there: `CURRENT_REQUEST_CONTEXT` is `undefined`, and a request scoped provider cannot be built.
 
 Each of them takes a lease before it runs, so a job runs on one instance at a time when several instances share a data source. See [cron](./cron.md), [events](./events.md), [email](./email.md), [multithreading](./multithreading.md) and [replication](./replication.md).

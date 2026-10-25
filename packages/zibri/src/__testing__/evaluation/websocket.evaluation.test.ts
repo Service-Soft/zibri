@@ -13,8 +13,9 @@ import { SocketIOWebsocketConnection } from '../../websocket/models/connection/s
 import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
+import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -45,7 +46,8 @@ const largePayload: { rows: { id: string, name: string, amount: bigint, active: 
 };
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const websocketOptions: WebsocketOptionsInput = {
@@ -150,7 +152,7 @@ beforeAll(async () => {
         socket.once('connect', () => resolve(socket));
         socket.once('connect_error', reject);
     });
-}, 30000);
+}, TestTimeouts.inMemory.start);
 
 afterAll(async () => {
     client?.disconnect();

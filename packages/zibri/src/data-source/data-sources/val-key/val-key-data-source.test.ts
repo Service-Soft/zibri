@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 
 import { DataSourceInterface } from '../data-source.interface';
 import { ValKeyDataSource } from './val-key-data-source.model';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -164,11 +165,11 @@ beforeAll(async () => {
     stockRepo = inject(repositoryTokenFor(ValKeyStock));
     categoryRepo = inject(repositoryTokenFor(ValKeyCategory));
     tagRepo = inject(repositoryTokenFor(ValKeyTag));
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 /**
  * Runs one step in a transaction of its own, the way a migration runs.

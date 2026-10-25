@@ -41,5 +41,8 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints
     // that really are public with @Auth.skip(). See the auth docs.
     defaultAuth: 'public',
+    // whether a login asks for a second factor once the password was right: a user who enrolled
+    // one presents it to log in. See the two factor docs.
+    twoFactorAtLogin: 'ifEnrolled',
     providers
 };

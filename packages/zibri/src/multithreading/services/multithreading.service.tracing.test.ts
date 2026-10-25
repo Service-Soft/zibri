@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
@@ -32,7 +33,8 @@ type AnyThreadJobEntity = ThreadJobEntity<BaseThreadJobWorkerData | BaseFunction
 
 // in memory, so that the spans a job is recorded as can be read without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const traceContextWorkerFile: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.trace-context.test.worker.ts');
@@ -69,6 +71,8 @@ describe('MultithreadingService tracing', () => {
                         defaultTimeoutMs: Ms.MINUTE,
                         defaultTimeoutPriorityMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
+                        maxAttempts: 3,
+                        workerResourceLimits: {},
                         enableTsWorkerFiles: true
                     }
                 }),
@@ -77,11 +81,11 @@ describe('MultithreadingService tracing', () => {
         });
         multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
         jobs = inject(repositoryTokenFor(ThreadJobEntity));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('records a job as a span under the trace it was queued in, and hands the worker that span', async () => {
         let queuedIn: TraceSpanContext | undefined;
@@ -109,6 +113,7 @@ describe('MultithreadingService tracing', () => {
             status: ThreadJobStatus.IN_QUEUE,
             priority: false,
             progress: 0,
+            attempts: 0,
             workerData: { filePath: traceContextWorkerFile },
             timeout: Ms.MINUTE,
             traceparent: TraceContextUtilities.resolveTraceparent(queuedIn)

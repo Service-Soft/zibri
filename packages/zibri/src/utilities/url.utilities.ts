@@ -25,4 +25,14 @@ export abstract class UrlUtilities {
     static isPrivate(url: URL): boolean {
         return url.protocol === 'https:' || UrlUtilities.isLoopback(url);
     }
+
+    /**
+     * The url without its query string.
+     * @param url - The url, absolute or a path.
+     * @returns Everything before the first `?`.
+     */
+    static withoutQuery(url: string): string {
+        const queryStart: number = url.indexOf('?');
+        return queryStart === -1 ? url : url.slice(0, queryStart);
+    }
 }

@@ -3,7 +3,7 @@ import { TwoFactorLock } from './two-factor-failure-limit.model';
 import { TwoFactorMethods } from './two-factor-methods.model';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
-import { BaseUser } from '../models/base-user.model';
+import { UserAccount } from '../models/user-account.model';
 
 /**
  * Interface for a two factor service.
@@ -17,8 +17,7 @@ export interface TwoFactorServiceInterface {
      * Requests the registration of the given two factor method for the given user.
      */
     requestRegisterTwoFactorMethodForUser: <
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData,
         TwoFactorRequestRegisterResult
@@ -32,8 +31,7 @@ export interface TwoFactorServiceInterface {
      * code, or answers with a challenge for their device.
      */
     startSecondFactor: <
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData,
         SecondFactorStartType
@@ -45,8 +43,7 @@ export interface TwoFactorServiceInterface {
      * Confirms the registration of the given two factor method for the given user.
      */
     confirmRegisterTwoFactorMethodForUser: <
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData
     >(
@@ -58,8 +55,7 @@ export interface TwoFactorServiceInterface {
      * Removes the given two factor method from the given user.
      */
     unregisterTwoFactorMethodForUser: <
-        Role extends string,
-        UserType extends BaseUser<Role>,
+        UserType extends UserAccount,
         TwoFactorRequestRegisterData,
         TwoFactorConfirmRegisterData
     >(
@@ -69,14 +65,18 @@ export interface TwoFactorServiceInterface {
     /**
      * Whether the given user has a confirmed registration of any of the allowed methods.
      */
-    isRegistered: (user: BaseUser<string>, allowedMethods?: TwoFactorMethods) => Promise<boolean>,
+    isRegistered: (user: UserAccount, allowedMethods?: TwoFactorMethods) => Promise<boolean>,
+    /**
+     * Finds the allowed methods the given user has a confirmed registration of.
+     */
+    findRegisteredMethods: (user: UserAccount, allowedMethods?: TwoFactorMethods) => Promise<TwoFactorMethods>,
     /**
      * Checks if the incoming request has some second factor.
      *
      * Counts as an attempt exactly like `validate2fa`, and answers false wherever that refuses.
      */
     has2fa: (
-        user: BaseUser<string>,
+        user: UserAccount,
         context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods?: TwoFactorMethods
     ) => Promise<boolean>,
@@ -94,14 +94,14 @@ export interface TwoFactorServiceInterface {
      * @throws When no allowed method accepts the request.
      */
     validate2fa: (
-        user: BaseUser<string>,
+        user: UserAccount,
         context: HttpRequestContext | WebsocketRequestContext,
         allowedMethods?: TwoFactorMethods
     ) => Promise<void>,
     /**
      * Resolves what the lock on the given user's second factor refuses, or undefined when it is not locked.
      */
-    resolveLock: (user: BaseUser<string>) => Promise<TwoFactorLock | undefined>,
+    resolveLock: (user: UserAccount) => Promise<TwoFactorLock | undefined>,
     /**
      * Removes every second factor of the given user, recovery codes included, and lifts a lock on
      * them, so the user enrolls anew.
@@ -109,5 +109,5 @@ export interface TwoFactorServiceInterface {
      * What an application's support or admin route calls for a user who lost their device or locked
      * themselves out.
      */
-    resetSecondFactors: (user: BaseUser<string>) => Promise<void>
+    resetSecondFactors: (user: UserAccount) => Promise<void>
 }

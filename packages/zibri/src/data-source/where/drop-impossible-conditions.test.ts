@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { dropImpossibleConditions } from './drop-impossible-conditions.function';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -19,6 +20,9 @@ class Document extends BaseEntity {
 
     @Property.string()
     title!: string;
+
+    @Property.number({ format: 'integer', required: false })
+    pages?: number;
 
     @Property.oneToMany({ target: () => Revision, inverseSide: 'document' })
     revisions!: Revision[];
@@ -48,8 +52,8 @@ describe('dropImpossibleConditions', () => {
     // a running application, in process: a refusal is a translated message, and translating needs
     // one to translate for
     beforeAll(async () => {
-        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })] });
-    }, 15000);
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
@@ -205,6 +209,28 @@ describe('dropImpossibleConditions', () => {
         it('refuses a negation of an entity no row can be', () => {
             expect(() => dropRevisions({ document: { not: ghost } })).toThrow(BadRequestError);
             expect(() => dropRevisions({ document: { where: { ownerId: { not: 'garbage' } } } })).toThrow(/document\.ownerId/);
+        });
+    });
+
+    describe('a whole number property', () => {
+        it('drops a branch asking for a number with a fraction, and keeps a whole one', () => {
+            expect(drop({ pages: 1.5 })).toEqual([]);
+            expect(drop({ pages: 2 })).toEqual([{ pages: 2 }]);
+            expect(drop({ pages: { oneOf: [1.5, 2] } })).toEqual([{ pages: { oneOf: [2] } }]);
+            expect(drop({ pages: [1.5, 2] })).toEqual([{ pages: [2] }]);
+        });
+
+        it('refuses a negation of a number with a fraction', () => {
+            expect(() => drop({ pages: { not: 1.5 } })).toThrow(BadRequestError);
+            expect(() => drop({ pages: { notOneOf: [2, 1.5] } })).toThrow(BadRequestError);
+        });
+
+        it('asks a bound with a fraction as the bound on the whole number next to it', () => {
+            expect(drop({ pages: { greaterThan: 0.5, lesserThan: 9.5 } })).toEqual([{ pages: { greaterThan: 0, lesserThan: 10 } }]);
+            expect(drop({ pages: { greaterThanEquals: 0.5, lesserThanEquals: 9.5 } }))
+                .toEqual([{ pages: { greaterThanEquals: 1, lesserThanEquals: 9 } }]);
+            expect(drop({ pages: { greaterThan: -0.5 } })).toEqual([{ pages: { greaterThan: -1 } }]);
+            expect(drop({ pages: { greaterThan: 1 } })).toEqual([{ pages: { greaterThan: 1 } }]);
         });
     });
 

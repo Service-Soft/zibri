@@ -61,11 +61,11 @@ export function reportCompletion<T>(result?: T): void {
 
 /**
  * Reports an error inside a thread job.
- * @param error - The error to report.
+ * @param error - What was thrown, an `Error` or anything else.
  * @param fatal - Whether the worker is ending itself because of this, so the parent knows not to
  * hand it another job in the moment it has left.
  */
-export function reportError(error: Error, fatal: boolean = false): void {
+export function reportError(error: unknown, fatal: boolean = false): void {
     const message: ThreadJobMessage = {
         type: 'error',
         // name/message/stack are non-enumerable on Error instances, so they would be lost once the

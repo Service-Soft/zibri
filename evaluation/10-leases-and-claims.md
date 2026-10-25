@@ -392,10 +392,40 @@ ones.
 is green because the waiting side polls every 100 ms (`ACQUIRE_RETRY_INTERVAL_IN_MS`) and the first
 login usually commits inside that window. 03 §H4 records the lease as what makes the hook run once.
 
-### 10.6 A deadlock between valkey transactions ends every one of them, after ten seconds — **open (deferred)**
+### 10.6 A deadlock between valkey transactions ends every one of them, after ten seconds — **FIXED**
 
 *Filed on 2026-10-15; [Deadlock endings](#deadlock-endings) below has called it open and accepted since
 step 3.*
+
+> **Closed 2026-10-21, built as written down below, the user's call to do it before round 1 closed.**
+> Both open questions settled. *Transaction ids exist*: the token a transaction's locks carry is one
+> per transaction already. *A half-released chain*: not read hop by hop at all. The acquire script
+> writes `zibri.lock-wait:<token>` (the lock key waited on, 500ms to live, written again on every
+> attempt, removed once everything is taken or the wait ends), and when it stops at a held lock it
+> walks the chain in the same script - holder, what that holder waits for, its holder - up to 64 hops.
+> One script is one moment, so a cycle it finds is one every member is waiting in; acting on the first
+> sighting is safe. Each member finds the same cycle and names the same victim (the highest token);
+> only the victim ends itself, so there is no remote kill and no detector. Its `ValKeyTransaction`
+> rolls itself back before the error reaches the caller, so the others go on the next attempt rather
+> than when the caller gets to its `catch`. Uncontended and merely contended claims are untouched: the
+> wait entry is written only while waiting, and the walk runs only where the script stopped anyway,
+> in the same round trip. Native grants (the schema lock) neither write nor walk, since a caller
+> taking all its keys in one claim can never be in a cycle.
+>
+> **Both stores end it with the same error now.** `TransactionDeadlockError` (exported, an
+> `InternalError`: nothing applied, run it again) is what the valkey victim throws, and the TypeORM
+> driver maps postgres' sql state 40P01 to it beside the unique and check violations, through a new
+> `isDeadlock` on the TypeORM base data source.
+>
+> Not covered: a transaction waiting on two keys at once (two concurrent writes in one transaction)
+> names one of them, so a cycle through the other still ends by timing out.
+>
+> Executable form: `transaction-deadlock.cases.ts`, run on postgres and valkey by
+> `transaction-deadlock.postgres-valkey.test.ts`: two transactions each holding the row the other
+> writes next - one fails with `TransactionDeadlockError` well under the ten seconds, the other
+> commits and wrote both rows; and the control, a transaction that only waits for another, fails
+> neither. Container-backed, so never run here; red before by construction (valkey: both time out
+> with an `InternalError`; postgres: the raw query error).
 
 Two transactions taking the same keys in opposite orders wait for each other until
 `VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS` runs out, and then all of them fail. Postgres finds the same
@@ -798,7 +828,8 @@ refactoring. They did: the only cluster failure across the whole of steps 1 and 
 
 ## Deadlock endings
 
-**Open, and deliberately accepted for now** — filed as 10.6. The deadlock itself is not a ValKey defect — two
+**Fixed with 10.6**, as the last part of this section describes; the rest is kept for the reasoning.
+The deadlock itself is not a ValKey defect — two
 transactions taking the same rows in opposite orders deadlock on Postgres too, and that is the
 textbook case. What differs is the ending, and ours is worse in two ways:
 

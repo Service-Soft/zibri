@@ -3,8 +3,9 @@ import { afterAll, beforeAll } from '@jest/globals';
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
 import { createUpgradeGizmoMigration, describeMovedEntities, firstVersionEntities, secondVersionEntities, seedFirstVersion } from './moved-entities.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
@@ -21,6 +22,7 @@ const valKeyMigrations: Newable<Migration>[] = [];
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
     entities: postgresEntities,
+    repositories: defaultTestServerRepositories,
     migrations: postgresMigrations
 });
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -48,7 +50,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeMovedEntities('postgres', () => inject(postgresDataSourceClass));
 

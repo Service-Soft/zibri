@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
@@ -36,7 +37,7 @@ const claimReleased: Promise<void> = new Promise<void>(resolve => {
 });
 
 class HeldLeaseService extends LeaseService {
-    override async withLease<T>(options: LeaseOptions, fn: () => Promise<T>): Promise<T | undefined> {
+    override async withLease<T>(options: LeaseOptions, fn: (lost: AbortSignal) => Promise<T>): Promise<T | undefined> {
         if (options.key.startsWith('thread-job:')) {
             signalClaimAsked();
             await claimReleased;
@@ -46,7 +47,8 @@ class HeldLeaseService extends LeaseService {
 }
 
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 const providers: DiProvider<unknown>[] = [
@@ -59,6 +61,8 @@ const providers: DiProvider<unknown>[] = [
             defaultTimeoutMs: Ms.HOUR,
             defaultTimeoutPriorityMs: Ms.MINUTE * 5,
             jobClaimInMs: Ms.SECOND * 30,
+            maxAttempts: 3,
+            workerResourceLimits: {},
             enableTsWorkerFiles: true
         }
     }),
@@ -93,6 +97,7 @@ describe('shutting down a thread job pool', () => {
             status: ThreadJobStatus.IN_QUEUE,
             priority: false,
             progress: 0,
+            attempts: 0,
             timeout: Ms.HOUR,
             workerData
         });
@@ -120,5 +125,5 @@ describe('shutting down a thread job pool', () => {
         await Promise.all([round, shutdown]);
 
         expect(events).toEqual(['round over', 'shut down']);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });

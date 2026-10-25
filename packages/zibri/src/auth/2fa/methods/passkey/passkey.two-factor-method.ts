@@ -16,7 +16,7 @@ import { PasskeyCreationOptions } from '../../../authenticators/passkey/passkey-
 import { PasskeyRegistrationResponse } from '../../../authenticators/passkey/passkey-registration-response.model';
 import { PasskeyRequestOptions } from '../../../authenticators/passkey/passkey-request-options.model';
 import { type PasskeyServiceInterface } from '../../../authenticators/passkey/passkey-service.interface';
-import { BaseUser } from '../../../models/base-user.model';
+import { UserAccount } from '../../../models/user-account.model';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 
 /**
@@ -55,12 +55,12 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSecondFactor<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<PasskeyRequestOptions> {
+    async startSecondFactor<UserType extends UserAccount>(user: UserType): Promise<PasskeyRequestOptions> {
         return await this.passkeyService.startSecondFactor(user.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async requestRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: PasskeyConnectionRequest
     ): Promise<PasskeyCreationOptions> {
@@ -68,7 +68,7 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<Role extends string, UserType extends BaseUser<Role>>(
+    async confirmRegisterForUser<UserType extends UserAccount>(
         user: UserType,
         data: PasskeyRegistrationResponse
     ): Promise<void> {
@@ -76,17 +76,17 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<void> {
+    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
         await this.passkeyService.removePasskeys(user.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<Role extends string, UserType extends BaseUser<Role>>(user: UserType): Promise<boolean> {
+    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         return (await this.passkeyService.findPasskeys(user.id, undefined)).length > 0;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async validate<Role extends string, UserType extends BaseUser<Role>>(
+    async validate<UserType extends UserAccount>(
         user: UserType,
         context: HttpRequestContext | WebsocketRequestContext
     ): Promise<void> {

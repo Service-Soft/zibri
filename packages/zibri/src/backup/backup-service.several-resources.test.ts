@@ -14,13 +14,15 @@ import { BackupServiceInterface } from './backup-service.interface';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
-import { testFileFolder } from '../__testing__/constants';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { AesGcmEncryptionStrategy } from '../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../data-source/migration/migration-entity.model';
 import { Repository } from '../data-source/repository/repository';
+import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -54,6 +56,7 @@ class Note {
 @Backup({ transports: [SeveralResourcesFsBackupTransport], encrypt: false })
 class NotesDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Note, BackupEntity, BackupResourceEntity];
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 /**
@@ -123,7 +126,7 @@ describe('BackupService — a backup of several resources', () => {
         });
         assert(created, 'the backup was not created');
         backup = created;
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     beforeEach(async () => {
         await getNoteRepository().deleteAll({});
@@ -188,6 +191,33 @@ describe('BackupService — a backup of several resources', () => {
 
         expect(await getNoteTexts()).toEqual(['current']);
         expect(inject(SettingsStore).value).toBe('current');
+    }, 15000);
+
+    // evaluation/round-2/02-data-layer-stores.md S7: a backup a newer release took was applied as it
+    // was, and the next boot refused to start on it
+    it('puts back every resource it applied when the data source refuses a backup a newer release took', async () => {
+        const migrations: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity));
+        // what a newer release leaves behind, as the backup it took holds it
+        const newer: MigrationEntity = await migrations.create({ name: 'FromANewerRelease', version: '99.0.0', ranAt: new Date() });
+        await getBackupService().createBackup({ name: 'newer' });
+        const [taken]: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({
+            where: { name: 'newer' },
+            relations: ['resources']
+        });
+        assert(taken, 'the backup was not created');
+        await migrations.deleteById(newer.id);
+        await getNoteRepository().deleteAll({});
+        await getNoteRepository().create({ text: 'after the backup' });
+
+        try {
+            await expect(getBackupService().restore(taken)).rejects.toThrow('"FromANewerRelease" (99.0.0)');
+
+            expect(await getNoteTexts()).toEqual(['after the backup']);
+            expect(await migrations.findAll({ where: { name: 'FromANewerRelease' } })).toEqual([]);
+        }
+        finally {
+            await getBackupService().delete(taken);
+        }
     }, 15000);
 
     it('names a resource it could not put back, and keeps what that resource held', async () => {

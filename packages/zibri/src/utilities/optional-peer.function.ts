@@ -37,11 +37,11 @@ function applicationRequire(): ReturnType<typeof createRequire> {
 /**
  * Loads a peer dependency a consumer is allowed not to have.
  *
- * `peerDependenciesMeta` calling something optional is a promise that installing the framework does
- * not install it, and a top level `import` breaks that promise for everyone: the import is resolved
- * when its module loads, and the module loads because the barrel re-exports it, so a package nobody
- * uses is one every consumer has to have. Reaching for it here instead means the cost is paid by
- * the feature that needs it.
+ * `peerDependenciesMeta` calling something optional is a promise that installing a package does not
+ * install it, and a top level `import` breaks that promise for everyone: the import is resolved when
+ * its module loads, and the module loads because the barrel re-exports it, so a package nobody uses
+ * is one every consumer has to have. Reaching for it here instead means the cost is paid by the
+ * feature that needs it.
  *
  * Called where a feature is *set up* rather than where it is used, wherever there is such a place -
  * a data source is constructed at boot, so a missing driver is a boot failure rather than a

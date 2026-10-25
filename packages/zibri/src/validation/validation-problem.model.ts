@@ -1,5 +1,6 @@
+import { ValidationProblemCode } from './validation-problem-code.enum';
 import { BaseEntity } from '../entity/base-entity.model';
-import { RelationMetadata } from '../entity/decorators/property.decorator';
+import { Property, RelationMetadata } from '../entity/decorators/property.decorator';
 import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
 import { FileSize } from '../entity/models/file-property-metadata.model';
 import { HasOnePropertyMetadata } from '../entity/models/has-one-property-metadata.model';
@@ -9,28 +10,40 @@ import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metada
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { MimeType } from '../http/mime-type.enum';
-import { TranslatedString } from '../localization/models/translated-string.model';
+import type { TranslatedString } from '../localization/models/translated-string.model';
 import { $ts } from '../localization/translate.function';
 import { type ShapeAttempt } from '../parsing/functions/parse-one-of.function';
 
 /**
- * A validation problem, consisting of the key where the problem is located and a description of the problem.
+ * A problem with a value: where it is, what kind of problem it is, and a description of it.
  */
-export type ValidationProblem = {
+export class ValidationProblem {
     /**
-     * The key where the problem is located.
+     * Where the problem is, as the path to the value, such as `items.3.quantity`.
      */
-    key: string,
+    @Property.string()
+    key!: string;
+
     /**
-     * The validation problem message.
+     * What kind of problem it is: a {@link ValidationProblemCode}, or the code of a check or of a
+     * custom rule of the application.
      */
-    message: TranslatedString
-};
+    @Property.string()
+    code!: string;
+
+    /**
+     * The problem, in the language of the request.
+     */
+    @Property.string()
+    message!: TranslatedString;
+}
 
 /**
  * The validation problem that the property is required and no value has been provided.
  */
 export class IsRequiredValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.REQUIRED;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString = $ts`is required`;
     constructor(readonly key: string) {}
@@ -41,6 +54,8 @@ export class IsRequiredValidationProblem implements ValidationProblem {
  */
 export class TypeMismatchValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.TYPE;
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, type: string) {
         this.message = $ts`should be of type ${type}`;
@@ -48,9 +63,22 @@ export class TypeMismatchValidationProblem implements ValidationProblem {
 }
 
 /**
+ * The validation problem that a key is none of the properties of the model.
+ */
+export class UnknownKeyValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.UNKNOWN_KEY;
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly message: TranslatedString = $ts`this key is unknown`;
+    constructor(readonly key: string) {}
+}
+
+/**
  * The validation problem that the provided file is too big.
  */
 export class MaxFileSizeValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.MAX_SIZE;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, maxSize: FileSize) {
@@ -62,6 +90,8 @@ export class MaxFileSizeValidationProblem implements ValidationProblem {
  * The validation problem that the provided file has an incorrect mime type.
  */
 export class MimeTypeMismatchValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.ALLOWED_MIME_TYPES;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, allowedMimeTypes: MimeType[]) {
@@ -79,6 +109,8 @@ export class MimeTypeMismatchValidationProblem implements ValidationProblem {
  * they meant and what it still needs.
  */
 export class NoShapeFitsValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.NO_SHAPE_FITS;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, attempts: ShapeAttempt[]) {
@@ -99,6 +131,8 @@ export class NoShapeFitsValidationProblem implements ValidationProblem {
  */
 export class UnknownShapeValidationProblem implements ValidationProblem {
     // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.UNKNOWN_SHAPE;
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, names: string[]) {
         this.message = $ts`has to be one of: ${names.join(', ')}`;
@@ -118,6 +152,8 @@ function shapeName(shape: OneOfShapeMetadata): string {
  * The validation problem that the provided value has relation data on it, which is not supported.
  */
 export class RelationsNotAllowedValidationProblem implements ValidationProblem {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly code: string = ValidationProblemCode.RELATION;
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly message: TranslatedString;
     constructor(readonly key: string, metadata: RelationMetadata<BaseEntity>, relationKey: string) {

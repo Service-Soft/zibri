@@ -5,9 +5,11 @@ import { createFakeKeyPair, createInMemoryDataSource, FakeKeyPair, FakeKeyPairOp
 
 import { BaseClientCertificateAuthStrategy } from './base-client-certificate.auth-strategy';
 import { ClientCertificateHeaderFormat } from './client-certificate-header-format.type';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { TestPlatformPermissions } from '../../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -31,7 +33,7 @@ import { JwtAuthStrategy } from '../jwt/jwt.auth-strategy';
  */
 type Me = {
     id: string,
-    roles: Roles[]
+    platformPermissions: string[]
 };
 
 @Controller('/client')
@@ -40,9 +42,9 @@ class ClientController {
     @Get('/me')
     me(
         @CurrentUser()
-        user: JwtUser
+        user: CurrentUser<JwtUser>
     ): Me {
-        return { id: user.id, roles: user.roles };
+        return { id: user.id, platformPermissions: user.platformPermissions };
     }
 
     // a route for people only, which a certificate cannot reach
@@ -62,7 +64,7 @@ let authority: FakeKeyPair;
  * Takes the certificate from the proxy on this machine, which is where the test's requests come from,
  * and finds the user by the email address in its common name.
  */
-class LocalProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<Roles, JwtUser> {
+class LocalProxyClientCertificateAuthStrategy extends BaseClientCertificateAuthStrategy<string, JwtUser> {
     readonly header: string = 'Client-Cert';
     readonly headerFormat: ClientCertificateHeaderFormat = 'rfc9440';
     readonly trustedProxies: string[] = ['127.0.0.1', '::1'];
@@ -143,6 +145,7 @@ let baseUrl: string;
 async function startApp(authStrategies: AuthStrategies): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: defaultTestServerEntities,
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     return await startTestServer({
@@ -224,7 +227,7 @@ describe('BaseClientCertificateAuthStrategy — starting', () => {
         [WrongUsageClientCertificateAuthStrategy, 'The extended key usage "client auth" of WrongUsageClientCertificateAuthStrategy is no object identifier']
     ])('refuses to start %p', async (strategy, message) => {
         await expect(startApp([JwtAuthStrategy, strategy])).rejects.toThrow(message);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('BaseClientCertificateAuthStrategy', () => {
@@ -243,7 +246,7 @@ describe('BaseClientCertificateAuthStrategy', () => {
         const res: Response = await call('/me', certificateHeader(await issueCertificate(user)));
 
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ id: user.id, roles: [Roles.USER] });
+        expect(await res.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
     });
 
     it('refuses a certificate that no authority of it issued, though it names a user', async () => {
@@ -314,7 +317,7 @@ describe('BaseClientCertificateAuthStrategy', () => {
         const res: Response = await call('/me', { 'client-cert': '', authorization: `Bearer ${await resolveAccessToken(user)}` });
 
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ id: user.id, roles: [Roles.USER] });
+        expect(await res.json()).toEqual({ id: user.id, platformPermissions: [TestPlatformPermissions.USER] });
     });
 
     it('refuses a request with a certificate and a bearer token', async () => {
@@ -386,6 +389,6 @@ describe('BaseClientCertificateAuthStrategy — a request that does not come fro
         // ignored, not refused: the bearer token of the request is the only credential it has
         const res: Response = await call('/me', { ...certificate, authorization: `Bearer ${await resolveAccessToken(other)}` });
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ id: other.id, roles: [Roles.USER] });
+        expect(await res.json()).toEqual({ id: other.id, platformPermissions: [TestPlatformPermissions.USER] });
     });
 });

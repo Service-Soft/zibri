@@ -26,7 +26,11 @@ export type InMemoryStoreSnapshot = {
     /**
      * The last value handed out per table, for entities with a numeric primary key.
      */
-    sequences: Record<string, number>
+    sequences: Record<string, number>,
+    /**
+     * The indexes, uniques and checks kept per table, as the release that kept them declared them.
+     */
+    keyLists: Record<string, string>
 };
 
 /**
@@ -94,6 +98,41 @@ export class InMemoryStore implements InMemoryScope {
      * The indexes and uniques each table was last booted with, written out, by table.
      */
     private readonly keyLists: Map<string, string> = new Map();
+
+    /**
+     * Who listens on each channel, by channel. Not rows, so a transaction neither keeps nor restores
+     * them.
+     */
+    private readonly channels: Map<string, Set<(message: string) => void>> = new Map();
+
+    /**
+     * Hands a message to everyone listening on the channel.
+     *
+     * Each one later rather than now, the way a message that crossed a network arrives: whoever
+     * publishes is never inside a handler when the call returns.
+     * @param channel - The channel.
+     * @param message - The message.
+     */
+    publish(channel: string, message: string): void {
+        for (const handler of this.channels.get(channel) ?? []) {
+            setImmediate(() => handler(message));
+        }
+    }
+
+    /**
+     * Starts handing the messages of a channel to the given handler.
+     * @param channel - The channel.
+     * @param handler - Called with every message on it.
+     * @returns What stops it.
+     */
+    subscribe(channel: string, handler: (message: string) => void): () => void {
+        const handlers: Set<(message: string) => void> = this.channels.get(channel) ?? new Set();
+        handlers.add(handler);
+        this.channels.set(channel, handlers);
+        return () => {
+            handlers.delete(handler);
+        };
+    }
 
     /**
      * Gets the indexes and uniques a table was last booted with.
@@ -229,7 +268,7 @@ export class InMemoryStore implements InMemoryScope {
         for (const [key, members] of this.joins) {
             joins[key] = [...members];
         }
-        return { tables, joins, sequences: Object.fromEntries(this.sequences) };
+        return { tables, joins, sequences: Object.fromEntries(this.sequences), keyLists: Object.fromEntries(this.keyLists) };
     }
 
     /**
@@ -253,6 +292,11 @@ export class InMemoryStore implements InMemoryScope {
         for (const [tableName, value] of Object.entries(snapshot.sequences)) {
             this.sequences.set(tableName, value);
         }
+        // as a database's backup brings its indexes back with its rows: what a release finds kept
+        // decides whether it changes them, and records that it did
+        for (const [tableName, lists] of Object.entries(snapshot.keyLists)) {
+            this.keyLists.set(tableName, lists);
+        }
     }
 
     /**
@@ -262,6 +306,7 @@ export class InMemoryStore implements InMemoryScope {
         this.tables.clear();
         this.joins.clear();
         this.sequences.clear();
+        this.keyLists.clear();
     }
 }
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { AssetService, TreeNode } from './asset.service';
-import { testAssetsFolder, testFileFolder } from '../__testing__/constants';
+import { testAssetsFolder, testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -46,12 +46,12 @@ describe('AssetService', () => {
                 ]
             });
             baseUrl = await server.start();
-        }, 15000);
+        }, TestTimeouts.postgres.start);
 
         afterAll(async () => {
             await server?.shutdown();
             await FsUtilities.rm(assetsPath);
-        }, 15000);
+        }, TestTimeouts.postgres.shutdown);
 
         it('responds with 404 NotFoundError, not a 500, when favicon.png was not provided by the project', async () => {
             const res: Response = await fetch(`${baseUrl}/favicon.ico`);

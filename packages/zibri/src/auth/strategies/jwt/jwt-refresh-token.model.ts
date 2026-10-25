@@ -4,6 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
+import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
  * The jwt refresh token that gets stored in the data source.
@@ -34,6 +35,14 @@ export class JwtRefreshToken extends BaseEntity {
      */
     @Property.boolean()
     blacklisted!: boolean;
+
+    /**
+     * When a rotation replaced this token, or null while none has.
+     *
+     * A replaced token is still accepted for the strategy's reuse grace after this.
+     */
+    @Property.date({ required: false })
+    replacedAt?: Date | null;
 
     /**
      * The expiration date of the token.
@@ -81,6 +90,14 @@ export class JwtRefreshToken extends BaseEntity {
      */
     @Property.string({ required: false })
     dpopKeyThumbprint: string | undefined | null;
+
+    /**
+     * How the user proved who they are at the provider the login went through. Null for a login
+     * started some other way, or through a provider that does not say. Every token of one family
+     * carries the same value.
+     */
+    @Property.unknown({ required: false })
+    providerAuthentication: ProviderAuthentication | undefined | null;
 }
 
 /**

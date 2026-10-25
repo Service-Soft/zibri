@@ -17,5 +17,11 @@
             "checked": "2026-10-02: package.json declares no license in any form; LICENSE is the MIT text",
             "license": "MIT"
         }
+    },
+    "allowedFor": {
+        "caniuse-lite": {
+            "checked": "2026-10-23: browser support data browserslist reads while webpack builds (zibri/webpack); never bundled, and pruned from a generated project's image with the dev dependencies. CC-BY-4.0 forbids restricting the material further when passing it on, so it is allowed for this package only",
+            "licenses": ["CC-BY-4.0"]
+        }
     }
 }

@@ -4,9 +4,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider, TestBrowser } from 'zibri-testing';
 
 import { BaseOAuth2Authenticator } from './base-oauth2.authenticator';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
-import { defaultTestServerEntities } from '../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
@@ -58,7 +59,7 @@ const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
 
 let provider: FakeOAuthProvider;
 
-class PlainOAuth2Authenticator extends BaseOAuth2Authenticator<Roles, JwtUser> {
+class PlainOAuth2Authenticator extends BaseOAuth2Authenticator<string, JwtUser> {
     readonly name: string = 'plain';
 
     readonly clientId: string = CLIENT_ID;
@@ -234,6 +235,7 @@ async function startApp(
             FederatedConnectionCode,
             OAuthProviderTokens
         ],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     const server: StartedTestServer = await startTestServer({
@@ -329,11 +331,11 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp([CookiePlainAuthController, ProfileController], CookieAuthStrategy);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     const authorizeUrl: (query?: Record<string, string>) => string = query => `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, ...query }).toString()}`;
 
@@ -432,11 +434,11 @@ describe('BaseOAuth2Authenticator — signing in to jwt', () => {
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp([JwtPlainAuthController], JwtAuthStrategy);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('hands the login over with a code, whose tokens carry a login time that is never recent', async () => {
         const subject: string = `plain-${randomBytes(6).toString('hex')}`;
@@ -481,11 +483,11 @@ describe('BaseOAuth2Authenticator — routes at a path of the application\'s own
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp([CompanyAuthController], JwtAuthStrategy);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('sends the provider back to the routes of the auth controller, at its path', async () => {
         const subject: string = `plain-${randomBytes(6).toString('hex')}`;
@@ -519,11 +521,11 @@ describe('BaseOAuth2Authenticator — routes the application writes itself', () 
 
     beforeAll(async () => {
         [server, baseUrl] = await startApp([HandWrittenSignInController], JwtAuthStrategy, HandWrittenRoutesAuthenticator);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('sends the provider back to the url the authenticator resolves', async () => {
         const subject: string = `plain-${randomBytes(6).toString('hex')}`;
@@ -555,20 +557,20 @@ describe('BaseOAuth2Authenticator — starting', () => {
     it('refuses to start without a controller the provider sends the browser back to, naming the routes it needs', async () => {
         await expect(startThenShutDown([ProfileController], JwtAuthStrategy))
             .rejects.toThrow(/PlainOAuth2Authenticator[\S\s]*callback, connect[\S\s]*AuthController[\S\s]*resolveRouteUrl/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start when a url the authenticator gives out reaches no route of the application', async () => {
         await expect(startThenShutDown([HandWrittenSignInController], JwtAuthStrategy, MisroutedAuthenticator))
             .rejects.toThrow(/MisroutedAuthenticator[\S\s]*http:\/\/zibri\.test\/login\/nowhere\/callback/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start when a route answers a url the authenticator gives out, but not the method the browser requests it with', async () => {
         await expect(startThenShutDown([HandWrittenSignInController], JwtAuthStrategy, FormPostingAuthenticator))
             .rejects.toThrow(/FormPostingAuthenticator[\S\s]*http:\/\/zibri\.test\/login\/plain-callback[\S\s]*POST[\S\s]*GET/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start when a url the authenticator gives out is not one of the application', async () => {
         await expect(startThenShutDown([HandWrittenSignInController], JwtAuthStrategy, ElsewhereAuthenticator))
             .rejects.toThrow(/ElsewhereAuthenticator[\S\s]*https:\/\/elsewhere\.example\.com\/login\/plain-callback[\S\s]*baseUrl/);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 });

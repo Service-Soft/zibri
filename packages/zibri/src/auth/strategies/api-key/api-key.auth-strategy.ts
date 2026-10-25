@@ -19,8 +19,8 @@ import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-
  * Api key auth strategy implementation of Zibri.
  *
  * A request sends an api key of a user in the api key header, or as a bearer token, and acts as that
- * user, holding the roles the key may use that the user still has. Keys are created and revoked
- * through `AuthService`.
+ * user, holding the permissions the key lists that the user's roles still carry. Keys are created and
+ * revoked through `AuthService`.
  */
 export class ApiKeyAuthStrategy<
     RoleType extends string,
@@ -67,20 +67,15 @@ export class ApiKeyAuthStrategy<
         if (apiKey == undefined) {
             return undefined;
         }
-        const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(apiKey.userId, { required: false });
-        if (user == undefined) {
-            return undefined;
-        }
-        // narrowed on the user itself rather than beside it, so that a handler reading the roles of the
-        // current user sees what the key may do too, and not only the route checks. The user's current
-        // roles, so that a role taken from the user is taken from their keys
-        return { ...user, roles: user.roles.filter(role => apiKey.roles.includes(role)) };
+        // the user with their current roles, whose permissions are narrowed to what the key lists where
+        // they are resolved, so that a role taken from the user is taken from their keys
+        return await this.userService.findById<RoleType, UserType, false>(apiKey.userId, { required: false });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveCredentialLimits(context: HttpRequestContext | WebsocketRequestContext): Promise<CredentialLimits | undefined> {
         const apiKey: ApiKey | undefined = await this.findRequestKey(context);
-        return apiKey == undefined ? undefined : { roles: apiKey.roles, tenantId: apiKey.tenantId ?? undefined };
+        return apiKey == undefined ? undefined : { permissions: apiKey.permissions, tenantId: apiKey.tenantId ?? undefined };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -105,10 +100,13 @@ export class ApiKeyAuthStrategy<
             return { active: false };
         }
         // a service asking about the key was sent it by its holder
-        await this.apiKeyService.recordUse(apiKey);
+        const [held] = await Promise.all([
+            inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveUserPermissions(user, apiKey.tenantId ?? undefined),
+            this.apiKeyService.recordUse(apiKey)
+        ]);
         return {
             active: true,
-            scope: user.roles.filter(role => apiKey.roles.includes(role)).join(' '),
+            scope: held.filter(permission => apiKey.permissions.includes(permission)).join(' '),
             client_id: apiKey.id,
             username: user.email,
             sub: user.id,

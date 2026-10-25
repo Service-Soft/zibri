@@ -5,6 +5,7 @@ import { type WebsocketServiceInterface } from './websocket-service.interface';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
+import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Repository } from '../../data-source/repository/repository';
@@ -106,11 +107,11 @@ describe('WebsocketService — starting', () => {
 
         await expect(start).rejects.toThrow('Error initializing WebsocketService');
         await expect(start).rejects.toThrow(/WebsocketChannel[\S\s]*WebsocketMessage/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts without its entities when nothing declares websockets', async () => {
         await expect(startAndStopTestServerWithout([WebsocketChannel, WebsocketMessage])).resolves.toBeUndefined();
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('WebsocketService', () => {
@@ -124,11 +125,11 @@ describe('WebsocketService', () => {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         wsService = inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
         channelRepo = inject(repositoryTokenFor(WebsocketChannel));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     afterEach(async () => {
         for (const client of clients.splice(0)) {

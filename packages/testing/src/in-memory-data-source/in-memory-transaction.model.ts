@@ -1,4 +1,4 @@
-import { Transaction, TransactionAlreadyFinishedError } from 'zibri';
+import { InternalError, LoggerInterface, Transaction, TransactionAlreadyFinishedError } from 'zibri';
 
 import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 
@@ -14,10 +14,9 @@ import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
  * because nothing is applied until then. That is the same difference the valkey transaction carries
  * and it is worth knowing when a test asserts on what a concurrent reader observes.
  *
- * `idleTimeoutInMs` is ignored rather than unimplemented. A real transaction is given one because it
- * holds a connection out of a fixed pool and a grant on every row it wrote, so one that is never
- * finished takes those away from everybody else. This one holds neither: an overlay nobody commits
- * is unreachable memory and nothing else waits on it.
+ * A transaction left idle is rolled back the way a valkey one is, once it wrote or work waits for its
+ * end: the overlay holds nothing anybody else waits on, but the work does - a lease held until the
+ * transaction ends is renewed until it does.
  */
 export class InMemoryTransaction implements Transaction, InMemoryScope {
 
@@ -37,7 +36,49 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
 
     private readonly finishedWork: ((committed: boolean) => Promise<void>)[] = [];
 
-    constructor(private readonly store: InMemoryStore) {}
+    /**
+     * Rolls the transaction back once nothing has happened on it for long enough.
+     */
+    private idleTimer: NodeJS.Timeout | undefined;
+
+    constructor(
+        private readonly store: InMemoryStore,
+        private readonly idleTimeoutInMs: number,
+        private readonly logger: LoggerInterface
+    ) {}
+
+    /**
+     * Restarts the idle countdown, because something just happened on this transaction.
+     */
+    private touch(): void {
+        if (!this.idleTimeoutInMs) {
+            return;
+        }
+        clearTimeout(this.idleTimer);
+        this.idleTimer = setTimeout(() => void this.abandon(), this.idleTimeoutInMs);
+        // a transaction waiting to be given up on is not a reason to keep the process alive
+        this.idleTimer.unref();
+    }
+
+    /**
+     * Gives up on a transaction nothing has come back to, and reports it.
+     */
+    private async abandon(): Promise<void> {
+        if (this.finished) {
+            return;
+        }
+        this.logger.error(new InternalError(
+            `A transaction was left open for ${this.idleTimeoutInMs}ms without being committed or rolled back.`
+            + ' It has been rolled back.'
+        ));
+        try {
+            await this.rollback();
+        }
+        catch (error) {
+            // runs on a timer rather than under a caller, so there is nowhere to throw to
+            this.logger.error(error instanceof Error ? error : new InternalError(String(error)));
+        }
+    }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     get isFinished(): boolean {
@@ -96,12 +137,14 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     // eslint-disable-next-line jsdoc/require-jsdoc
     writeRow(tableName: string, id: string, row: StoredRow): void {
         this.assertOpen();
+        this.touch();
         this.overlayOf(tableName).set(id, row);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     deleteRow(tableName: string, id: string): void {
         this.assertOpen();
+        this.touch();
         this.overlayOf(tableName).set(id, undefined);
     }
 
@@ -114,6 +157,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     // eslint-disable-next-line jsdoc/require-jsdoc
     writeJoin(key: string, members: Set<string>): void {
         this.assertOpen();
+        this.touch();
         this.joinOverlay.set(key, new Set(members));
     }
 
@@ -125,6 +169,7 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async commit(): Promise<void> {
         this.assertOpen();
+        clearTimeout(this.idleTimer);
         this.finished = true;
 
         for (const [tableName, rows] of this.rowOverlay) {
@@ -154,10 +199,12 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
     // eslint-disable-next-line jsdoc/require-jsdoc
     afterFinish(work: (committed: boolean) => Promise<void>): void {
         this.finishedWork.push(work);
+        this.touch();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async rollback(): Promise<void> {
+        clearTimeout(this.idleTimer);
         this.finished = true;
         this.committedWork.length = 0;
         this.discard();

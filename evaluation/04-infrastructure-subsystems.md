@@ -773,9 +773,25 @@ channel's room (`src/websocket/services/websocket.service.ts:867`), so members c
 instance are neither asked nor counted. A broadcast without answers goes through the adapter and reaches
 them. `docs/websocket.md` states the limit; nothing lifts it.
 
-### 1.14 An application that only pushes over websockets on one instance gets no server — MINOR, **open, waiting on a decision**
+### 1.14 An application that only pushes over websockets on one instance gets no server — ~~MINOR~~ **FIXED**
 
 *Filed on 2026-10-15, from 1.10's residue, which calls it "the user's call".*
+
+> **Closed 2026-10-21, the user's call: an explicit option.** `WebsocketOptions.startServer` is
+> `'whenDeclared' | 'always'`, defaulting to `'whenDeclared'`, which is the detection as it was. With
+> `'always'` the server starts whatever the application declares; the "no websocket server" error
+> names it beside the other two ways. Additive, so no upgrade entry. Executable form:
+> `websocket-push-only.evaluation.test.ts`, in memory: an application with no websocket controller
+> and no adapter, a client that only listens, and a broadcast sent from an http route reaching it.
+> Red without the option (the client found nothing to connect to).
+>
+> Found on the way, not fixable here: a `useFactory` returning a literal for a union-typed field
+> does not compile (`startServer: 'always'` widens to `string`). The factory takes no parameters, so
+> TypeScript types its return in the first inference pass, before `T` is fixed from the token, and
+> `NoInfer<T>` is no contextual type for a literal then. Every signature tried either let a wrong
+> value through (`() => T`) or made arrays readonly (`const T`). The docs example uses `useValue`;
+> the real fix would be `defineProvider` taking the token as an argument of its own, an api change
+> left to the user.
 
 The socket.io server starts when the application declares a websocket controller or names an
 `adapterDataSource` (`src/websocket/services/websocket.service.ts:272-273`). A push-only application -

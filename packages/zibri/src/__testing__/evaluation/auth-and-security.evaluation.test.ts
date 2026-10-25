@@ -33,6 +33,7 @@ import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { Log } from '../../logging/log.model';
 import { type LoggerInterface } from '../../logging/logger.interface';
+import { RateLimitStoreFailurePolicy } from '../../rate-limiting/limiter/rate-limiter-config.model';
 import { type RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
 import { InMemoryRateLimiterStore } from '../../rate-limiting/stores/in-memory.rate-limiter-store';
 import { type BaseRateLimitState, type RateLimiterStoreInterface } from '../../rate-limiting/stores/rate-limiter-store.interface';
@@ -241,7 +242,7 @@ beforeAll(async () => {
             ...defaultTestServerProviders.filter(p => p.token !== ZIBRI_DI_TOKENS.AUTH_RATE_LIMIT_OPTIONS),
             defineProvider({
                 token: ZIBRI_DI_TOKENS.AUTH_RATE_LIMIT_OPTIONS,
-                useFactory: () => ({ maxAttempts: 20, windowInMs: Ms.MINUTE * 10 })
+                useFactory: () => ({ maxAttempts: 20, windowInMs: Ms.MINUTE * 10, onStoreFailure: RateLimitStoreFailurePolicy.ALLOW })
             })
         ]
     });

@@ -3,10 +3,11 @@ import { describe, expect, it } from '@jest/globals';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { defaultTestServerEntities } from '../test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -41,6 +42,8 @@ describe('evaluation/01-data-layer C1 - schema management must be stated, not as
             };
 
             entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+
+            readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
             schemaManagement: SchemaManagement = 'migrations';
         }

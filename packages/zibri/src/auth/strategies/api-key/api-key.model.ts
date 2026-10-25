@@ -34,11 +34,11 @@ export class ApiKey extends BaseEntity {
     value: HashString | undefined | null;
 
     /**
-     * The roles the key may use. A request made with the key holds those of them the user still has,
-     * of their own and through their membership in the tenant the request is for.
+     * The permissions the key may use. A request made with the key holds those of them the user's
+     * roles still carry, of their own and through their membership in the tenant the request is for.
      */
     @Property.array({ items: { type: 'string' } })
-    roles!: string[];
+    permissions!: string[];
 
     /**
      * The tenant the key is bound to: a request made with it for any other tenant is refused. Null for

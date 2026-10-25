@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, defaultTestProviders, StartedTestServer, startTestServer } from 'zibri-testing';
 
+import { TestTimeouts } from '../__testing__/constants';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider } from '../di/models/di-provider.model';
 import { Controller } from '../routing/decorators/controller.decorator';
@@ -57,7 +58,7 @@ describe('a test server\'s scratch directory', () => {
 
         // written during init, so the server does not even have to be listening
         expect(existsSync(versionFileOf(server))).toBe(true);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('survives a reInit, because that is a restart rather than a new deployment', async () => {
         server = await startTestServer({ controllers: [ScratchController], dataSources: [dataSourceClass] });
@@ -79,7 +80,7 @@ describe('a test server\'s scratch directory', () => {
         await started.shutdown();
 
         expect(existsSync(scratchPath)).toBe(false);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('yields to a path the test names itself', async () => {
         const ownPath: FsPath = FsUtilities.getPath(__dirname, '__testing__', 'file-output', 'scratch-override');
@@ -103,7 +104,7 @@ describe('a test server\'s scratch directory', () => {
         expect(existsSync(versionFileOf(server))).toBe(false);
 
         await FsUtilities.rm(ownPath);
-    }, 15000);
+    }, TestTimeouts.inMemory.start);
 
     it('gives each server its own, so two in one file cannot collide', async () => {
         const first: StartedTestServer = await startTestServer({ dataSources: [dataSourceClass] });
@@ -113,5 +114,5 @@ describe('a test server\'s scratch directory', () => {
         server = await startTestServer({ dataSources: [dataSourceClass] });
 
         expect(server.scratchPath).not.toBe(firstPath);
-    }, 20000);
+    }, TestTimeouts.inMemory.start);
 });

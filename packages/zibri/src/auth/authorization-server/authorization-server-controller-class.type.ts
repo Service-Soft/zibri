@@ -9,7 +9,7 @@ export type AuthorizationServerControllerClass = Newable<object> & {
     /**
      * What the routes allow, which also marks the class as the authorization server's.
      */
-    authorizationServerOptions: AuthorizationServerControllerOptions<string>,
+    authorizationServerOptions: AuthorizationServerControllerOptions,
     /**
      * Where the routes answer, and what they allow.
      */

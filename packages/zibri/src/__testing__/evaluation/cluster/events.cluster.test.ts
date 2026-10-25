@@ -70,9 +70,11 @@ describe('evaluation/04-infrastructure-subsystems - the event system across repl
             async () => await running.marks('event-done'),
             rows => rows.length > 0,
             // recovery cannot be faster than the claim it waits out: the dead instance's claim runs
-            // for 5s, the dispatch poll then finds it within another 5s, and the hook itself takes
-            // 2s. Roughly twice that, so a slow container does not read as a broken framework.
-            { timeoutInMs: 25000 }
+            // for 5s. Nobody was told about the event, since every replica hosts the subscriber, so
+            // the dispatch poll finds it within the 30s an idle poll waits at most plus one 5s tick,
+            // and the hook itself takes 2s. Some margin, so a slow container does not read as a
+            // broken framework.
+            { timeoutInMs: 55000 }
         );
 
         expect(done.map(m => m.instanceId)).not.toContain(emitter);
@@ -80,7 +82,7 @@ describe('evaluation/04-infrastructure-subsystems - the event system across repl
         expect(done).toHaveLength(1);
         // above the usual 15000 on purpose: the wait above is bounded by a real claim expiring and
         // a real poll interval, not by anything this test controls
-    }, 40000);
+    }, 75000);
 
     it('runs a subscriber once even when the hook outlives the claim on the event', async () => {
         if (!cluster) {

@@ -31,6 +31,8 @@ export const defaultClusterProviders: DiProvider<unknown>[] = [
             // short, because a test that takes a replica down should not then wait out a production
             // sized claim to see the work picked up again
             jobClaimInMs: Ms.SECOND * 2,
+            maxAttempts: 3,
+            workerResourceLimits: {},
             enableTsWorkerFiles: true
         })
     })

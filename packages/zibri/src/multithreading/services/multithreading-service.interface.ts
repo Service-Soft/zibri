@@ -85,6 +85,14 @@ export interface MultithreadingServiceInterface {
      *
      * Keeps going until a round finds nothing. Starting one job per call is only right while every
      * job arrives with a call of its own, and a poll that finds fifty waiting rows is one call.
+     * @returns Whether a job was started, by this call or by the round already running when it was
+     * made.
      */
-    startQueuedJobs: () => Promise<void> | void
+    startQueuedJobs: () => Promise<boolean>,
+    /**
+     * Deletes the jobs that are over and older than `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS`,
+     * counted from when they were queued. `ThreadJobCleanupCronJob` calls it.
+     * @returns How many were deleted.
+     */
+    deleteExpiredJobs: () => Promise<number>
 }

@@ -1,20 +1,23 @@
 # Metrics
-Zibri contains a pretty basic metrics service. It collects up to 60 snapshots. If you need more than that you should use an external service, like prometheus.
+Your application records metrics about requests and about its background work, and keeps the last 60 snapshots of them. For a longer history, let Prometheus scrape them, see [scraping](#scraping).
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `MetricsServiceInterface` | interface | Collects and reads metric snapshots |
+| `MetricsServiceInterface` | interface | Records metrics, collects snapshots and answers a scrape |
 | `ZIBRI_DI_TOKENS.METRICS_SERVICE` | DI token | Injects `MetricsServiceInterface` |
-| `CollectMetricsCronJob` | class | Collects a metrics snapshot every 5 seconds |
+| `CollectMetricsCronJob` | cron job | Collects a metrics snapshot every 5 seconds. Registered for you |
 | `Metric` | class | A single collected metric within a snapshot |
 | `MetricsSnapshot` | type | A snapshot of all metrics at a point in time |
+| `MetricsExposition` | type | The metrics in the text format Prometheus scrapes, with its content type |
+| `MetricsCollector` | type | Work that sets gauges before the metrics are read |
+| `DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS` | constant | How often a collector reading the data source runs at most: 30 seconds |
 
-## Usage
-### Collecting data
-For collecting data the service provides a collect method:
+## Collecting data
+`collect` takes a snapshot:
 
 ```ts
+// src/services/metrics-snapshot.service.ts
 import { MetricsServiceInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
 
 export async function collectSnapshot(): Promise<void> {
@@ -23,10 +26,9 @@ export async function collectSnapshot(): Promise<void> {
 }
 ```
 
-You will however most likely use the provided `CollectMetricsCronJob` which collects a snapshot every 5 seconds.
-See [registering cron jobs](./cron.md#registering-the-cron-job).
+`CollectMetricsCronJob` takes one every 5 seconds. It is registered for you.
 
-### What a snapshot contains
+## What a snapshot contains
 
 Every counter, gauge and histogram the application registered, plus what the framework collects on
 its own:
@@ -35,21 +37,112 @@ its own:
 |---|---|---|
 | `http_requests_total` | `method`, `route`, `status_code` | How many requests each route answered |
 | `http_request_duration_ms` | `method`, `route`, `status_code` | How long they took |
+| `process_cpu_count` | | How many threads the machine can run in parallel |
+| `process_*`, `nodejs_*` | | The standard Node.js process metrics: CPU time, memory, heap, event loop lag, handles and garbage collection |
 | `network_bytes_received_total` | `interface` | Bytes that interface received |
 | `network_bytes_transmitted_total` | `interface` | Bytes that interface transmitted |
+| `cache_hits_total` | `cache` | How many calls each [cache](./caching.md) answered from its store |
+| `cache_misses_total` | `cache` | How many calls ran the method |
+| `cache_writes_total` | `cache` | How many values were written to it |
+| `cache_deletes_total` | `cache` | How many entries were deleted from it |
+| `cache_invalidations_total` | `cache` | How many tag invalidations reached it |
+| `cache_invalidation_failures_total` | `cache` | How many of those failed |
+| `cache_errors_total` | `cache`, `operation` | How many operations on it failed |
+| `cache_in_flight` | `cache` | How many keys are being loaded right now |
+| `cache_size` | `cache` | How many entries it holds |
+| `cache_expired_evictions_total` | `cache` | How many entries left it for having expired |
+| `cache_store_duration_ms` | `cache`, `operation` | How long its store took |
+| `cache_source_duration_ms` | `cache`, `operation` | How long the cached method took |
+| `rate_limit_allowed_total` | `limiter` | How many calls each [rate limiter](./rate-limiting.md) let through |
+| `rate_limit_blocked_total` | `limiter` | How many it refused |
+| `rate_limit_errors_total` | `limiter`, `operation` | How many of its calls and store operations failed |
+| `rate_limit_active_keys` | `limiter` | How many keys its store holds |
+| `rate_limit_active_reservations` | `limiter` | How many reservations are open |
+| `rate_limit_decision_duration_ms` | `limiter` | How long a decision took |
+| `rate_limit_store_duration_ms` | `limiter`, `operation` | How long its store took |
+| `rate_limit_remaining_ratio` | `limiter` | How much of the capacity was left after a call, from 0 to 1 |
+| `rate_limit_retry_after_ms` | `limiter` | How long a refused caller had to wait |
+| `cron_job_runs_total` | `job` | How many times each cron job ran on this instance |
+| `cron_job_failures_total` | `job` | How many of those runs failed, after their retries |
+| `cron_job_duration_ms` | `job` | How long they took, retries included |
+| `email_queue_depth` | `status` | How many mails are `QUEUED`, and how many `FAILED` |
+| `email_queue_oldest_age_seconds` | | How long the oldest queued mail has waited |
+| `event_queue_depth` | `status` | How many events are owed a run (`CREATED`), and how many `FAILED` |
+| `event_queue_oldest_age_seconds` | | How long the oldest event owed a run has waited |
+| `event_subscriber_runs` | `status` | How many subscriber runs wait for a retry (`PENDING_RETRY`), and how many `FAILED` |
+| `thread_job_queue_depth` | `status` | How many thread jobs are `IN_QUEUE`, `IN_PROGRESS`, `INTERRUPTED` and `FAILED` |
+| `thread_job_queue_oldest_age_seconds` | | How long the oldest queued thread job has waited |
+| `thread_workers` | `state` | How many of this instance's workers are `busy`, and how many `idle` |
+| `lease_renewal_failures_total` | | How many renewals of a [lease](./leases.md) failed on this instance |
+| `leases_lost_total` | | How many leases this instance lost while its work still ran |
+| `log_entries_dropped_total` | | How many log entries were dropped because the write queue was full |
+| `audit_entries_pending` | | How many [audit entries](./audit.md) wait to be stored |
 
-`route` is the route template — `/invoices/:id` rather than the url that was asked for — so a path
-parameter stays out of the label. A request that matched no route is counted as `<unmatched>`, for
-the same reason.
+A queue's gauges are the deployment's: every instance reports the same numbers, counted at most every 30 seconds. The cron, worker, lease, log, audit, cache and rate limiter metrics are each instance's own, except `cache_size` and `rate_limit_active_keys`, which count what the store holds. A queue gauge of a subsystem your application does not use is not reported.
 
-The two network counters are collected once per interface and labelled with its name, so a query
-names the interface it means. They are the counters of the machine the process runs on, which is
-what makes them a measure of the host rather than of the application.
+`route` is the route template, such as `/invoices/:id`, so a path parameter stays out of the
+label. A request that matched no route is counted as `<unmatched>`.
 
-### Exposing a basic dashboard
-By default, your project contains a `metrics.tsx` file that is used to display the data of the metrics service.
+The two network counters are collected once per interface and labeled with its name, so a query
+names the interface it means. They are the counters of the machine the process runs on, so they
+include traffic that is not the application's.
 
-You can simply create a new controller and expose it there:
+## Scraping
+`resolveExposition` answers with every metric in the text format Prometheus scrapes. Serve it from a route of your own:
+
+```ts
+// src/controllers/scrape.controller.ts
+import { Readable } from 'node:stream';
+
+import { Controller, FileResponse, Get, Inject, MetricsExposition, MetricsServiceInterface, Response, ZIBRI_DI_TOKENS } from 'zibri';
+
+@Controller('/scrape', { versions: 'all' })
+export class ScrapeController {
+    constructor(
+        @Inject(ZIBRI_DI_TOKENS.METRICS_SERVICE)
+        private readonly metricsService: MetricsServiceInterface
+    ) {}
+
+    @Response.file()
+    @Get()
+    async scrape(): Promise<FileResponse> {
+        const exposition: MetricsExposition = await this.metricsService.resolveExposition();
+        return FileResponse.fromStream({ stream: Readable.from([exposition.body]), filename: 'metrics.txt', mimeType: exposition.contentType });
+    }
+}
+```
+
+Let Prometheus scrape every instance. A query sums the per instance metrics, for example `sum by (job) (rate(cron_job_failures_total[5m]))`, and takes the maximum of a queue's, for example `max(email_queue_depth{status="QUEUED"})`.
+
+## Adding gauges of your own
+A gauge that is counted rather than kept up to date as things happen is set by a collector. It runs before a snapshot is collected and before a scrape is answered, at most once every `minIntervalInMs`:
+
+```ts
+// src/services/order-metrics.service.ts
+import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS, inject, MetricsServiceInterface, OnAppInit, Repository, ZIBRI_DI_TOKENS } from 'zibri';
+
+import { Order } from '../models/order.model';
+
+export class OrderMetrics implements OnAppInit {
+    constructor(private readonly orders: Repository<Order>) {}
+
+    onAppInit(): void {
+        const metricsService: MetricsServiceInterface = inject(ZIBRI_DI_TOKENS.METRICS_SERVICE);
+        metricsService.addCollector({
+            name: 'open orders',
+            minIntervalInMs: DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS,
+            collect: async () => {
+                metricsService.getGauge('open_orders').set({}, await this.orders.count({ where: { open: true } }));
+            }
+        });
+    }
+}
+```
+
+A collector that throws is logged, and its gauges keep what its last run set.
+
+## Exposing a basic dashboard
+A project made with `zi new` and the [`metricsDashboard` feature](./project-layout.md#choosing-the-features) contains a `metrics.tsx` page that shows the data of the metrics service. Serve it from a controller:
 
 ```ts
 // src/controllers/metrics.controller.ts
@@ -92,11 +185,17 @@ export class MetricsController {
 }
 ```
 
-Now you can navigate to `http://localhost:3000/metrics/dashboard` and see it in action.
+The dashboard is at `http://localhost:3000/metrics/dashboard`.
 
-There are also placeholders commented out in the `navbar.tsx` and the `home.tsx` files that link to this basic dashboard.
+`navbar.tsx` and `home.tsx` contain links to it, commented out.
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `prom-client` | Counters, gauges and histograms, the Node.js process metrics, and the text format Prometheus scrapes. You install it |
+| `systeminformation` | The network counters of the machine. You install it |
 
 ## See also
 - [Rate limiting](./rate-limiting.md) — the dashboard example above reads rate limiter stats via `RateLimitingServiceInterface`
 - [Caching](./caching.md) — the dashboard example above caches its rendered HTML with `@Cached`
-- [Cron jobs](./cron.md) — registering `CollectMetricsCronJob` to collect snapshots automatically
+- [Cron jobs](./cron.md) — how `CollectMetricsCronJob` and other cron jobs run

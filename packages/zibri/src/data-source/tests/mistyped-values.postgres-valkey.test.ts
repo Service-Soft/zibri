@@ -1,7 +1,8 @@
 import { afterAll, beforeAll } from '@jest/globals';
 
 import { describeMistypedColumnValues, describeMistypedValues, Gauge, MistypedValueFixture } from './mistyped-values.cases';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
@@ -11,7 +12,8 @@ import { ValKeyDataSource } from '../data-sources/val-key/val-key-data-source.mo
 import { MigrationEntity } from '../migration/migration-entity.model';
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, Gauge]
+    entities: [...defaultTestServerEntities, Gauge],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -44,11 +46,11 @@ beforeAll(async () => {
             await valKeyDataSource.connection.hset(`${valKeyDataSource.keyPrefix}:gauge:${id}`, { [column]: json });
         }
     };
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
 afterAll(async () => {
     await server?.shutdown();
-}, 30000);
+}, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
 describeMistypedValues('postgres', () => postgres);
 

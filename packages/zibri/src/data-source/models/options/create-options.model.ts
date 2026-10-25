@@ -7,7 +7,8 @@ import { BaseEntity } from '../../../entity/base-entity.model';
  */
 export type CreateOptions<T extends BaseEntity> = BaseRepositoryOptions & WriteRelationsOptions<T> & {
     /**
-     * Whether or not setting the id property manually is allowed.
+     * Whether the row is created with the id it carries. An id a stored row holds already, deleted
+     * or not, is refused with a `UniqueConstraintViolationError`.
      * @default false.
      */
     allowId?: boolean

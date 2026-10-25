@@ -1,12 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { type Relation } from 'typeorm';
+import { createInMemoryDataSource } from 'zibri-testing';
 
+import { ValidateCustom } from './decorators/validate-custom.decorator';
 import { ValidationService } from './validation.service';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { whereFor } from '../data-source/models/where/where-for.function';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
+import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
+import { OmitClass } from '../entity/omit-class.model';
+import { PartialClass } from '../entity/partial-class.model';
 import { ValidationError } from '../error-handling/errors/validation.error';
+import { $t, $ts } from '../localization/translate.function';
 import { MimeType } from '../http/mime-type.enum';
 import { BodyMetadata, FormDataBodyMetadataInput, JsonBodyMetadataInput } from '../routing/decorators/body-metadata.model';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
@@ -42,6 +51,106 @@ class SimpleModel {
     name!: string;
 }
 
+class Booking {
+    @Property.boolean()
+    flexible!: boolean;
+
+    @Property.date({ required: (booking: Booking) => !booking.flexible })
+    endsAt?: Date;
+}
+
+@Entity({
+    tenant: 'shared',
+    allowOrphan: true,
+    allowDuplicate: true,
+    checks: [
+        {
+            // eslint-disable-next-line unicorn/no-null
+            where: whereFor<CheckedChore>([{ status: { not: 'done' } }, { completedAt: { not: null } }]),
+            code: 'completedAtRequired',
+            message: $t`a done chore has a completion date`
+        },
+        whereFor<CheckedChore>({ estimate: { greaterThanEquals: 1 } })
+    ]
+})
+class CheckedChore extends BaseEntity {
+    @Property.string()
+    status!: string;
+
+    @Property.date({ required: false })
+    completedAt?: Date | null;
+
+    @Property.number()
+    estimate!: number;
+}
+
+class ChoreCreateData extends OmitClass(CheckedChore, ['id']) {}
+
+class ChoreUpdateData extends PartialClass(ChoreCreateData) {}
+
+class ChoreWithoutCompletion extends OmitClass(CheckedChore, ['id', 'completedAt']) {}
+
+class ChoreList {
+    @Property.object({ cls: () => ChoreCreateData })
+    first!: ChoreCreateData;
+}
+
+@ValidateCustom((trip: Trip) => [
+    ...trip.returnsAt > trip.leavesAt ? [] : [{ property: 'returnsAt' as const, code: 'returnBeforeDeparture', message: $ts`has to be after leavesAt` }],
+    ...trip.travelers.length <= trip.seats ? [] : [{ code: 'tooManyTravelers', message: $ts`has more travelers than seats` }]
+])
+class Trip {
+    @Property.date()
+    leavesAt!: Date;
+
+    @Property.date()
+    returnsAt!: Date;
+
+    @Property.number({ format: 'integer' })
+    seats!: number;
+
+    @Property.array({ items: { type: 'string' } })
+    travelers!: string[];
+}
+
+class TripRequest {
+    @Property.object({ cls: () => Trip })
+    trip!: Trip;
+}
+
+class GroupTrip extends Trip {
+    @Property.string()
+    group!: string;
+}
+
+class TripChange extends PartialClass(Trip) {}
+
+class Lodging {
+    @Property.date()
+    leavesAt!: Date;
+}
+
+class Stay {
+    @Property.date({ before: (stay: Stay) => stay.endsAt })
+    startsAt!: Date;
+
+    @Property.date()
+    endsAt!: Date;
+}
+
+class StayRequest {
+    @Property.object({ cls: () => Stay })
+    stay!: Stay;
+}
+
+class BookingRequest {
+    @Property.object({ cls: () => Booking })
+    booking!: Booking;
+
+    @Property.array({ items: { type: 'object', cls: () => Booking }, required: false })
+    alternatives?: Booking[];
+}
+
 class WithNested {
     @Property.string()
     name!: string;
@@ -62,13 +171,14 @@ describe('ValidationService', () => {
     let validationService: ValidationService;
 
     beforeAll(async () => {
-        server = await startTestServer({});
+        // in memory: nothing here reads a table, and the suite runs without a container
+        server = await startTestServer({ dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })] });
         validationService = inject(ValidationService);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     describe('validatePathParam / validateQueryParam / validateHeaderParam', () => {
         it('resolves without throwing for valid path params', async () => {
@@ -156,6 +266,147 @@ describe('ValidationService', () => {
                     bodyMeta({ modelClass: WithNested })
                 )
             ).resolves.toBeUndefined();
+        });
+
+        it('hands a required function the object the property is on, not the whole body', async () => {
+            await expect(
+                validationService.validateBody({ booking: { flexible: true } }, bodyMeta({ modelClass: BookingRequest }))
+            ).resolves.toBeUndefined();
+            await expect(
+                validationService.validateBody({ booking: { flexible: false } }, bodyMeta({ modelClass: BookingRequest }))
+            ).rejects.toThrow('booking.endsAt: is required');
+        });
+
+        it('hands a required function the item of an array the property is on', async () => {
+            await expect(
+                validationService.validateBody(
+                    { booking: { flexible: true }, alternatives: [{ flexible: true }, { flexible: false }] },
+                    bodyMeta({ modelClass: BookingRequest })
+                )
+            ).rejects.toThrow(expect.objectContaining({
+                problems: [expect.objectContaining({ key: 'alternatives.1.endsAt', code: 'required' })]
+            }));
+        });
+
+        it('compares a date with another property of the object it is on', async () => {
+            const endsAt: Date = new Date('2024-06-10T00:00:00.000Z');
+            await expect(validationService.validateBody(
+                { stay: { startsAt: new Date('2024-06-01T00:00:00.000Z'), endsAt } },
+                bodyMeta({ modelClass: StayRequest })
+            )).resolves.toBeUndefined();
+            await expect(validationService.validateBody(
+                { stay: { startsAt: new Date('2024-06-11T00:00:00.000Z'), endsAt } },
+                bodyMeta({ modelClass: StayRequest })
+            )).rejects.toThrow(expect.objectContaining({
+                problems: [expect.objectContaining({ key: 'stay.startsAt', code: 'before' })]
+            }));
+        });
+
+        describe('the checks of an entity', () => {
+            it('answers a body breaking a check with the code and message of the check', async () => {
+                await expect(validationService.validateBody(
+                    // eslint-disable-next-line unicorn/no-null
+                    { status: 'done', completedAt: null, estimate: 2 },
+                    bodyMeta({ modelClass: ChoreCreateData })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [{ key: 'body', code: 'completedAtRequired', message: 'a done chore has a completion date' }]
+                }));
+                await expect(validationService.validateBody(
+                    { status: 'done', completedAt: new Date(), estimate: 2 },
+                    bodyMeta({ modelClass: ChoreCreateData })
+                )).resolves.toBeUndefined();
+            });
+
+            it('answers a check declared as its filter alone with the code check', async () => {
+                await expect(validationService.validateBody(
+                    { status: 'open', estimate: 0 },
+                    bodyMeta({ modelClass: ChoreCreateData })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [{ key: 'body', code: 'check', message: 'breaks the check on "estimate"' }]
+                }));
+            });
+
+            it('reports a nested object breaking a check under the key of the object', async () => {
+                await expect(validationService.validateBody(
+                    // eslint-disable-next-line unicorn/no-null
+                    { first: { status: 'done', completedAt: null, estimate: 2 } },
+                    bodyMeta({ modelClass: ChoreList })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [expect.objectContaining({ key: 'first', code: 'completedAtRequired' })]
+                }));
+            });
+
+            it('leaves a check to the data source when the body lacks a property it compares', async () => {
+                // an update leaves out what it does not change, so only the stored row can answer it
+                await expect(validationService.validateBody(
+                    { status: 'done' },
+                    bodyMeta({ modelClass: ChoreUpdateData })
+                )).resolves.toBeUndefined();
+                // null is a value the body sets
+                await expect(validationService.validateBody(
+                    // eslint-disable-next-line unicorn/no-null
+                    { status: 'done', completedAt: null },
+                    bodyMeta({ modelClass: ChoreUpdateData })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [expect.objectContaining({ code: 'completedAtRequired' })]
+                }));
+            });
+
+            it('leaves out a check that compares a property the derived model does not have', async () => {
+                await expect(validationService.validateBody(
+                    { status: 'done', estimate: 2 },
+                    bodyMeta({ modelClass: ChoreWithoutCompletion })
+                )).resolves.toBeUndefined();
+            });
+        });
+
+        describe('custom rules', () => {
+            const leavesAt: Date = new Date('2024-06-01T00:00:00.000Z');
+
+            it('reports what a rule finds under the property it names, or under the object', async () => {
+                await expect(validationService.validateBody(
+                    { trip: { leavesAt, returnsAt: new Date('2024-05-01T00:00:00.000Z'), seats: 1, travelers: ['Ada', 'Grace'] } },
+                    bodyMeta({ modelClass: TripRequest })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [
+                        { key: 'trip.returnsAt', code: 'returnBeforeDeparture', message: 'has to be after leavesAt' },
+                        { key: 'trip', code: 'tooManyTravelers', message: 'has more travelers than seats' }
+                    ]
+                }));
+                await expect(validationService.validateBody(
+                    { trip: { leavesAt, returnsAt: new Date('2024-06-05T00:00:00.000Z'), seats: 2, travelers: ['Ada', 'Grace'] } },
+                    bodyMeta({ modelClass: TripRequest })
+                )).resolves.toBeUndefined();
+            });
+
+            it('runs a rule only on an object whose properties are valid', async () => {
+                // a rule reads the values as their types say, which a travelers of the wrong type is not
+                await expect(validationService.validateBody(
+                    { leavesAt, returnsAt: leavesAt, seats: 1, travelers: 'Ada' },
+                    bodyMeta({ modelClass: Trip })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [expect.objectContaining({ key: 'travelers', code: 'type' })]
+                }));
+            });
+
+            it('applies a rule to a class extending the model, and not to a partial one', async () => {
+                const returnsAt: Date = new Date('2024-05-01T00:00:00.000Z');
+                await expect(validationService.validateBody(
+                    { leavesAt, returnsAt, seats: 1, travelers: [], group: 'Team' },
+                    bodyMeta({ modelClass: GroupTrip })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [expect.objectContaining({ key: 'returnsAt', code: 'returnBeforeDeparture' })]
+                }));
+                await expect(validationService.validateBody({ returnsAt }, bodyMeta({ modelClass: TripChange }))).resolves.toBeUndefined();
+            });
+
+            it('refuses to decorate a class other than the one the rule was written for', () => {
+                // @ts-expect-error - a rule of a Trip, on a class that is no Trip
+                @ValidateCustom((trip: Trip) => trip.seats > 0 ? [] : [{ code: 'noSeats', message: $ts`has no seats` }])
+                class Elsewhere extends Lodging {}
+
+                expect(Elsewhere).toBeDefined();
+            });
         });
 
         describe('array bodies', () => {

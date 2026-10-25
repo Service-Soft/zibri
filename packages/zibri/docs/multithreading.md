@@ -1,14 +1,14 @@
 # Multithreading
-Zibri aims to take care of most of your multi threading concerns, including:
+Multithreading runs work on worker threads, so it does not hold up the requests your application answers. It gives you:
 
-- a reusable worker pool that is automatically sized based on the available threads (can be [configured](#configuration))
-- support for typescript out of the box
-- a way to run worker files, being really close to the original implementation
-- a simple way to run a function in a separate thread
+- a pool of workers, sized to the threads of the machine by default, see [configuration](#configuration)
+- worker files in TypeScript as well as JavaScript
+- worker files written like any other node worker file
+- a way to run a single function on a separate thread
 - a queue that lives in a data source, so a job queued on one instance is run by whichever one has a worker free
-- storing data about your thread jobs like status, error etc. inside a data source
-- utility functions to easily update the progress, status, error or result of the job
-- configurable timeouts for jobs and self healing capabilities of the worker pool
+- the status, progress, error and result of every job, stored in a data source
+- functions to report the progress, error or result of a job from inside its worker file
+- timeouts per job, and a pool that replaces a worker that crashed
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -24,17 +24,17 @@ Zibri aims to take care of most of your multi threading concerns, including:
 | `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS` | DI token | Overrides worker pool defaults |
 | `ThreadJobEntity` | entity | The queue itself |
 | `RunQueuedThreadJobsCronJob` | cron job | Looks for work this instance could take. Registered for you |
+| `ThreadJobCleanupCronJob` | cron job | Deletes the jobs that are over and older than the retention. Registered for you |
+| `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS` | DI token | How long a job that is over is kept, counted from when it was queued, or `'forever'`. Required |
+| `ThreadJobAttemptsExhaustedError` | error | What a job is failed with once it was started `maxAttempts` times |
 
-## Usage
-### Queue and run a thread job
-If you have some more complex tasks where you also want to be able to report progress during runtime you will probably queue a thread job.
+## Queueing and running a thread job
+Queue a thread job for work that runs longer, or that reports its progress while it runs. `MultithreadingServiceInterface` has three methods for it:
+- `queueThreadJob` queues the job and returns its id
+- `waitForThreadJob` waits for the job to end
+- `runThreadJob` does both
 
-There are 3 methods provided by the thread job service for that:
-- queueThreadJob
-- waitForThreadJob
-- runThreadJob (a combination of the two methods above)
-
-To queue/run a thread job you need to provide some thread job data:
+A thread job names the worker file it runs, and carries the data that file reads:
 
 ```ts
 // src/services/fibonacci.service.ts
@@ -43,102 +43,106 @@ import { FsUtilities, MultithreadingServiceInterface } from 'zibri';
 export async function queueFibonacci(multithreadingService: MultithreadingServiceInterface): Promise<string> {
     return await multithreadingService.queueThreadJob({
         workerData: {
-            // .ts and .js both work. FsUtilities.getPath resolves it against this file rather than
-            // against whichever directory the application was started from
             filePath: FsUtilities.getPath(__dirname, 'fibonacci.worker.ts'),
             startValue: 20
         }
     });
-    // const threadJobEntity = await multithreadingService.waitForThreadJob(jobId);
 }
 ```
 
-`waitForThreadJob` inside a request stops waiting when that request's deadline passes — see
-[deadlines](./creating-endpoints.md#deadlines). The job itself carries on and still records what it
-did, so the row is there to read afterwards.
+`filePath` may name a `.ts` or a `.js` file. `FsUtilities.getPath` resolves it against the file that queues the job, whichever directory the application was started from. `waitForThreadJob` with the returned id resolves to the job once it has ended.
 
-Let's take a look at the worker file under `fibonacci.worker.ts`:
+`waitForThreadJob` inside a request stops waiting when that request's deadline passes, see
+[deadlines](./creating-endpoints.md#deadlines). The job carries on and records what it did on its
+row, to read afterwards.
 
-#### Worker file definition
-The provided worker file needs to work a bit different than a normal one:
+### Writing the worker file
+A worker file reads its data from `workerData`, and ends with `reportCompletion` or `reportError`:
 
 ```ts
-/* eslint-disable jsdoc/require-jsdoc */
-import { parentPort, workerData as nodeWorkerData } from 'node:worker_threads';
+// src/services/fibonacci.worker.ts
+import { workerData as nodeWorkerData } from 'node:worker_threads';
 import { BaseThreadJobWorkerData, reportCompletion, reportError } from 'zibri';
+
+import { fibonacci } from './fibonacci.function';
 
 type FibonacciWorkerData = BaseThreadJobWorkerData & {
     startValue: number
 };
 
-const workerData: FibonacciWorkerData | undefined = nodeWorkerData as FibonacciWorkerData | undefined;
-
-if (!workerData) {
-    //@ts-ignore-next-line
-    return;
-}
-
-function fibonacci(n: number): number {
-    if (n <= 1) {
-        return n;
-    }
-    return fibonacci(n - 1) + fibonacci(n - 2);
-}
+const workerData: FibonacciWorkerData = nodeWorkerData;
 
 try {
-    const res: number = fibonacci(workerData.startValue);
-    reportCompletion(res);
+    const result: number = fibonacci(workerData.startValue);
+    reportCompletion(result);
 }
 catch (error) {
-    reportError(error as Error);
+    reportError(error);
 }
 ```
 
-The `reportCompletion` and `reportError` parts are really important, as the thread job would run into a timeout without them.
+A job whose worker file calls neither `reportCompletion` nor `reportError` runs until its timeout.
 
-A worker file may be TypeScript, CommonJS or an es module, and may use top level `await`. Its top level code is the job, and one worker thread runs many jobs, so the file is evaluated again for each of them — which is also why a value left in module scope by one job is not there for the next.
+A worker file may be TypeScript, CommonJS or an ES module, and may use top level `await`. Its top level code is the job. One worker thread runs many jobs and evaluates the file again for each of them, so a value one job leaves in module scope is gone for the next.
 
-A TypeScript worker file is compiled as it is loaded, which needs the optional peer dependency `ts-node` installed. `multithreading.enableTsWorkerFiles` declares whether this application uses such files, and it defaults to `true`. Startup fails when it is `true` and `ts-node` is missing, so a deployment that left the compiler out finds out on the way up rather than from the first job that happens to name a `.ts` file.
+A TypeScript worker file is compiled as it is loaded, which needs `ts-node`. `multithreading.enableTsWorkerFiles` declares whether this application uses such files, and defaults to `true`. While it is `true`, `ts-node` is required.
 
-Set it to `false` for a deployment that ships compiled worker files. Nothing then loads a TypeScript compiler, a `.ts` file is refused the moment it is queued, and neither `ts-node` nor the TypeScript compiler behind it has to be installed.
+Set it to `false` for a deployment that ships compiled worker files. No TypeScript compiler is loaded then, and neither `ts-node` nor the TypeScript compiler behind it has to be installed. A `.ts` file is refused when it is queued.
 
-An error that reaches neither a `try`/`catch` nor `reportError` — thrown from a timer, a callback or a promise nobody awaited — ends the worker. The job is marked `FAILED` with that error, and a fresh worker takes its place in the pool. A thread is reused by every job after it, so anything the throw left half done would otherwise be the state the next one starts from.
+An error that reaches neither a `try`/`catch` nor `reportError`, such as one thrown from a timer, a callback or a promise nobody awaited, ends the worker. The job is `FAILED` with that error, and a fresh worker takes its place in the pool. The next job starts on a clean thread.
 
-The job's `error` is a `LoggedError` — `{ name, paragraphs, stackTrace }`, the same shape a log entry carries, with `paragraphs` holding the message and the `cause` chain beneath it. That is what a row can keep: an `Error`'s own `message`, `stack` and `cause` are non-enumerable, so a column given one stores `{}`. `runThreadJobFunction` still rejects with a real `Error`, rebuilt from what the row holds.
+A worker that takes more memory than `multithreading.workerResourceLimits` allows ends the same way: the job is `FAILED` with the out of memory error, and the pool replaces the worker. The limit is per worker. By default it is an even share of the memory the process may use, split between the workers and the main thread. A job that allocates without end ends its own worker, and the process keeps running.
 
-If you have a long running thread job where you want to know about the progress, you can also use the `reportProgress(percentNumber)` to do that.
-<br>
-Please note that this will result in a job completion when you report 100, so be sure that you round down this value if you set it dynamically.
+The job's `error` is a `LoggedError`: `{ name, paragraphs, stackTrace }`, the same shape a log entry carries. `paragraphs` holds the message and the `cause` chain beneath it. `run` rejects with a real `Error` rebuilt from it, and `onError` is handed one too.
 
-### The queue is shared
-A queued job is a row and nothing else. There is no second copy of the queue in the process that queued it, which is what makes the queue the deployment's rather than one instance's: a job queued on the instance handling a request is run by whichever instance has a worker free, including one that has not handled a request all day.
+`reportProgress(percentNumber)` reports how far a long running job has got. Reporting `100` completes the job, so round a computed value down.
 
-Jobs are given to workers oldest first, priority jobs before normal ones. A priority job takes a normal worker when no priority worker is free; a normal job never takes a priority worker, which is what reserving one means.
+## The queue is shared
+A queued job is a row in the data source. A job queued on the instance handling a request is run by whichever instance has a worker free, including one that has not handled a request all day.
 
-Before an instance runs a job it takes a [lease](./leases.md) on it, and holds that lease for as long as the job runs. That claim is what stops two instances running the same job, and it is renewed underneath, so a job may take as long as it takes without ever losing it.
+Jobs are given to workers oldest first, priority jobs before normal ones. A priority job takes a normal worker when no priority worker is free. A normal job never takes a priority worker.
 
-A `run` call is the exception. Its function never leaves the process that called it, so it waits in that process — ordered against the queued jobs by when it was queued, not before or after them as a class.
+Before an instance runs a job it takes a [lease](./leases.md) on it, and holds that lease for as long as the job runs. No other instance starts the job while the lease is held. The lease is renewed for as long as the job runs, so a job may take as long as it needs.
+
+A `run` call waits in the process that called it, because its function never leaves that process. It is ordered against the queued jobs by when it was queued.
 
 A job queued in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and its `onMessage`, `onComplete`, `onError` and `onCancel` run in that tenant. Waiting for it from another tenant answers like waiting for a job that does not exist.
 
-### Surviving a restart
-Shutting down marks every job still running as `INTERRUPTED` before the workers stop, and hands back their claims — a job that ran halfway is not the same as one that never started, and `startedAtMs` and `progress` are kept as the record of how far it got. It is not a drain: a job's default timeout is an hour and a pod's grace period is seconds, so waiting is not on offer. What it is, is a handover: the claim is free the moment the process lets go of it, so another instance takes the job over straight away rather than waiting for anything to lapse.
+## Surviving a restart
+Shutting down marks every job still running as `INTERRUPTED` before the workers stop, and hands back their claims. `startedAtMs` and `progress` are kept as the record of how far each job got. Shutting down hands running jobs over without waiting for them: another instance takes each one over straight away.
 
-An instance picks work up when it starts, when it queues something, when one of its workers finishes, and on a poll for everything else. A job is takeable when it is `IN_QUEUE`, `INTERRUPTED`, or `IN_PROGRESS` with no live claim on it — which is what a process that was *killed* leaves behind, since it never got to write anything.
+An instance looks for work when it starts, when it queues something, when one of its workers finishes, and on a regular poll. A job can be taken when it is `IN_QUEUE`, `INTERRUPTED`, or `IN_PROGRESS` with no live claim on it. A killed process leaves its jobs `IN_PROGRESS`.
 
-**The claim is what says an instance is still there, not the row.** An `IN_PROGRESS` row left by a killed pod is identical to one another instance is working on right now, so the row cannot answer it. A live owner renews its claim; one that stopped existing lets it lapse, and the job is taken over within `30 seconds` of that.
+An instance running a job renews its claim on it. An instance that stopped existing stops renewing, and the job is taken over once its claim lapses, `jobClaimInMs` after the last renewal, 30 seconds by default.
 
-**Jobs run at least once, not exactly once.** An instance can finish a job and be killed before writing that down, or fail to reach the data source when it tries to, and a job taken over runs again from the beginning — `progress` goes back to zero, because it describes the run rather than the job. A job whose side effects must not happen twice has to be safe to repeat, the same as in any other durable queue.
+An instance that loses its claim stops its worker. When the data source is unreachable for longer than `jobClaimInMs`, every claim lapses, and another instance may take a job over while the first worker is still running it. The first instance notices at its next renewal: it stops that worker and writes nothing more to the row, which belongs to whoever took the job over. A fresh worker takes its place in the pool, and a `runThreadJob` waiting there goes on waiting for the row.
 
-Work is picked up on start rather than on init deliberately: a pod that comes up and never becomes ready does not work through the backlog.
+> [!WARNING]
+> Jobs run at least once. An instance can finish a job and be killed before it writes that down, or fail to reach the data source when it tries. A job taken over runs again from the beginning, with `progress` back at zero. Make a job whose side effects must not happen twice safe to repeat.
 
-`run` takes no part in any of this. It keeps its job in the process that called it and never writes a row, so a restart ends it along with the caller awaiting it.
+`attempts` on the row counts the starts of a job: the first one, and every takeover since. At `multithreading.maxAttempts` starts the job is not started again. It ends `FAILED` with a `ThreadJobAttemptsExhaustedError`, which names the count. This keeps a job that takes its host down, through a native crash or a kill from outside the process, from taking down one instance after another. `requeueThreadJob` starts the count over.
 
-### Callbacks
-`onMessage`, `onComplete`, `onError` and `onCancel` are functions, so they stay in the instance that queued the job and fire only if that instance is also the one that runs it. A job picked up elsewhere still runs, still writes its row, and still ends the `runThreadJob` that is waiting for it — it just cannot call back into a process it cannot reach. Anything that has to happen wherever the job runs belongs in the worker file.
+An instance picks up work only once the application has started, so an instance that never becomes ready runs no jobs.
 
-### Tracing
-The run of a job is a [span](./tracing.md#what-the-framework-records) named `runThreadJob`, recorded under the trace the job was queued in — whenever it runs and on whichever instance. A `run` call is recorded under the trace of its caller. A job that failed is a span that failed.
+`run` takes no part in any of this. Its job stays in the process that called it and has no row, so a restart ends it along with the caller awaiting it.
+
+## What happens to a finished job
+A job that is over, `COMPLETED`, `FAILED` or `CANCELLED`, keeps its row with its `result` or its `error` for `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS`, counted from when it was queued. `ThreadJobCleanupCronJob` deletes it after that, once a day. Provide the token:
+
+```ts
+// src/providers.ts
+import { defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({ token: ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS, useValue: Ms.DAY * 30 })
+```
+
+With `'forever'`, the rows are kept until you delete them. A job that is still queued or running is never deleted, however old.
+
+## Callbacks
+`onMessage`, `onComplete`, `onError` and `onCancel` are functions. They stay in the instance that queued the job, and fire only when that instance also runs it. A job picked up elsewhere still runs, writes its row and ends the `runThreadJob` waiting for it, without calling back. Put anything that has to happen wherever the job runs in the worker file.
+
+## Tracing
+The run of a job is a [span](./tracing.md#what-the-framework-records) named `runThreadJob`, recorded under the trace the job was queued in, whenever it runs and on whichever instance. A `run` call is recorded under the trace of its caller. A job that failed is a span that failed.
 
 The worker records no spans itself. `getThreadJobTraceContext` gives the worker file the span of its run, to pass on to whatever the job calls:
 
@@ -157,21 +161,32 @@ async function render(): Promise<void> {
 void render();
 ```
 
-### Run a simple function
-You can run simple functions on a separate thread by using the `run` method of the `MultithreadingServiceInterface`.
-<br>
-This returns the result of the function call or rejects with an error.
+## Running a function
+`run` on `MultithreadingServiceInterface` runs a function on a separate thread. It returns what the function returns, or rejects with its error.
 
-> **Restrictions**
-> - Only the function's source crosses the thread boundary, so it runs with its arguments and the worker's globals (eg. `console.log`) in scope and nothing else. Imports are not resolved, and a variable captured from around the function is a `ReferenceError` when it runs rather than an error where it was written — pass everything it needs through the second argument
-> - The run is not stored in a data source, and the utility functions like `reportProgress` do not work
-> - Pass functions your own code wrote. The source is turned back into a function on the worker, so a function assembled from input you did not control runs as code
+> [!NOTE]
+> Only the function's source crosses to the worker. It runs with its arguments and the worker's globals, such as `console`, in scope, and nothing else. Imports are not resolved, and a variable captured from around the function is a `ReferenceError` when it runs. Pass everything it needs through the second argument.
+>
+> A `run` has no row in a data source, so `reportProgress` and the other report functions do not apply to it.
 
-A function can only be run this way. `queueThreadJob` names a file instead, and throws a `PersistedFunctionJobError` if given a function: a queued job is written to a row and read back by `requeueThreadJob`, so a function there would have to be stored as source and turned back into code to run a second time — which would make write access to that table enough to run code in a worker. Work that has to survive a restart lives in a file.
+> [!WARNING]
+> Pass only functions your own code wrote. The source is turned back into a function on the worker, so a function assembled from input you did not control runs as code.
 
-By default this is also run with priority. This is because the execution time will probably be not that long. (Because you can await the result.)
-<br>
-You can however also add a fourth parameter to define whether or not it should run with priority.
+A function runs only this way. `queueThreadJob` names a file, and throws a `PersistedFunctionJobError` when given a function: a stored function would let anyone who can write the job table run code. Work that has to survive a restart lives in a file.
+
+`run` uses a priority worker by default. Pass `false` as its fourth argument to run the function on a normal worker.
+
+The function the worker file above computes with:
+
+```ts
+// src/services/fibonacci.function.ts
+export function fibonacci(n: number): number {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+```
 
 ```ts
 // src/services/fibonacci.service.ts
@@ -197,7 +212,7 @@ export class FibonacciService {
 ```
 
 ## Configuration
-The worker pool is preconfigured with sensible defaults, but can be overwritten via the `MULTITHREADING_OPTIONS` di token:
+Every option of the worker pool has a default. Override them through the `MULTITHREADING_OPTIONS` DI token:
 
 ```ts
 // src/providers.ts
@@ -213,23 +228,39 @@ export const providers: DiProvider<unknown>[] = [
             defaultTimeoutMs: Ms.HOUR,
             defaultTimeoutPriorityMs: Ms.MINUTE * 5,
             jobClaimInMs: Ms.SECOND * 30,
+            maxAttempts: 3,
+            workerResourceLimits: { maxOldGenerationSizeMb: 512 },
             enableTsWorkerFiles: true
         })
     })
 ];
 ```
 
-This accepts the following options:
-- `maxThreads`: The number of threads that can be used for normal (non priority) jobs. Defaults to the available parallelism of the machine, minus the threads reserved for libuv and the main thread.
-- `maxPriorityThreads`: The number of threads that are reserved for priority jobs, e.g. those queued via `run`. Defaults to `1`.
-- `defaultTimeoutMs`: The default timeout for a normal thread job, used when no explicit `timeout` is provided when queueing the job. Defaults to 1 hour.
+The options:
+- `maxThreads`: The number of threads for normal (non priority) jobs. Defaults to the available parallelism of the machine, minus the libuv thread pool (`UV_THREADPOOL_SIZE`, 4 by default), the main thread and one priority thread, and at least `1`.
+- `maxPriorityThreads`: The number of threads reserved for priority jobs, such as those started with `run`. Defaults to `1`, or `0` on a machine with no thread to spare for one.
+- `defaultTimeoutMs`: The timeout for a normal thread job queued without a `timeout` of its own. Defaults to 1 hour.
 - `defaultTimeoutPriorityMs`: The default timeout for a priority thread job. Defaults to 5 minutes.
-- `jobClaimInMs`: How long the claim on a running job lives before another instance may take that job over. Renewed for as long as the job runs, so it is not a limit on how long a job may take — it decides how quickly work is taken back from an instance that stopped existing. Defaults to 30 seconds.
+- `jobClaimInMs`: How long the claim on a running job lives before another instance may take that job over. It is renewed for as long as the job runs, so it does not limit how long a job takes. It sets how quickly work is taken back from an instance that stopped existing. Defaults to 30 seconds.
+- `maxAttempts`: How many times a job may be started, its first start and every takeover counted, before it is failed instead of taken over again. Defaults to 3.
+- `workerResourceLimits`: The memory a worker thread may take, as node's `Worker` takes its `resourceLimits`. Defaults to a `maxOldGenerationSizeMb` of an even share of the memory the process may use, split between the workers and the main thread. `{}` leaves node's own limits in place.
+- `enableTsWorkerFiles`: Whether a worker file may be TypeScript, see [the worker file](#writing-the-worker-file). Defaults to `true`.
 
-<br>
-Please note that `maxThreads + maxPriorityThreads` needs to be smaller than the available threads of the machine.
-<br>
-If a worker crashes, the pool automatically spins up a fresh replacement worker of the same priority class, so that the configured pool size is always kept available.
+`maxThreads + maxPriorityThreads` may be at most the available parallelism of the machine.
+
+A worker that crashes is replaced with a fresh worker of the same priority class, so the pool keeps its configured size.
+
+## Requirements
+| Package | Used for |
+|---|---|
+| `rxjs` | Waiting for a worker to be ready and for a job to end |
+| `ts-node` | Running worker files written in TypeScript. You install it |
+
+Your data source declares these entities:
+
+| Entity | Needed when |
+|---|---|
+| `ThreadJobEntity` | Every application |
 
 ## See also
 - [Application lifecycle](./application-lifecycle.md) — hooks like `OnAppInit` for setting up providers such as `MULTITHREADING_OPTIONS` at startup

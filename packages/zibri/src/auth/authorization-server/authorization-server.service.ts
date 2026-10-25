@@ -15,6 +15,7 @@ import { TokenPresentation } from './token-presentation.model';
 import { TokenRequest } from './token-request.model';
 import { TokenResponse } from './token-response.model';
 import { ZibriApplication } from '../../application/application';
+import { type AuditServiceInterface } from '../../audit/audit-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -31,14 +32,14 @@ import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { auditReasonFor } from '../../logging/audit-reason-for.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
-import { BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { Ms } from '../../utilities/ms';
 import { type AuthServiceInterface } from '../auth-service.interface';
+import { type CurrentUser } from '../decorators/current-user.decorator';
 import { type DpopServiceInterface } from '../dpop/dpop-service.interface';
 import { type HashServiceInterface } from '../hash/hash-service.interface';
 import { Sha256HashStrategy } from '../hash/strategies/sha256.hash-strategy';
 import { BaseUser } from '../models/base-user.model';
+import { type PlatformPermission } from '../roles/platform-permission.type';
 import { ApiKeyAuthenticationMethod } from '../strategies/api-key/api-key-authentication-method.enum';
 import { type ApiKeyServiceInterface } from '../strategies/api-key/api-key-service.interface';
 import { ApiKey } from '../strategies/api-key/api-key.model';
@@ -138,9 +139,9 @@ type IntrospectionCaller = {
      */
     userId: string | undefined,
     /**
-     * The roles they hold for the request.
+     * The permissions their own roles carry for the request.
      */
-    roles: string[]
+    platformPermissions: PlatformPermission[]
 };
 
 /**
@@ -178,10 +179,6 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         return inject(ZIBRI_DI_TOKENS.API_KEY_SERVICE);
     }
 
-    private get membershipService(): MembershipServiceInterface {
-        return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
-    }
-
     private get userService(): UserServiceInterface {
         return inject(ZIBRI_DI_TOKENS.USER_SERVICE);
     }
@@ -192,6 +189,10 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
 
     private get httpClient(): HttpClientInterface {
         return inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
+    }
+
+    private get auditService(): AuditServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE);
     }
 
     private get dpopService(): DpopServiceInterface {
@@ -266,16 +267,16 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
             }
             const client: AuthenticatedClient = await this.resolveClient(endpoint, presented, `${endpoint.url}/token`);
             const dpopKeyThumbprint: string | undefined = await this.resolveDpopKeyThumbprint(client);
-            const roles: string[] = await this.resolveGrantedRoles(client, request.scope);
+            const permissions: string[] = await this.resolveGrantedPermissions(client, request.scope);
             const issued: IssuedClientAccessToken = await this.resolveIssuingStrategy().issueClientAccessToken(client.user, {
                 clientId: client.apiKey.id,
-                roles,
+                permissions,
                 tenantId: client.apiKey.tenantId ?? undefined,
                 audience: this.resolveAudience(endpoint, request.resource),
                 certificateThumbprint: client.certificateThumbprint,
                 dpopKeyThumbprint
             });
-            this.logger.audit({
+            this.auditService.record({
                 action: AuditAction.TOKEN_ISSUED,
                 outcome: AuditOutcome.SUCCESS,
                 subject: client.apiKey.id,
@@ -286,11 +287,11 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
                 // the scheme a request sends it with (RFC 9449, 5)
                 token_type: dpopKeyThumbprint == undefined ? 'Bearer' : 'DPoP',
                 expires_in: Math.floor(issued.expiresInMs / Ms.SECOND),
-                scope: roles.join(' ')
+                scope: permissions.join(' ')
             };
         }
         catch (error) {
-            this.logger.audit({
+            this.auditService.record({
                 action: AuditAction.TOKEN_ISSUED,
                 outcome: AuditOutcome.FAILURE,
                 reason: auditReasonFor(error),
@@ -307,14 +308,16 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         authorization: string | undefined
     ): Promise<IntrospectionResponse> {
         const caller: IntrospectionCaller = await this.resolveIntrospectionCaller(endpoint, presentation, authorization);
-        if (!caller.roles.some(role => endpoint.introspectionRoles.includes(role))) {
-            this.logger.audit({
+        // the caller's own roles, as a platform permission is checked: a resource server is a service
+        // of the platform rather than a member of a tenant
+        if (!caller.platformPermissions.includes(endpoint.introspectionPermission)) {
+            this.auditService.record({
                 action: AuditAction.AUTHORIZATION,
                 outcome: AuditOutcome.FAILURE,
-                reason: AuditReason.MISSING_ROLE,
+                reason: AuditReason.MISSING_PERMISSION,
                 userId: caller.userId
             });
-            throw new OAuth2Error(OAuth2ErrorCode.INSUFFICIENT_SCOPE, $ts`The caller holds none of the roles that may introspect.`);
+            throw new OAuth2Error(OAuth2ErrorCode.INSUFFICIENT_SCOPE, $ts`The caller may not use the permission to introspect.`);
         }
         const active: ActiveToken | undefined = await this.findActiveToken(this.validateToken(presentation));
         return active?.introspection ?? { active: false };
@@ -337,7 +340,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         // a token of a login names no client, so no client may revoke it
         this.validateOwnToken(client, active.introspection.client_id);
         await active.strategy.revokeToken(token);
-        this.logger.audit({ action: AuditAction.TOKEN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: active.introspection.sub });
+        this.auditService.record({ action: AuditAction.TOKEN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: active.introspection.sub });
     }
 
     /**
@@ -389,10 +392,12 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         // the clients are api keys
         this.apiKeyService.registerReader(app, 'AuthorizationServerController');
         for (const controller of controllers) {
-            const options: AuthorizationServerControllerOptions<string> = controller.authorizationServerOptions;
-            if (!options.introspectionRoles.length) {
-                throw new InternalError('The AuthorizationServerController names no role that may introspect tokens.');
-            }
+            const options: AuthorizationServerControllerOptions = controller.authorizationServerOptions;
+            this.authService.validatePermissionIsDeclared(
+                'platform',
+                options.introspectionPermission,
+                `${controller.name} in introspectionPermission`
+            );
             for (const resource of options.resources) {
                 if (!URL.canParse(resource) || new URL(resource).hash !== '') {
                     throw new InternalError(
@@ -711,25 +716,21 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
     }
 
     /**
-     * The roles a token a client is issued may use: those it asks for, each one its api key may use
-     * and its user has - of their own, or through a membership in the tenant the key is bound to, or in
-     * any tenant for a key bound to none - or all of those.
+     * The permissions a token a client is issued may use: those it asks for, each one its api key
+     * lists and its user's roles carry - of their own, or through a membership in the tenant the key is
+     * bound to, or in any tenant for a key bound to none - or all of those.
      * @param client - The client.
-     * @param scope - The roles it asks for, separated by spaces.
-     * @returns The roles.
+     * @param scope - The permissions it asks for, separated by spaces.
+     * @returns The permissions.
      * @throws An OAuth2Error `invalid_scope` when it asks for one it may not use.
      */
-    private async resolveGrantedRoles(client: AuthenticatedClient, scope: string | undefined): Promise<string[]> {
-        const tenantId: string | undefined = client.apiKey.tenantId ?? undefined;
-        const memberships: BaseMembership<string>[] = tenantId == undefined
-            ? await this.membershipService.findMemberships(client.user.id)
-            : [await this.membershipService.findMembership(client.user.id, tenantId)].filter(m => m != undefined);
-        const held: Set<string> = new Set([...client.user.roles, ...memberships.flatMap(membership => membership.roles)]);
-        const allowed: string[] = client.apiKey.roles.filter(role => held.has(role));
-        const requested: string[] = scope?.split(' ').filter(role => role !== '') ?? [];
-        const refused: string[] = requested.filter(role => !allowed.includes(role));
+    private async resolveGrantedPermissions(client: AuthenticatedClient, scope: string | undefined): Promise<string[]> {
+        const held: string[] = await this.authService.resolveUserPermissions(client.user, client.apiKey.tenantId ?? undefined);
+        const allowed: string[] = client.apiKey.permissions.filter(permission => held.includes(permission));
+        const requested: string[] = scope?.split(' ').filter(permission => permission !== '') ?? [];
+        const refused: string[] = requested.filter(permission => !allowed.includes(permission));
         if (refused.length) {
-            throw new OAuth2Error(OAuth2ErrorCode.INVALID_SCOPE, $ts`The client may not use the roles ${refused.join(', ')}.`);
+            throw new OAuth2Error(OAuth2ErrorCode.INVALID_SCOPE, $ts`The client may not use the permissions ${refused.join(', ')}.`);
         }
         return requested.length ? [...new Set(requested)] : allowed;
     }
@@ -760,7 +761,7 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
      * @param endpoint - Where the routes answer.
      * @param presentation - The body of the request.
      * @param authorization - The authorization header of the request.
-     * @returns The caller and the roles they hold.
+     * @returns The caller and the permissions of their own.
      * @throws An OAuth2Error `invalid_client` when the request carries no credential, or one that is
      * refused.
      */
@@ -772,17 +773,24 @@ export class AuthorizationServerService implements AuthorizationServerServiceInt
         const presented: PresentedClient | undefined = this.findPresentedClient(presentation, authorization);
         if (presented != undefined) {
             const client: AuthenticatedClient = await this.resolveClient(endpoint, presented, `${endpoint.url}/introspect`);
-            return { userId: client.user.id, roles: client.user.roles.filter(role => client.apiKey.roles.includes(role)) };
+            const platformPermissions: PlatformPermission[] = inject(ZIBRI_DI_TOKENS.ROLE_SERVICE)
+                .resolvePlatformPermissionsOf(client.user.roles)
+                .filter(permission => client.apiKey.permissions.includes(permission));
+            return { userId: client.user.id, platformPermissions };
         }
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
-        const user: BaseUser<string> | undefined = context == undefined
+        const user: CurrentUser | undefined = context == undefined
             ? undefined
             : await this.authService.getCurrentUser<string, BaseUser<string>, false>(context, this.authService.strategies, false);
         if (user == undefined) {
-            this.logger.audit({ action: AuditAction.AUTHORIZATION, outcome: AuditOutcome.FAILURE, reason: AuditReason.NOT_LOGGED_IN });
+            this.auditService.record({
+                action: AuditAction.AUTHORIZATION,
+                outcome: AuditOutcome.FAILURE,
+                reason: AuditReason.NOT_LOGGED_IN
+            });
             throw new OAuth2Error(OAuth2ErrorCode.INVALID_CLIENT, $ts`The request authenticates no caller.`);
         }
-        return { userId: user.id, roles: user.roles };
+        return { userId: user.id, platformPermissions: user.platformPermissions };
     }
 
     /**

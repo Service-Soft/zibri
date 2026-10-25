@@ -62,8 +62,10 @@ export interface EventServiceInterface {
      *
      * What makes an event survive the instance that emitted it: emitting only reaches subscribers
      * in the emitting process, so an event whose instance died would otherwise never be picked up.
+     * @returns Whether any event was due. One that was is a reason to look again soon, since a
+     * pass reads a bounded page of them.
      */
-    dispatchPending: () => Promise<void>,
+    dispatchPending: () => Promise<boolean>,
     /**
      * Records that this instance's subscribers still exist, and clears registrations that have
      * lapsed.
@@ -94,7 +96,7 @@ export interface EventServiceInterface {
      */
     subscribe: <K extends keyof ZibriEventMap>(
         type: K,
-        hook: (value: Event<ZibriEventMap[K]>) => void | Promise<void>,
+        hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
         options: EventSubscribeOptions
     ) => EventSubscriptionInterface | Promise<EventSubscriptionInterface>,
     /**
@@ -104,7 +106,7 @@ export interface EventServiceInterface {
      * This needs to be unique.
      */
     subscribeAll: (
-        hook: (value: Event<ZibriEventMap[keyof ZibriEventMap]>) => void | Promise<void>,
+        hook: (value: Event<ZibriEventMap[keyof ZibriEventMap]>, signal: AbortSignal) => void | Promise<void>,
         options: EventSubscribeOptions
     ) => EventSubscriptionInterface | Promise<EventSubscriptionInterface>
 }

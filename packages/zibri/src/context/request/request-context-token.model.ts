@@ -4,8 +4,7 @@ import { HttpRequestContext } from './http-request.context';
 import { WebsocketRequestContext } from './websocket-request.context';
 import { TwoFactorServiceInterface } from '../../auth/2fa/two-factor-service.interface';
 import { AuthServiceInterface } from '../../auth/auth-service.interface';
-import { CurrentUserMetadata } from '../../auth/decorators/current-user.decorator';
-import { BaseUser } from '../../auth/models/base-user.model';
+import { type CurrentUser, CurrentUserMetadata } from '../../auth/decorators/current-user.decorator';
 import { IsLoggedInMetadata } from '../../auth/models/is-logged-in-metadata.model';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -105,7 +104,7 @@ export const ZIBRI_REQUEST_CONTEXT_TOKENS = {
             // no route is consulted, unlike the two tokens above: whether a second factor was
             // presented is a fact about the request and the user, and a route that accepts only
             // some of the methods states so with `@Auth.require2fa`, which checks them itself.
-            const user: BaseUser<string> | undefined = await ctx.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
+            const user: CurrentUser | undefined = await ctx.get(ZIBRI_REQUEST_CONTEXT_TOKENS.CURRENT_USER);
             if (!user) {
                 return false;
             }

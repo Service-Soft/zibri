@@ -11,7 +11,7 @@ import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { scopeFor } from '../../entity/models/entity-scope.model';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
-import { NotFoundError } from '../../error-handling/errors/not-found.error';
+import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { Repository } from '../repository/repository';
@@ -418,9 +418,10 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             const strangers: Pet = await repositoriesOf().pets.create({ name: 'Rex', keeper: 'someone else' });
             actingKeeper = 'me';
 
+            // refused the way pointing at a row of another tenant is, before anything is written
             await expect(repositoriesOf().households.updateById(household.id, { name: 'renamed', pets: [{ id: strangers.id }] }))
                 .rejects
-                .toThrow(NotFoundError);
+                .toThrow(ForbiddenError);
 
             actingKeeper = undefined;
             expect((await repositoriesOf().households.findById(household.id)).name).toBe('scoped');

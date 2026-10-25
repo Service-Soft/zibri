@@ -2,6 +2,8 @@ import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
 import { Metric } from './metric.model';
+import { MetricsCollector } from './metrics-collector.model';
+import { MetricsExposition } from './metrics-exposition.model';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 
@@ -56,6 +58,11 @@ export interface MetricsServiceInterface {
      */
     getHistogram: (name: HistogramMetricName, labelNames?: string[], buckets?: number[]) => HistogramInterface,
     /**
+     * Adds work that brings gauges up to date before the metrics are read, by `collect` and by
+     * `resolveExposition`.
+     */
+    addCollector: (collector: MetricsCollector) => void,
+    /**
      * Collect a snapshot of every metric’s current samples.
      * This will usually be called in regular intervals, eg. From a cron job.
      *
@@ -65,7 +72,11 @@ export interface MetricsServiceInterface {
     /**
      * Returns all 60 buffered snapshots.
      *
-     * IF YOU WANT A LONGER HISTORY YOU SHOULD USE AN EXTERNAL TOOL LIKE PROMETHEUS TO SCRAPE THE DATA.
+     * For a longer history, have Prometheus scrape what `resolveExposition` answers.
      */
-    getMetricSnapshots: () => MetricsSnapshot[]
+    getMetricSnapshots: () => MetricsSnapshot[],
+    /**
+     * Resolves every metric in the text format a Prometheus server scrapes.
+     */
+    resolveExposition: () => Promise<MetricsExposition>
 }

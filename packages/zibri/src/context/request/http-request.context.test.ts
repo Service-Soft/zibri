@@ -2,7 +2,8 @@
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 
 import { RequestContextToken } from './request-context-token.model';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository } from '../../di/decorators/inject-repository.decorator';
@@ -64,15 +65,15 @@ let baseUrl: string;
 describe('request context integration', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Test] })],
+            dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, Test], repositories: defaultTestServerRepositories })],
             controllers: [ContextTestController]
         });
         baseUrl = await server.start();
-    }, 15000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     test('context is available during exclude/default evaluation and is cached', async () => {
         const res: Response = await fetch(`${baseUrl}/context-test`, { headers: { Authorization: 'admin' } });

@@ -3,7 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { MultithreadingServiceInterface } from './multithreading-service.interface';
 import { MultithreadingService } from './multithreading.service';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
@@ -70,7 +71,7 @@ async function resolveStatus(id: string): Promise<ThreadJobStatus> {
 describe('MultithreadingService, when a thread job row cannot be written', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities })],
+            dataSources: [createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories })],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -81,6 +82,8 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
                         defaultTimeoutMs: Ms.HOUR,
                         defaultTimeoutPriorityMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
+                        maxAttempts: 3,
+                        workerResourceLimits: {},
                         enableTsWorkerFiles: true
                     }
                 }),
@@ -89,7 +92,7 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
         });
         multithreadingService = inject(ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE);
         threadJobRepository = inject(repositoryTokenFor(ThreadJobEntity));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterEach(() => {
         jest.restoreAllMocks();
@@ -97,7 +100,7 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     it('hands the worker back when the completion of a job cannot be recorded', async () => {
         failNextWrite(data => data.status === ThreadJobStatus.COMPLETED);

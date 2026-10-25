@@ -8,6 +8,7 @@ import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber
 import { Event, EventStatus } from './event.model';
 import { EventSubscription } from './event.service';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
@@ -74,7 +75,7 @@ describe('EventService — starting', () => {
 
         await expect(start).rejects.toThrow('Error initializing EventService');
         await expect(start).rejects.toThrow(/Event[\S\s]*EventSubscriberRun[\S\s]*EventSubscriberRegistration/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without saying how long a failed event is kept', async () => {
         const start: Promise<void> = startAndStopTestServerWithout([], {
@@ -85,7 +86,7 @@ describe('EventService — starting', () => {
         });
 
         await expect(start).rejects.toThrow('ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('EventService', () => {
@@ -112,11 +113,11 @@ describe('EventService', () => {
         eventRepo = inject(repositoryTokenFor(Event));
         eventSubscriberRunRepo = inject(repositoryTokenFor(EventSubscriberRun));
         registrationRepo = inject(repositoryTokenFor(EventSubscriberRegistration));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     // a registration outlives the subscription that created it on purpose: unsubscribing here is one
     // process letting go, and any other instance still hosting that subscriber refreshes the row, so

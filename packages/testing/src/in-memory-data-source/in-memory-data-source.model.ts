@@ -1,11 +1,17 @@
 import { Readable } from 'node:stream';
 
-import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, ChangeSet, ChangeSetEntity, ChangeSetRepository, ConvertedValue, DataSourceInitializationError, DataSourceInterface, EntityMetadata, EntityMetadataMissingError, getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, JsonUtilities, type LoggerInterface, MergeEntityInput, MetadataUtilities, MigratedEntityUtilities, Migration, MigrationPropertyMetadata, Newable, ObjectUtilities, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RemovePropertyFromEntityInput, RenameEntityInput, Repository, RepositoryDriverInterface, RepositoryTypeForEntity, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, ValueConversionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, ChangeSet, ChangeSetEntity, ChangeSetRepository, ConvertedValue, DataSourceInitializationError, DataSourceInterface, DataSourceSubscription, EntityMetadata, EntityMetadataMissingError, getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, JsonUtilities, type LoggerInterface, MergeEntityInput, MetadataUtilities, MigratedEntityUtilities, Migration, MigrationPropertyMetadata, Newable, ObjectUtilities, PropertyMetadata, PubSubDataSourceInterface, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RemovePropertyFromEntityInput, RenameEntityInput, Repository, RepositoryClass, RepositoryDriverInterface, RepositoryTypeForEntity, ResolvedPropertyConversion, revertMigrationsAfter, RunInTransactionOptions, runMigrations, runMigrationsAfterRestore, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, TransactionUtilities, ValueConversionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
 
 import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
 import { InMemoryRepositoryDriver } from './in-memory.repository-driver';
 import { RoundTripCounter } from '../round-trip-counter.model';
+
+/**
+ * How long a transaction may sit idle before it is rolled back, when it does not say for itself:
+ * what the data sources it stands in for use.
+ */
+const DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS: number = 10000;
 
 /**
  * The fields to write and to remove for one row, or undefined when the row stays untouched.
@@ -65,15 +71,21 @@ type UpdateStoredRowsResult = {
  * `changePropertyOfEntity` too. A column type that postgres would reject is stored happily here.
  * - **No cross instance locking.** There is only ever one instance of this store, so schema setup
  * takes no lock: nothing else can be setting it up at the same time.
- * - **It cannot carry messages between instances.** `PubSubDataSourceInterface` is deliberately not
- * implemented, matching the postgres data source - a suite about websocket fan out needs valkey.
+ * - **Messages reach the applications of this process only.** `PubSubDataSourceInterface` hands a
+ * published message to every subscriber on the same store, which is every instance there is here.
  */
-export abstract class InMemoryDataSource implements DataSourceInterface {
+export abstract class InMemoryDataSource implements DataSourceInterface, PubSubDataSourceInterface {
 
     abstract readonly entities: Newable<BaseEntity>[];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    abstract readonly repositories: RepositoryClass[];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly migrations: Newable<Migration>[] = [];
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly maxMessageBytes: number | undefined = undefined;
 
     /**
      * Where every call a repository makes on the store is recorded, if anywhere.
@@ -86,7 +98,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
 
     private initialized: boolean = false;
 
-    private readonly repositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
+    private readonly builtRepositories: Map<Newable<BaseEntity>, Repository<BaseEntity>> = new Map();
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
@@ -113,6 +125,15 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         // no lock around this, unlike the shipped data sources. Theirs stops two instances setting
         // the schema up at once, and there is only ever one instance on this store.
         await this.runMigrations();
+        await this.reconcileKeys();
+    }
+
+    /**
+     * Holds the stored rows to what the entities declare, and records a change as the shipped data
+     * sources do.
+     * @throws When stored rows break a unique or a check an entity declares.
+     */
+    private async reconcileKeys(): Promise<void> {
         // there is nothing to build, since every filter goes through the rows and every write is
         // checked against what the entity declares - but rows stored before a unique or a check was
         // declared never were, and a restart over them has to refuse to start as the shipped data
@@ -133,9 +154,30 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     shutDown(): void {
         this.initialized = false;
-        this.repositories.clear();
+        this.builtRepositories.clear();
         // the store is deliberately left alone: an application that is started again on the same
         // store is meant to find its rows, which is what a database does
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async publish(channel: string, message: string): Promise<void> {
+        if (!this.initialized) {
+            throw new DataSourceInitializationError();
+        }
+        // a call on the store like any other, which is what it is on the shipped data sources
+        this.roundTrips?.record(`publish ${channel}`);
+        this.store.publish(channel, message);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
+    async subscribe(channel: string, onMessage: (message: string) => void): Promise<DataSourceSubscription> {
+        const stop: () => void = this.store.subscribe(channel, onMessage);
+        return {
+            // eslint-disable-next-line typescript/require-await
+            unsubscribe: async () => {
+                stop();
+            }
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -151,7 +193,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
         }
 
         // eslint-disable-next-line stylistic/max-len
-        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.repositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
+        const existingRepository: RepositoryTypeForEntity<T> | undefined = this.builtRepositories.get(cls) as RepositoryTypeForEntity<T> | undefined;
         if (existingRepository) {
             return existingRepository;
         }
@@ -169,7 +211,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
             return res;
         }
         if (isChangeSetEntityNewable(cls)) {
@@ -183,7 +225,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
                 this.authService,
                 this.getRepository(ChangeSet)
             ) as RepositoryTypeForEntity<T>;
-            this.repositories.set(cls, res as Repository<BaseEntity>);
+            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
             return res;
         }
 
@@ -195,7 +237,7 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
             getDefaultBeforeSaveHook(),
             getDefaultBeforeReturnHook()
         ) as RepositoryTypeForEntity<T>;
-        this.repositories.set(cls, res as Repository<BaseEntity>);
+        this.builtRepositories.set(cls, res as Repository<BaseEntity>);
         return res;
     }
 
@@ -238,8 +280,12 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
                 + ` "${options.isolationLevel}" is ignored.`
             );
         }
-        // idleTimeoutInMs is ignored rather than unimplemented - see InMemoryTransaction
-        return new InMemoryTransaction(this.store);
+        return new InMemoryTransaction(this.store, options?.idleTimeoutInMs ?? DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS, this.logger);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async runInTransaction<R>(work: (transaction: Transaction) => Promise<R>, options: RunInTransactionOptions): Promise<R> {
+        return await TransactionUtilities.runInTransaction(this, work, options);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -350,6 +396,9 @@ export abstract class InMemoryDataSource implements DataSourceInterface {
             chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
         }
         this.store.restore(JSON.parse(Buffer.concat(chunks).toString('utf8')) as InMemoryStoreSnapshot);
+        // what the backup holds brought in line with this release, as the shipped data sources do
+        await runMigrationsAfterRestore(this.constructor as Newable<DataSourceInterface>, this.migrations, this.logger);
+        await this.reconcileKeys();
     }
 
     /**

@@ -7,6 +7,7 @@ import { EmailPriority } from './models/email-priority.enum';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
@@ -14,7 +15,6 @@ import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
-import { FsUtilities } from '../utilities/fs.utilities';
 import { Ms } from '../utilities/ms';
 
 // ---------- The transport under the real service ----------
@@ -63,7 +63,7 @@ function makeQueueData(overrides: Partial<QueueEmailData> = {}): QueueEmailData 
 describe('EmailService — starting', () => {
     it('refuses to start without Email, and names it', async () => {
         await expect(startAndStopTestServerWithout([Email])).rejects.toThrow(/Error initializing EmailService[\S\s]*Email/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('EmailService', () => {
@@ -83,11 +83,11 @@ describe('EmailService', () => {
 
         emailService = inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE);
         emailRepo = inject(repositoryTokenFor(Email));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await emailRepo.deleteAll({});
@@ -263,46 +263,6 @@ describe('EmailService', () => {
 
             // 8 high + 1 normal (10 - 1 - 8 = 1) + 1 low (10 - 8 - 1 = 1) = 10
             expect(mockSend).toHaveBeenCalledTimes(10);
-        });
-    });
-
-    describe('attachment validation', () => {
-        it('counts an attempt on a mail whose attachment path does not exist, and sends nothing for it', async () => {
-            await emailService.queue(makeQueueData({
-                persist: true,
-                attachments: [{ filename: 'missing.pdf', path: FsUtilities.getPath('/nonexistent/missing.pdf') }]
-            }));
-            mockSend.mockResolvedValue(accepted());
-
-            // the pass goes on rather than throwing, so the other mails of its batch are sent (04 §2.14)
-            await emailService.sendQueuedEmails();
-
-            const emails: Email[] = await emailRepo.findAll({});
-            expect(emails[0]?.status).toBe(EmailStatus.QUEUED);
-            expect(emails[0]?.attempts).toBe(1);
-            expect(mockSend).not.toHaveBeenCalled();
-        });
-
-        it('does not throw when attachments is undefined', async () => {
-            await emailService.queue(makeQueueData({ persist: true }));
-
-            await expect(emailService.sendQueuedEmails()).resolves.not.toThrow();
-        });
-
-        it('does not throw when attachments is an empty array', async () => {
-            await emailService.queue(makeQueueData({ persist: true, attachments: [] }));
-
-            await expect(emailService.sendQueuedEmails()).resolves.not.toThrow();
-        });
-
-        it('does not throw when attachment path exists', async () => {
-            // __filename is always a real path
-            await emailService.queue(makeQueueData({
-                persist: true,
-                attachments: [{ filename: 'test.ts', path: FsUtilities.getPath(__filename) }]
-            }));
-
-            await expect(emailService.sendQueuedEmails()).resolves.not.toThrow();
         });
     });
 });

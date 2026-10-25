@@ -104,7 +104,7 @@ error, zero runtime warning, zero test failure. The endpoint is world-writable.
 > routes still reachable - and `src/auth/default-auth.test.ts` for the warning half, against
 > `auth.service.test.ts` which declares `'public'` and asserts the warning that is correct there.
 
-### A2. Authorization is role-only — no permissions, scopes, ABAC or row-level security — ~~MAJOR~~ **PARTIALLY FIXED**
+### A2. Authorization is role-only — no permissions, scopes, ABAC or row-level security — ~~MAJOR~~ **FIXED**
 
 The full authorization surface is five decorators: `isLoggedIn`, `isNotLoggedIn`, `hasRole`,
 `require2fa`, `belongsTo` (`src/auth/decorators/`). `hasRole` takes a flat `string[]`
@@ -322,13 +322,57 @@ pentests. Multi-tenant SaaS is effectively unsupported.
 > for another account's row - with a `set`, so no increment takes the transaction for it - or for an
 > increment past the quota, each leaving the caller's own row as it was.
 
-> **Permissions and a role hierarchy are deferred, by decision (2026-10-02).** What is left of this
-> finding is the authorization model above the row: `hasRole` takes a flat list, with no permission
-> concept and no role hierarchy. An application composes either from roles and scopes today - a
-> hierarchy is a role list a scope or a `hasRole` call spells out, a permission is a role named after
-> it - so nothing is unreachable, only unshipped. The shape it would take if picked up: a DI token
-> mapping each role to the permissions it carries, checked by an `@Auth.hasPermission`, which covers
-> a hierarchy as well, since one role's permissions can include another's.
+> **Permissions and a role hierarchy closed on 2026-10-20**, in the shape this paragraph had
+> sketched when they were deferred on 2026-10-02. The four decisions were the user's:
+>
+> - **A static map, provided in code** - `ZIBRI_DI_TOKENS.ROLE_PERMISSIONS`, typed
+>   `RolePermissions<TenantRole, PlatformRole, Permission>`, so with the application's enums it has to
+>   name every role. Needed as soon as one route names a permission, and only then. Roles defined at
+>   runtime, per tenant, were set aside as their own question: they need the map behind a service, and
+>   the boot check below needs the permission vocabulary declared in code either way.
+> - **Both levels, mirrored**: `@Auth.hasPermission` reads the membership's roles,
+>   `@Auth.hasPlatformPermission` the user's own, and the map has a half for each. One shared map would
+>   have let a platform `admin` and a tenant `admin` share permissions by name, which is the thing the
+>   two role levels exist to keep apart.
+> - **A route names one permission.** An array would have meant *all of* beside `hasRole`'s array
+>   meaning *any of*, and a route needing two capabilities is the usual place for a third.
+> - **Refused at boot** rather than typed through declaration merging: a route naming a permission
+>   no role in its half carries does not start, and neither does one in an application providing no
+>   map. That catches the misspelling and the wrong level (a platform permission behind
+>   `hasPermission` can never be held), without the `ZibriEventMap` trap of a merged interface that
+>   is empty under the build.
+>
+> **A permission costs what a role costs.** The map is inverted once, in the constructor, into the
+> roles carrying each permission, and the check is `hasRole` with those roles - the membership the
+> request already resolved, no round trip of its own. That also makes api keys free: a key's roles are
+> narrowed before any check reads them, so it holds the permissions of those roles and no others.
+> The constructor rather than `onAppInit`, because routes are resolved while the router initializes,
+> which is before this service is.
+>
+> **Manual routes had no registration time check at all.** A controller route's declaration is
+> resolved, and refused, when it is registered; a `registerRoute` route's `auth` was read per request
+> and never looked at before. `AuthServiceInterface.validateRouteAuth` is called from `registerRoute`
+> now, so a manual route naming a permission nothing carries is refused there too.
+>
+> The resolution of a check beside its skips was already shared by both role levels and became
+> generic over the metadata, so the permission decorators get the same contradiction errors and
+> "useless skip" warnings. A refusal is audited as `MISSING_PERMISSION`; the OpenAPI document carries
+> `x-permission` and `x-platform-permission`; `runChecks` lost its four role and permission checks to
+> `validateRolesAndPermissions` on the way past the complexity limit.
+>
+> **What it does not cover.** A scope is told the membership and the user but not their permissions,
+> so a scope asking one goes through `AuthService.hasPermission` with `requestContext`. `hasRole` and
+> `hasPlatformRole` still take plain strings, so a misspelled role compiles, boots and locks everyone
+> out. A policy engine stays declined, as above. The model itself is reworked under §A5, and the
+> rest is filed as §A6-§A9.
+>
+> Held by `src/__testing__/evaluation/auth-permissions.evaluation.test.ts` (in memory, eleven cases,
+> red first on the missing decorator): a member let in and refused, the refusal in the audit trail, a
+> role above another, a key narrowed to fewer roles, a platform permission never read off a
+> membership, a route skipping its controller's permission, a manual route checked and refused at
+> registration, and the three startup refusals. Mutation-checked by ignoring the permission named (3
+> fail), reading the platform permission off the membership (1) and disabling the boot check (4).
+> `open-api.service.test.ts` holds the two extensions.
 
 ### A3. JWT `isLoggedIn` / `hasRole` never touch the database — ~~CRITICAL~~ **FIXED**
 
@@ -425,6 +469,438 @@ deputy; audit logs attribute actions to the wrong principal.
 > Presence, never validity: a bad token still claims the request. Answering "no credential" for a
 > token that fails to verify would let an attacker pair a junk bearer header with a victim's cookie
 > and have the cookie quietly win - the exact substitution this closes.
+
+### A5. Roles are strings nothing declares — ~~MAJOR~~ **FIXED**
+
+*Filed on 2026-10-20, from what §A2 does not cover, reshaping what it built.*
+
+`@Auth.hasRole` and `@Auth.hasPlatformRole` take plain strings, so a misspelled role compiles, boots
+and locks everyone out of the route. The roles a user or a membership holds are checked against the
+enum handed to `BaseUserEntity(Role)` / `BaseMembershipEntity(Role)`, and the permissions of §A2
+against a separate `ROLE_PERMISSIONS` map: two declarations of the same roles, with nothing saying
+they agree, and one shared enum for both levels that invites a platform `admin` and a tenant `admin`
+to be the same role.
+
+Decided with the user: one declaration, `ZIBRI_DI_TOKENS.ROLES_AND_PERMISSIONS` =
+`{ permissions, roles: RoleDefinition[] }`, a `RoleDefinition` being `{ value, level: 'tenant' |
+'platform', permissions }`. Undefined by default and read only by the default `AuthService`, so an
+application with an auth setup of its own or none at all never meets it; anything that names or
+writes a role or a permission without it finds it unknown, so it is required exactly where it is
+used. Refused at boot: duplicate roles or permissions, a role carrying an undeclared permission, a
+route naming an unknown role or permission, a role or permission of the other level. The entities
+stop taking an enum and check the roles written to them against the declared roles of their level,
+which removes the second declaration rather than checking it, and is the one shape that survives
+roles defined at runtime (§A8). No `both` level, no display name: a role means one thing at one
+level, and how an application shows it is the application's.
+
+> **Closed 2026-10-20.** The two open questions were answered by the user: a declared permission no
+> role carries is **allowed silently**, and a stored role that is no longer declared **refuses the
+> start** - a scan at boot, accepted as the price until §A8 handles it differently.
+>
+> **The write half did not exist to be moved.** Repositories never checked an entity's properties on
+> write - the save hook applies defaults, encryption and hashing - so the role enum on
+> `BaseUserEntity(Role)` was enforced only where a request body happened to be parsed into the entity.
+> `users.create({ roles: ['typo'] })` from code was stored. Roles are checked now by a
+> `RoleValidatingRepositoryDriver`, wrapped around every driver beside the membership one, because a
+> save hook is the repository's to replace and the driver is the one seam every write goes through:
+> `save`, `insert`, `updateEach`, `updateAll` and `upsert`, the role an upsert sets on a row already
+> there included. It asks `AuthServiceInterface.validateRoles(level, roles)`, so the declaration stays
+> the default auth service's, as decided, and a write leaving the roles alone costs a set lookup.
+>
+> **The boot scan is one query per user and membership entity**, `{ roles: { where: { notOneOf } } }`,
+> streamed, so only rows holding an undeclared role are read; nothing declared is said as
+> `lengthGreaterThan: 0` rather than an empty list a store would have to turn into sql. It reads
+> every tenant and skips scopes. Its cost is a full read of both tables on every boot of every
+> instance, which is the price the user accepted.
+>
+> **That query was the first `where` on a list of values postgres was asked, and postgres refused
+> it.** The type offers `where` on any array, the evaluator answers it item by item and scope merging
+> reads it the same way, but the postgres converter threw "requires an array of objects", on a column
+> and inside json alike - so with the scan on every boot, every postgres-backed application failed to
+> start, which the in-memory run could not show. Postgres now asks each item what a value inside a json
+> column is asked: a real array column is read through `to_jsonb`, an array inside json directly, and
+> the condition is built by the one builder json values already used. The same builder had a second
+> difference from the evaluator: several conditions on a value inside json meant an exact array match
+> to postgres and "any of them" everywhere else; it is "any of them" now, an empty list matching
+> nothing. Held by `src/data-source/where/item-where.cases.ts` (six cases), run in memory by
+> `item-where.test.ts` and on postgres and valkey by `item-where.postgres-valkey.test.ts`; the postgres
+> case in `where-filter.test.ts` that asserted the refusal asserts what a condition no item can be
+> asked is refused with instead.
+>
+> **Reading that run turned up a leak in the harness.** `startDataSourceContainers` started a
+> server's containers in one `Promise.all`: a start that failed left the others starting with nothing
+> to stop them, and a postgres container whose role could not be provisioned was never stopped
+> either. Both ran until the process ended, and the docker calls they still waited on landed after
+> their suite was torn down, failing as `Right-hand side of 'instanceof' is not an object` inside
+> docker-modem instead of with what had stopped the suite. It waits for every start now, stops what
+> started and then throws, and each container carries `CONTAINER_PROCESS_LABEL` with the pid that
+> started it, since testcontainers' session label is shared by every worker of a run. Held by
+> `src/application/test-server-containers.test.ts` (container backed, red first): a server given one
+> data source that provisions and one that cannot leaves none of its process's containers running.
+>
+> **The clean up itself could replace the error it cleaned up after.** The next run failed
+> `websocket-body-type.test.ts` with docker's `409 cannot remove container ... container is running`
+> instead of the boot refusal the suite asserts: removing a container docker had just killed raced, the
+> stop rejected, and the rejection was what `startTestServer` threw. Every clean up after a failure -
+> a server's start and `reInit`, a container start, a cluster's start - goes through
+> `settleAfterFailure` now, which waits for all of it, logs what fails as a warning and leaves the
+> original error to be thrown. Held by a second case in the same file, red first: an init hook removes
+> the process's containers and fails the start, and the start reports the hook's error rather than
+> the 404 stopping them answers with.
+>
+> **What the split cost was the fixtures.** One `Roles` enum served both levels throughout the suite,
+> which unique values forbid: `MemberRoles` (`MEMBER_ADMIN`, `MEMBER_USER`) holds the tenant roles now,
+> and every membership write and tenant check moved to it. Cases asserting that a membership role is
+> no platform role - meaningful only while one name existed at both levels - were rewritten to keep
+> what they assert rather than swap names. The new check found the first mistake itself: a controller
+> of its own suite naming a role the suite's application had not declared.
+>
+> **Consequences the decisions had**, both visible in the API:
+> - A permission has no level, only roles do. With unused permissions allowed, a tenant route naming a
+>   permission only platform roles carry starts and refuses everybody - the check §A2 had for that is
+>   gone, and the §A2 suite asserts the refusal instead.
+> - `BaseScimProvisioner` loses its role parameter: one role type could no longer describe both a
+>   user and a membership, and the parameter only constrained the two entity types, which carry their
+>   own. `ScimController`'s `roles` are a tenant check, so the boot check covers them already.
+>
+> Held by `src/__testing__/evaluation/auth-role-declaration.evaluation.test.ts` (in memory, fifteen
+> cases, red first): the startup refusals (an undeclared role, both wrong levels, an undeclared
+> permission, nothing declared, a role and a permission declared twice, a role carrying an undeclared
+> permission) beside a control that starts, the write refused on every path and over http with `400`,
+> a write leaving the roles alone, both levels crossed, a manual route, and the boot scan for users and
+> for memberships. Mutation-checked: the write check off (3 fail), only the upsert's conflict set off
+> (1), the boot scan off and the undeclared-role refusal off (4). The §A2 suite moved to the
+> declaration. Sandbox and `zi new` declare `ROLES_AND_PERMISSIONS`, with `MemberRoles` beside
+> `Roles`; the parity list follows the recorded diffs.
+
+### A6. Roles named outside the decorators are not checked — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-20, from §A5.*
+
+§A5 checks what routes declare. Roles are also named by the SCIM controller's `roles` option, the
+authorization server's introspection roles, `OPEN_API_AUTH` and `createApiKey`, and none of them
+would be checked against the declaration. A scope is told the caller's user and membership but not
+their permissions, so a scope asking one has to reach for `AuthService.hasPermission` itself.
+
+Open: whether a scope is given a set of permissions or a `hasPermission` function, and whether the
+SCIM and introspection options name a permission rather than roles, since both describe a capability.
+
+> **Fixed on 2026-10-20, site by site, and two of the four were already held.** `OPEN_API_AUTH`
+> reaches the router through `registerRoute`, which checks every route it registers in any phase, so
+> its routes were refused with an undeclared role since §A5; the SCIM `roles` became an
+> `@Auth.hasRole` on the controller and were checked as well. The introspection roles were compared
+> by hand against the caller's own roles, and nothing at boot read them but for being empty.
+> `createApiKey` is safe transitively, a key using only roles its user holds and those being declared
+> now, but a typo there is answered "the user does not have the roles" rather than "not declared" -
+> left to §A7 at the user's call, since §A7 may replace a key's roles altogether.
+>
+> **SCIM and introspection name a permission now** (`permission`, `introspectionPermission`), the
+> user's choice: both describe a capability, and a permission is what survives §A8 - a role made at
+> runtime can carry `scim.provision`, and code can never name it as a role. SCIM is asked as a tenant
+> permission through `@Auth.hasPermission`, introspection as a platform permission through
+> `AuthService.findRolesCarrying('platform', ...)`, since its caller may be a client authenticated by
+> the body rather than a request user; the refusal is audited as `missing-permission`. The option
+> types lost their role type parameter, which typed nothing a string does not.
+>
+> **A scope asks what a route asks.** `EntityScopeContext` carries `hasPermission` and
+> `hasPlatformPermission`, async and delegating to the auth service for the request, so a scope is
+> answered with the credential's narrowing and the per-request memo a route gets, and pays for
+> nothing it does not ask; no outside a request. Sets were the alternative: computed on every scoped
+> call, and `.has('typo')` is just false.
+>
+> **A check from code naming what is not declared answers no and warns once**, the user's choice
+> over throwing: `hasRole`, `hasPlatformRole`, `hasPermission` and `hasPlatformPermission` look each
+> name up (a map lookup per role, which route checks pay as well) and warn once per check and name,
+> kept in a set bounded by the names the code is written with - per request would flood a hot path.
+> `findRolesCarrying` and `validatePermissionIsDeclared` are on `AuthServiceInterface`, the second for
+> anything naming a permission outside a route, starting with the authorization server.
+>
+> Held by `src/__testing__/evaluation/auth-permission-sites.evaluation.test.ts` (in memory, seven
+> cases, red first): the three startup refusals (SCIM, introspection, `OPEN_API_AUTH`, the last one
+> holding what already worked), a scope asking for a permission, answered through the credential's
+> narrowing and no outside a request, and code naming an undeclared permission and a role of the
+> other level answered no with one warning each over two requests. Mutation-checked: the warning in
+> `hasRole` off (1 fails), the scope answering from the membership alone (2), the introspection check
+> at boot off (1). A start that is not refused is shut down again, so one case starting wrongly does
+> not take the others down. The SCIM and authorization server suites declare their permission.
+
+### A7. A credential is limited to roles, not to permissions — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-20, from §A5.*
+
+An api key is limited to a subset of its user's roles, and an OAuth2 client's `scope` is that list
+of roles (`authorization-server.service.ts`, `scope: roles.join(' ')`). With permissions, the usual
+shape is a fine grained credential: it holds what its user's roles carry, narrowed to the
+permissions it lists, so revoking a role still takes from every key at once.
+
+Open: permissions instead of roles or beside them (breaking for `ApiKeyCreateData.roles`), and
+whether OAuth2 scopes become permissions. Left here from §A6: `createApiKey` naming a role that is
+not declared is refused as "the user does not have the roles", not as undeclared.
+
+> **Decided on 2026-10-21, before building it:** a key and the token it is exchanged for list
+> permissions only, and an OAuth2 `scope` names permissions. Asking whether a key limited to
+> permissions holds a role led to [§A10](#a10-code-checks-roles--minor-fixed), done first: no code
+> asks for a role any more, so there is nothing for a key to hold but permissions.
+>
+> **Fixed on 2026-10-21.** `ApiKeyCreateData` and the `ApiKey` entity carry `permissions` in place
+> of `roles`, `CredentialLimits` the same, and a client's token carries them as its `scope`. A
+> credential no longer narrows the roles of the user or membership a strategy resolves: the
+> `AuthService` narrows what those roles carry, in `hasPermission`, `hasPlatformPermission` and
+> `getCurrentUser`, from the limits it now reads once per request, as it reads the membership. So a
+> role taken from a user is still taken from every key at the next request. The checks stay a
+> lookup in the declaration's index and a list search; nothing reads more per request than before.
+>
+> Creating a key refuses a permission that is not declared as such, before asking what the user
+> holds (`validatePermissions`, a `BadRequestError`, closing what §A6 left), and one no role of the
+> user carries, of their own or through a membership in the key's tenant or any (the new
+> `resolveUserPermissions` of the service). The token endpoint grants, and refuses as
+> `invalid_scope`, by the same answer, and introspection of a key, a client's token or a login's
+> token answers it as the `scope`. The introspecting caller sending a key has to have it list
+> `introspectionPermission`.
+>
+> **A client's token carries the user's own roles** in a `roles` claim beside the `scope`, as a
+> login's token does, so a deployment that trusts the credential (`REVALIDATE_USER_ON_AUTH_CHECK`
+> false) still checks a platform permission without reading the user. Its claimed user had been
+> built from the `scope`, which names permissions now.
+>
+> Found on the way: the test harness reported a failing clean up after a failed start through the
+> application's logger, which reads the request context out of the container the shut down
+> application took with it, so the logger's error replaced the one that stopped the suite; it
+> writes to the console now (`settleAfterFailure`, red in `test-server-containers.test.ts`).
+>
+> Executable form: `auth-credential-permissions.evaluation.test.ts`, eight cases, mutation checked
+> against ignoring the key in `hasPermission`, handing a handler unnarrowed permissions, and
+> skipping the declared check. The suites of §A2, §A6 and §A10 create keys listing what the member
+> holds, the case of §A2 narrowing a key lists permissions.
+
+### A8. Roles cannot be defined at runtime — ~~MAJOR~~ **FIXED**
+
+*Filed on 2026-10-20, from §A5.*
+
+Every role is declared in code, so an administrator who needs a role between two existing ones
+needs a deployment. Permissions stay in code, since the code checks them; roles split into
+**built in** ones, declared in code and the only ones code may name, and **custom** ones, rows that
+carry permissions and are only ever checked through them.
+
+What it needs: a role source behind an interface (the token by default, a repository the
+application declares like its memberships); role operations on `AuthService`, audited; a guard so
+that a caller can only create or assign a role whose permissions they hold, without which every
+role editor is a way to promote oneself; and an answer for deleting a role users hold - refused
+while held, or removed from every holder in the same transaction through the store's own array
+operations.
+
+The hard part is the cost. A permission check is free today, and the revocation standard of §A3 is
+the next request. The existing cross instance invalidation polls every two seconds, which is a
+window; the alternatives are a version read per request or reading the role rows with the
+membership. Decided by measuring with `test:benchmark`, not by argument.
+
+Open: whether built in roles can be changed at runtime (proposed: no), the delete semantics, the
+caching strategy and its staleness, how SCIM groups map onto custom roles, and whether `hasRole`
+stays recommended once most roles are data.
+
+> **Changed by [§A10](#a10-code-checks-roles--minor-fixed) on 2026-10-21:** `hasRole` is gone, so
+> code checks permissions only and no role is named by a check. What is left of built in roles is
+> code that assigns one by name, such as a sign-up giving every new user `USER`.
+>
+> **Decided on 2026-10-21, before building it.** The user's calls:
+> - **Every role is a row**, with no built in and custom split and no "custom" in any name. Roles are
+>   data, permissions stay in code. The application declares a role entity extending
+>   `BaseRoleEntity` (`name`, unique across both levels; `level`; `permissions`), so it can keep a
+>   description or anything else beside a role, and marks its repository with `@RoleRepo()`, as it
+>   does its memberships. Code assigning a role by name, such as a sign-up, names a row the
+>   application creates, in a migration or its default data.
+> - **The checks read memory, invalidated through `CacheInvalidation`**. The `RoleService` keeps
+>   every role indexed by name and by permission, reads it at start, and reads it again whenever a
+>   role is written, through a listener the `CacheService` now runs for a tag on every instance.
+> - **Deleting a role is refused while somebody holds it.**
+> - **A `RoleService` owns the operations**: find, create, update, delete, assign and unassign, each
+>   audited (`ROLE_CREATED` to `ROLE_UNASSIGNED`, with the role on the event).
+> - **Fine grained permissions guard them**, checked inside the service against the
+>   `CurrentUser` handed in: `auth.{create,update,delete}_{role,platform_role}.with_{own_permissions,any_permission}`
+>   and `auth.{assign,unassign}_platform_role...` as platform permissions, and
+>   `auth.{assign,unassign}_role...` as tenant permissions checked in the tenant the role is given
+>   in. "As fine grained as possible: roles exist to bundle capabilities" - and delete has the two
+>   reaches too, since too coarse breaks a use case and too fine is at most a little annoying.
+>   `with_own_permissions` allows a role whose every permission the caller holds at its level, which
+>   is the escalation guard: an update is checked against the role as it is and as it becomes. Zibri
+>   exports them as `ZIBRI_PERMISSIONS` and `ZIBRI_PLATFORM_PERMISSIONS`, and refuses an operation
+>   whose permissions the application did not declare.
+> - **Tenant and platform permissions are declared apart and typed apart**, the user's addition:
+>   `definePermissions` and `definePlatformPermissions` are plain functions returning an object of
+>   `UPPER_SNAKE` keys of branded `Permission` and `PlatformPermission` values, and every decorator
+>   and option takes only the brand of its level, so asking for a platform permission with
+>   `@Auth.hasPermission` does not compile. `ZIBRI_DI_TOKENS.PERMISSIONS` replaces
+>   `ROLES_AND_PERMISSIONS`.
+>
+> The cost question of the finding answered itself through that choice: a check is still a lookup
+> in memory, so nothing per request changed and there was nothing to benchmark. What a change costs
+> is reading every role once per write on every instance. The staleness is the one the open part
+> named: a change to what a role carries applies on the instance that wrote it at once, and on the
+> others within the poll interval of `CacheInvalidationCronJob`. Giving a user a role or taking it is
+> a write to the user or membership and stays revoked at the next request (§A3).
+>
+> The other open questions: no role is built in, so none is protected from being changed; SCIM maps
+> its groups onto roles by name as before, through the provisioner, and a name that is no role of
+> its level is refused like any other write; `hasRole` is gone (§A10).
+>
+> **Fixed on 2026-10-21.** Every write of a user's or membership's roles is checked by the
+> repository driver against the rows (a name a moment old on another instance is read again before
+> it is refused), every write of a role row against the declared permissions of its level, and
+> every write after commit reports the change. Removing a held role is refused for every way a row
+> is removed. Starting is refused while a stored role carries a permission no longer declared at its
+> level, while a stored user or membership holds a role that does not exist at its level, and for an
+> application with users but no `@RoleRepo`. `CacheInvalidation` is therefore needed by every
+> application with users.
+>
+> Found on the way, fixed red first: renaming a role, or moving it to the other level, while
+> somebody held it, left its holders with a name no role was, which a role created with that name
+> later would give back silently. Refused while held now, in `save`, `updateEach`, `updateAll` and
+> `upsert`, held by a case of the §A5 suite.
+>
+> Executable form: `auth-roles-as-data.evaluation.test.ts`, twelve cases: permissions typed by
+> their level, a role created at runtime letting its holder in without a deployment, a permission
+> taken from every holder at the next request, a permission undeclared at the role's level refused
+> however the row is written, a role that does not exist or is of the other level refused on a user
+> and a membership, delete refused while held, the application's own columns kept, create with own
+> and with any permission, update checked before and after, assign in a tenant within what the
+> caller holds there, and every operation refused to a caller holding none of the permissions.
+> `roles.cluster.test.ts` holds the other instance: a role created on one is honoured on the other,
+> and its revocation there too, within the poll window. `role.service.test.ts` holds the
+> refusal without a role repository, and the suites of §A2, §A5, §A6, §A7 and §A10 seed their roles
+> as rows.
+
+### A9. A tenant cannot define its own roles — ~~MAJOR~~ **FIXED**
+
+*Filed on 2026-10-20, from §A5.*
+
+§A8 at tenant level: a tenant administrator creates the roles of their own organization, visible
+and assignable in that tenant only. A membership's roles are then checked against the built in
+tenant roles and that tenant's custom roles; the escalation guard of §A8 applies within the tenant,
+and the level of §A5 already keeps platform permissions out of reach. Caching is per tenant, and
+one tenant's role must be invisible and unassignable in another, held by the tenant isolation
+cases. It is also what [§H20](#h20-a-tenant-cannot-bring-its-own-sign-in--open) would map an
+identity provider's groups onto.
+
+> **Changed by [§A8](#a8-roles-cannot-be-defined-at-runtime--major-fixed) on 2026-10-21:** roles are
+> rows of one shared entity, guarded by permissions, so a tenant's own role could be a tenant role
+> with a nullable `tenantId`: the index, the checks and the guards stay, keyed by tenant as well.
+> The name being unique across both levels would then be unique per tenant.
+>
+> **Decided on 2026-10-21, before building it.** The user's calls:
+> - **Always on, in `BaseRoleEntity`**: it carries `tenantId`, optional, so the role entity is
+>   declared with `@Entity()` and is an ordinary entity whose tenant is optional. The data layer's
+>   tenant isolation does the narrowing: outside every tenant its repository reaches the roles every
+>   tenant shares, inside a tenant those and the tenant's own, writing the tenant's own only. A
+>   shared role entity is refused at start.
+> - **Named apart from the shared roles**: two tenants can each have `editor`, no tenant's own role
+>   shares a name with a role every tenant shares, refused both ways.
+> - **Any tenant permission**, limited by the guard alone, no application-declared ceiling.
+> - **Read lazily per tenant, bounded**: a tenant's own roles are read with the first check in that
+>   tenant that needs them, kept in an `InMemoryCacheStore` (least recently used out first, the
+>   store's default bound of 5000 tenants and 25 MB), and invalidated per tenant. The roles every
+>   tenant shares stay read at start.
+>
+> My calls, stated before building and not objected to: the guards are tenant permissions checked
+> in the tenant, `auth.{create,update,delete}_tenant_role.with_{own_permissions,any_permission}` in
+> `ZIBRI_PERMISSIONS` (a permission is declared at one level, so the platform `auth.create_role` for
+> a shared tenant role could not be reused); a platform role never belongs to a tenant; `createRole`
+> takes the `tenantId` explicitly, without it the role is shared.
+>
+> **Fixed on 2026-10-21.** The check path stays in memory and a tenant without roles of its own
+> costs nothing: only a role every tenant does not share loads the tenant's index, read once
+> however many requests arrive at a time, and a read overtaken by a write is not kept. A write to
+> roles reports the tenants of the rows it touched, read before and after, so a role leaving a
+> tenant is forgotten there too; the invalidation tag is `zibri.roles:<tenant>`, for which
+> `CacheService.registerInvalidationListener` now takes a tag matcher and hands the listener the
+> tag. `RoleServiceInterface` splits by level like the permissions do: `resolvePermissionsOf(roles,
+> tenantId)` (async) and `resolvePlatformPermissionsOf`, `validateRoles(roles, tenantId)` and
+> `validatePlatformRoles`; `findRolesCarrying` is gone, a check resolves what the held roles carry.
+> `resolveUserPermissions` across tenants resolves each membership in its own tenant, where the
+> same name can carry something else.
+>
+> Every write is checked as the write leaves the roles, merged over the rows it changes: a platform
+> role of a tenant, a name clashing with the other kind, and renaming, moving level or tenant, or
+> deleting a role still held, where a tenant's own role counts as held by the members of its tenant
+> alone. Starting is refused for a tenant's own role at the platform level, or carrying an
+> undeclared tenant permission (streamed, a full scan of the tenants' roles, like the membership
+> scan §A5 accepted), and for a membership holding a role that is neither shared nor its tenant's
+> own.
+>
+> Found on the way, fixed red first: an upsert setting `name` on a conflict escaped §A8's
+> rename-while-held check, which read only `roles`, `level` and `permissions` of what an upsert sets.
+> Reachable for a role entity declaring a unique besides the name to meet a role by, since an
+> upsert cannot change its own identity; held by `role-validating.repository-driver.test.ts`.
+>
+> Found by the first cluster run, fixed red first: a tenant's index was kept in an
+> `InMemoryCacheStore`, which keys every entry by the tenant active when it is asked. Kept by a
+> check inside the tenant and forgotten by an invalidation applied outside every tenant - another
+> instance's write, through the poll, or a write with `acrossTenants` on this one - the two reached
+> different entries and the instance went on answering with the old permissions. Every access now
+> runs in the tenant itself. Held by the case for a write from outside every tenant; the round trip
+> case now counts from the first check after the write, the membership write that gives the role,
+> since that check keeps the index for the requests after it.
+>
+> Executable form: `auth-tenant-roles.evaluation.test.ts`, thirteen cases: a tenant's own role created
+> and its holder let in, invisible and unassignable in another tenant however the membership is
+> written, one name in two tenants carrying different permissions, names apart from the shared ones
+> both ways, the tenant guards with both reaches and a platform permission not standing in for
+> them, another tenant's id refused, a platform role of a tenant refused through the service and
+> the repository, delete refused while held in its own tenant only, a change applying at the next
+> request, also when written from outside every tenant, the tenant's roles read once and not per request (round trips counted), and both start
+> refusals. Mutation checked against keeping nothing per tenant, the held check across all tenants
+> and dropping the name check; an explicit check of the tenant on create was removed when its
+> mutation stayed green, the data layer refusing the row already. `roles.cluster.test.ts` gained a
+> tenant case: a tenant's own role read on the second instance and revoked on the first is refused
+> there within the poll window.
+
+### A10. Code checks roles — ~~MINOR~~ **FIXED**
+
+*Filed on 2026-10-21, from §A7.*
+
+Code named roles in two ways besides assigning them: `@Auth.hasRole` and `@Auth.hasPlatformRole`
+checked them, as did `hasRole` and `hasPlatformRole` of the `AuthService`, and the user and
+membership a handler or a scope got carried `roles` for a check of its own. A role made at runtime
+(§A8, §A9) can be named by neither, and a credential narrower than its user (§A7) has no honest
+answer to "does it hold `ADMIN`": either the role check gives it more than it lists, or the role
+check refuses it everywhere.
+
+> **Fixed on 2026-10-21: code asks for a permission, never for a role.** The user's call, over
+> deciding when a permission-limited credential holds a role. The two role decorators, their
+> metadata, `hasRole` and `hasPlatformRole` of the service, `resolveHasRoleMetadata`, the role
+> checks of a manually registered route and of `OPEN_API_AUTH`, the `missing-role` audit reason
+> and the `x-roles` of the OpenAPI document are gone; the explorer badges the permission instead.
+>
+> **What a request is handed says what it may do.** `@CurrentUser()` and `getCurrentUser` hand out
+> a `CurrentUser<User>`: the user without `roles`, with `permissions` (what the roles of the
+> membership in the active tenant carry) and `platformPermissions` (what the user's own carry), both
+> after the credential's narrowing, from a role → permissions index built at boot. The membership
+> `getCurrentMembership` answers and a scope is told is a `CurrentMembership`, without `roles`.
+> Computing them costs the membership read every logged in request in a tenant already makes, which
+> is memoized per request. The user asked about leaving the roles on, optionally, for a handler that
+> checks whether somebody already holds a role before giving it: that is a question about stored data
+> rather than about the request, answered by the row (`findMembership`), which a token-claimed user
+> may have stale and which the write needs anyway. Roles on the request would bring back
+> `user.roles.includes(...)` as the unchecked role check this removes.
+>
+> **The two factor surface took the split.** Its service and methods took `UserType extends
+> BaseUser<Role>` while reading nothing but the account, and the auth controller passes its
+> `@CurrentUser` straight in: they take `UserType extends UserAccount` now, the user without roles
+> that a stored user and a `CurrentUser` share. `isAllowedToConnect` of the websocket options gets a
+> `CurrentUser`. Introspection compares the caller's `platformPermissions`, and
+> `AuthServiceInterface.findRolesCarrying` (§A6) became `resolvePermissionsOf(level, roles)`.
+>
+> Held by `src/__testing__/evaluation/auth-permissions-only.evaluation.test.ts` (in memory, six
+> cases, red first): no role decorator, a manual route naming a role refused by the compiler
+> (`@ts-expect-error`, enforced by `npm run typecheck`), no role check on the service, a handler
+> handed the permissions of both levels and no roles, the same narrowed by an api key, and a scope
+> reading the permissions. Mutation-checked: the roles left on the user (1 fails), the tenant
+> permissions read past the credential (2), the roles left on the membership (1). The test fixtures'
+> roles each carry one permission named like them (`TestPermissions`), so every former role check
+> became the permission only that role carries and asserts what it did. §A5's suite lost its two
+> cases refusing a route naming an undeclared role or one of the wrong level, which no route can
+> express any more; §A6's code check asks an undeclared platform permission where it asked a role of
+> the other level. The sandbox's one role check became `@Auth.isLoggedIn()`, which every sandbox
+> user passes, keeping its declaration the scaffold's.
 
 ---
 
@@ -3855,6 +4331,12 @@ at the authorize route). Each was left out without being asked about.
 > route as a method the controller does not answer, which it now does: the case asserts the same refusal
 > for a `GET` to `logout/soap`. `zibri-testing`'s fake provider takes posted logout requests and SOAP
 > logout, can name its logout url for posted forms only, and answers by posting when asked to.
+
+> **Regressed in `7249d91`, fixed 2026-10-20.** The two logout services added to the metadata were
+> written with `binding` and `location`: xml attributes are case sensitive, so an identity provider
+> reading the metadata found a redirect and a SOAP logout service with no binding and no url. The case
+> naming the three services in the metadata had been red since that commit, and was found while running
+> the in-memory suites for §A5.
 
 ### H24. An api key records no last use, and expired keys are never removed — MINOR, **FIXED**
 

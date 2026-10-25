@@ -9,8 +9,9 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { PeppolConformanceService } from './peppol-conformance.service';
 import { XRechnungConformanceService } from './x-rechnung-conformance.service';
+import { TestTimeouts } from '../../../../../__testing__/constants';
 import { companyInfoProvider } from '../../../../../__testing__/mocks/company-info-provider.function';
-import { defaultTestServerEntities } from '../../../../../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../../../di/inject.function';
@@ -292,7 +293,7 @@ describe('the electronic invoices, checked by the KoSIT validator', () => {
 
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation] })],
+            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, Invoice, NumberInvoices, InvoiceRecipientAbbreviation], repositories: defaultTestServerRepositories })],
             plugins: [new ZibriInvoicingPlugin()],
             providers: [
                 ...defaultTestServerProviders,
@@ -351,7 +352,7 @@ describe('the electronic invoices, checked by the KoSIT validator', () => {
     afterAll(async () => {
         await validator?.stop();
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     describe.each(FORMATS.map(f => [f.name, Object.keys(f.invoices)] as const))('%s', (format, names) => {
         it.each(names)('accepts the invoice "%s", with no error', async name => {

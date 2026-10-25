@@ -1,24 +1,26 @@
 # Request context
-Zibri tracks per-request data (the incoming request/response, the matched controller, and lazily-computed values like the current user or locale) using `AsyncLocalStorage`. Any service, deep in a call chain, can `inject()` the currently active context without it being threaded through as a function argument.
+The request context holds what belongs to the request being handled: the incoming request and response, the matched controller, and values computed once per request, such as the current user or locale. Any service, deep in a call chain, can `inject()` the active context without it being passed down as an argument.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `AlsUtilities` | class | Static wrapper around the `AsyncLocalStorage` instances that hold the active contexts |
+| `AlsUtilities` | class | Runs code inside a context, and reads the active ones |
 | `BaseContext` | class | Base class all contexts extend, holding the per-request token value cache |
 | `HttpRequestContext` | class | Context for an incoming HTTP request |
 | `WebsocketRequestContext` | class | Context for an incoming websocket request |
+| `HttpRequest` | type | An incoming HTTP request, the `request` of an `HttpRequestContext` |
+| `WebsocketRequest` | class | An incoming websocket request, the `request` of a `WebsocketRequestContext` |
 | `CacheContext` | class | Context describing a cache operation currently in flight |
-| `RequestContextToken` | class | Defines a lazily-computed, per-request value with a unique key |
-| `ZIBRI_REQUEST_CONTEXT_TOKENS` | const | The built-in request context tokens (current user, locale, version, ...) |
+| `RequestContextToken` | class | Defines a value computed once per request, on first access, under a unique key |
+| `ZIBRI_REQUEST_CONTEXT_TOKENS` | constant | The built-in request context tokens (current user, locale, version, ...) |
 | `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` | DI token | Injects the currently active `HttpRequestContext \| WebsocketRequestContext`, or `undefined` |
 | `ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT` | DI token | Injects the stack of currently active `CacheContext[]`, or `undefined` |
 
-## Usage
-### Reading request-scoped data from a service
-Inject `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` wherever you need it — a cache key function, a validator, a logger transport. It resolves to `undefined` when called outside of a request (eg. from a cron job or during app startup), so always guard with `?.`.
+## Reading request-scoped data from a service
+Inject `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` wherever you need it, such as in a cache key function, a validator or a logger transport. It is `undefined` outside a request (such as in a cron job or during startup), so guard it with `?.`.
 
 ```ts
+// src/caching/cache-keys.ts
 import { HttpRequestContext, inject, WebsocketRequestContext, ZIBRI_DI_TOKENS, ZIBRI_REQUEST_CONTEXT_TOKENS } from 'zibri';
 
 function currentLocalePrefix(): string {
@@ -28,14 +30,15 @@ function currentLocalePrefix(): string {
 ```
 
 `HttpRequestContext` and `WebsocketRequestContext` share the same shape:
-- `request` — the raw `HttpRequest` (HTTP) or `WebsocketRequest` (websocket).
-- `controllerClass` / `controllerMethod` — the matched route, or `undefined` if routing hasn't resolved yet. A http request is routed after its context exists — the version that decides which handler runs is read off the context first — so both are filled in once the route is known and before any check or handler runs. Anything reading them from a service called by a handler sees the route; a middleware that runs before routing does not.
-- `.get(token)` / `.has(token)` — read a `RequestContextToken`'s value.
-- `signal` — an `AbortSignal` that fires when the request is no longer worth working on. A http request fires it when its handler runs out of the time the route allows (see [creating endpoints](./creating-endpoints.md#deadlines)); a websocket request has nothing that bounds it, so its signal does not fire. Pass it on to whatever a handler is waiting for. `AlsUtilities.findCurrentRequestSignal()` is the same signal reached without the context, which is what the http client, the lease service and the thread job wait read.
+- `request`: the raw `HttpRequest` (HTTP) or `WebsocketRequest` (websocket).
+- `controllerClass` / `controllerMethod`: the matched route. Both are set before any check or handler runs, so a service called by a handler sees them. A middleware that runs before routing sees `undefined`.
+- `.get(token)` / `.has(token)`: read a `RequestContextToken`'s value.
+- `signal`: an `AbortSignal` that fires when the handler runs out of the time its route or event allows, see [deadlines](./creating-endpoints.md#deadlines) and [websocket deadlines](./websocket.md#deadlines). Pass it on to whatever a handler is waiting for. `AlsUtilities.findCurrentRequestSignal()` is the same signal, reached without the context. The HTTP client, the lease service and waiting for a thread job listen to it.
 
 `HttpRequestContext` additionally carries `response: HttpResponse`. `WebsocketRequestContext` additionally carries `connection: BaseWebsocketConnection | undefined`. Both expose a `type` discriminant (`'http-request'` or `'websocket-request'`) so you can narrow which one you got:
 
 ```ts
+// src/logging/logger.ts
 import { HttpRequestContext, inject, WebsocketRequestContext, ZIBRI_DI_TOKENS } from 'zibri';
 
 const ctx: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
@@ -44,8 +47,8 @@ if (ctx?.type === 'http-request') {
 }
 ```
 
-### Built-in request context tokens
-Pass one of `ZIBRI_REQUEST_CONTEXT_TOKENS` to `.get()`/`.has()`. Each token's value is computed on first access and then cached on the context for the rest of the request — calling `.get()` again returns the same value without recomputing it.
+## Reading the built-in tokens
+Pass one of `ZIBRI_REQUEST_CONTEXT_TOKENS` to `.get()`/`.has()`. Each token's value is computed on first access and kept for the rest of the request. Calling `.get()` again returns the same value without computing it again.
 
 | Token | Returns | Notes |
 |---|---|---|
@@ -57,10 +60,11 @@ Pass one of `ZIBRI_REQUEST_CONTEXT_TOKENS` to `.get()`/`.has()`. Each token's va
 | `CURRENT_VERSION` | `Version` | Resolved via `VERSIONING_SERVICE` |
 | `CURRENT_LOCALE` | `LocaleCode` | Resolved via `LOCALIZE_SERVICE` |
 
-### Defining your own token
+## Defining your own token
 Create a `RequestContextToken` with a unique key and a resolver function. The resolver receives the context and can itself `inject()` services or call `ctx.get()` on other tokens:
 
 ```ts
+// src/request-context-tokens.ts
 import { HttpRequestContext, RequestContextToken, WebsocketRequestContext } from 'zibri';
 
 export const TENANT_ID: RequestContextToken<string | undefined> = new RequestContextToken(
@@ -69,14 +73,14 @@ export const TENANT_ID: RequestContextToken<string | undefined> = new RequestCon
 );
 ```
 
-Registering two tokens with the same key throws an `InternalError` — keys must be globally unique.
+Keys are unique across the application.
 
-### Reading cache context
-While a `Cache` decorator (see [caching](./caching.md)) is executing, `ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT` resolves to the stack of `CacheContext[]` currently in flight (nested caches push onto the same stack). Each `CacheContext` carries `cache` (name), `operation`, `key`, `hit`, and `durationInMs`. This is how the built-in logger attaches cache info to log lines:
+## Reading cache context
+While a `Cache` decorator (see [caching](./caching.md)) is executing, `ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT` resolves to the stack of `CacheContext[]` currently in flight (nested caches push onto the same stack). Each `CacheContext` carries `cache` (name), `operation`, `key`, `hit`, and `durationInMs`. The built-in logger attaches it to log lines, and your own code reads it the same way:
 
 ```ts
 // src/logging/logger.ts
-import { CacheContext } from 'zibri';
+import { CacheContext, inject, ZIBRI_DI_TOKENS } from 'zibri';
 
 export function currentCacheContext(): CacheContext[] | undefined {
     return inject(ZIBRI_DI_TOKENS.CURRENT_CACHE_CONTEXT);
@@ -84,12 +88,12 @@ export function currentCacheContext(): CacheContext[] | undefined {
 ```
 
 ## Configuration
-There's nothing to configure — both context types are populated automatically by the framework:
-- `HttpRequestContext` is created and entered via `AlsUtilities.runWithHttpRequestContext()` at the start of routing, before version matching or any controller code runs (`src/routing/router.ts`).
-- `WebsocketRequestContext` is created and entered via `AlsUtilities.runWithWebsocketRequestContext()` at the start of handling an incoming websocket message (`src/websocket/services/websocket.service.ts`).
-- `CacheContext` is pushed via `AlsUtilities.runWithCacheContext()` around each cache operation.
+There is nothing to configure. The contexts are created for you:
+- `HttpRequestContext` is entered with `AlsUtilities.runWithHttpRequestContext()` at the start of routing, before version matching or any controller code runs.
+- `WebsocketRequestContext` is entered with `AlsUtilities.runWithWebsocketRequestContext()` at the start of handling an incoming websocket message.
+- `CacheContext` is pushed with `AlsUtilities.runWithCacheContext()` around each cache operation.
 
-There's no `.set()` on the contexts themselves — request-scoped state is added by defining a new `RequestContextToken`, not by mutating the context. The token's per-request value cache (backed by `BaseContext`'s internal map) is what gives you "compute once, reuse for the rest of the request" behavior for free.
+The contexts have no `.set()`. To add state to a request, define a `RequestContextToken`. Its value is computed once per request and reused for the rest of it.
 
 ## See also
 - [Caching](./caching.md) — using `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` inside a cache key function, and how `CacheContext` is produced

@@ -15,7 +15,10 @@ export class CollectMetricsCronJob extends CronJob {
         runOnInit: false,
         // every instance has its own registry and its own host, so this has to run on all of them.
         // Electing one would silently leave every other instance uncollected.
-        distributed: false
+        distributed: false,
+        // and a shared row would only say that some instance collected, at the cost of reading and
+        // writing it every five seconds from every one of them
+        syncToDataSource: false
     };
 
     constructor(

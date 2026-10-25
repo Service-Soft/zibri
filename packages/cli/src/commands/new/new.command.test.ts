@@ -1,3 +1,5 @@
+import assert from 'node:assert';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { runInNewContext } from 'node:vm';
 
@@ -7,24 +9,28 @@ import { NewCommand } from './new.command';
 import { version } from '../../../package.json';
 import { emptyWorkDirectory } from '../../__testing__/empty-work-directory.function';
 import { findWorkflowCommands } from '../../__testing__/find-workflow-commands.function';
+import { EVERY_FEATURE, GENERATED_FILE_PATHS, NEEDS_A_REAL_INSTALL, NOT_IN_VERSION_CONTROL } from '../../__testing__/generated-file-paths';
 import { mockExitGracefully, ProcessExitError } from '../../__testing__/mock-exit-gracefully.function';
 import { quietly } from '../../__testing__/quietly.function';
 import { CPUtilities, FsUtilities, InquirerUtilities } from '../../encapsulation';
+import { SCAFFOLD_FEATURE_FILES,
+    SCAFFOLD_FEATURE_REQUIREMENTS,
+    SCAFFOLD_FEATURES,
+    SCAFFOLD_MANIFEST_FILE,
+    ScaffoldFeature,
+    ScaffoldManifest,
+    ScaffoldUtilities } from '../../scaffold';
 import { Path } from '../../utilities';
 
 /**
- * A process the generated watch mode started, as a fake `spawn` records it.
+ * Every set of features a project can be generated with.
+ * @returns Each set, leaving out those with a feature but not one it is built on.
  */
-type StartedProcess = {
-    /**
-     * The command and its arguments.
-     */
-    args: string[],
-    /**
-     * Whether it was stopped since.
-     */
-    killed: boolean
-};
+function resolveFeatureCombinations(): ScaffoldFeature[][] {
+    return SCAFFOLD_FEATURES
+        .reduce<ScaffoldFeature[][]>((sets, feature) => [...sets, ...sets.map(set => [...set, feature])], [[]])
+        .filter(set => set.every(feature => SCAFFOLD_FEATURE_REQUIREMENTS[feature].every(required => set.includes(required))));
+}
 
 /**
  * The variables of a generated dotenv file, without its comments.
@@ -54,7 +60,7 @@ describe('NewCommand', () => {
     });
 
     it('scaffolds a new zibri application on disk', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(await FsUtilities.exists(path.join(appDir, 'package.json') as Path)).toBe(true);
@@ -69,8 +75,20 @@ describe('NewCommand', () => {
         expect(await FsUtilities.exists(path.join(appDir, 'src', 'templates') as Path)).toBe(true);
     });
 
+    it('gives the user running the image only the paths the application writes', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+
+        const dockerfile: string = await FsUtilities.readFile(path.join(workDir, 'api', 'Dockerfile') as Path);
+        // the target of every line handing something to the run user. The bundle and its dependencies
+        // stay the build's, so the process cannot change the code it runs
+        const owned: string[] = dockerfile.split('\n')
+            .filter(line => line.includes('chown'))
+            .map(line => line.trim().split(/\s+/).at(-1) ?? '');
+        expect(owned).toStrictEqual(['./versions', '/app/.zibri']);
+    });
+
     it('writes a package.json with the app name, without going through "npm init"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         const packageJson: unknown = JSON.parse(await FsUtilities.readFile(path.join(appDir, 'package.json') as Path));
@@ -94,7 +112,7 @@ describe('NewCommand', () => {
     });
 
     it('installs devDependencies and the real published zibri package, scoped to the new app directory', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(execSpy).toHaveBeenNthCalledWith(1, expect.stringContaining(`cd ${appDir} && npm i -D `));
@@ -113,53 +131,222 @@ describe('NewCommand', () => {
         // send them, so a project that never says is a project that never needs it.
         expect(execSpy).toHaveBeenNthCalledWith(
             2,
-            `cd ${appDir} && npm i zibri@${version} chart.js ts-node@^10.9.2 pg-query-stream@^4.10.3`
+            `cd ${appDir} && npm i zibri@${version} ts-node@^10.9.2 pg-query-stream@^4.10.3`
             + ' saxes@^6.0.0 otpauth@^9.5.1 jose@^6.2.12 @opentelemetry/api@^1.9.1'
             + ' @opentelemetry/sdk-trace-node@^2.11.0 re2@^1.27.0 nodemailer@^10.1.0'
-            + ' prom-client@^15.1.3 @fastify/busboy@^3.2.3 systeminformation@^5.33.15'
+            + ' prom-client@^15.1.3 @fastify/busboy@^3.2.3 systeminformation@^5.33.15 chart.js'
         );
     });
 
-    it('restarts the server in watch mode as a new process, never in the old one', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+    // round-2 08 §X14: a JSON API behind a gateway has no pages, and paid for them in every project
+    describe('without features', () => {
+        let appDir: Path;
 
-        const config: string = await FsUtilities.readFile(path.join(workDir, 'api', 'webpack.config.js') as Path);
-        const pluginSource: string | undefined = /^class OnBuildSuccessPlugin {[\S\s]*?^}$/m.exec(config)?.[0];
-        expect(pluginSource).toBeDefined();
-        // the plugin as the project runs it, with the process it starts and the compiler it hooks
-        // into replaced by ones that record what happens. The compiler finishes two builds in a row
-        const started: StartedProcess[] = [];
-        runInNewContext(`${pluginSource}\nnew OnBuildSuccessPlugin().apply(compiler);`, {
-            spawn: (command: string, args: string[]) => {
-                const child: StartedProcess = { args: [command, ...args], killed: false };
-                started.push(child);
-                return { kill: () => child.killed = true };
-            },
-            compiler: {
-                watchMode: true,
-                hooks: {
-                    done: {
-                        tap: (_: string, onDone: (stats: { hasErrors: () => boolean }) => void) => {
-                            onDone({ hasErrors: () => false });
-                            onDone({ hasErrors: () => false });
-                        }
+        beforeEach(async () => {
+            await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', 'none']));
+            appDir = path.join(workDir, 'api') as Path;
+        });
+
+        it('writes a JSON API: no pages, no stylesheet, no examples and no mailing list', async () => {
+            const absent: string[] = [
+                'postcss.config.js',
+                'tailwind.config.js',
+                'assets/public/style.css',
+                'src/tsx.d.ts',
+                'src/controllers/page.controller.ts',
+                'src/__testing__/home-page.test.ts',
+                'src/templates/components',
+                'src/templates/pages',
+                'src/templates/emails/log.tsx',
+                'src/templates/emails/mailing-list-subscribe-confirmation.tsx'
+            ];
+            const present: string[] = [
+                'webpack.config.js',
+                'src/__testing__/health.test.ts',
+                'src/templates/emails/password-reset.tsx',
+                'assets/public/open-api/swagger-ui-bundle.js'
+            ];
+
+            const exists: (relativePath: string) => Promise<boolean> = async relativePath => FsUtilities.exists(path.join(appDir, relativePath) as Path);
+            expect(await Promise.all(absent.map(exists))).toEqual(absent.map(() => false));
+            expect(await Promise.all(present.map(exists))).toEqual(present.map(() => true));
+        });
+
+        it('names only the controllers, plugins, providers and entities it wrote', async () => {
+            const read: (relativePath: string) => Promise<string> = async relativePath => FsUtilities.readFile(path.join(appDir, relativePath) as Path);
+
+            const options: string = await read('src/application-options.base.ts');
+            expect(options).toContain('    plugins: [],');
+            expect(options).toContain('    controllers: [HealthController, AppAuthController],');
+            expect(await read('src/controllers/index.ts')).not.toContain('page.controller');
+            const providers: string = await read('src/providers.ts');
+            expect(providers).not.toContain('ErrorPage');
+            expect(providers).not.toContain('MAILING_LIST');
+            expect(await read('src/data-sources/db/entities.ts')).not.toContain('MailingList');
+        });
+
+        it('installs nothing that builds a stylesheet or draws a chart', () => {
+            const installs: string = execSpy.mock.calls.map(([command]) => command).join(' ');
+
+            for (const name of ['tailwindcss', 'postcss', 'autoprefixer', 'css-loader', 'mini-css-extract-plugin', 'chart.js']) {
+                expect(installs).not.toContain(` ${name}`);
+            }
+            expect(installs).toContain(' webpack@');
+        });
+
+        it('records that it has no features', async () => {
+            const manifest: ScaffoldManifest | undefined = await ScaffoldUtilities.findManifest(appDir);
+
+            expect(manifest?.answers.features).toEqual([]);
+        });
+    });
+
+    it('writes for each feature the files that feature names, and only with it', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+        const everything: string[] = await FsUtilities.findFiles(path.join(workDir, 'api') as Path, [NOT_IN_VERSION_CONTROL]);
+
+        // a path a feature names and no project has is a typo, and leaves the file it meant in every project
+        const unmatched: string[] = SCAFFOLD_FEATURES.flatMap(feature => SCAFFOLD_FEATURE_FILES[feature]
+            .filter(named => !everything.some(file => file === named || named.endsWith('/') && file.startsWith(named)))
+            .map(named => `${feature}: ${named}`));
+        expect(unmatched).toEqual([]);
+
+        await FsUtilities.rm(path.join(workDir, 'api') as Path);
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', 'pages,logEmail']));
+        const written: string[] = await FsUtilities.findFiles(path.join(workDir, 'api') as Path, [NOT_IN_VERSION_CONTROL]);
+        expect(written.sort()).toEqual(everything.filter(file => ScaffoldUtilities.isWrittenFor(file, ['pages', 'logEmail'])).sort());
+    });
+
+    it('writes a project whose imports all resolve, whatever the features', async () => {
+        const unresolved: string[] = [];
+        for (const features of resolveFeatureCombinations()) {
+            await FsUtilities.rm(path.join(workDir, 'api') as Path);
+            await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', features.length ? features.join(',') : 'none']));
+            const appDir: Path = path.join(workDir, 'api') as Path;
+            const files: string[] = await FsUtilities.findFiles(appDir, [NOT_IN_VERSION_CONTROL]);
+            for (const file of files.filter(file => /\.tsx?$/.test(file))) {
+                const content: string = await FsUtilities.readFile(path.join(appDir, file) as Path);
+                for (const [, specifier] of content.matchAll(/(?:from|import) '(\.[^']*)'/g)) {
+                    const base: string = path.posix.join(path.posix.dirname(file), specifier);
+                    // package.json is the one file a project has that is not generated
+                    if (![base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`].some(candidate => files.includes(candidate) || candidate === 'package.json')) {
+                        unresolved.push(`${features.join(',') || 'none'}: ${file} imports ${specifier}`);
                     }
                 }
             }
+        }
+
+        expect(unresolved).toEqual([]);
+    });
+
+    it('asks for the features, offering every one checked but the mailing list', async () => {
+        const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
+            .mockResolvedValue({ features: ['pages'] });
+
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+
+        const [question]: unknown[] = Object.values(promptSpy.mock.calls[0]?.[0] ?? {});
+        expect(question).toMatchObject({
+            type: 'checkbox',
+            choices: [
+                { value: 'pages', checked: true },
+                { value: 'mailingList', checked: false },
+                { value: 'metricsDashboard', checked: true },
+                { value: 'logEmail', checked: true }
+            ]
+        });
+        expect((await ScaffoldUtilities.findManifest(path.join(workDir, 'api') as Path))?.answers.features).toEqual(['pages']);
+    });
+
+    it('refuses a feature it does not know, before writing anything', async () => {
+        mockExitGracefully();
+
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', 'pages,blog'])))
+            .rejects.toThrow(ProcessExitError);
+        expect(await FsUtilities.exists(path.join(workDir, 'api') as Path)).toBe(false);
+    });
+
+    it('refuses a feature without the one it is built on, before writing anything', async () => {
+        mockExitGracefully();
+
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', 'mailingList'])))
+            .rejects.toThrow(ProcessExitError);
+        expect(await FsUtilities.exists(path.join(workDir, 'api') as Path)).toBe(false);
+    });
+
+    // round-2 07 §T5: what the build, the tests and the compiler need from the framework is the
+    // framework's to ship. Written into the project, a fix to any of it reached only the projects
+    // generated after it, and an existing one learned of it by diffing a fresh scaffold by hand.
+    it('takes its build from zibri, so upgrading the package upgrades the build', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+
+        const appDir: Path = path.join(workDir, 'api') as Path;
+        const config: string = await FsUtilities.readFile(path.join(appDir, 'webpack.config.js') as Path);
+        // the file as webpack loads it, with the factory replaced by one that says what it was asked.
+        // Anything else it requires is build knowledge of its own, which is what this is about
+        const loaded: { exports: unknown } = { exports: undefined };
+        runInNewContext(config, {
+            module: loaded,
+            __dirname: appDir,
+            require: (name: string) => {
+                if (name !== 'zibri/webpack') {
+                    throw new Error(`webpack.config.js requires "${name}"`);
+                }
+                return { resolveWebpackConfiguration: (options: unknown) => ({ resolvedFor: options }) };
+            }
         });
 
-        // what makes a restart start from empty registries: the rebuilt bundle is imported by a process
-        // of its own, and the one holding the previous generation is stopped, so nothing is ever
-        // imported a second time into the arrays a first import filled
-        expect(started.map(s => s.args)).toEqual([
-            ['node', '--enable-source-maps', 'dist/bundle.js'],
-            ['node', '--enable-source-maps', 'dist/bundle.js']
-        ]);
-        expect(started.map(s => s.killed)).toEqual([true, false]);
+        expect(loaded.exports).toEqual({ resolvedFor: { root: appDir } });
+    });
+
+    it('takes its test configuration from zibri-testing', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+
+        const source: string = await FsUtilities.readFile(path.join(workDir, 'api', 'jest.config.mjs') as Path);
+        // an es module, which a script cannot evaluate - its one export is handed out instead
+        const exported: { config?: unknown } = {};
+        runInNewContext(source.replace('export default config;', 'exported.config = config;'), { exported });
+
+        expect(exported.config).toEqual({ preset: 'zibri-testing', rootDir: 'src' });
+    });
+
+    it('takes its compiler options from zibri, and keeps only where its own files are', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+
+        const tsconfig: unknown = JSON.parse(await FsUtilities.readFile(path.join(workDir, 'api', 'tsconfig.json') as Path));
+
+        // the paths stay, because an extended config resolves them against itself rather than the project
+        expect(tsconfig).toEqual({
+            extends: 'zibri/tsconfig.application.json',
+            compilerOptions: { outDir: 'dist' },
+            include: ['src']
+        });
+    });
+
+    it('records what it generated, so "zi upgrade" can tell a file the project changed from one it did not', async () => {
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+
+        const appDir: Path = path.join(workDir, 'api') as Path;
+        const manifest: ScaffoldManifest | undefined = await ScaffoldUtilities.findManifest(appDir);
+        assert(manifest, `"zi new" wrote no ${SCAFFOLD_MANIFEST_FILE}`);
+        expect(manifest.version).toBe(version);
+        expect(manifest.answers).toEqual({ name: 'api', ci: 'none', defaultAuth: 'requireLogin', features: SCAFFOLD_FEATURES });
+
+        // every file but the two the generator does not own alone: npm writes half of package.json,
+        // and ".env" holds this project's secrets, which are never committed
+        const recorded: string[] = Object.keys(manifest.files);
+        expect([...recorded].sort()).toEqual(GENERATED_FILE_PATHS.filter(p => p !== NEEDS_A_REAL_INSTALL).sort());
+
+        // the ids git stores those files under, so the version "zi new" wrote can be read back out of
+        // the project's history as the base of a three-way merge
+        const gitIds: string[] = execFileSync('git', ['hash-object', ...recorded], { cwd: appDir, encoding: 'utf8' })
+            .trim()
+            .split('\n');
+        expect(recorded.map(p => manifest.files[p])).toEqual(gitIds);
     });
 
     it('writes a GitHub workflow that runs the project\'s own scripts on a checkout without ".env"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         const workflow: string = await FsUtilities.readFile(path.join(appDir, '.github', 'workflows', 'ci.yml') as Path);
@@ -186,7 +373,7 @@ describe('NewCommand', () => {
     });
 
     it('writes no workflow when the project is to have none', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
 
         expect(await FsUtilities.exists(path.join(workDir, 'api', '.github') as Path)).toBe(false);
     });
@@ -194,12 +381,13 @@ describe('NewCommand', () => {
     it('asks for the ci when the command line does not name one', async () => {
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
             .mockResolvedValueOnce({ ci: 'github' })
-            .mockResolvedValueOnce({ defaultAuth: 'requireLogin' });
+            .mockResolvedValueOnce({ defaultAuth: 'requireLogin' })
+            .mockResolvedValueOnce({ features: [] });
 
         await quietly(async () => new NewCommand().start(['n', 'api']));
 
         // the name was given, so only the ci is asked for - and what follows it on the command line
-        expect(promptSpy.mock.calls.map(([questions]) => Object.keys(questions))).toStrictEqual([['ci'], ['defaultAuth']]);
+        expect(promptSpy.mock.calls.map(([questions]) => Object.keys(questions))).toStrictEqual([['ci'], ['defaultAuth'], ['features']]);
         expect(await FsUtilities.exists(path.join(workDir, 'api', '.github', 'workflows', 'ci.yml') as Path)).toBe(true);
     });
 
@@ -212,7 +400,8 @@ describe('NewCommand', () => {
 
     it('asks what an endpoint without @Auth requires, offering a login first, and answers nothing itself', async () => {
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
-            .mockResolvedValue({ defaultAuth: 'requireLogin' });
+            .mockResolvedValueOnce({ defaultAuth: 'requireLogin' })
+            .mockResolvedValueOnce({ features: [] });
 
         await quietly(async () => new NewCommand().start(['n', 'api', 'none']));
 
@@ -224,14 +413,14 @@ describe('NewCommand', () => {
     });
 
     it('writes the defaultAuth the command line names', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'public']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'public', EVERY_FEATURE]));
 
         const options: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'application-options.base.ts') as Path);
         expect(options).toContain('    defaultAuth: \'public\',');
     });
 
     it('keeps the pages it generates public, whichever defaultAuth was chosen', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
 
         const pages: string = await FsUtilities.readFile(path.join(workDir, 'api', 'src', 'controllers', 'page.controller.ts') as Path);
         expect(pages).toMatch(/@Auth\.skip\({ allowRedundant: true }\)\n@Controller\('\/'/);
@@ -248,6 +437,6 @@ describe('NewCommand', () => {
         await FsUtilities.mkdir(path.join(workDir, 'api') as Path);
         mockExitGracefully();
 
-        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin']))).rejects.toThrow(ProcessExitError);
+        await expect(quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]))).rejects.toThrow(ProcessExitError);
     });
 });

@@ -1,6 +1,5 @@
 import { ClusterMark, clusterInstanceId, defaultClusterProviders, StartTestServerOptions } from 'zibri-testing';
 
-import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../../auth/authenticators/password/password-credentials.model';
 import { PasswordAuthenticator } from '../../../auth/authenticators/password/password.authenticator';
 import { JwtAuthData } from '../../../auth/strategies/jwt/jwt-auth-data.model';
@@ -8,6 +7,7 @@ import { JwtAuthStrategy } from '../../../auth/strategies/jwt/jwt.auth-strategy'
 import { ValKeyDataSource, ValKeyOptions } from '../../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../../data-source/repository/repository';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -24,12 +24,9 @@ import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.mode
 import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
 import { JwtUser } from '../../mocks/entities/jwt-user.entity';
 import { Roles } from '../../mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../../test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../test-server/create-test-data-source.function';
 import { defaultTestValKeyEntities } from '../../test-server/create-test-val-key-data-source.function';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/membership-repository';
-// eslint-disable-next-line eslintImport/no-unassigned-import
-import '../../test-server/user-repository'; // this import is needed so that the DI system can pick up the user repository.
+import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissionsProviders } from '../../test-server/providers';
 
 /**
  * What every instance of the websocket cluster boots with.
@@ -68,14 +65,18 @@ export type ClusterLogin = {
  */
 const valKeyPrefix: string = 'cluster-websocket';
 
+/**
+ * The valkey data source that carries broadcasts between the instances.
+ */
 @DataSource()
-class ClusterWebsocketValKeyDataSource extends ValKeyDataSource {
+export class ClusterWebsocketValKeyDataSource extends ValKeyDataSource {
     override options: ValKeyOptions = {
         host: 'localhost',
         useTLS: false,
         keyPrefix: valKeyPrefix
     };
     entities: Newable<BaseEntity>[] = defaultTestValKeyEntities;
+    readonly repositories: RepositoryClass[] = [];
 }
 
 /**
@@ -157,10 +158,10 @@ class ClusterWebsocketController {
     @Post('/login')
     async login(): Promise<ClusterLogin> {
         const email: string = `cluster-${UUIDUtilities.generate()}@cluster-websocket.test`;
-        const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
+        const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
         await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
             .create({ password: 'secure123', userId: user.id });
-        const authData: JwtAuthData<Roles> = await inject<AuthServiceInterface>(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+        const authData: JwtAuthData<Roles> = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
             .login(PasswordAuthenticator<Roles>, JwtAuthStrategy<Roles>, { email, password: 'secure123' }, undefined);
         return { userId: user.id, accessToken: authData.accessToken.value };
     }
@@ -171,7 +172,7 @@ class ClusterWebsocketController {
      */
     @Post('/deactivate/:userId')
     async deactivate(@Param.path('userId') userId: string): Promise<void> {
-        await inject<AuthServiceInterface>(ZIBRI_DI_TOKENS.AUTH_SERVICE).deactivateUser(userId, undefined);
+        await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).deactivateUser(userId, undefined);
     }
 }
 
@@ -181,11 +182,12 @@ const options: StartTestServerOptions = {
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark] }), ClusterWebsocketValKeyDataSource],
+    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark], repositories: defaultTestServerRepositories }), ClusterWebsocketValKeyDataSource],
     // spread rather than replaced: providers is the same field startTestServer takes, where what is
     // passed is what is used, so all the defaults have to be kept here
     providers: [
         ...defaultClusterProviders,
+        ...rolesAndPermissionsProviders(defaultTestServerPermissions, defaultTestServerRoles),
         defineProvider({
             token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
             useFactory: () => ({

@@ -2,11 +2,13 @@
 // `@Entity`, which every entity file evaluates before anything else is up - a value import of the
 // request context pulls in ZIBRI_DI_TOKENS and with it most of the framework, which is a cycle that
 // leaves whatever loads inside it holding undefined
-import { type BaseUser } from '../../auth/models/base-user.model';
+import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { type Permission } from '../../auth/roles/permission.type';
+import { type PlatformPermission } from '../../auth/roles/platform-permission.type';
 import { type HttpRequestContext } from '../../context/request/http-request.context';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { type Where } from '../../data-source/models/where/where-filter.model';
-import { type BaseMembership } from '../../tenancy/membership/base-membership.model';
+import { type CurrentMembership } from '../../tenancy/membership/current-membership.model';
 import { type Newable } from '../../types/newable.type';
 import { type BaseEntity } from '../base-entity.model';
 
@@ -29,23 +31,33 @@ export type DenyAll = typeof denyAll;
  */
 export type EntityScopeContext = {
     /**
-     * The requesting user, if there is one.
+     * The requesting user, if there is one, with the permissions the request may use.
      *
      * Undefined for an anonymous request and for anything running outside a request at all - a cron
      * job, a migration, a startup task. The scope decides what that means rather than the framework,
      * which is the point of writing one: rows that are public to everybody and rows that belong to
      * somebody are the same question asked of different entities.
      */
-    currentUser: BaseUser<string> | undefined,
+    currentUser: CurrentUser | undefined,
     /**
      * The tenant the work acts in, if one is active.
      */
     tenantId: string | undefined,
     /**
-     * The membership the requesting user acts through in that tenant, its roles narrowed to what the
-     * credential of the request may use. Undefined without a logged in user or an active tenant.
+     * The membership the requesting user acts through in that tenant. Undefined without a logged in
+     * user or an active tenant.
      */
-    currentMembership: BaseMembership<string> | undefined,
+    currentMembership: CurrentMembership | undefined,
+    /**
+     * Checks whether one of the roles the requesting user holds in the active tenant carries the
+     * permission, the way `@Auth.hasPermission` checks it. No outside a request.
+     */
+    hasPermission: (permission: Permission) => Promise<boolean>,
+    /**
+     * Checks whether one of the requesting user's own roles carries the permission, the way
+     * `@Auth.hasPlatformPermission` checks it. No outside a request.
+     */
+    hasPlatformPermission: (permission: PlatformPermission) => Promise<boolean>,
     /**
      * The request being handled, if there is one.
      */

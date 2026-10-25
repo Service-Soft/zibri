@@ -312,7 +312,7 @@
       </trans-unit>
       <trans-unit id="received invalid metrics event" xml:space="preserve">
         <source>received invalid metrics event</source>
-        <note>src/templates/pages/metrics/metrics-status.tsx:24, src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:12, src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:14, src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:14, src/templates/pages/metrics/cache/cache-size-stat-card.tsx:12, src/templates/components/chart.tsx:48</note>
+        <note>src/templates/pages/metrics/metrics-status.tsx:24, src/templates/pages/metrics/rate-limiter/rate-limiter-block-rate-stat-card.tsx:12, src/templates/pages/metrics/rate-limiter/rate-limiter-reservation-stat-card.tsx:14, src/templates/pages/metrics/rate-limiter/rate-limiter-size-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-inflight-stat-card.tsx:14, src/templates/pages/metrics/cache/cache-hit-rate-stat-card.tsx:12, src/templates/pages/metrics/cache/cache-size-stat-card.tsx:12, src/templates/components/chart.tsx:48</note>
       </trans-unit>
       <trans-unit id="registered" xml:space="preserve">
         <source>registered</source>
@@ -508,7 +508,7 @@
     <body>
       <trans-unit id="&#x22;{header}&#x22; header not found" xml:space="preserve">
         <source>"<x id="header" equiv-text="{header}"/>" header not found</source>
-        <note>../zibri/src/auth/2fa/methods/code/code.two-factor-method.ts:248</note>
+        <note>../zibri/src/auth/auth-controller/auth-controller.model.ts:819, ../zibri/src/auth/2fa/methods/code/code.two-factor-method.ts:248</note>
       </trans-unit>
       <trans-unit id="&#x22;{method}&#x22; is not allowed here. This route answers {allowedMethods.join(', ')}." xml:space="preserve">
         <source>"<x id="method" equiv-text="{method}"/>" is not allowed here. This route answers <x id="allowedMethods.join(', ')" equiv-text="{allowedMethods.join(', ')}"/>.</source>
@@ -542,7 +542,7 @@
         <source>
           <x id="detail" equiv-text="{detail}"/>
         </source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1697</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1702</note>
       </trans-unit>
       <trans-unit id="A {target.name} has to belong to the tenant of the row it is written with." xml:space="preserve">
         <source>A <x id="target.name" equiv-text="{target.name}"/> has to belong to the tenant of the row it is written with.</source>
@@ -550,19 +550,19 @@
       </trans-unit>
       <trans-unit id="A {this.entityClass.name} that belongs to no tenant is changed across tenants only." xml:space="preserve">
         <source>A <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> that belongs to no tenant is changed across tenants only.</source>
-        <note>../zibri/src/data-source/repository/repository.ts:646</note>
+        <note>../zibri/src/data-source/repository/repository.ts:870</note>
       </trans-unit>
       <trans-unit id="A bulk request holds at most {endpoint.maxBulkOperations} operations, this one {operations.length}." xml:space="preserve">
         <source>A bulk request holds at most <x id="endpoint.maxBulkOperations" equiv-text="{endpoint.maxBulkOperations}"/> operations, this one <x id="operations.length" equiv-text="{operations.length}"/>.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1707</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1712</note>
       </trans-unit>
       <trans-unit id="A client_assertion is a jwt, sent with the client_assertion_type {JWT_BEARER_ASSERTION_TYPE}." xml:space="preserve">
         <source>A client_assertion is a jwt, sent with the client_assertion_type <x id="JWT_BEARER_ASSERTION_TYPE" equiv-text="{JWT_BEARER_ASSERTION_TYPE}"/>.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:460</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:465</note>
       </trans-unit>
       <trans-unit id="A client_secret is sent with a client_id." xml:space="preserve">
         <source>A client_secret is sent with a client_id.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:452</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:457</note>
       </trans-unit>
       <trans-unit id="A code was sent a moment ago. Wait before asking for another one." xml:space="preserve">
         <source>A code was sent a moment ago. Wait before asking for another one.</source>
@@ -578,19 +578,19 @@
       </trans-unit>
       <trans-unit id="A group is a json object." xml:space="preserve">
         <source>A group is a json object.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1393</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1398</note>
       </trans-unit>
       <trans-unit id="A group needs a displayName." xml:space="preserve">
         <source>A group needs a displayName.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1397</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1402</note>
       </trans-unit>
       <trans-unit id="A login is bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>A login is bound to a DPoP key, which the request carries no proof of.</source>
-        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:236</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:239</note>
       </trans-unit>
       <trans-unit id="A member of the group is no provisioned user or group." xml:space="preserve">
         <source>A member of the group is no provisioned user or group.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1189</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1194</note>
       </trans-unit>
       <trans-unit id="A patch request names the PatchOp schema and holds Operations." xml:space="preserve">
         <source>A patch request names the PatchOp schema and holds Operations.</source>
@@ -602,7 +602,7 @@
       </trans-unit>
       <trans-unit id="A POST names /Users or /Groups, every other operation a resource, eg. /Users/{{id}}." xml:space="preserve">
         <source>A POST names /Users or /Groups, every other operation a resource, eg. /Users/{id}.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1787</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1792</note>
       </trans-unit>
       <trans-unit id="A remove operation names a path." xml:space="preserve">
         <source>A remove operation names a path.</source>
@@ -612,9 +612,25 @@
         <source>A request from another origin may not carry cookies for this api.</source>
         <note>../zibri/src/http/cross-origin-cookie.middleware.ts:65</note>
       </trans-unit>
+      <trans-unit id="A role is held at the 'tenant' or the 'platform' level." xml:space="preserve">
+        <source>A role is held at the 'tenant' or the 'platform' level.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:321</note>
+      </trans-unit>
+      <trans-unit id="A role named '{data.name}' exists already." xml:space="preserve">
+        <source>A role named '<x id="data.name" equiv-text="{data.name}"/>' exists already.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:442</note>
+      </trans-unit>
       <trans-unit id="A row of a tenant cannot be written together with a {target.name}, which belongs to none." xml:space="preserve">
         <source>A row of a tenant cannot be written together with a <x id="target.name" equiv-text="{target.name}"/>, which belongs to none.</source>
         <note>../zibri/src/data-source/tenancy/tenant.utilities.ts:345</note>
+      </trans-unit>
+      <trans-unit id="A tenant has a role of its own named '{role.name}', so no role every tenant shares can be named so." xml:space="preserve">
+        <source>A tenant has a role of its own named '<x id="role.name" equiv-text="{role.name}"/>', so no role every tenant shares can be named so.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:383</note>
+      </trans-unit>
+      <trans-unit id="A tenant role is given and taken in the tenant a request acts in, and this one acts in none." xml:space="preserve">
+        <source>A tenant role is given and taken in the tenant a request acts in, and this one acts in none.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:533</note>
       </trans-unit>
       <trans-unit id="A url encoded form has to be sent as text." xml:space="preserve">
         <source>A url encoded form has to be sent as text.</source>
@@ -622,15 +638,15 @@
       </trans-unit>
       <trans-unit id="A user is a json object." xml:space="preserve">
         <source>A user is a json object.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1371</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1376</note>
       </trans-unit>
       <trans-unit id="A user needs a userName." xml:space="preserve">
         <source>A user needs a userName.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1375</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1380</note>
       </trans-unit>
       <trans-unit id="Access tokens work until they expire, so they cannot be revoked." xml:space="preserve">
         <source>Access tokens work until they expire, so they cannot be revoked.</source>
-        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:561, ../zibri/src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:226</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:592, ../zibri/src/auth/strategies/client-access-token/client-access-token.auth-strategy.ts:223</note>
       </trans-unit>
       <trans-unit id="An amount in {data.currencyCode} has at most {decimals} decimals." xml:space="preserve">
         <source>An amount in <x id="data.currencyCode" equiv-text="{data.currencyCode}"/> has at most <x id="decimals" equiv-text="{decimals}"/> decimals.</source>
@@ -638,15 +654,15 @@
       </trans-unit>
       <trans-unit id="An api key cannot expire in the past." xml:space="preserve">
         <source>An api key cannot expire in the past.</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:240</note>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:247</note>
       </trans-unit>
       <trans-unit id="An api key needs a name." xml:space="preserve">
         <source>An api key needs a name.</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:237</note>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:244</note>
       </trans-unit>
       <trans-unit id="An externalId is a string." xml:space="preserve">
         <source>An externalId is a string.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1426</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1431</note>
       </trans-unit>
       <trans-unit id="An operation is add, remove or replace, with an optional path." xml:space="preserve">
         <source>An operation is add, remove or replace, with an optional path.</source>
@@ -690,7 +706,7 @@
       </trans-unit>
       <trans-unit id="cannot not change the cron jobs name from &#x22;{foundJob.name}&#x22; to &#x22;{data.name}&#x22;:" xml:space="preserve">
         <source>cannot not change the cron jobs name from "<x id="foundJob.name" equiv-text="{foundJob.name}"/>" to "<x id="data.name" equiv-text="{data.name}"/>":</source>
-        <note>../zibri/src/cron/cron.service.ts:301</note>
+        <note>../zibri/src/cron/cron.service.ts:311</note>
       </trans-unit>
       <trans-unit id="Cannot refund payment in status {stored.status}." xml:space="preserve">
         <source>Cannot refund payment in status <x id="stored.status" equiv-text="{stored.status}"/>.</source>
@@ -710,27 +726,27 @@
       </trans-unit>
       <trans-unit id="Could not find {this.entityClass.name} with id &#x22;{id}&#x22;." xml:space="preserve">
         <source>Could not find <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> with id "<x id="id" equiv-text="{id}"/>".</source>
-        <note>../zibri/src/data-source/repository/repository.ts:1770, ../zibri/src/data-source/repository/repository.ts:2120, ../zibri/src/data-source/repository/repository.ts:2181, ../zibri/src/data-source/repository/repository.ts:2192, ../zibri/src/data-source/repository/repository.ts:2397, ../zibri/src/change-sets/soft-delete-repository.ts:249</note>
+        <note>../zibri/src/data-source/repository/repository.ts:2011, ../zibri/src/data-source/repository/repository.ts:2520, ../zibri/src/data-source/repository/repository.ts:2581, ../zibri/src/data-source/repository/repository.ts:2592, ../zibri/src/data-source/repository/repository.ts:2799, ../zibri/src/change-sets/soft-delete-repository.ts:339</note>
       </trans-unit>
       <trans-unit id="Could not find {this.entityClass.name} with id &#x22;{String(data.id)}&#x22;." xml:space="preserve">
         <source>Could not find <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> with id "<x id="String(data.id)" equiv-text="{String(data.id)}"/>".</source>
-        <note>../zibri/src/data-source/repository/repository.ts:2362</note>
+        <note>../zibri/src/data-source/repository/repository.ts:2764</note>
       </trans-unit>
       <trans-unit id="Could not find {this.entityClass.name}." xml:space="preserve">
         <source>Could not find <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/>.</source>
-        <note>../zibri/src/data-source/repository/repository.ts:1793</note>
+        <note>../zibri/src/data-source/repository/repository.ts:2034</note>
       </trans-unit>
       <trans-unit id="Could not find connection with id &#x22;{id}&#x22;." xml:space="preserve">
         <source>Could not find connection with id "<x id="id" equiv-text="{id}"/>".</source>
-        <note>../zibri/src/websocket/services/websocket.service.ts:1323</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:1353</note>
       </trans-unit>
       <trans-unit id="Could not find cron job with name &#x22;{name}&#x22;" xml:space="preserve">
         <source>Could not find cron job with name "<x id="name" equiv-text="{name}"/>"</source>
-        <note>../zibri/src/cron/cron.service.ts:41</note>
+        <note>../zibri/src/cron/cron.service.ts:43</note>
       </trans-unit>
       <trans-unit id="Could not find handler for websocket event for version &#x22;{connection.resolvedVersion.value}&#x22;" xml:space="preserve">
         <source>Could not find handler for websocket event for version "<x id="connection.resolvedVersion.value" equiv-text="{connection.resolvedVersion.value}"/>"</source>
-        <note>../zibri/src/websocket/services/websocket.service.ts:1354</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:1384</note>
       </trans-unit>
       <trans-unit id="Could not find resource with id &#x22;{id}&#x22;." xml:space="preserve">
         <source>Could not find resource with id "<x id="id" equiv-text="{id}"/>".</source>
@@ -738,7 +754,7 @@
       </trans-unit>
       <trans-unit id="Could not find route &#x22;{request.url}&#x22; for version &#x22;{version.value}&#x22;" xml:space="preserve">
         <source>Could not find route "<x id="request.url" equiv-text="{request.url}"/>" for version "<x id="version.value" equiv-text="{version.value}"/>"</source>
-        <note>../zibri/src/routing/router.ts:845</note>
+        <note>../zibri/src/routing/router.ts:847</note>
       </trans-unit>
       <trans-unit id="Could not find strategy for key with id {id}" xml:space="preserve">
         <source>Could not find strategy for key with id <x id="id" equiv-text="{id}"/></source>
@@ -746,23 +762,23 @@
       </trans-unit>
       <trans-unit id="Could not find user with email &#x22;{mail}&#x22;." xml:space="preserve">
         <source>Could not find user with email "<x id="mail" equiv-text="{mail}"/>".</source>
-        <note>../zibri/src/auth/user/user.service.ts:132</note>
+        <note>../zibri/src/auth/user/user.service.ts:133</note>
       </trans-unit>
       <trans-unit id="Could not find user with id &#x22;{id}&#x22;." xml:space="preserve">
         <source>Could not find user with id "<x id="id" equiv-text="{id}"/>".</source>
-        <note>../zibri/src/auth/user/user.service.ts:115, ../zibri/src/auth/user/user.service.ts:147</note>
+        <note>../zibri/src/auth/user/user.service.ts:116, ../zibri/src/auth/user/user.service.ts:148, ../zibri/src/auth/user/user.service.ts:162</note>
       </trans-unit>
       <trans-unit id="Could not find websocket event &#x22;{ev}&#x22;" xml:space="preserve">
         <source>Could not find websocket event "<x id="ev" equiv-text="{ev}"/>"</source>
-        <note>../zibri/src/websocket/services/websocket.service.ts:557</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:566</note>
       </trans-unit>
       <trans-unit id="Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not reset the changes from the change set: The changeSet doesn't belong to the entity with the given id.</source>
-        <note>../zibri/src/change-sets/change-set-repository.ts:274</note>
+        <note>../zibri/src/change-sets/change-set-repository.ts:330</note>
       </trans-unit>
       <trans-unit id="Could not resolve the currently logged in user." xml:space="preserve">
         <source>Could not resolve the currently logged in user.</source>
-        <note>../zibri/src/auth/auth.service.ts:405, ../zibri/src/auth/auth.service.ts:419, ../zibri/src/auth/auth.service.ts:709</note>
+        <note>../zibri/src/auth/auth.service.ts:694, ../zibri/src/auth/auth.service.ts:708, ../zibri/src/auth/auth.service.ts:991, ../zibri/src/auth/auth.service.ts:1267</note>
       </trans-unit>
       <trans-unit id="Could not resolve version" xml:space="preserve">
         <source>Could not resolve version</source>
@@ -770,23 +786,27 @@
       </trans-unit>
       <trans-unit id="Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id." xml:space="preserve">
         <source>Could not rollback to the given change set: The changeSet doesn't belong to the entity with the given id.</source>
-        <note>../zibri/src/change-sets/change-set-repository.ts:356</note>
+        <note>../zibri/src/change-sets/change-set-repository.ts:412</note>
       </trans-unit>
       <trans-unit id="December" xml:space="preserve">
         <source>December</source>
         <note>../zibri/src/localization/models/month.enum.ts:36</note>
       </trans-unit>
+      <trans-unit id="Enroll a second factor to finish logging in." xml:space="preserve">
+        <source>Enroll a second factor to finish logging in.</source>
+        <note>../zibri/src/auth/auth.service.ts:464</note>
+      </trans-unit>
       <trans-unit id="Error generating token" xml:space="preserve">
         <source>Error generating token</source>
-        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:683</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:733</note>
       </trans-unit>
       <trans-unit id="Every member of a group names the id of a user or a group as its value." xml:space="preserve">
         <source>Every member of a group names the id of a user or a group as its value.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1406</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1411</note>
       </trans-unit>
       <trans-unit id="failOnErrors is a whole number above 0." xml:space="preserve">
         <source>failOnErrors is a whole number above 0.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1754</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1759</note>
       </trans-unit>
       <trans-unit id="February" xml:space="preserve">
         <source>February</source>
@@ -830,7 +850,7 @@
       </trans-unit>
       <trans-unit id="Invalid email or password." xml:space="preserve">
         <source>Invalid email or password.</source>
-        <note>../zibri/src/auth/authenticators/password/password.authenticator.ts:108, ../zibri/src/auth/authenticators/password/password.authenticator.ts:121</note>
+        <note>../zibri/src/error-handling/errors/password-locked.error.ts:13, ../zibri/src/auth/authenticators/password/password.authenticator.ts:126, ../zibri/src/auth/authenticators/password/password.authenticator.ts:151</note>
       </trans-unit>
       <trans-unit id="invalid JSON in request body" xml:space="preserve">
         <source>invalid JSON in request body</source>
@@ -838,11 +858,11 @@
       </trans-unit>
       <trans-unit id="Invalid refresh token." xml:space="preserve">
         <source>Invalid refresh token.</source>
-        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:363, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:374, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:379, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:383, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:414</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:372, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:383, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:390, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:394, ../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:430</note>
       </trans-unit>
       <trans-unit id="Invalid username or password." xml:space="preserve">
         <source>Invalid username or password.</source>
-        <note>../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:236, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:426, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:429</note>
+        <note>../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:237, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:432, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:435</note>
       </trans-unit>
       <trans-unit id="invalid XML in body" xml:space="preserve">
         <source>invalid XML in body</source>
@@ -850,7 +870,7 @@
       </trans-unit>
       <trans-unit id="Invoices belong to a user, and this caller is not one." xml:space="preserve">
         <source>Invoices belong to a user, and this caller is not one.</source>
-        <note>../zibri/src/__testing__/evaluation/auth-row-ownership.evaluation.test.ts:73</note>
+        <note>../zibri/src/__testing__/evaluation/auth-row-ownership.evaluation.test.ts:74</note>
       </trans-unit>
       <trans-unit id="is required" xml:space="preserve">
         <source>is required</source>
@@ -870,11 +890,11 @@
       </trans-unit>
       <trans-unit id="Link expired" xml:space="preserve">
         <source>Link expired</source>
-        <note>../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:251, ../zibri/src/auth/authenticators/password/password.authenticator.ts:224</note>
+        <note>../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:251, ../zibri/src/auth/authenticators/password/password.authenticator.ts:254</note>
       </trans-unit>
       <trans-unit id="Link invalid" xml:space="preserve">
         <source>Link invalid</source>
-        <note>../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:132, ../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:248, ../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:264, ../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:300, ../zibri/src/auth/authenticators/password/password.authenticator.ts:220</note>
+        <note>../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:132, ../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:248, ../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:264, ../zibri/src/plugin/mailing-list/services/mailing-list.service.ts:300, ../zibri/src/auth/authenticators/password/password.authenticator.ts:250</note>
       </trans-unit>
       <trans-unit id="Log in again to access this route." xml:space="preserve">
         <source>Log in again to access this route.</source>
@@ -898,7 +918,7 @@
       </trans-unit>
       <trans-unit id="name is already taken" xml:space="preserve">
         <source>name is already taken</source>
-        <note>../zibri/src/cron/cron.service.ts:302</note>
+        <note>../zibri/src/cron/cron.service.ts:312</note>
       </trans-unit>
       <trans-unit id="Name one of {this.resolveNames(classes).join(', ')} in &#x22;{parameter}&#x22;." xml:space="preserve">
         <source>Name one of <x id="this.resolveNames(classes).join(', ')" equiv-text="{this.resolveNames(classes).join(', ')}"/> in "<x id="parameter" equiv-text="{parameter}"/>".</source>
@@ -922,7 +942,7 @@
       </trans-unit>
       <trans-unit id="needs to be in format &#x22;{meta.format}&#x22;" xml:space="preserve">
         <source>needs to be in format "<x id="meta.format" equiv-text="{meta.format}"/>"</source>
-        <note>../zibri/src/validation/functions/validate-number.function.ts:78, ../zibri/src/validation/functions/validate-string.function.ts:72</note>
+        <note>../zibri/src/validation/functions/validate-string.function.ts:72, ../zibri/src/validation/functions/validate-number.function.ts:78</note>
       </trans-unit>
       <trans-unit id="needs to be smaller than {maxSize}" xml:space="preserve">
         <source>needs to be smaller than <x id="maxSize" equiv-text="{maxSize}"/></source>
@@ -930,7 +950,7 @@
       </trans-unit>
       <trans-unit id="needs to match one of &#x22;{ObjectUtilities.values(meta.enum)}&#x22;" xml:space="preserve">
         <source>needs to match one of "<x id="ObjectUtilities.values(meta.enum)" equiv-text="{ObjectUtilities.values(meta.enum)}"/>"</source>
-        <note>../zibri/src/validation/functions/validate-number.function.ts:83, ../zibri/src/validation/functions/validate-string.function.ts:78</note>
+        <note>../zibri/src/validation/functions/validate-string.function.ts:78, ../zibri/src/validation/functions/validate-number.function.ts:83</note>
       </trans-unit>
       <trans-unit id="needs to match regex &#x22;{meta.regex}&#x22;" xml:space="preserve">
         <source>needs to match regex "<x id="meta.regex" equiv-text="{meta.regex}"/>"</source>
@@ -962,23 +982,23 @@
       </trans-unit>
       <trans-unit id="No user is linked to this sign-in." xml:space="preserve">
         <source>No user is linked to this sign-in.</source>
-        <note>../zibri/src/auth/authenticators/passkey/passkey.authenticator.ts:177, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:302, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:711, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:513, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1102</note>
+        <note>../zibri/src/auth/authenticators/passkey/passkey.authenticator.ts:177, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:302, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:720, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:519, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1160</note>
       </trans-unit>
       <trans-unit id="No valid context" xml:space="preserve">
         <source>No valid context</source>
-        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:358</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:374</note>
       </trans-unit>
       <trans-unit id="No valid csrf token" xml:space="preserve">
         <source>No valid csrf token</source>
-        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:379</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:397</note>
       </trans-unit>
       <trans-unit id="No valid refresh session" xml:space="preserve">
         <source>No valid refresh session</source>
-        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:364, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:372, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:376</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:380, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:390, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:394</note>
       </trans-unit>
       <trans-unit id="No valid session" xml:space="preserve">
         <source>No valid session</source>
-        <note>../zibri/src/auth/auth-controller/auth-controller.model.ts:274</note>
+        <note>../zibri/src/auth/auth-controller/auth-controller.model.ts:278</note>
       </trans-unit>
       <trans-unit id="No version active at date, {$f.date(date)}" xml:space="preserve">
         <source>No version active at date, <x id="$f.date(date)" equiv-text="{$f.date(date)}"/></source>
@@ -986,7 +1006,7 @@
       </trans-unit>
       <trans-unit id="Nobody registers." xml:space="preserve">
         <source>Nobody registers.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:132</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:137</note>
       </trans-unit>
       <trans-unit id="nope" xml:space="preserve">
         <source>nope</source>
@@ -998,7 +1018,7 @@
       </trans-unit>
       <trans-unit id="Not allowed to connect" xml:space="preserve">
         <source>Not allowed to connect</source>
-        <note>../zibri/src/websocket/services/websocket.service.ts:453, ../zibri/src/websocket/services/websocket.service.ts:454</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:462, ../zibri/src/websocket/services/websocket.service.ts:463</note>
       </trans-unit>
       <trans-unit id="not found" xml:space="preserve">
         <source>not found</source>
@@ -1010,11 +1030,11 @@
       </trans-unit>
       <trans-unit id="Nothing can be connected." xml:space="preserve">
         <source>Nothing can be connected.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:108, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:140</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:109, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:145</note>
       </trans-unit>
       <trans-unit id="Nothing can be logged out at." xml:space="preserve">
         <source>Nothing can be logged out at.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:124, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:128</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:125, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:129, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:133</note>
       </trans-unit>
       <trans-unit id="nothing here" xml:space="preserve">
         <source>nothing here</source>
@@ -1022,7 +1042,7 @@
       </trans-unit>
       <trans-unit id="Nothing is linked." xml:space="preserve">
         <source>Nothing is linked.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:136, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:148</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:141, ../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:153</note>
       </trans-unit>
       <trans-unit id="Nothing this route produces is acceptable to &#x22;{accept}&#x22;. It answers {producibleMediaTypes.join(', ')}." xml:space="preserve">
         <source>Nothing this route produces is acceptable to "<x id="accept" equiv-text="{accept}"/>". It answers <x id="producibleMediaTypes.join(', ')" equiv-text="{producibleMediaTypes.join(', ')}"/>.</source>
@@ -1044,17 +1064,21 @@
         <source>Passkeys on this device are not accepted.</source>
         <note>../zibri/src/auth/authenticators/passkey/passkey.service.ts:465, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:475, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:481, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:491</note>
       </trans-unit>
+      <trans-unit id="Present a second factor to finish logging in." xml:space="preserve">
+        <source>Present a second factor to finish logging in.</source>
+        <note>../zibri/src/auth/2fa/second-factor-required.error.ts:33</note>
+      </trans-unit>
       <trans-unit id="Rate limit was reached" xml:space="preserve">
         <source>Rate limit was reached</source>
-        <note>../zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:377, ../zibri/src/rate-limiting/limiter/semaphore.rate-limiter.ts:264</note>
+        <note>../zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:381, ../zibri/src/rate-limiting/limiter/semaphore.rate-limiter.ts:264</note>
       </trans-unit>
       <trans-unit id="redirectTo has to be an absolute url." xml:space="preserve">
         <source>redirectTo has to be an absolute url.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1142</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1200</note>
       </trans-unit>
       <trans-unit id="redirectTo is not one of the allowed redirects." xml:space="preserve">
         <source>redirectTo is not one of the allowed redirects.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1151</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1209</note>
       </trans-unit>
       <trans-unit id="relations are not allowed as part of create or update data." xml:space="preserve">
         <source>relations are not allowed as part of create or update data.</source>
@@ -1062,7 +1086,7 @@
       </trans-unit>
       <trans-unit id="Reports belong to a user, and this caller is not one." xml:space="preserve">
         <source>Reports belong to a user, and this caller is not one.</source>
-        <note>../zibri/src/__testing__/evaluation/auth-row-ownership.evaluation.test.ts:100</note>
+        <note>../zibri/src/__testing__/evaluation/auth-row-ownership.evaluation.test.ts:101</note>
       </trans-unit>
       <trans-unit id="request too large" xml:space="preserve">
         <source>request too large</source>
@@ -1070,7 +1094,7 @@
       </trans-unit>
       <trans-unit id="Rooms belong to their members, and this caller is not one." xml:space="preserve">
         <source>Rooms belong to their members, and this caller is not one.</source>
-        <note>../zibri/src/__testing__/evaluation/auth-row-ownership.evaluation.test.ts:122</note>
+        <note>../zibri/src/__testing__/evaluation/auth-row-ownership.evaluation.test.ts:123</note>
       </trans-unit>
       <trans-unit id="Saturday" xml:space="preserve">
         <source>Saturday</source>
@@ -1079,6 +1103,10 @@
       <trans-unit id="SCIM error" xml:space="preserve">
         <source>SCIM error</source>
         <note>../zibri/src/auth/scim/scim.error.ts:21</note>
+      </trans-unit>
+      <trans-unit id="Second factor required" xml:space="preserve">
+        <source>Second factor required</source>
+        <note>../zibri/src/auth/2fa/second-factor-required.error.ts:33</note>
       </trans-unit>
       <trans-unit id="September" xml:space="preserve">
         <source>September</source>
@@ -1126,15 +1154,15 @@
       </trans-unit>
       <trans-unit id="The {this.entityClass.name} cannot be deleted while rows of &#x22;{relation.key}&#x22; still point at it." xml:space="preserve">
         <source>The <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> cannot be deleted while rows of "<x id="relation.key" equiv-text="{relation.key}"/>" still point at it.</source>
-        <note>../zibri/src/data-source/repository/repository.ts:2946</note>
+        <note>../zibri/src/data-source/repository/repository.ts:3422</note>
       </trans-unit>
       <trans-unit id="The {this.entityClass.name} holding {values} changed since it was read, so the upsert was not applied." xml:space="preserve">
         <source>The <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> holding <x id="values" equiv-text="{values}"/> changed since it was read, so the upsert was not applied.</source>
-        <note>../zibri/src/data-source/repository/repository.ts:1474</note>
+        <note>../zibri/src/data-source/repository/repository.ts:1705</note>
       </trans-unit>
       <trans-unit id="The {this.entityClass.name} with id &#x22;{id}&#x22; changed since it was read, so the update was not applied." xml:space="preserve">
         <source>The <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> with id "<x id="id" equiv-text="{id}"/>" changed since it was read, so the update was not applied.</source>
-        <note>../zibri/src/data-source/repository/repository.ts:2394</note>
+        <note>../zibri/src/data-source/repository/repository.ts:2796</note>
       </trans-unit>
       <trans-unit id="The amount has to be greater than 0." xml:space="preserve">
         <source>The amount has to be greater than 0.</source>
@@ -1142,31 +1170,31 @@
       </trans-unit>
       <trans-unit id="The authorization header holds no client id and secret." xml:space="preserve">
         <source>The authorization header holds no client id and secret.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:499, ../zibri/src/auth/authorization-server/authorization-server.service.ts:514</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:504, ../zibri/src/auth/authorization-server/authorization-server.service.ts:519</note>
       </trans-unit>
       <trans-unit id="The body is not a SOAP envelope carrying a logout request." xml:space="preserve">
         <source>The body is not a SOAP envelope carrying a logout request.</source>
         <note>../zibri/src/auth/authenticators/saml/saml-soap.utilities.ts:41, ../zibri/src/auth/authenticators/saml/saml-soap.utilities.ts:48</note>
       </trans-unit>
-      <trans-unit id="The caller holds none of the roles that may introspect." xml:space="preserve">
-        <source>The caller holds none of the roles that may introspect.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:317</note>
+      <trans-unit id="The caller may not use the permission to introspect." xml:space="preserve">
+        <source>The caller may not use the permission to introspect.</source>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:320</note>
       </trans-unit>
       <trans-unit id="The certificate of an api key has to be PEM encoded." xml:space="preserve">
         <source>The certificate of an api key has to be PEM encoded.</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:315</note>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:318</note>
       </trans-unit>
       <trans-unit id="The client could not be authenticated." xml:space="preserve">
         <source>The client could not be authenticated.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:554</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:559</note>
       </trans-unit>
-      <trans-unit id="The client may not use the roles {refused.join(', ')}." xml:space="preserve">
-        <source>The client may not use the roles <x id="refused.join(', ')" equiv-text="{refused.join(', ')}"/>.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:732</note>
+      <trans-unit id="The client may not use the permissions {refused.join(', ')}." xml:space="preserve">
+        <source>The client may not use the permissions <x id="refused.join(', ')" equiv-text="{refused.join(', ')}"/>.</source>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:733</note>
       </trans-unit>
       <trans-unit id="The client_id differs from the client in the authorization header." xml:space="preserve">
         <source>The client_id differs from the client in the authorization header.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:474</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:479</note>
       </trans-unit>
       <trans-unit id="The code challenge has to be the S256 challenge of a PKCE verifier." xml:space="preserve">
         <source>The code challenge has to be the S256 challenge of a PKCE verifier.</source>
@@ -1174,19 +1202,19 @@
       </trans-unit>
       <trans-unit id="The code is invalid or has expired." xml:space="preserve">
         <source>The code is invalid or has expired.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1034</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1092</note>
       </trans-unit>
       <trans-unit id="The code is invalid." xml:space="preserve">
         <source>The code is invalid.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:101</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-authenticator.interface.test.ts:102</note>
       </trans-unit>
       <trans-unit id="The code verifier does not match." xml:space="preserve">
         <source>The code verifier does not match.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1068</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1126</note>
       </trans-unit>
       <trans-unit id="The cron job &#x22;{this.entity.name}&#x22; is declared in code, so only enable, disable and changeCron change it at runtime." xml:space="preserve">
         <source>The cron job "<x id="this.entity.name" equiv-text="{this.entity.name}"/>" is declared in code, so only enable, disable and changeCron change it at runtime.</source>
-        <note>../zibri/src/cron/cron-job.model.ts:925</note>
+        <note>../zibri/src/cron/cron-job.model.ts:977</note>
       </trans-unit>
       <trans-unit id="The cursor could not be read." xml:space="preserve">
         <source>The cursor could not be read.</source>
@@ -1202,7 +1230,7 @@
       </trans-unit>
       <trans-unit id="The directory has no email for this account." xml:space="preserve">
         <source>The directory has no email for this account.</source>
-        <note>../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.test.ts:127</note>
+        <note>../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.test.ts:128</note>
       </trans-unit>
       <trans-unit id="The DPoP proof carries no nonce the application issued." xml:space="preserve">
         <source>The DPoP proof carries no nonce the application issued.</source>
@@ -1218,7 +1246,7 @@
       </trans-unit>
       <trans-unit id="The field &#x22;{name}&#x22; is too large." xml:space="preserve">
         <source>The field "<x id="name" equiv-text="{name}"/>" is too large.</source>
-        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:358</note>
+        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:355</note>
       </trans-unit>
       <trans-unit id="the file type needs to be {allowedMimeTypes[0]}" xml:space="preserve">
         <source>the file type needs to be <x id="allowedMimeTypes[0]" equiv-text="{allowedMimeTypes[0]}"/></source>
@@ -1238,7 +1266,7 @@
       </trans-unit>
       <trans-unit id="The filter on &#x22;{path}&#x22; excludes a value it cannot hold." xml:space="preserve">
         <source>The filter on "<x id="path" equiv-text="{path}"/>" excludes a value it cannot hold.</source>
-        <note>../zibri/src/data-source/where/drop-impossible-conditions.function.ts:237</note>
+        <note>../zibri/src/data-source/where/drop-impossible-conditions.function.ts:290</note>
       </trans-unit>
       <trans-unit id="The filter stands for too many alternatives." xml:space="preserve">
         <source>The filter stands for too many alternatives.</source>
@@ -1254,7 +1282,7 @@
       </trans-unit>
       <trans-unit id="The given refresh session has already been used." xml:space="preserve">
         <source>The given refresh session has already been used.</source>
-        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:431, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:453</note>
+        <note>../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:450, ../zibri/src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:477</note>
       </trans-unit>
       <trans-unit id="The id of a resource cannot change." xml:space="preserve">
         <source>The id of a resource cannot change.</source>
@@ -1262,19 +1290,31 @@
       </trans-unit>
       <trans-unit id="The JSON Web Key Set of an api key has to be at an https url." xml:space="preserve">
         <source>The JSON Web Key Set of an api key has to be at an https url.</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:329</note>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:332</note>
       </trans-unit>
       <trans-unit id="The login is bound to a DPoP key, which the request proves no hold of." xml:space="preserve">
         <source>The login is bound to a DPoP key, which the request proves no hold of.</source>
-        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:450</note>
+        <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:469</note>
       </trans-unit>
       <trans-unit id="The logout could not be verified." xml:space="preserve">
         <source>The logout could not be verified.</source>
-        <note>../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:462, ../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:484, ../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:505, ../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:518</note>
+        <note>../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:470, ../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:492, ../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:513, ../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:526</note>
+      </trans-unit>
+      <trans-unit id="The logout names another provider, or no session." xml:space="preserve">
+        <source>The logout names another provider, or no session.</source>
+        <note>../zibri/src/auth/authenticators/oidc/base-oidc.authenticator.ts:241</note>
       </trans-unit>
       <trans-unit id="The logout request is not signed." xml:space="preserve">
         <source>The logout request is not signed.</source>
-        <note>../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:453</note>
+        <note>../zibri/src/auth/authenticators/saml/base-saml.authenticator.ts:461</note>
+      </trans-unit>
+      <trans-unit id="The logout token could not be verified." xml:space="preserve">
+        <source>The logout token could not be verified.</source>
+        <note>../zibri/src/auth/authenticators/oidc/base-oidc.authenticator.ts:281</note>
+      </trans-unit>
+      <trans-unit id="The logout token was presented before." xml:space="preserve">
+        <source>The logout token was presented before.</source>
+        <note>../zibri/src/auth/authenticators/oidc/base-oidc.authenticator.ts:511</note>
       </trans-unit>
       <trans-unit id="The name abbreviation {claimed} is already used by another recipient." xml:space="preserve">
         <source>The name abbreviation <x id="claimed" equiv-text="{claimed}"/> is already used by another recipient.</source>
@@ -1282,15 +1322,15 @@
       </trans-unit>
       <trans-unit id="The offset has to be a whole number of at least 0." xml:space="preserve">
         <source>The offset has to be a whole number of at least 0.</source>
-        <note>../zibri/src/websocket/services/websocket.service.ts:431</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:440</note>
       </trans-unit>
       <trans-unit id="The operation refers in a circle to resources the request creates." xml:space="preserve">
         <source>The operation refers in a circle to resources the request creates.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:552</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:557</note>
       </trans-unit>
       <trans-unit id="The operation refers to bulkId {unresolved.join(', ')}, which no operation of the request created." xml:space="preserve">
         <source>The operation refers to bulkId <x id="unresolved.join(', ')" equiv-text="{unresolved.join(', ')}"/>, which no operation of the request created.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:595, ../zibri/src/auth/scim/scim.service.ts:648</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:600, ../zibri/src/auth/scim/scim.service.ts:653</note>
       </trans-unit>
       <trans-unit id="The passkey challenge is invalid or has expired." xml:space="preserve">
         <source>The passkey challenge is invalid or has expired.</source>
@@ -1303,6 +1343,14 @@
       <trans-unit id="The passkey could not be verified." xml:space="preserve">
         <source>The passkey could not be verified.</source>
         <note>../zibri/src/auth/authenticators/passkey/passkey.service.ts:519, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:523, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:543, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:546, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:553</note>
+      </trans-unit>
+      <trans-unit id="The permission '{permission}' is not declared at the level of the role." xml:space="preserve">
+        <source>The permission '<x id="permission" equiv-text="{permission}"/>' is not declared at the level of the role.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:326</note>
+      </trans-unit>
+      <trans-unit id="The permission '{undeclared}' is not declared." xml:space="preserve">
+        <source>The permission '<x id="undeclared" equiv-text="{undeclared}"/>' is not declared.</source>
+        <note>../zibri/src/auth/auth.service.ts:1133</note>
       </trans-unit>
       <trans-unit id="The provided two factor code is invalid." xml:space="preserve">
         <source>The provided two factor code is invalid.</source>
@@ -1318,15 +1366,23 @@
       </trans-unit>
       <trans-unit id="The provider &#x22;{provider}&#x22; publishes no metadata." xml:space="preserve">
         <source>The provider "<x id="provider" equiv-text="{provider}"/>" publishes no metadata.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-route.utilities.ts:249</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-route.utilities.ts:268</note>
       </trans-unit>
       <trans-unit id="The provider &#x22;{this.name}&#x22; cannot be logged out at." xml:space="preserve">
         <source>The provider "<x id="this.name" equiv-text="{this.name}"/>" cannot be logged out at.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:646</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:678</note>
+      </trans-unit>
+      <trans-unit id="The provider &#x22;{this.name}&#x22; logs out with a redirect, not a posted form." xml:space="preserve">
+        <source>The provider "<x id="this.name" equiv-text="{this.name}"/>" logs out with a redirect, not a posted form.</source>
+        <note>../zibri/src/auth/authenticators/oidc/base-oidc.authenticator.ts:231</note>
       </trans-unit>
       <trans-unit id="The provider &#x22;{this.name}&#x22; takes no logout requests sent server to server." xml:space="preserve">
         <source>The provider "<x id="this.name" equiv-text="{this.name}"/>" takes no logout requests sent server to server.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:662</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:694</note>
+      </trans-unit>
+      <trans-unit id="The provider &#x22;{this.name}&#x22; takes no logout tokens." xml:space="preserve">
+        <source>The provider "<x id="this.name" equiv-text="{this.name}"/>" takes no logout tokens.</source>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:709</note>
       </trans-unit>
       <trans-unit id="The provider cannot be accessed for this user." xml:space="preserve">
         <source>The provider cannot be accessed for this user.</source>
@@ -1334,19 +1390,19 @@
       </trans-unit>
       <trans-unit id="The public key of an api key has to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key." xml:space="preserve">
         <source>The public key of an api key has to be an EC, Ed25519 or RSA key, PEM encoded or as a JSON Web Key.</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:297</note>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:300</note>
       </trans-unit>
       <trans-unit id="The request authenticates its client in more than one way." xml:space="preserve">
         <source>The request authenticates its client in more than one way.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:471</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:476</note>
       </trans-unit>
       <trans-unit id="The request authenticates no caller." xml:space="preserve">
         <source>The request authenticates no caller.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:783</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:791</note>
       </trans-unit>
       <trans-unit id="The request authenticates no client." xml:space="preserve">
         <source>The request authenticates no client.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:265</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:266</note>
       </trans-unit>
       <trans-unit id="The request could not be handled right now, please try again." xml:space="preserve">
         <source>The request could not be handled right now, please try again.</source>
@@ -1354,11 +1410,11 @@
       </trans-unit>
       <trans-unit id="The request names no grant_type." xml:space="preserve">
         <source>The request names no grant_type.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:256</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:257</note>
       </trans-unit>
       <trans-unit id="The request names no token." xml:space="preserve">
         <source>The request names no token.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:796</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:804</note>
       </trans-unit>
       <trans-unit id="The request names the tenant &#x22;{header}&#x22; in its header and &#x22;{query}&#x22; in its query." xml:space="preserve">
         <source>The request names the tenant "<x id="header" equiv-text="{header}"/>" in its header and "<x id="query" equiv-text="{query}"/>" in its query.</source>
@@ -1366,15 +1422,43 @@
       </trans-unit>
       <trans-unit id="The resource changed since the version the request names." xml:space="preserve">
         <source>The resource changed since the version the request names.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1359</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1364</note>
       </trans-unit>
       <trans-unit id="The resource conflicts with one that exists." xml:space="preserve">
         <source>The resource conflicts with one that exists.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1952</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1957</note>
       </trans-unit>
       <trans-unit id="The resource was changed by another request at the same time." xml:space="preserve">
         <source>The resource was changed by another request at the same time.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1342</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1347</note>
+      </trans-unit>
+      <trans-unit id="The role '{platformOfTenant.name}' is a platform role, and a platform role belongs to no tenant." xml:space="preserve">
+        <source>The role '<x id="platformOfTenant.name" equiv-text="{platformOfTenant.name}"/>' is a platform role, and a platform role belongs to no tenant.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:359</note>
+      </trans-unit>
+      <trans-unit id="The role '{role.name}' is one every tenant shares, so no tenant can have one of its own named so." xml:space="preserve">
+        <source>The role '<x id="role.name" equiv-text="{role.name}"/>' is one every tenant shares, so no tenant can have one of its own named so.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:384</note>
+      </trans-unit>
+      <trans-unit id="The role '{role.name}' is still held. Take it from everybody who holds it first." xml:space="preserve">
+        <source>The role '<x id="role.name" equiv-text="{role.name}"/>' is still held. Take it from everybody who holds it first.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:398</note>
+      </trans-unit>
+      <trans-unit id="The role '{role}' does not exist." xml:space="preserve">
+        <source>The role '<x id="role" equiv-text="{role}"/>' does not exist.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:294, ../zibri/src/auth/roles/role.service.ts:308</note>
+      </trans-unit>
+      <trans-unit id="The role '{role}' is a platform role, and only tenant roles can be held here." xml:space="preserve">
+        <source>The role '<x id="role" equiv-text="{role}"/>' is a platform role, and only tenant roles can be held here.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:291</note>
+      </trans-unit>
+      <trans-unit id="The role '{role}' is a tenant role, and only platform roles can be held here." xml:space="preserve">
+        <source>The role '<x id="role" equiv-text="{role}"/>' is a tenant role, and only platform roles can be held here.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:311</note>
+      </trans-unit>
+      <trans-unit id="The roles of the user do not carry the permissions {missing.join(', ')}." xml:space="preserve">
+        <source>The roles of the user do not carry the permissions <x id="missing.join(', ')" equiv-text="{missing.join(', ')}"/>.</source>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:258</note>
       </trans-unit>
       <trans-unit id="The route at &#x22;{originalUrl}&#x22; does not exist." xml:space="preserve">
         <source>The route at "<x id="originalUrl" equiv-text="{originalUrl}"/>" does not exist.</source>
@@ -1390,7 +1474,7 @@
       </trans-unit>
       <trans-unit id="The sign-in was started in another browser." xml:space="preserve">
         <source>The sign-in was started in another browser.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1074</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1132</note>
       </trans-unit>
       <trans-unit id="The sortOrder is ascending or descending." xml:space="preserve">
         <source>The sortOrder is ascending or descending.</source>
@@ -1402,63 +1486,67 @@
       </trans-unit>
       <trans-unit id="The ticket is invalid or has expired." xml:space="preserve">
         <source>The ticket is invalid or has expired.</source>
-        <note>../zibri/src/auth/authenticators/passkey/passkey.service.ts:263, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:272, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1050</note>
+        <note>../zibri/src/auth/authenticators/passkey/passkey.service.ts:263, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:272, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1108</note>
       </trans-unit>
       <trans-unit id="The token was not issued to the client." xml:space="preserve">
         <source>The token was not issued to the client.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:809</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:817</note>
       </trans-unit>
       <trans-unit id="The tokens of the client are bound to a DPoP key, which the request carries no proof of." xml:space="preserve">
         <source>The tokens of the client are bound to a DPoP key, which the request carries no proof of.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:358</note>
-      </trans-unit>
-      <trans-unit id="The user does not have the roles {missing.join(', ')}." xml:space="preserve">
-        <source>The user does not have the roles <x id="missing.join(', ')" equiv-text="{missing.join(', ')}"/>.</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:246</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:361</note>
       </trans-unit>
       <trans-unit id="The user has no such identity at this provider." xml:space="preserve">
         <source>The user has no such identity at this provider.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:753</note>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:800</note>
       </trans-unit>
       <trans-unit id="The user has no such identity." xml:space="preserve">
         <source>The user has no such identity.</source>
-        <note>../zibri/src/auth/auth.service.ts:827</note>
+        <note>../zibri/src/auth/auth.service.ts:1165</note>
       </trans-unit>
       <trans-unit id="The user is no member of the tenant &#x22;{tenantId}&#x22;." xml:space="preserve">
         <source>The user is no member of the tenant "<x id="tenantId" equiv-text="{tenantId}"/>".</source>
-        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:268</note>
+        <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:272, ../zibri/src/auth/roles/role.service.ts:540</note>
       </trans-unit>
       <trans-unit id="The userName {userName} is taken." xml:space="preserve">
         <source>The userName <x id="userName" equiv-text="{userName}"/> is taken.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1463</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1468</note>
       </trans-unit>
       <trans-unit id="There is no group {id}." xml:space="preserve">
         <source>There is no group <x id="id" equiv-text="{id}"/>.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1482</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1487</note>
       </trans-unit>
       <trans-unit id="There is no provider &#x22;{provider}&#x22;." xml:space="preserve">
         <source>There is no provider "<x id="provider" equiv-text="{provider}"/>".</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-route.utilities.ts:53</note>
+        <note>../zibri/src/auth/authenticators/federated/federated-route.utilities.ts:55</note>
       </trans-unit>
       <trans-unit id="There is no resource type {id}." xml:space="preserve">
         <source>There is no resource type <x id="id" equiv-text="{id}"/>.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:277</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:282</note>
+      </trans-unit>
+      <trans-unit id="There is no role named '{name}'." xml:space="preserve">
+        <source>There is no role named '<x id="name" equiv-text="{name}"/>'.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:733</note>
       </trans-unit>
       <trans-unit id="There is no schema {id}." xml:space="preserve">
         <source>There is no schema <x id="id" equiv-text="{id}"/>.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:292</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:297</note>
       </trans-unit>
       <trans-unit id="There is no user {id}." xml:space="preserve">
         <source>There is no user <x id="id" equiv-text="{id}"/>.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1254, ../zibri/src/auth/scim/scim.service.ts:1472</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1259, ../zibri/src/auth/scim/scim.service.ts:1477</note>
       </trans-unit>
       <trans-unit id="There is no user {scimUser.id}." xml:space="preserve">
         <source>There is no user <x id="scimUser.id" equiv-text="{scimUser.id}"/>.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:936</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:941</note>
       </trans-unit>
       <trans-unit id="There should only be one message sent." xml:space="preserve">
         <source>There should only be one message sent.</source>
-        <note>../zibri/src/websocket/services/websocket.service.ts:575</note>
+        <note>../zibri/src/websocket/services/websocket.service.ts:584</note>
+      </trans-unit>
+      <trans-unit id="This account has a second factor. Present it to log in." xml:space="preserve">
+        <source>This account has a second factor. Present it to log in.</source>
+        <note>../zibri/src/auth/auth.service.ts:581</note>
       </trans-unit>
       <trans-unit id="This account has no second factor of this kind." xml:space="preserve">
         <source>This account has no second factor of this kind.</source>
@@ -1480,13 +1568,17 @@
         <source>this key is unknown</source>
         <note>../zibri/src/validation/validation.service.ts:234, ../zibri/src/validation/validation.service.ts:437, ../zibri/src/validation/functions/shape-problems.function.ts:105, ../zibri/src/validation/functions/shape-problems.function.ts:147</note>
       </trans-unit>
+      <trans-unit id="This login ticket is unknown, spent or expired. Log in again." xml:space="preserve">
+        <source>This login ticket is unknown, spent or expired. Log in again.</source>
+        <note>../zibri/src/auth/auth.service.ts:542, ../zibri/src/auth/auth.service.ts:558</note>
+      </trans-unit>
       <trans-unit id="This phone number was sent too many codes today." xml:space="preserve">
         <source>This phone number was sent too many codes today.</source>
         <note>../zibri/src/auth/2fa/methods/code/sms.two-factor-method.ts:79</note>
       </trans-unit>
       <trans-unit id="This request carries more than one credential ({strategies.map(s => s.name).join(', ')}). Send exactly one." xml:space="preserve">
         <source>This request carries more than one credential (<x id="strategies.map(s => s.name).join(', ')" equiv-text="{strategies.map(s => s.name).join(', ')}"/>). Send exactly one.</source>
-        <note>../zibri/src/auth/auth.service.ts:1449</note>
+        <note>../zibri/src/auth/auth.service.ts:1976</note>
       </trans-unit>
       <trans-unit id="This request names no tenant." xml:space="preserve">
         <source>This request names no tenant.</source>
@@ -1514,23 +1606,23 @@
       </trans-unit>
       <trans-unit id="Tokens are issued for the client_credentials grant only." xml:space="preserve">
         <source>Tokens are issued for the client_credentials grant only.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:261</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:262</note>
       </trans-unit>
       <trans-unit id="Tokens are not issued for {refused.join(', ')}." xml:space="preserve">
         <source>Tokens are not issued for <x id="refused.join(', ')" equiv-text="{refused.join(', ')}"/>.</source>
-        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:752</note>
+        <note>../zibri/src/auth/authorization-server/authorization-server.service.ts:753</note>
       </trans-unit>
       <trans-unit id="Too many fields, at most {limits.maxFields} are accepted." xml:space="preserve">
         <source>Too many fields, at most <x id="limits.maxFields" equiv-text="{limits.maxFields}"/> are accepted.</source>
-        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:346</note>
+        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:343</note>
       </trans-unit>
       <trans-unit id="Too many files, at most {limits.maxFiles} are accepted." xml:space="preserve">
         <source>Too many files, at most <x id="limits.maxFiles" equiv-text="{limits.maxFiles}"/> are accepted.</source>
-        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:344</note>
+        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:341</note>
       </trans-unit>
       <trans-unit id="Too many parts, at most {limits.maxParts} are accepted." xml:space="preserve">
         <source>Too many parts, at most <x id="limits.maxParts" equiv-text="{limits.maxParts}"/> are accepted.</source>
-        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:345</note>
+        <note>../zibri/src/parsing/form-data/form-data.body-parser.ts:342</note>
       </trans-unit>
       <trans-unit id="Too Many Requests" xml:space="preserve">
         <source>Too Many Requests</source>
@@ -1594,11 +1686,11 @@
       </trans-unit>
       <trans-unit id="Whether a user is active is true or false." xml:space="preserve">
         <source>Whether a user is active is true or false.</source>
-        <note>../zibri/src/auth/scim/scim.service.ts:1448</note>
+        <note>../zibri/src/auth/scim/scim.service.ts:1453</note>
       </trans-unit>
       <trans-unit id="Without a codeChallenge the sign-in logs in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">
         <source>Without a codeChallenge the sign-in logs in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.</source>
-        <note>../zibri/src/auth/auth-controller/auth-controller.model.ts:827</note>
+        <note>../zibri/src/auth/auth-controller/auth-controller.model.ts:932</note>
       </trans-unit>
       <trans-unit id="Wrong pin." xml:space="preserve">
         <source>Wrong pin.</source>
@@ -1610,15 +1702,19 @@
       </trans-unit>
       <trans-unit id="You cannot be logged in when accessing this route." xml:space="preserve">
         <source>You cannot be logged in when accessing this route.</source>
-        <note>../zibri/src/auth/auth.service.ts:914</note>
+        <note>../zibri/src/auth/auth.service.ts:1250</note>
       </trans-unit>
       <trans-unit id="You cannot write a {this.entityClass.name} outside what you are allowed to see." xml:space="preserve">
         <source>You cannot write a <x id="this.entityClass.name" equiv-text="{this.entityClass.name}"/> outside what you are allowed to see.</source>
-        <note>../zibri/src/data-source/repository/repository.ts:664</note>
+        <note>../zibri/src/data-source/repository/repository.ts:888</note>
       </trans-unit>
       <trans-unit id="You do not have permission to access this route." xml:space="preserve">
         <source>You do not have permission to access this route.</source>
-        <note>../zibri/src/auth/auth.service.ts:922, ../zibri/src/auth/auth.service.ts:935, ../zibri/src/auth/auth.service.ts:949, ../zibri/src/auth/auth.service.ts:1114</note>
+        <note>../zibri/src/auth/auth.service.ts:1258, ../zibri/src/auth/auth.service.ts:1321, ../zibri/src/auth/auth.service.ts:1339, ../zibri/src/auth/auth.service.ts:1607</note>
+      </trans-unit>
+      <trans-unit id="You do not have permission to manage this role." xml:space="preserve">
+        <source>You do not have permission to manage this role.</source>
+        <note>../zibri/src/auth/roles/role.service.ts:591</note>
       </trans-unit>
       <trans-unit id="You have no passkey to present." xml:space="preserve">
         <source>You have no passkey to present.</source>
@@ -1626,11 +1722,15 @@
       </trans-unit>
       <trans-unit id="You need to be logged in to access this route." xml:space="preserve">
         <source>You need to be logged in to access this route.</source>
-        <note>../zibri/src/auth/auth.service.ts:906</note>
+        <note>../zibri/src/auth/auth.service.ts:1242</note>
       </trans-unit>
       <trans-unit id="You need to provide a second factor to access this route." xml:space="preserve">
         <source>You need to provide a second factor to access this route.</source>
-        <note>../zibri/src/auth/2fa/two-factor.service.ts:379</note>
+        <note>../zibri/src/auth/2fa/two-factor.service.ts:385</note>
+      </trans-unit>
+      <trans-unit id="Your account has no access to this application." xml:space="preserve">
+        <source>Your account has no access to this application.</source>
+        <note>../zibri/src/auth/authenticators/oidc/base-oidc.authenticator.claims.test.ts:89</note>
       </trans-unit>
       <trans-unit id="Your second factor is locked after too many wrong codes. Use a recovery code, or have it reset." xml:space="preserve">
         <source>Your second factor is locked after too many wrong codes. Use a recovery code, or have it reset.</source>

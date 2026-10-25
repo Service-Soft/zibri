@@ -6,5 +6,6 @@
  * - `logout`: where the provider sends the browser to say the user logged out there, or that it
  * ended its session after a logout here.
  * - `logout/soap`: where the provider sends a logout request server to server, in a SOAP envelope.
+ * - `logout/back-channel`: where an OpenID Connect provider sends a logout token server to server.
  */
-export type FederatedRoute = 'callback' | 'connect' | 'logout' | 'logout/soap';
+export type FederatedRoute = 'callback' | 'connect' | 'logout' | 'logout/soap' | 'logout/back-channel';

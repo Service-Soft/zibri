@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 
 import { SemVerVersion } from './sem-ver.utilities';
 import { VersionFile } from './version.model';
-import { testFileFolder } from '../__testing__/constants';
+import { testFileFolder, TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startTestServer, StartedTestServer } from '../__testing__/test-server/start-test-server.function';
 import { HttpRequestContext } from '../context/request/http-request.context';
@@ -147,11 +147,11 @@ beforeAll(async () => {
         websocketControllers: [VersionResolveController, VersionedDispatchController]
     });
     baseUrl = await server.start();
-}, 30000);
+}, TestTimeouts.postgres.start);
 
 afterAll(async () => {
     await server.shutdown();
-}, 15000);
+}, TestTimeouts.postgres.shutdown);
 
 describe('VersioningService websocket integration', () => {
     describe('resolveVersion via websocket', () => {

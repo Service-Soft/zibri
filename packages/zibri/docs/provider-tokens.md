@@ -1,10 +1,10 @@
 # Accepting a provider's tokens
-A mobile app or another service already holds a token from your identity provider, such as Keycloak, Microsoft Entra ID or Auth0, and calls your api with it. Your application verifies the token against the keys the provider publishes, checks that it is for your api, and acts as the user the identity it names is [linked to](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account).
+A mobile app or another service already holds a token from your identity provider, such as Keycloak, Microsoft Entra ID or Auth0, and calls your API with it. Your application verifies the token against the keys the provider publishes, checks that it is for your API, and acts as the user the identity it names is [linked to](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account).
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `ProviderTokenAuthStrategy` | class | Builtin auth strategy reading the tokens of your providers |
+| `ProviderTokenAuthStrategy` | class | The auth strategy reading the tokens of your providers |
 | `OidcBearerTokens` | type | Which tokens of an OpenID Connect provider a request may send, set as `bearerTokens` of its authenticator |
 | `ProviderTokenAuthenticatorInterface`, `isProviderTokenAuthenticator` | interface, function | What an authenticator whose provider's tokens a request may send implements, see [another kind of provider](#another-kind-of-provider) |
 | `ProviderToken` | type | What a verified token says: the user, the login time, and what it is bound to |
@@ -16,8 +16,8 @@ Set `bearerTokens` on the authenticator of the provider, and register `ProviderT
 // src/auth/keycloak.authenticator.ts
 import { AuthController, BaseKeycloakAuthenticator, Controller, JwtAuthStrategy, OAuthClientAuthentication, OidcBearerTokens, OtpTwoFactorMethod, ProviderTokenAuthStrategy, ZibriApplicationOptions } from 'zibri';
 
-import { Roles } from './roles.enum';
-import { User } from './user.entity';
+import { Roles } from '../models/roles.enum';
+import { User } from '../models/user.model';
 
 export class KeycloakAuthenticator extends BaseKeycloakAuthenticator<Roles, User> {
     readonly baseUrl: string = 'https://login.example.com';
@@ -50,11 +50,11 @@ export const providerTokenOptions: Pick<ZibriApplicationOptions, 'authenticators
 
 | Member of `bearerTokens` | What it is |
 |---|---|
-| `accessTokenAudiences` | The audiences your api is known by at the provider. An access token whose `aud` names one of them is taken. Empty to take no access tokens |
+| `accessTokenAudiences` | The audiences your API is known by at the provider. An access token whose `aud` names one of them is taken. Empty to take no access tokens |
 | `accessTokenType` | `'at+jwt'` takes only access tokens whose header carries the `typ` `at+jwt` (RFC 9068). `'any'` takes any `typ`, for a provider such as Keycloak or Entra ID marking its access tokens `JWT` |
 | `idTokenAudiences` | The clients whose ID tokens are taken, such as the client your mobile app signs in as. Empty to take no ID tokens |
 
-`bearerTokens` is `undefined` by default, and the authenticator takes none of its provider's tokens. The application refuses to start when `ProviderTokenAuthStrategy` is registered and no authenticator takes its provider's tokens, when two authenticators take the tokens of the same provider, or when `bearerTokens` names neither an access token audience nor an ID token audience.
+`bearerTokens` is `undefined` by default, and the authenticator takes none of its provider's tokens. One authenticator of a provider takes its tokens.
 
 ## What a token has to prove
 A request sends the token in the `Authorization` header, as `Bearer <token>`. The token is handed to the authenticator whose `issuer` it names, and it is taken when
@@ -62,9 +62,9 @@ A request sends the token in the `Authorization` header, as `Bearer <token>`. Th
 - it is signed with a key the provider publishes, by one of the authenticator's `allowedAlgorithms`
 - its `iss` is the provider's issuer, and it has not expired
 - its `aud` names one of `accessTokenAudiences` and its `typ` is what `accessTokenType` says, or its `aud` names one of `idTokenAudiences` and its `typ` is not `at+jwt`
-- its `sub` is an identity at the provider linked to a user who signs in through it
+- the claim the authenticator's `subjectClaim` names, `sub` by default, is an identity at the provider linked to a user who signs in through it. `BaseMicrosoftAuthenticator` names `oid`, the one claim Entra ID keeps the same across app registrations
 
-The request acts as that user, with the roles the user has now. An identity linked to nobody, or linked for the provider's apis only, is refused with `401`: a token never creates a user.
+The request acts as that user, with the roles the user has now. An identity linked to nobody, or linked for the provider's APIs only, is refused with `401`: a token never creates a user.
 
 A token naming your application's own `baseUrl` as its issuer is left to your application's own strategies.
 
@@ -73,6 +73,9 @@ A token whose `cnf` names a DPoP key (`jkt`) is taken only with the `DPoP` schem
 
 ### The login time
 The token's `auth_time` is the time of the login, which a route accepting [a recent login in place of a second factor](./two-factor.md) reads. A token without one never counts as a recent login.
+
+### The second factor at the provider
+The token's `amr` and `acr` say how the user signed in at the provider, which a route [counting the provider's second factor](./two-factor.md#accepting-the-providers-second-factor) reads. A token without them never counts.
 
 ## Another kind of provider
 `ProviderTokenAuthStrategy` takes the tokens of every registered authenticator implementing `ProviderTokenAuthenticatorInterface` whose `acceptsProviderTokens` is `true`. `BaseOidcAuthenticator` and the authenticators extending it implement it. For a provider of another kind, implement it on your authenticator:

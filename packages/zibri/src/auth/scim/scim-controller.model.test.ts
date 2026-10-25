@@ -13,12 +13,15 @@ import { ScimSchema } from './scim-schema.enum';
 import { ScimUserResource } from './scim-user-resource.model';
 import { ScimUserValue } from './scim-user-value.model';
 import { ScimUser } from './scim-user.model';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
+import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { TestMembership } from '../../__testing__/mocks/entities/test-membership.entity';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestPermissions, TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
+import { defaultTestServerPermissions, defaultTestServerProviders, defaultTestServerRoles, rolesAndPermissionsProviders, TestServerRole } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
@@ -37,6 +40,7 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { type AuthServiceInterface } from '../auth-service.interface';
+import { definePermissions } from '../roles/define-permissions.function';
 import { ApiKeyAuthStrategy } from '../strategies/api-key/api-key.auth-strategy';
 import { ApiKey } from '../strategies/api-key/api-key.model';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
@@ -81,7 +85,7 @@ function tenants(): TenantServiceInterface {
  * their email already, gives them the ADMIN role in the tenant while they are in the group "admins",
  * and deletes them when the identity provider does.
  */
-class TestScimProvisioner extends BaseScimProvisioner<Roles, JwtUser, TestMembership> {
+class TestScimProvisioner extends BaseScimProvisioner<JwtUser, TestMembership> {
     async findProvisionedUser(resource: ScimUserResource, transaction: Transaction): Promise<JwtUser | undefined> {
         return await users().findOne({ where: { email: resource.userName.toLowerCase() }, transaction, required: false });
     }
@@ -95,7 +99,7 @@ class TestScimProvisioner extends BaseScimProvisioner<Roles, JwtUser, TestMember
     }
 
     async resolveGroupMembership(membership: TestMembership, groups: ScimGroupResource[], transaction: Transaction): Promise<void> {
-        const roles: Roles[] = groups.some(group => group.displayName === 'admins') ? [Roles.USER, Roles.ADMIN] : [Roles.USER];
+        const roles: MemberRoles[] = groups.some(group => group.displayName === 'admins') ? [MemberRoles.USER, MemberRoles.ADMIN] : [MemberRoles.USER];
         await memberships().updateById(membership.id, { roles }, { transaction });
     }
 
@@ -114,8 +118,19 @@ const MAX_BULK_OPERATIONS: number = 5;
  */
 const SCIM_ENTITIES: Newable<BaseEntity>[] = [ScimUser, ScimUserValue, ScimGroup, ScimGroupMember];
 
+/**
+ * The permission an identity provider provisions with.
+ */
+const { SCIM_PROVISION } = definePermissions(['scim.provision'] as const);
+
+/**
+ * The roles of the test server, the tenant admin carrying the permission to provision.
+ */
+const roles: TestServerRole[] = defaultTestServerRoles
+    .map(role => role.name === MemberRoles.ADMIN && role.level === 'tenant' ? { ...role, permissions: [...role.permissions, SCIM_PROVISION] } : role);
+
 @Controller('/scim/v2')
-class TestScimController extends ScimController(TestScimProvisioner, { roles: [Roles.ADMIN], bulk: { maxOperations: MAX_BULK_OPERATIONS } }) {}
+class TestScimController extends ScimController(TestScimProvisioner, { permission: SCIM_PROVISION, bulk: { maxOperations: MAX_BULK_OPERATIONS } }) {}
 
 /**
  * The tenant the identity provider of the tests provisions for.
@@ -141,11 +156,11 @@ let otherToken: string;
  */
 async function createProvisioningKey(name: string, tenantId: string): Promise<string> {
     const account: JwtUser = await users().create({ email: `${name}@idp.test`, roles: [] });
-    await tenants().runAs(tenantId, async () => await memberships().create({ tenantId, userId: account.id, roles: [Roles.ADMIN] }));
+    await tenants().runAs(tenantId, async () => await memberships().create({ tenantId, userId: account.id, roles: [MemberRoles.ADMIN] }));
     const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     return (await authService.createApiKey(
         account.id,
-        { name, roles: [Roles.ADMIN], expiresAt: undefined, tenantId, clientAuthentication: undefined, requireDpop: false },
+        { name, permissions: [SCIM_PROVISION], expiresAt: undefined, tenantId, clientAuthentication: undefined, requireDpop: false },
         undefined
     )).key;
 }
@@ -158,7 +173,7 @@ async function createProvisioningKey(name: string, tenantId: string): Promise<st
  */
 async function findMembership(userName: string, tenantId: string = TENANT): Promise<TestMembership | undefined> {
     const user: JwtUser = await appUser(userName);
-    return await tenants().runAs(tenantId, async () => await memberships().findMembership(user.id));
+    return await tenants().runAs(tenantId, async () => await memberships().findMembership(user.id, tenantId));
 }
 
 /**
@@ -166,7 +181,7 @@ async function findMembership(userName: string, tenantId: string = TENANT): Prom
  * @param userName - The userName the user was provisioned with.
  * @returns The roles of their membership, if they have one.
  */
-async function memberRoles(userName: string): Promise<Roles[] | undefined> {
+async function memberRoles(userName: string): Promise<string[] | undefined> {
     return (await findMembership(userName))?.roles;
 }
 
@@ -179,13 +194,20 @@ async function memberRoles(userName: string): Promise<Roles[] | undefined> {
 async function startApp(authStrategies: AuthStrategies, entities: Newable<BaseEntity>[]): Promise<StartedTestServer> {
     const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
         entities: [...defaultTestServerEntities, ApiKey, ...entities],
+        repositories: defaultTestServerRepositories,
         allowOrphan: true
     });
     return await startTestServer({
         dataSources: [dataSourceClass],
         authStrategies,
         controllers: [TestScimController],
-        providers: defaultTestServerProviders
+        providers: [
+            ...defaultTestServerProviders,
+            ...rolesAndPermissionsProviders(
+                { ...defaultTestServerPermissions, permissions: [...defaultTestServerPermissions.permissions, SCIM_PROVISION] },
+                roles
+            )
+        ]
     });
 }
 
@@ -302,11 +324,11 @@ async function auditEvents(): Promise<unknown[]> {
 describe('ScimController — starting', () => {
     it('refuses to start without ApiKeyAuthStrategy', async () => {
         await expect(startApp([JwtAuthStrategy], SCIM_ENTITIES)).rejects.toThrow('SCIM needs ApiKeyAuthStrategy');
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('refuses to start without its entities, and names them', async () => {
         await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [])).rejects.toThrow(/ScimService[\S\s]*ScimUser/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     it('starts with a strategy extending ApiKeyAuthStrategy, and provisions through its keys', async () => {
         class CompanyApiKeyAuthStrategy<Role extends string> extends ApiKeyAuthStrategy<Role> {}
@@ -320,7 +342,7 @@ describe('ScimController — starting', () => {
         finally {
             await server.shutdown();
         }
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('ScimController', () => {
@@ -360,7 +382,7 @@ describe('ScimController', () => {
         expect(answer.body).not.toHaveProperty('password');
         expect((await appUser('anna@corp.test')).roles).toEqual([Roles.USER]);
         // a member of the tenant, with the roles their groups give, of which they have none yet
-        expect(await memberRoles('anna@corp.test')).toEqual([Roles.USER]);
+        expect(await memberRoles('anna@corp.test')).toEqual([MemberRoles.USER]);
         expect((await scim('GET', `/Users/${String(answer.body['id'])}`)).body).toEqual(answer.body);
     });
 
@@ -407,7 +429,7 @@ describe('ScimController', () => {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const key: string = (await authService.createApiKey(
             dave.id,
-            { name: 'script', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            { name: 'script', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
             undefined
         )).key;
 
@@ -457,16 +479,16 @@ describe('ScimController', () => {
         });
         expect(group.status).toBe(201);
         expect(group.body).toMatchObject({ displayName: 'admins', members: [{ value: gina['id'], display: 'gina@corp.test' }] });
-        expect(await memberRoles('gina@corp.test')).toEqual([Roles.USER, Roles.ADMIN]);
+        expect(await memberRoles('gina@corp.test')).toEqual([MemberRoles.USER, MemberRoles.ADMIN]);
         // the roles of the membership, never the user's own
         expect((await appUser('gina@corp.test')).roles).toEqual([Roles.USER]);
 
         const groupId: string = String(group.body['id']);
         await scim('PATCH', `/Groups/${groupId}`, patchOp({ op: 'Add', path: 'members', value: [{ value: hank['id'] }] }));
-        expect(await memberRoles('hank@corp.test')).toEqual([Roles.USER, Roles.ADMIN]);
+        expect(await memberRoles('hank@corp.test')).toEqual([MemberRoles.USER, MemberRoles.ADMIN]);
 
         await scim('PATCH', `/Groups/${groupId}`, patchOp({ op: 'Remove', path: `members[value eq "${String(gina['id'])}"]` }));
-        expect(await memberRoles('gina@corp.test')).toEqual([Roles.USER]);
+        expect(await memberRoles('gina@corp.test')).toEqual([MemberRoles.USER]);
 
         const withoutMembers: ScimAnswer = await scim('GET', `/Groups/${groupId}?excludedAttributes=members`);
         expect(withoutMembers.body).not.toHaveProperty('members');
@@ -475,7 +497,7 @@ describe('ScimController', () => {
         expect(byMember.body).toMatchObject({ totalResults: 1, Resources: [{ id: groupId }] });
 
         expect((await scim('DELETE', `/Groups/${groupId}`)).status).toBe(204);
-        expect(await memberRoles('hank@corp.test')).toEqual([Roles.USER]);
+        expect(await memberRoles('hank@corp.test')).toEqual([MemberRoles.USER]);
     });
 
     it('refuses a member that is no provisioned user', async () => {
@@ -509,7 +531,7 @@ describe('ScimController', () => {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const userKey: string = (await authService.createApiKey(
             jack.id,
-            { name: 'script', roles: [Roles.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            { name: 'script', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
             undefined
         )).key;
 
@@ -517,10 +539,10 @@ describe('ScimController', () => {
         expect((await scim('GET', '/Users', undefined, userKey)).status).toBe(403);
 
         // a member of the tenant, and its key bound to it, but without the role there
-        await tenants().runAs(TENANT, async () => await memberships().create({ tenantId: TENANT, userId: jack.id, roles: [Roles.USER] }));
+        await tenants().runAs(TENANT, async () => await memberships().create({ tenantId: TENANT, userId: jack.id, roles: [MemberRoles.USER] }));
         const memberKey: string = (await authService.createApiKey(
             jack.id,
-            { name: 'member', roles: [Roles.USER], expiresAt: undefined, tenantId: TENANT, clientAuthentication: undefined, requireDpop: false },
+            { name: 'member', permissions: [TestPermissions.MEMBER_USER], expiresAt: undefined, tenantId: TENANT, clientAuthentication: undefined, requireDpop: false },
             undefined
         )).key;
         expect((await scim('GET', '/Users', undefined, memberKey)).status).toBe(403);
@@ -573,7 +595,7 @@ describe('ScimController', () => {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const customerKey: string = (await authService.createApiKey(
             leaver.id,
-            { name: 'customer', roles: [Roles.USER], expiresAt: undefined, tenantId: OTHER_TENANT, clientAuthentication: undefined, requireDpop: false },
+            { name: 'customer', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: OTHER_TENANT, clientAuthentication: undefined, requireDpop: false },
             undefined
         )).key;
 
@@ -585,7 +607,7 @@ describe('ScimController', () => {
         expect((await scim('DELETE', `/Users/${String(created['id'])}`)).status).toBe(204);
 
         expect(await users().findOne({ where: { id: leaver.id }, required: false })).toBeUndefined();
-        expect(await tenants().runAs(OTHER_TENANT, async () => await memberships().findMembership(leaver.id))).toBeUndefined();
+        expect(await tenants().runAs(OTHER_TENANT, async () => await memberships().findMembership(leaver.id, OTHER_TENANT))).toBeUndefined();
         expect(await userNamesWhere('userName eq "leaver@corp.test"')).toEqual([]);
     });
 
@@ -793,7 +815,7 @@ describe('ScimController', () => {
         const laura: Record<string, unknown> = await provisionUser('laura@corp.test');
         const staff: Record<string, unknown> = await provisionGroup('nested-staff', [laura['id']]);
         const admins: Record<string, unknown> = await provisionGroup('admins', [staff['id']]);
-        expect(await memberRoles('laura@corp.test')).toEqual([Roles.USER, Roles.ADMIN]);
+        expect(await memberRoles('laura@corp.test')).toEqual([MemberRoles.USER, MemberRoles.ADMIN]);
         const staffMember: Record<string, unknown> = {
             value: staff['id'],
             display: 'nested-staff',
@@ -804,15 +826,15 @@ describe('ScimController', () => {
 
         const adminsId: string = String(admins['id']);
         await scim('PATCH', `/Groups/${adminsId}`, patchOp({ op: 'remove', path: `members[value eq "${String(staff['id'])}"]` }));
-        expect(await memberRoles('laura@corp.test')).toEqual([Roles.USER]);
+        expect(await memberRoles('laura@corp.test')).toEqual([MemberRoles.USER]);
 
         // a loop of groups is followed once
         await scim('PATCH', `/Groups/${adminsId}`, patchOp({ op: 'add', path: 'members', value: [{ value: staff['id'] }] }));
         await scim('PATCH', `/Groups/${String(staff['id'])}`, patchOp({ op: 'add', path: 'members', value: [{ value: adminsId }] }));
-        expect(await memberRoles('laura@corp.test')).toEqual([Roles.USER, Roles.ADMIN]);
+        expect(await memberRoles('laura@corp.test')).toEqual([MemberRoles.USER, MemberRoles.ADMIN]);
 
         expect((await scim('DELETE', `/Groups/${adminsId}`)).status).toBe(204);
-        expect(await memberRoles('laura@corp.test')).toEqual([Roles.USER]);
+        expect(await memberRoles('laura@corp.test')).toEqual([MemberRoles.USER]);
     });
 
     it('changes the version of a group whose member is deleted', async () => {
@@ -835,7 +857,7 @@ describe('ScimController', () => {
 
         const again: Record<string, unknown> = await provisionUser('nancy@corp.test');
         expect(again['id']).not.toBe(nancy['id']);
-        expect(await memberRoles('nancy@corp.test')).toEqual([Roles.USER]);
+        expect(await memberRoles('nancy@corp.test')).toEqual([MemberRoles.USER]);
     });
 
     it('applies the operations of a bulk request, those referring to a resource another one creates after it', async () => {
@@ -858,7 +880,7 @@ describe('ScimController', () => {
             expect.objectContaining({ method: 'PATCH', status: '200', version: 'W/"2"' }),
             expect.objectContaining({ method: 'DELETE', status: '404', response: expect.objectContaining({ schemas: [ScimSchema.ERROR] }) })
         ]);
-        expect(await memberRoles('oscar@corp.test')).toEqual([Roles.USER, Roles.ADMIN]);
+        expect(await memberRoles('oscar@corp.test')).toEqual([MemberRoles.USER, MemberRoles.ADMIN]);
     });
 
     it('stops a bulk request after as many errors as it allows, and resolves operations that refer to each other in a circle', async () => {

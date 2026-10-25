@@ -1,4 +1,4 @@
-import type { Batch, GlideClient, Script, TimeUnit } from '@valkey/valkey-glide';
+import type { Batch, Decoder, GlideClient, InfoOptions, ObjectType, Script, TimeUnit } from '@valkey/valkey-glide';
 
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 
@@ -21,7 +21,19 @@ type ValKeyGlide = {
     /**
      * The unit an expiry is expressed in.
      */
-    TimeUnit: typeof TimeUnit
+    TimeUnit: typeof TimeUnit,
+    /**
+     * What a reply is decoded into, bytes or text.
+     */
+    Decoder: typeof Decoder,
+    /**
+     * The kinds of value a key holds.
+     */
+    ObjectType: typeof ObjectType,
+    /**
+     * The sections of what a server tells about itself.
+     */
+    InfoOptions: typeof InfoOptions
 };
 
 /**

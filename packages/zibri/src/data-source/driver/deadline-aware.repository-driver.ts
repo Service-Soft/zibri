@@ -1,8 +1,11 @@
-import { DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
+import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions } from './repository-driver.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
+import { AggregateRow } from '../models/aggregate.model';
+import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
 import { Transaction } from '../transaction/transaction.model';
@@ -22,78 +25,77 @@ import { Transaction } from '../transaction/transaction.model';
  *
  * Every method forwards. What is added is the refusal in front of it.
  */
-export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements RepositoryDriverInterface<T> {
-    constructor(private readonly inner: RepositoryDriverInterface<T>) {}
+export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends ForwardingRepositoryDriver<T> {
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
+    override async save(data: DeepPartial<T>[], transaction: Transaction | undefined, reload: boolean): Promise<T[]> {
         this.validateStillWanted();
-        return await this.inner.save(data, transaction, reload);
+        return await super.save(data, transaction, reload);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
+    override async insert(data: DeepPartial<T>[], transaction: Transaction | undefined): Promise<T[]> {
         this.validateStillWanted();
-        return await this.inner.insert(data, transaction);
+        return await super.insert(data, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateEach(rows: DeepPartial<T>[], where: Where<T>, transaction: Transaction | undefined): Promise<T[]> {
+    override async updateEach(
+        rows: DeepPartial<T>[],
+        where: Where<T>,
+        transaction: Transaction | undefined,
+        related?: RelatedNarrowing
+    ): Promise<T[]> {
         this.validateStillWanted();
-        return await this.inner.updateEach(rows, where, transaction);
+        return await super.updateEach(rows, where, transaction, related);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async find(options: DriverFindOptions<T>): Promise<T[]> {
+    override async find(options: DriverFindOptions<T>): Promise<T[]> {
         this.validateStillWanted();
-        return await this.inner.find(options);
+        return await super.find(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
+    override async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
         this.validateStillWanted();
-        return await this.inner.findOne(options);
+        return await super.findOne(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async count(options: DriverFindOptions<T>): Promise<number> {
+    override async count(options: DriverFindOptions<T>): Promise<number> {
         this.validateStillWanted();
-        return await this.inner.count(options);
+        return await super.count(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
+    override async aggregate(options: DriverAggregateOptions<T>): Promise<AggregateRow[]> {
         this.validateStillWanted();
-        return await this.inner.findAndCount(options);
+        return await super.aggregate(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+    override async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         this.validateStillWanted();
-        await this.inner.remove(ids, transaction);
+        return await super.findAndCount(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async findIds(options: DriverFindOptions<T>): Promise<string[]> {
+    override async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
         this.validateStillWanted();
-        return await this.inner.findIds(options);
+        await super.remove(ids, transaction);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
+    override async findIds(options: DriverFindOptions<T>): Promise<string[]> {
         this.validateStillWanted();
-        return await this.inner.updateAll(options);
+        return await super.findIds(options);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async upsert(
+    override async updateAll<R extends boolean = false>(options: DriverUpdateAllOptions<T, R>): Promise<R extends true ? T[] : number> {
+        this.validateStillWanted();
+        return await super.updateAll(options);
+    }
+
+    override async upsert(
         identity: string[],
         rows: UpsertRow<T>[],
         transaction: Transaction | undefined,
-        reachable: Where<T> | undefined
+        reachable: Where<T> | undefined,
+        related?: RelatedNarrowing
     ): Promise<T[]> {
         this.validateStillWanted();
-        return await this.inner.upsert(identity, rows, transaction, reachable);
+        return await super.upsert(identity, rows, transaction, reachable, related);
     }
 
     /**
@@ -105,9 +107,9 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> implements Repo
      * @param options - What to read.
      * @yields Each row the store answers with.
      */
-    async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
+    override async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         this.validateStillWanted();
-        for await (const row of this.inner.stream(options)) {
+        for await (const row of super.stream(options)) {
             this.validateStillWanted();
             yield row;
         }

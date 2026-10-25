@@ -5,7 +5,7 @@ import { EmailPriority } from '../../../../email/models/email-priority.enum';
 import { $ts } from '../../../../localization/translate.function';
 import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
-import { BaseUser } from '../../../models/base-user.model';
+import { UserAccount } from '../../../models/user-account.model';
 import { NoRegisterData } from '../no-register-data.model';
 
 /**
@@ -27,7 +27,7 @@ export class EmailTwoFactorMethod extends CodeTwoFactorMethod<void> {
     readonly requestRegisterModel: Newable<void> = NoRegisterData;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async deliver(user: BaseUser<string>, _destination: string | undefined, code: string): Promise<void> {
+    protected async deliver(user: UserAccount, _destination: string | undefined, code: string): Promise<void> {
         const minutes: number = Math.round(this.resolveOptions().expiresInMs / Ms.MINUTE);
         const text: string = $ts`Your verification code is ${code}. It is valid for ${minutes} minutes.`;
         await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, Repository, InjectRepository, Auth, Response, KnownHeader, TokenBucketRateLimiter, RateLimiter, InMemoryRateLimiterStore, Ms, RateLimited, TokenBucketState, MimeType } from 'zibri';
 
-import { Roles, Test, TestCreateDTO, TestUpdateDTO, User } from '../models';
+import { Test, TestCreateDTO, TestUpdateDTO, User } from '../models';
 import { UserRepository } from '../repositories';
 
 @RateLimiter()
@@ -44,7 +44,7 @@ export class TestController {
         return await this.testRepository.findById(id);
     }
 
-    @Auth.hasPlatformRole([Roles.USER])
+    @Auth.isLoggedIn()
     @Response.object(Test)
     @Post()
     async create(

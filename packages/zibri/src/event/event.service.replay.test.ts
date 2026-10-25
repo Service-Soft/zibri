@@ -7,8 +7,9 @@ import { type EventServiceInterface, EventSubscriptionInterface } from './event-
 import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
 import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event, EventStatus } from './event.model';
-import { defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
+import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
 import { Repository } from '../data-source/repository/repository';
@@ -31,7 +32,8 @@ declare module './event-service.interface' {
 
 // in memory, so that a replay can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
-    entities: defaultTestServerEntities
+    entities: defaultTestServerEntities,
+    repositories: defaultTestServerRepositories
 });
 
 describe('EventService replaying failed runs', () => {
@@ -85,11 +87,11 @@ describe('EventService replaying failed runs', () => {
         eventRepo = inject(repositoryTokenFor(Event));
         runRepo = inject(repositoryTokenFor(EventSubscriberRun));
         registrationRepo = inject(repositoryTokenFor(EventSubscriberRegistration));
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.inMemory.shutdown);
 
     // for the reason event.service.test.ts gives: a registration outlives its subscription
     beforeEach(async () => {

@@ -4,7 +4,8 @@ import { PostgresDataSource } from './data-sources/postgres/postgres-typeorm-dat
 import { ValKeyDataSource } from './data-sources/val-key/val-key-data-source.model';
 import { MigrationEntity } from './migration/migration-entity.model';
 import { Repository } from './repository/repository';
-import { createTestDataSource, defaultTestServerEntities } from '../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../__testing__/test-server/create-test-val-key-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -42,7 +43,8 @@ class AccidentallySharedItem extends BaseEntity {
 }
 
 const postgresDataSourceClass: Newable<PostgresDataSource> = createTestDataSource({
-    entities: [...defaultTestServerEntities, SharedSession, PostgresOnlyItem]
+    entities: [...defaultTestServerEntities, SharedSession, PostgresOnlyItem],
+    repositories: defaultTestServerRepositories
 });
 
 const valKeyDataSourceClass: Newable<ValKeyDataSource> = createTestValKeyDataSource({
@@ -56,11 +58,11 @@ describe('entity ownership', () => {
         server = await startTestServer({
             dataSources: [postgresDataSourceClass, valKeyDataSourceClass]
         });
-    }, 30000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').start);
 
     afterAll(async () => {
         await server.shutdown();
-    }, 15000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').shutdown);
 
     it('resolves an entity of a single data source without naming it', () => {
         const repository: Repository<PostgresOnlyItem> = inject(repositoryTokenFor(PostgresOnlyItem));
@@ -117,9 +119,9 @@ describe('entity ownership', () => {
     it('refuses to start when an entity is part of multiple data sources without allowing it', async () => {
         await expect(server.reInit({
             dataSources: [
-                createTestDataSource({ entities: [...defaultTestServerEntities, AccidentallySharedItem] }),
+                createTestDataSource({ entities: [...defaultTestServerEntities, AccidentallySharedItem], repositories: defaultTestServerRepositories }),
                 createTestValKeyDataSource({ entities: [MigrationEntity, AccidentallySharedItem] })
             ]
         })).rejects.toThrow(/"AccidentallySharedItem" is part of multiple data sources/);
-    }, 15000);
+    }, TestTimeouts.resolveCombined('postgres', 'valKey').restart);
 });

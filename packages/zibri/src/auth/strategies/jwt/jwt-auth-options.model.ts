@@ -45,6 +45,14 @@ export type JwtAuthOptions = {
      */
     readonly refreshTokenExpiresInMs: number,
     /**
+     * How long a refresh token that a rotation just replaced is still accepted, in milliseconds.
+     *
+     * Within it, presenting the replaced token mints a refresh token of its own in the same login,
+     * which is what two browser tabs refreshing at once need. Past it, presenting the replaced token
+     * ends the login everywhere. 0 accepts no replaced token.
+     */
+    readonly refreshTokenReuseGraceInMs: number,
+    /**
      * Whether a login is bound to a DPoP key: true refuses a login, a refresh and an access token
      * without a DPoP proof, false binds those that send one. Defaults to false.
      */

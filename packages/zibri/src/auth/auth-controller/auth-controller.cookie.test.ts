@@ -3,14 +3,16 @@ import assert from 'node:assert';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { CookieTestAuthController } from '../../__testing__/mocks/controllers/cookie-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
-import { createTestDataSource, defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { Repository } from '../../data-source/repository/repository';
+import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -61,6 +63,7 @@ type LoginResult = {
 @DataSource({ allowOrphan: true })
 class WithoutCookieSessionsDataSource extends InMemoryDataSource {
     override readonly entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+    override readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 }
 
 // first, since the main suite declares a data source that every later boot would be refused for
@@ -77,7 +80,7 @@ describe('CookieAuthStrategy — starting', () => {
         });
 
         await expect(start).rejects.toThrow(/Error initializing CookieAuthStrategy[\S\s]*CookieAuthSession[\S\s]*CookieAuthRefreshSession/);
-    }, 30000);
+    }, TestTimeouts.inMemory.start);
 });
 
 describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
@@ -115,7 +118,8 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
             controllers: [CookieTestAuthController, CookieProtectedController],
             dataSources: [
                 createTestDataSource({
-                    entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession]
+                    entities: [...defaultTestServerEntities, CookieAuthSession, CookieAuthRefreshSession],
+                    repositories: defaultTestServerRepositories
                 })
             ],
             providers: [
@@ -142,11 +146,11 @@ describe('AuthController / CookieAuthStrategy — real HTTP flow', () => {
         refreshSessionRepo = inject(repositoryTokenFor(CookieAuthRefreshSession));
         resetTokenRepo = inject(repositoryTokenFor(PasswordResetToken));
         emailRepo = inject(repositoryTokenFor(Email));
-    }, 20000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     beforeEach(async () => {
         await emailRepo.deleteAll({});

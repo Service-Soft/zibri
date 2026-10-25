@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { MigrationEntity } from './migration-entity.model';
 import { Migration } from './migration.model';
-import { defaultTestServerEntities } from '../../__testing__/test-server/create-test-data-source.function';
+import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -15,6 +16,7 @@ import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/po
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
 import { Repository } from '../repository/repository';
+import { RepositoryClass } from '../repository/repository-class.type';
 
 /**
  * The version both migrations below belong to, because they ship in the same release.
@@ -48,6 +50,7 @@ class MigrationIdentityDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = defaultTestServerEntities;
+    readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     override migrations: Newable<Migration>[] = [FirstChangeOfTheRelease, SecondChangeOfTheRelease];
     // the framework entities still need their tables; the two migrations below are what this asserts
     schemaManagement: SchemaManagement = 'synchronize';
@@ -98,11 +101,11 @@ describe('two migrations shipping in one release', () => {
     beforeAll(async () => {
         server = await startTestServer({ dataSources: [MigrationIdentityDataSource] });
         migrationRepository = inject(repositoryTokenFor(MigrationEntity));
-    }, 30000);
+    }, TestTimeouts.postgres.start);
 
     afterAll(async () => {
         await server?.shutdown();
-    }, 15000);
+    }, TestTimeouts.postgres.shutdown);
 
     it('runs both of them', () => {
         // applied-ness used to be "some record carries this version", so the second migration was

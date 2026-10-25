@@ -204,6 +204,7 @@ describe('evaluation/05-di-metadata-and-packaging', () => {
                 websocketControllers: [],
                 dataSources: [],
                 defaultAuth: 'public',
+                twoFactorAtLogin: 'never',
                 plugins: [new EvalFirstPlugin(), new EvalSecondPlugin()],
                 providers
             };

@@ -4,6 +4,7 @@ import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-s
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Migration } from '../../../data-source/migration/migration.model';
 import { SchemaManagement } from '../../../data-source/models/schema-management.model';
+import { RepositoryClass } from '../../../data-source/repository/repository-class.type';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
@@ -59,6 +60,7 @@ class MigrationDataSource extends PostgresDataSource {
         ssl: false
     };
     entities: Newable<BaseEntity>[] = defaultClusterTestEntities;
+    readonly repositories: RepositoryClass[] = [];
     override readonly migrations: Newable<Migration>[] = [ClusterMigration];
     // both halves race here, which is the point of this scenario: the original run failed on two
     // instances issuing the same CREATE TABLE, with the migration race still latent underneath it

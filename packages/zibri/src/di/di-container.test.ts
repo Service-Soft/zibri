@@ -94,6 +94,40 @@ describe('DiContainer', () => {
             await expect(asARequest(() => inject(KeptForever))).rejects.toThrow(CapturedRequestScopeError);
         });
 
+        it('refuses to be built into something kept that is first built for a request scoped holder', async () => {
+            @Injectable()
+            class KeptForever {
+                readonly value: { id: number } = inject(requestScopedToken);
+            }
+
+            @Injectable({ scope: 'request' })
+            class PerRequestHolder {
+                constructor(readonly kept: KeptForever) {}
+            }
+
+            // the holder lives no longer than the request, but what it is built out of is kept - so
+            // the first request would leave its value in place for every request after it
+            await expect(asARequest(() => inject(PerRequestHolder))).rejects.toThrow(CapturedRequestScopeError);
+            await expect(asARequest(() => inject(PerRequestHolder))).rejects.toThrow(CapturedRequestScopeError);
+        });
+
+        it('lets something built afresh for a request scoped holder hold it', async () => {
+            @Injectable({ scope: 'transient' })
+            class BuiltEveryTime {
+                readonly value: { id: number } = inject(requestScopedToken);
+            }
+
+            @Injectable({ scope: 'request' })
+            class PerRequestHolder {
+                constructor(readonly fresh: BuiltEveryTime) {}
+            }
+
+            const first: PerRequestHolder = await asARequest(() => inject(PerRequestHolder));
+            const second: PerRequestHolder = await asARequest(() => inject(PerRequestHolder));
+
+            expect(first.fresh.value).not.toBe(second.fresh.value);
+        });
+
         it('lets something that lives no longer than the request hold it', async () => {
             @Injectable({ scope: 'request' })
             class AlsoPerRequest {
@@ -288,6 +322,87 @@ describe('DiContainer', () => {
             expect(await DiContainer.getInstance().injectAsync(token)).toBe('hunter2');
         });
 
+        // evaluation/round-2/07-di-packaging-tooling.md §T4: the walk sees constructor parameters and
+        // `deps` only, so a value reached for anywhere else worked or failed by registration order
+        it('awaits a value a class reaches for in a field initializer', async () => {
+            @Injectable()
+            class Warm {
+                readonly secrets: { secret: string } = inject(vault);
+            }
+            // after the class, as an application's providers always are
+            provideVault();
+
+            expect((await DiContainer.getInstance().injectAsync(Warm)).secrets.secret).toBe('hunter2');
+        });
+
+        it('awaits a value a synchronous factory reaches for in its body', async () => {
+            const dsn: InjectionToken<string> = new InjectionToken<string>('dsn-from-a-factory');
+            DiContainer.getInstance().register(defineProvider({
+                token: dsn,
+                useFactory: () => `db://${inject(vault).secret}`
+            }));
+            provideVault();
+
+            expect(await DiContainer.getInstance().injectAsync(dsn)).toBe('db://hunter2');
+        });
+
+        it('awaits a value hidden behind a class an asynchronous factory declares', async () => {
+            @Injectable()
+            class Pool {
+                readonly secrets: { secret: string } = inject(vault);
+            }
+
+            const token: InjectionToken<string> = new InjectionToken<string>('reads-through-a-hidden-value');
+            DiContainer.getInstance().register(defineProvider({
+                token,
+                deps: [Pool],
+                useAsyncFactory: async (pool: Pool) => Promise.resolve(pool.secrets.secret)
+            }));
+            provideVault();
+
+            expect(await DiContainer.getInstance().injectAsync(token)).toBe('hunter2');
+        });
+
+        it('builds what a class reached for before the awaited value once', async () => {
+            let clocksBuilt: number = 0;
+
+            @Injectable()
+            class CountedClock {
+                constructor() {
+                    clocksBuilt++;
+                }
+            }
+
+            @Injectable()
+            class ReadsBoth {
+                readonly clock: CountedClock = inject(CountedClock);
+                readonly secrets: { secret: string } = inject(vault);
+            }
+            provideVault();
+
+            const built: ReadsBoth = await DiContainer.getInstance().injectAsync(ReadsBoth);
+
+            expect(built.secrets.secret).toBe('hunter2');
+            expect(clocksBuilt).toBe(1);
+        });
+
+        it('names a cycle that runs through a value a class reaches for', async () => {
+            const looped: InjectionToken<string> = new InjectionToken<string>('hidden-cycle');
+
+            @Injectable()
+            class ReadsTheLoop {
+                readonly value: string = inject(looped);
+            }
+            DiContainer.getInstance().register(defineProvider({
+                token: looped,
+                deps: [ReadsTheLoop],
+                useAsyncFactory: async (reader: ReadsTheLoop) => Promise.resolve(reader.value)
+            }));
+
+            await expect(DiContainer.getInstance().injectAsync(looped))
+                .rejects.toThrow(/hidden-cycle.*ReadsTheLoop.*hidden-cycle/s);
+        });
+
         it('refuses inject() in the factory, on both sides of an await', async () => {
             provideVault();
 
@@ -314,6 +429,52 @@ describe('DiContainer', () => {
             // the call would have been cleared by the time the line after the await runs
             await expect(DiContainer.getInstance().injectAsync(afterAwaiting))
                 .rejects.toThrow(InjectInsideAsyncFactoryError);
+        });
+
+        it('lets the factory use what it declared, whatever that reaches for itself', async () => {
+            const zone: InjectionToken<string> = new InjectionToken<string>('zone');
+            DiContainer.getInstance().register(defineProvider({ token: zone, useFactory: () => 'UTC' }));
+
+            @Injectable()
+            class Formatter {
+                // at call time, as a repository reaches for its tracer
+                getZone(): string {
+                    return inject(zone);
+                }
+            }
+
+            const formatted: InjectionToken<string> = new InjectionToken<string>('formatted');
+            DiContainer.getInstance().register(defineProvider({
+                token: formatted,
+                deps: [Formatter],
+                useAsyncFactory: async (formatter: Formatter) => Promise.resolve(formatter.getZone())
+            }));
+
+            // a value that is not awaited is built on demand, so finding it does not depend on order
+            expect(await DiContainer.getInstance().injectAsync(formatted)).toBe('UTC');
+        });
+
+        it('refuses an awaited value reached for through what the factory declared', async () => {
+            provideVault();
+            await DiContainer.getInstance().injectAsync(vault);
+
+            @Injectable()
+            class ReadsTheVault {
+                getSecret(): string {
+                    return inject(vault).secret;
+                }
+            }
+
+            const token: InjectionToken<string> = new InjectionToken<string>('reads-the-vault-late');
+            DiContainer.getInstance().register(defineProvider({
+                token,
+                deps: [ReadsTheVault],
+                useAsyncFactory: async (reader: ReadsTheVault) => Promise.resolve(reader.getSecret())
+            }));
+
+            // resolved already, and refused all the same: it would work or not by the order things are
+            // registered in
+            await expect(DiContainer.getInstance().injectAsync(token)).rejects.toThrow(InjectInsideAsyncFactoryError);
         });
 
         it('names two asynchronous providers that declare each other', async () => {
@@ -373,9 +534,10 @@ describe('DiContainer', () => {
         it('refuses one the initialization sweep never reached', () => {
             provideVault();
 
-            // registered after init, or with register: 'onUse' - either way it is first asked for
-            // where there is nobody left to await it
+            // registered after the sweep awaited the others, so it is first asked for where there is
+            // nobody left to await it
             expect(() => inject(vault)).toThrow(UnresolvedAsyncProviderError);
+            expect(() => inject(vault)).toThrow(/registered after\s+the application started awaiting/);
         });
     });
 

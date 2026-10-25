@@ -1,4 +1,6 @@
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface } from 'zibri';
+import { Readable } from 'node:stream';
+
+import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface, FileResponse, MetricsExposition } from 'zibri';
 
 import { StaticPagesCache } from './page.controller';
 import { MetricsPage } from '../templates/pages/metrics/metrics';
@@ -18,6 +20,17 @@ export class MetricsController {
     @Get()
     get(): MetricsSnapshot[] {
         return this.metricsService.getMetricSnapshots();
+    }
+
+    @Response.file()
+    @Get('/scrape')
+    async scrape(): Promise<FileResponse> {
+        const exposition: MetricsExposition = await this.metricsService.resolveExposition();
+        return FileResponse.fromStream({
+            stream: Readable.from([exposition.body]),
+            filename: 'metrics.txt',
+            mimeType: exposition.contentType
+        });
     }
 
     @Cached(StaticPagesCache, () => StaticPagesCache.getPageKey('dashboard'))

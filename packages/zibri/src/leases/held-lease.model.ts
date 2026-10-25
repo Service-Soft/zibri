@@ -16,8 +16,9 @@ export type HeldLease = {
     /**
      * Extends the grant, so work that outlives the lease does not lose it.
      *
-     * Reports its own failure. Losing a grant is worth knowing about and never worth throwing over:
-     * a renewal that fails must not become the reason the work fails.
+     * Throws a `LeaseLostError` when the grant is no longer this holder's, and whatever the store
+     * threw when it could not be reached. Neither becomes the reason the work fails: the holder
+     * logs it, and tells the work through its signal once the grant is lost for certain.
      */
     renew: () => Promise<void>,
     /**
@@ -37,6 +38,11 @@ export type HeldLease = {
  * it commits or rolls back, and no callback wraps that.
  */
 export type KeptGrant = {
+    /**
+     * Aborts, with a `LeaseLostError`, once the grant is lost: taken away, or not renewable for
+     * longer than it lives.
+     */
+    readonly lost: AbortSignal,
     /**
      * Stops renewing the grant and hands it back.
      *
