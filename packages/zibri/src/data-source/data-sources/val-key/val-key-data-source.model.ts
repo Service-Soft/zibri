@@ -8,13 +8,6 @@ import { scanValKeyKeys } from './scan-val-key-keys.function';
 import { ValKeyBackupMode } from './val-key-backup-mode.model';
 import { valKeyGlide } from './val-key-glide.function';
 import { type AuthServiceInterface } from '../../../auth/auth-service.interface';
-import { ChangeSetRepository } from '../../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../../../change-sets/models/change-set.model';
-import { isChangeSetEntityNewable } from '../../../change-sets/models/is-change-set-entity.function';
-import { isSoftDeleteEntityNewable } from '../../../change-sets/models/is-soft-delete-entity.function';
-import { SoftDeleteEntity } from '../../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../../change-sets/soft-delete-repository';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
@@ -23,7 +16,7 @@ import { EntityMetadata } from '../../../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../../entity/entity-metadata-missing.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
-import { HeldLease, KeptGrant } from '../../../leases/held-lease.model';
+import { type HeldLease, type KeptGrant } from '../../../leases/held-lease.model';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
@@ -32,12 +25,18 @@ import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { Ms } from '../../../utilities/ms';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
 import { PromiseUtilities } from '../../../utilities/promise.utilities';
+import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
+import { ChangeSetRepository } from '../../change-sets/change-set-repository';
+import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
+import { ChangeSet } from '../../change-sets/models/change-set.model';
+import { isChangeSetEntityNewable } from '../../change-sets/models/is-change-set-entity.function';
+import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
+import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { RepositoryDriverInterface } from '../../driver/repository-driver.interface';
 import { StoredRowChange, ValKeyRepositoryDriver } from '../../driver/val-key.repository-driver';
 import { registerRepositoryProvidersFor } from '../../entity-ownership.function';
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../../hooks/hooks.default';
 import { MigratedEntityUtilities } from '../../migration/migrated-entity.utilities';
 import { Migration } from '../../migration/migration.model';
 import { recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
@@ -51,6 +50,7 @@ import { RemovePropertyFromEntityInput } from '../../models/remove-property-from
 import { RenameEntityInput } from '../../models/rename-entity-input.model';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
 import { Repository } from '../../repository/repository';
+import { RepositoryForUtilities } from '../../repository/repository-for.utilities';
 import { RepositoryClass } from '../../repository/repository-class.type';
 import { RunInTransactionOptions } from '../../transaction/run-in-transaction-options.model';
 import { TransactionDeadlockError } from '../../transaction/transaction-deadlock.error';
@@ -378,7 +378,6 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
     abstract readonly entities: Newable<BaseEntity>[];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     abstract readonly repositories: RepositoryClass[];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -935,45 +934,30 @@ export abstract class ValKeyDataSource implements DataSourceInterface, PubSubDat
 
         const driver: ValKeyRepositoryDriver<T> = new ValKeyRepositoryDriver(cls, this.client, this.keyPrefix, this);
 
-        if (isSoftDeleteEntityNewable(cls)) {
-            const res: RepositoryTypeForEntity<T> = new SoftDeleteRepository(
+        const built: RepositoryTypeForEntity<T> = isSoftDeleteEntityNewable(cls)
+            ? new SoftDeleteRepository(
                 cls,
                 driver as unknown as RepositoryDriverInterface<SoftDeleteEntity>,
                 this.logger,
                 this,
-                getDefaultBeforeSaveHook(),
-                getDefaultBeforeReturnHook(),
                 this.authService,
                 this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>;
-            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-            return res;
-        }
-        if (isChangeSetEntityNewable(cls)) {
-            const res: RepositoryTypeForEntity<T> = new ChangeSetRepository(
-                cls,
-                driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
-                this.logger,
-                this,
-                getDefaultBeforeSaveHook(),
-                getDefaultBeforeReturnHook(),
-                this.authService,
-                this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>;
-            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-            return res;
-        }
-
-        const res: RepositoryTypeForEntity<T> = new Repository<T>(
-            cls,
-            driver,
-            this.logger,
-            this,
-            getDefaultBeforeSaveHook(),
-            getDefaultBeforeReturnHook()
-        ) as RepositoryTypeForEntity<T>;
-        this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-        return res;
+            ) as RepositoryTypeForEntity<T>
+            : isChangeSetEntityNewable(cls)
+                ? new ChangeSetRepository(
+                    cls,
+                    driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
+                    this.logger,
+                    this,
+                    this.authService,
+                    this.getRepository(ChangeSet)
+                ) as RepositoryTypeForEntity<T>
+                : new Repository<T>(cls, driver, this.logger, this) as RepositoryTypeForEntity<T>;
+        // the class listed for the entity rather than the repository it is built over, so that what it
+        // overrides holds for every row of the entity, those written through a relation included
+        const res: Repository<BaseEntity> = RepositoryForUtilities.resolveRepository(this, cls, built as Repository<BaseEntity>);
+        this.builtRepositories.set(cls, res);
+        return res as RepositoryTypeForEntity<T>;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

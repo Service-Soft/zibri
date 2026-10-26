@@ -10,7 +10,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { whereFor } from '../models/where/where-for.function';
@@ -179,7 +179,10 @@ type ReconciledServer = {
  */
 export function describeKeyReconciliation(dataSourceName: string, reconciled: ReconciledDataSource): void {
     // the framework's own entities, in a data source of their own that needs no container
-    const frameworkDataSourceClass: Newable<DataSourceInterface> = createInMemoryDataSource({ entities: defaultTestServerEntities, repositories: defaultTestServerRepositories });
+    const frameworkDataSourceClass: Newable<DataSourceInterface> = createInMemoryDataSource({
+        entities: defaultTestServerEntities,
+        repositories: defaultTestServerRepositories
+    });
     let widget: Newable<PlainWidget> = PlainWidget;
 
     /**

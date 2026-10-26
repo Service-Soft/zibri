@@ -91,6 +91,16 @@ describe('CronService — starting', () => {
     }, TestTimeouts.inMemory.start);
 });
 
+describe('CronJob — declaring on how many instances it runs', () => {
+    it('says it as runsOn, and no longer as a flag whose true meant one instance', () => {
+        const everywhere: InitialCronConfig = { name: 'everywhere', cron: CronExpression.daily().build(), runsOn: 'everyInstance' };
+        // @ts-expect-error -- `distributed: true` read as spread out and meant once
+        const flagged: InitialCronConfig = { name: 'flagged', cron: CronExpression.daily().build(), distributed: false };
+
+        expect([everywhere.runsOn, flagged.name]).toEqual(['everyInstance', 'flagged']);
+    });
+});
+
 describe('CronService / CronJob — real server', () => {
     let server: StartedTestServer;
     let cronService: CronService;
@@ -219,8 +229,8 @@ describe('CronService / CronJob — real server', () => {
             const job: CronJob = makeCronJob({
                 name: 'catches-up',
                 cron: CronExpression.every(1, 'seconds').build(),
-                catchUpWithinMs: Ms.MINUTE,
-                distributed: false,
+                catchUpWithinInMs: Ms.MINUTE,
+                runsOn: 'everyInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
@@ -241,8 +251,8 @@ describe('CronService / CronJob — real server', () => {
             const job: CronJob = makeCronJob({
                 name: 'nothing-missed',
                 cron: CronExpression.daily().build(),
-                catchUpWithinMs: Ms.MINUTE,
-                distributed: false,
+                catchUpWithinInMs: Ms.MINUTE,
+                runsOn: 'everyInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
@@ -261,7 +271,7 @@ describe('CronService / CronJob — real server', () => {
             const job: CronJob = makeCronJob({
                 name: 'no-catch-up',
                 cron: CronExpression.every(1, 'seconds').build(),
-                distributed: false,
+                runsOn: 'everyInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
@@ -282,8 +292,8 @@ describe('CronService / CronJob — real server', () => {
             const job: CronJob = makeCronJob({
                 name: 'never-ran',
                 cron: CronExpression.every(1, 'seconds').build(),
-                catchUpWithinMs: Ms.MINUTE,
-                distributed: false,
+                catchUpWithinInMs: Ms.MINUTE,
+                runsOn: 'everyInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
@@ -307,16 +317,16 @@ describe('CronService / CronJob — real server', () => {
             const first: CronJob = makeCronJob({
                 name: 'catches-up-once',
                 cron: CronExpression.every(1, 'minutes').build(),
-                catchUpWithinMs: Ms.MINUTE * 5,
-                distributed: true,
+                catchUpWithinInMs: Ms.MINUTE * 5,
+                runsOn: 'oneInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
             const second: CronJob = makeCronJob({
                 name: 'catches-up-once',
                 cron: CronExpression.every(1, 'minutes').build(),
-                catchUpWithinMs: Ms.MINUTE * 5,
-                distributed: true,
+                catchUpWithinInMs: Ms.MINUTE * 5,
+                runsOn: 'oneInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
@@ -422,20 +432,20 @@ describe('CronService / CronJob — real server', () => {
             // two jobs of the same name are two replicas of the same deployment as far as the
             // election is concerned: both boot, both want the startup run, and the claim decides.
             // `task.execute()` used to run whatever it was given without asking anybody, so opting
-            // in meant one execution per replica no matter what `distributed` said.
+            // in meant one execution per replica no matter what `runsOn` said.
             // eslint-disable-next-line typescript/typedef
             const onTickImpl = jest.fn(noOp);
             const first: CronJob = makeCronJob({
                 name: 'startup-elected',
                 runOnInit: true,
-                distributed: true,
+                runsOn: 'oneInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
             const second: CronJob = makeCronJob({
                 name: 'startup-elected',
                 runOnInit: true,
-                distributed: true,
+                runsOn: 'oneInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
@@ -454,14 +464,14 @@ describe('CronService / CronJob — real server', () => {
             const first: CronJob = makeCronJob({
                 name: 'startup-per-instance',
                 runOnInit: true,
-                distributed: false,
+                runsOn: 'everyInstance',
                 syncToDataSource: true,
                 onTickImpl
             });
             const second: CronJob = makeCronJob({
                 name: 'startup-per-instance',
                 runOnInit: true,
-                distributed: false,
+                runsOn: 'everyInstance',
                 syncToDataSource: true,
                 onTickImpl
             });

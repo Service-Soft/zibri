@@ -387,6 +387,26 @@ answer:
 request whose deadline has passed: it must see the transaction's uncommitted row, and must be
 cancelled with the deadline error rather than running on.
 
+> **Closed 2026-10-26 (user: Kysely is a GitHub issue; fix the deadline on the existing builder and
+> document it).** The premise above was wrong: `SqlDataSourceInterface.query(Entity, { transaction,
+> alias })` already hands out a typeorm query builder, on the caller's transaction when it names
+> one, and `PostgresDataSource` implements it. What was true: it was documented as one Key exports
+> row and nothing else, its statements ran on pool connections the request's deadline did not know
+> (the driver's `whileCancellable` covered the repository's own statements only), and nothing said
+> that scopes and tenancy do not reach it. Cancellation moved from the driver into the data source:
+> a typeorm subscriber (`beforeQuery`/`afterQuery`, which typeorm waits for before it releases a
+> connection) watches every statement the orm sends inside a request and cancels it when the
+> request's signal fires, so the repository and a builder are stopped by the same path.
+> `whileCancellable`, the `StatementCancellingDataSource` model and the per-statement runner it made
+> the driver take out under a deadline alone are gone (09's frame table, row 11, describes them);
+> `onConnection` now takes a runner only for a statement limit, and `cancelStatementOn` is private.
+> `data-source.md` "Writing a query by hand": an example, that the query sees its transaction and
+> is stopped with its request, that values come back as the database answers them, and a WARNING
+> that it reads across every tenant and scope. Tests: `statement-cancellation.test.ts` "a query
+> built by hand" (Postgres): a `pg_sleep(3)` builder read in a route with a 300 ms deadline ends
+> well before three seconds (red before: nothing watched its connection), and a builder on the
+> caller's transaction sees the row the transaction created.
+
 ## MINOR
 
 ### D7. The scope function is evaluated once per row and up to three times per single-row write — MINOR
@@ -406,6 +426,20 @@ per evaluation. Resolve once per call and thread it, as `upsert` already does (`
 **Verify:** unit test on the in-memory data source: a scope that counts its invocations; `createAll` of
 50 rows must invoke it once (today 50), `updateById` once (today 3).
 
+> **Closed 2026-10-26.** Resolved once per call rather than threaded: the steps of a write go through
+> public methods the soft delete and change set repositories override (`updateById` checks through
+> `exists`), so a restriction handed down explicitly could not reach them. `withinTimeout`, which
+> every public method runs in, now opens a call on the repository's own `AsyncLocalStorage`; a call
+> made inside it joins it, and `resolveRestriction` answers from what the call already resolved when
+> everything the answer is made of is the same: the request context (whose user and membership are
+> memoized per request already), the active tenant, `unscoped` and `acrossTenants`. A step running in
+> another tenant or request asks again. The call is closed when the outermost one returns, so work it
+> leaves running resolves anew. Test: `repository.scope-evaluations.test.ts` (in memory, a counting
+> scope): create, createAll of 50, findById, findAll, exists, updateById, updateAll, deleteById and
+> deleteAll each ask once, and createAll, updateById, updateAll and deleteById on a soft deleting
+> entity; red with createAll 50, updateById 3 and updateAll 3. `data-source.md` says a call asks the
+> scope once.
+
 ### D8. `deleteAll` and `deleteById` judge the scope in a read and delete by id afterwards, outside a transaction — MINOR
 *Filed 2026-10-21.*
 
@@ -422,6 +456,45 @@ or delete through `updateAll`'s locked path.
 **Verify:** cluster suite or a two-connection postgres test: hold the id read, move the row's owner on
 another connection, let the delete proceed; the row must survive.
 
+> **Closed 2026-10-26 (user: the scope goes into the delete, and a conflict when a row moved).**
+> `RepositoryDriverInterface.remove(ids, where, transaction, related)` removes only the rows among the
+> ids that still match `where`, judged in the same write, and answers with the ids it removed:
+> postgres one `DELETE … WHERE id IN … AND <filter> RETURNING id`, or for a filter through a relation
+> the locked ids first (`findLockedIds`, as `updateEach`); valkey holds the matching rows
+> (`holdRowsMatching`) in a transaction and removes those; the in-memory store judges and removes
+> with nothing awaited between. The forwarding drivers pass it on, and the role and membership
+> reporting drivers report only what was removed. `Repository.removeRows` takes a `RemovalReach`
+> (the caller's write reach, `resolveRemovalReach`): rows that were handed out first - to a
+> `beforeDelete`, back through `returnDeleted`, by `deleteById` - or whose own rows went with them
+> fail the whole delete with a `ConflictError` and remove nothing (in a transaction when more than one
+> row); a `deleteAll` that only counts stays one statement and leaves a moved row out of its count.
+> `ChangeSetRepository` removes wholly, since a row's change sets go with it. Test:
+> `delete-scope.cases.ts`, run by `delete-scope.test.ts` (in memory) and
+> `delete-scope.postgres-valkey.test.ts`: a row handed to someone else between the read and the
+> removal (moved in a `REPOSITORY_HOOKS` `beforeDelete`) is kept and the delete fails, a batch with one
+> such row deletes none, and a row that stayed is deleted; red in memory for the first two when written.
+> `data-source.md` (restricting rows) and `upgrading-to-3.md` (an own driver's `remove`).
+
+> **Reworked 2026-10-26 (user: the closure above cost round trips).** The user's run of
+> `repository-costs.postgres-valkey.test.ts` showed the transaction around a handed-out batch on
+> postgres (`deleteAll` returning the rows: 3 for one row, 6 for twenty, growing with the batch) and
+> the held rows on valkey (`deleteAll` 4 → 11, returning the rows 6 → 13). Now
+> `remove(ids, reach, transaction)` takes a `RemovalReach { where, related, wholly }`
+> (`removal-reach.model.ts`, public) and judges it in the one call it makes anyway: postgres adds
+> `AND (SELECT COUNT(*) FROM t within WHERE <ids> AND <reach>) = n` to the statement when the rows go
+> wholly, so one statement is all or nothing without a transaction (a single row is on its own);
+> valkey judges the reach on the rows it reads for their index entries (`resolveRowsWithinReach`,
+> the evaluator on `fromFields`) and, outside a transaction, guards the write on those rows as read
+> (`applyGuardedValKeyWrites` takes `ValKeyWriteGuards { values, hashes }`, the script compares a
+> hash field by field), read and judged again when one was written meanwhile, a `ConflictError` when
+> they keep being written; a filter through a relation still holds the rows (`holdRowsMatching`,
+> `findLockedIds`). `Repository.removeRows` no longer opens a transaction for a reach; "wholly" also
+> covers a row gone by then (`deleteAll` returning rows that another caller deleted one of fails,
+> new case in `delete-scope.cases.ts`). Costs are back at the documented 2 / 3 and 4 / 6, the same for
+> one row as for twenty. Not reproducible without valkey: a row written between the valkey read and
+> its guarded write (the guard path itself); the user's run of the costs and delete-scope suites is
+> what confirms the statement and the script.
+
 ### D9. A keyset walk ordered by a `bigint` or `bignumber` property fails after the first page, with the wrong error — MINOR
 *Filed 2026-10-21.*
 
@@ -436,6 +509,19 @@ other refusals get, or carry them as strings the way the docs say they travel th
 
 **Verify:** unit test on `keysetValuesOf` with a `bigint` value, and an in-memory `findAllAfter` ordered by
 a `format: 'bigint'` property over 150 rows.
+
+> **Closed 2026-10-26 (carried as strings, the way the docs say these formats travel through json).**
+> `KeysetOrderKey.type` names `bigint` and `bignumber` from the property's format (`keyTypeOf`);
+> `keysetValuesOf` writes a bigint's digits and a `BigNumber` through `toFixed()` (never the exponent
+> form), `valueFor` reads them back as `BigInt` and `BigNumber` and answers a hand-edited value that is
+> not one with the cursor's existing 400 ("The cursor could not be read."); `pastValue` compares both
+> with `greaterThan`/`lesserThan`. The docs already said a walk refuses only a nullable property or a
+> value with no order, so nothing to document. Tests: two cases in `number-formats.cases.ts` (run in
+> memory, and on postgres and valkey by `number-formats.postgres-valkey.test.ts`): a walk ordered by
+> six bigints next to each other past 2^53, pages of two, and one by three decimals apart only past a
+> double's digits, descending, pages of one; and in `after-cursor-where.function.test.ts` the cursor
+> round trip of both formats without a lost digit and the 400 for `'1.5'`/`'twelve'` on a bigint key.
+> All red in memory when written, with the error the finding names.
 
 ### D10. Bulk soft delete marks owned rows one owner at a time — MINOR
 *Filed 2026-10-21.*
@@ -454,6 +540,21 @@ could carry `deletedWith` per row after one id read.
 **Verify:** extend `repository-costs.cases.ts` with a soft-delete entity owning a cascading relation and
 assert the round trips of `deleteAll` over 20 owners do not scale with the owner count.
 
+> **Closed 2026-10-26 (the `updateEach` route the finding names).** `softDeleteOwnedRows` calls
+> `markDeletedAlong(foreignKey, ownerIds, transaction)` once per relation on the target repository: one
+> `findAll` of the owned rows (no relations, nothing decrypted), then one `saveUpdateEach` writing each
+> row `{ deleted: true, deletedWith: <its own foreign key> }` under `deleted: false`, the DELETE change
+> sets together, and the recursion over the rows written. `Repository.saveUpdateEach` is new (protected,
+> beside `saveUpdateAll`): `updateEach` without a change set and without refusing a row it did not land
+> on, so a task deleted on its own in between is left out as the locked update left it out. Both go
+> through `applyUpdateEach`; found on the way and fixed there: the owned rows of an `updateEach` were
+> paired with the written rows by position, which a left-out row would shift, now by id.
+> `markDeleted` lost its `deletedWith` parameter (always null now). The test is in memory rather than
+> in `repository-costs.cases.ts`, where the calls are listed and need no container:
+> `change-set-repository.costs.test.ts` soft deletes one project and twenty, two cascading tasks each,
+> and asserts the same calls for both and that every task's `deletedWith` is its own project. Red when
+> written (38 calls more for twenty).
+
 ### D11. The role and membership reporting drivers read every matched row into memory on a bulk write — MINOR
 *Filed 2026-10-21.*
 
@@ -469,6 +570,27 @@ after-all list (item 1) describes as a candidate for one generic entity-write ev
 
 **Verify:** `RoundTripCounter`/memory assertion in a membership cluster or in-memory test: `updateAll`
 over N memberships must not read N rows back.
+
+> **Closed 2026-10-26.** A membership `updateAll` reads what each check needs through the driver's
+> `aggregate` with a `groupBy`, never the rows: `MembershipReportingRepositoryDriver` reads the distinct
+> `userId`/`tenantId` pairs, and `RoleValidatingRepositoryDriver` reads the distinct tenants the
+> written roles are checked against. Both now pass the write's `related` as well, which the row read
+> left out. Left as they are, since none of them can hold an unbounded set:
+> - the reads of `remove`, `save` and `updateEach` are bounded by the ids the caller hands in (the
+>   `updateEach` filter names every id, as the driver interface says);
+> - the role-entity reads of `RoleReportingRepositoryDriver.updateAll` and of the role-validating
+>   driver's role branch read roles, which an application declares and which are few, and the rename
+>   check needs each one.
+>
+> Test: `membership-reporting.repository-driver.test.ts`, in memory with a `RoundTripCounter`. It
+> moves every membership of a user in 20 tenants to another user and writes roles to every membership
+> of a user in 20 tenants. It asserts:
+> - the calls are `aggregate` and `updateAll` with no `find`;
+> - the reported pairs are both users in every tenant;
+> - an unknown role is still refused.
+>
+> Red when written (`TestMembership.find` where `aggregate` was expected). The "after commit" shape
+> both reporters share stays the generic entity-write event idea of the after-all list.
 
 ### D12. A soft deleted child given by id to a `oneToMany` write answers 404 — MINOR
 *Filed 2026-10-21.*
@@ -486,6 +608,34 @@ naming the deleted row; the current 404 names neither.
 
 **Verify:** in-memory `startTestServer` with `Project`/`Task` soft delete entities: delete a task, then
 `projectRepository.updateById(p, { tasks: [{ id: task.id }] })`; assert the chosen behaviour.
+
+> **Closed 2026-10-26, both answers, as an option (the user's call).**
+> - `oneToMany` and `hasOne` take `deletedRows: DeletedRelatedRows` (`'refuse' | 'restore'`). The
+>   decorator defaults it to `'refuse'`, and `OwnedRelation` carries it.
+> - Every write taking `WriteRelationsOptions` takes `deletedRelatedRows`. It overrides the relation
+>   at every level the write reaches, since `writeOwnedRows` hands it on in `childOptions`.
+> - **Restore:** `writeOwnedRows` writes the given rows through `updateEach` with `deleted: false`
+>   under `deleted: 'include'`, which is the soft delete repository's existing restore path:
+>   `deletedWith: null` plus `restoreOwnedRows`. Nothing is read first; a live row is written the
+>   same either way.
+> - **Refuse:** `Repository.validateUpdateWasWritten` is protected now, and `SoftDeleteRepository`
+>   overrides it. When the update missed and `deleted` was `'exclude'`, it reads the row
+>   `deleted: 'only'` under the caller's scope. A hit throws
+>   `ConflictError('The Task with id "…" is deleted.')`, and the transaction rolls the whole write
+>   back. The read happens only once the update has missed, so a write that succeeds costs what it
+>   did.
+> - A direct `updateById` of a deleted row keeps its 404 from `ChangeSetRepository`'s own read first,
+>   and the `deleted: 'include'` paths skip the check.
+>
+> Tests: three cases in `owned-relations.cases.ts`, so they run in memory, on Postgres and on Valkey.
+> - The default refuses with the named `ConflictError` and keeps nothing of the save.
+> - `deletedRelatedRows: 'restore'` restores the stop and the ticket deleted along with it.
+> - `Household.lodgers` now declares `deletedRows: 'restore'` and restores, unless the write says
+>   `'refuse'`.
+>
+> All three were red when written, with the 404 from the finding. Documented in `data-source.md`
+> (§Saving and deleting the rows of a relation, Key exports). `DeletedRelatedRows` is exported. No
+> upgrade entry: the option is new, and the old answer was never documented.
 
 ### D13. `deleteById` has no condition and no `relations`; `stream` has no order anywhere — MINOR
 *Filed 2026-10-21.*
@@ -505,6 +655,72 @@ that cannot) would keep the type honest where it matters.
 
 **Verify:** type tests with `@ts-expect-error` on `deleteById(id, { where })` and `stream({ order })`
 record the gap; a postgres stream test with `order` is the fix's test.
+
+> **Closed 2026-10-26.** The user's calls: a delete must name the locked properties as an update
+> must; Valkey orders a stream by holding ids and order values.
+>
+> **`deleteById(id, { where, relations })`**
+> - `DeleteByIdOptions<T>` is `BaseRepositoryOptions & Pick<WriteRelationsOptions<T>, 'relations'> & { where }`,
+>   generic with a default. `SoftDeleteByIdOptions<T>` follows.
+> - The new protected `Repository.resolveRowToDelete` reads the row with the condition, so the
+>   `beforeDelete` hook never runs for a row that will not be deleted. On a miss it reads again
+>   without the condition, under the scope: a row that is there gives `ConflictError` ("changed
+>   since it was read, so it was not deleted"), any other gives a 404, as `validateUpdateWasWritten`
+>   answers. The store then judges the condition again as it removes the row
+>   (`resolveRemovalReach(options.where, …, true)`), which catches a write in between.
+> - The soft delete path uses the same read. Its `saveUpdate` carries the `where`.
+>
+> **Optimistic locking on deletes**
+> - `validateWriteIsNotBlind(entityClass, undefined, where)` means a delete: every locked property
+>   has to be named, `undefined` deleting regardless, with a message of its own.
+> - Called in `deleteById`, `deleteAll` and the soft delete paths of `SoftDeleteRepository`.
+> - Deletes that go along with an already-checked one say "regardless" through the new
+>   `OptimisticLockDescriptor.resolveRegardlessWhere`: `removeOwnedRows` (cascade), the left-out
+>   delete in `writeOwnedRows`, and both membership deletes of `BaseMembershipRepository`.
+> - The shipped `CrudController.deleteById` now refuses a locked entity with an `InternalError`, as
+>   its `updateById` already does for a locked property. It has no way to take a version, which is
+>   left as it is.
+>
+> **`stream({ order })`**
+> - `StreamOptions` and `DriverStreamOptions` keep `order`. The repository passes the caller's order
+>   only, never `defaultOrder`, made total with the id (`totalOrder`) and checked by
+>   `FuzzySearchUtilities.validateOrderable`.
+> - Postgres puts the order into the id cursor through `selectQuery`, narrowed to the id, which
+>   covers relation and similarity orders. The batch read-back drops the order.
+> - Valkey's `resolveIdsInOrder` reads the matches a batch at a time with the filter and order
+>   relations only, keeps `{ id, values }`, and sorts with the comparators `applyOrder` uses, now
+>   shared through `resolveSorts`. The second pass reads in that order, without the order relations.
+> - The in-memory driver orders the ids through `findRows`.
+>
+> **Also found:** D12 had put `deletedRelatedRows` on `DeleteAllOptions` through `BulkWriteOptions`.
+> `DeleteAllOptions` now picks only `relations`.
+>
+> **Tests**
+> - `locked-delete.cases.ts` (new, with in-memory and Postgres/Valkey runners), six cases: the
+>   condition holds or answers a conflict, a missing row is a 404, a blind delete or `deleteAll` is
+>   refused and `name: undefined` deletes regardless, `relations` on the returned row, locked rows
+>   cascaded and left out regardless, and the soft delete with a lock.
+> - `paged-reads.cases.ts`, three stream cases: descending with relations, ordered through a
+>   relation that is not handed out, and 1,100 rows across batches.
+> - `repository-costs.cases.ts` measures `stream` in an order and `deleteById` with a condition: 2/3
+>   and 2/3, measured. On Valkey a condition costs nothing more, since `removeByIds` judges the reach
+>   on the rows it reads to remove them anyway.
+> - Because an equal count proves nothing about the condition, `delete-scope.cases.ts` gained a case
+>   that retags the row between the read and the removal and expects a `ConflictError` with the row
+>   kept. It runs on all three stores.
+>
+> **The user's container run**
+> - The run found `ScimService.removeOrphans` deleting `ScimUser` rows, whose `version` is locked,
+>   without naming it, which gave a 500 in `scim-controller.model.test.ts`. It now names
+>   `version: undefined`, since a resource whose user is gone goes whatever its version.
+> - The first search for internal deletes of locked entities had been cut off at 20 lines. A full
+>   search finds only `ScimUser` and `ScimGroup`, and their other deletes name `version`.
+> - The ordered stream case asserted `'customer' in o`, which an orm-built entity always satisfies
+>   under ES2022 class fields. It now asserts the value, as the other relation cases do.
+>
+> Six cases were red when written. Docs: `data-source.md` (§Two people editing the same thing, the
+> stream paragraph, Key exports), `costs.md`, and the driver paragraph of `upgrading-to-3.md` (stream
+> order). The delete rule gets no upgrade entry, since `optimisticLocking` is new in 3.
 
 ### D14. A `where` through a relation lets a row with nothing related pass any filter a null satisfies — MAJOR
 *Filed 2026-10-21, from the first postgres run of the 09 §Q3 conformance file.*
@@ -605,6 +821,61 @@ in memory - and `validateChecks`'s reading of stored lists on valkey has to take
 
 **Verify:** declare `checks: [whereFor<Stay>({ endsAt: { after: ??? } })]` - nothing names `startsAt`.
 
+> **Closed 2026-10-26.** The user's calls: a reference inside the filter, with its type inferred from
+> the filter it is in, and references wherever a filter goes.
+>
+> **Types**
+> - `propertyOf('startsAt')` (`property-of.function.ts`) returns a branded `PropertyReference<K>`, a
+>   plain `{ property }` at run time.
+> - `WhereFilter<T>` hands `T` down as `Of` to `WhereFilterProperty`. `DateWhereFilter<Of>` and
+>   `NumberWhereFilter<N, Of>` take a reference in their comparisons, to
+>   `PropertiesHolding<Of, Date | AnyNumber>`. `Of` defaults to `object`, so standalone filter types
+>   are unchanged.
+> - No type argument is needed: a property of another kind, an undeclared one, or a reference in a
+>   value position is a compile error.
+>
+> **One class for every reader:** `PropertyReferenceUtilities`, reading references only under the
+> eight comparison keys, so a JSON value holding a `property` key stays a value.
+>
+> **Each reader**
+> - **Evaluator** (Valkey, in memory, request validation): `resolveAgainst` swaps each reference for
+>   what the object holds, null when nothing, which no comparison matches.
+> - **Postgres columns:** a `Raw` comparing the column with the sibling of its alias path, which
+>   works through relation joins as well.
+> - **Postgres JSON values:** `JsonbOperatorContext.sibling` reads a property beside the compared one
+>   in the same object. A list item or a shape's value has none, and is refused there.
+> - **Checks and uniques** (`keyWhereToSql`): the four date comparisons are accepted, against a date
+>   literal or a reference, written as `"endsAt" > "startsAt"`. The decorator now hands it the property
+>   metadata, so a kind mismatch is refused when the entity is declared.
+> - **Run-time validation:** `dropImpossibleConditions` checks references in queries for an undeclared
+>   or other-kind property.
+> - **Scope merging:** `ScopeWhereUtilities.tighter` merges two references to the same property, and
+>   refuses a reference beside a literal on the same key like any bounds it cannot compare.
+> - `CheckConstraintViolationError.resolveProperties` lists referenced properties after the one
+>   compared, which the validation service's "body lacks a compared property" rule and the error's
+>   `properties` both use.
+> - Valkey's stored check list needed no change: a date reads back as an ISO string, which
+>   `WhereValueUtilities.compare` compares as a date, and a reference is plain JSON.
+>
+> **Tests**
+> - `where-conformance.cases.ts`: `Probe.until` comes from its own picker, so the existing rows are
+>   unchanged. A new case holds each store to the evaluator on 18 reference filters (dates, numbers,
+>   with literals, branches and alternatives) plus two through a relation's `where`. Type tests use
+>   `@ts-expect-error`.
+> - `entity-checks.cases.ts`: two cases, a two-property check (create and update refused, both
+>   properties named) and a fixed-date check.
+> - `entity.decorator.test.ts`: the test that refused a date check now takes date and reference
+>   checks and asserts their SQL. A new test refuses an undeclared or other-kind reference at
+>   declaration.
+> - `validation.service.test.ts`: a body breaking the check gets its code, and an update lacking the
+>   start is left to the data source.
+>
+> The tests were written before the code, but they could not load until `propertyOf` existed, so
+> their first red was a failed import rather than a failed assertion. Docs: `data-source.md` (§Rules
+> every row follows, new §Comparing two properties of a row, Key exports), `validation.md`'s choosing
+> table, and the `EntityCheck` JSDoc. No upgrade entry, since this is additive with defaulted type
+> parameters.
+
 ### D20. A check the data source refuses answers without the check's code — MINOR
 *Filed 2026-10-24, from 08 §X5.*
 
@@ -619,6 +890,73 @@ for a check only the store knows.
 
 **Verify:** `PATCH` a `Chore` of `entity-checks.cases.ts` with `{ status: 'done' }` over http: 400
 without `problems`, `name` `CheckConstraintViolationError`.
+
+> **Closed 2026-10-26.** The refusal now answers with the check as its one problem, under the key
+> `body` (the user's choice: it is what the validation answers for the same check on a top-level
+> body, and the store cannot tell which object of the request a row came from).
+>
+> **The error**
+> - `CheckConstraintViolationError` takes the entity class instead of its name. It finds the declared
+>   check by its filter: by reference first (Postgres maps the constraint name back to the declared
+>   filter, in memory holds it), then by JSON (Valkey hands back a copy read from its stored list).
+> - A filter the entity does not declare, which is a check a newer release beside this one listed, is
+>   answered as a check written as its filter alone: code `check`, message naming its properties.
+> - It carries `code` and `problems`. The message is translated for the request's locale, as
+>   `ValidationError` does it. The error message itself still names the entity and the properties.
+> - The decorator's `checkOf` moved onto the error as `resolveFilterCheck`, so the decorator and the
+>   fallback write a filter-alone check the same way.
+> - The global error handler puts `problems` in the body for this error as well.
+>
+> **Tests**
+> - `entity-checks.cases.ts` (every store): `Chore` gains a filter-alone check on `status`. Two cases:
+>   an update leaving out the completion date gets `completedAtRequired` and its message under
+>   `body`, and a create breaking the filter-alone check gets `check`.
+> - `entity-checks.test.ts` (in memory): the Verify step over http, now answering 400 with the
+>   problem, plus the error built from a copy of a declared filter (the Valkey path) and from a filter
+>   the entity does not declare.
+>
+> Red first: 5 failures, then green. Docs: `data-source.md` (§Rules every row follows, Key exports),
+> `validation.md` (§Answering the checks of an entity), and `error-handling.md`'s handler steps. No
+> upgrade entry, since the error is new in 3.
+
+### D21. An application cannot configure the hooks every row passes through before it is written and returned — MINOR
+*Filed 2026-10-25, from 08 §X20.*
+
+Every repository runs a before-save hook (default values, encryption, hashing, excluded properties) and a
+before-return hook (decryption, excluded properties). The data sources build each repository with
+`getDefaultBeforeSaveHook()` and `getDefaultBeforeReturnHook()` (`typeorm-base-data-source.model.ts`,
+`val-key-data-source.model.ts`), and the only other way in is `Repository`'s six-argument constructor, which a
+repository declared with `@RepositoryFor` does not have: the framework builds it, with no constructor of its own.
+An application wanting to normalize, audit or stamp every row has no place to say so.
+
+The user's decisions: configurable both globally, for every repository, and on one repository through
+`@RepositoryFor`; an application's hook **wraps** the default, receiving it and deciding when to call it, so
+leaving encryption or hashing out is something the code says rather than what a replacement does by accident.
+The hook types (`BeforeSaveHook`, `BeforeReturnHook`, `SaveOperation`) and the two default factories are public
+since X20. Delete keeps its shortcut: a delete through the default hook skips the hand-back pass
+(`isDefaultBeforeSaveHook`), which a wrapping hook has to keep or drop explicitly.
+
+**Verify:** an in-memory test server whose global hook stamps a property and whose `@RepositoryFor` hook on one
+entity uppercases another: both arrive in the stored row, and an encrypted property is still stored encrypted.
+
+> **Closed 2026-10-25.** The user refined the shape while it was built: on one repository the hooks are
+> methods, not decorator options, and deletes have a hook of their own. `Repository` has protected
+> `beforeSave(data, operation)`, `beforeDelete(row)` and `beforeReturn(row, autoDecrypt)`; a `@RepositoryFor`
+> class overrides them and calls `super` to keep the default. For every repository, `RepositoryHooks` under
+> `ZIBRI_DI_TOKENS.REPOSITORY_HOOKS` (default `{}`) holds `beforeSave`, `beforeDelete` and `beforeReturn`,
+> each receiving the `wrapped` hook; the methods run around them, they around the default
+> (`RepositoryHookUtilities`, the renamed `hooks.default.ts`). `SaveOperation.DELETE` is gone with the
+> delete moving to `beforeDelete`, and with it `isDefaultBeforeSaveHook`: `deleteAll` keeps reading ids
+> only while neither the class overrides `beforeDelete` nor the hooks declare one. For an override to hold
+> for rows written through a relation, which reach their entity via `dataSource.getRepository`, each data
+> source's `getRepository` hands out the listed class (`RepositoryForUtilities.resolveRepository`, on
+> `zibri/internal`), and `registerRepositoryProvidersFor` no longer builds it a second time. The hook
+> parameters of the repository constructors and `getDefaultBeforeSaveHook`/`getDefaultBeforeReturnHook` are
+> removed; `BeforeDeleteHook` and `RepositoryHooks` are public. `repository-hooks.test.ts` (in memory, red
+> before: no token) covers both levels, a relation write, the kept shortcut and a global `beforeDelete`;
+> the custom-hook case of the renamed `repository-hook.utilities.delete.test.ts` moved there. Documented in
+> `docs/data-source.md` "Running your own code on every row", `costs.md`, and `upgrading-to-3.md` (where a
+> hook passed to the constructor goes).
 
 ## Code quality and architecture
 

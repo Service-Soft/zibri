@@ -28,10 +28,12 @@ class PlainMembershipRepository extends BaseMembershipRepository<PlainMembership
 describe('RoleService - starting', () => {
     it('refuses to start an application with users and nowhere to read their roles from', async () => {
         const start: Promise<StartedTestServer> = startTestServer({
-            dataSources: [createInMemoryDataSource({
-                entities: [PlainUser, PlainMembership],
-                repositories: [PlainUserRepository, PlainMembershipRepository]
-            })]
+            dataSources: [
+                createInMemoryDataSource({
+                    entities: [PlainUser, PlainMembership],
+                    repositories: [PlainUserRepository, PlainMembershipRepository]
+                })
+            ]
         });
 
         await expect(start).rejects.toThrow(/No role repository is listed/);

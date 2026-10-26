@@ -199,20 +199,22 @@ export function resolveWebpackConfiguration(options: WebpackConfigurationOptions
                 },
                 ...MiniCssPlugin == undefined
                     ? []
-                    : [{
-                        test: /\.css$/,
-                        use: [
-                            MiniCssPlugin.loader,
-                            {
-                                loader: 'css-loader',
-                                options: {
-                                    importLoaders: 1,
-                                    esModule: false
-                                }
-                            },
-                            'postcss-loader'
-                        ]
-                    }]
+                    : [
+                        {
+                            test: /\.css$/,
+                            use: [
+                                MiniCssPlugin.loader,
+                                {
+                                    loader: 'css-loader',
+                                    options: {
+                                        importLoaders: 1,
+                                        esModule: false
+                                    }
+                                },
+                                'postcss-loader'
+                            ]
+                        }
+                    ]
             ]
         },
         plugins: [

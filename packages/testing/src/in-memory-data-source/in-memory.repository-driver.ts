@@ -1,4 +1,5 @@
-import { AggregateRow, AggregateUtilities, BaseEntity, CheckConstraintViolationError, coversEveryRow, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadata, EntityMetadataMissingError, EntityOrderUtilities, EntityRelationsUtilities, InternalError, JsonUtilities, KeyWhere, MetadataUtilities, ModelRegistry, Newable, ObjectUtilities, OrderComparator, OrderKey, PaginationResult, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelatedNarrowing, RelatedNarrowingUtilities, Relation, RelationMetadata, RelationTree, RelationTreeByRowId, RepositoryDriverInterface, ScopedWhere, Transaction, UniqueConstraintViolationError, UniqueGroup, UpsertIdentityUtilities, UpsertRow, UUIDUtilities, Where, WhereFilterEvaluator, WriteDataUtilities } from 'zibri';
+import { AggregateRow, AggregateUtilities, BaseEntity, CheckConstraintViolationError, DeepPartial, DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, EntityMetadataMissingError, InternalError, JsonUtilities, KeyWhere, Newable, ObjectUtilities, PaginationResult, RelatedNarrowing, RelationTree, RemovalReach, RepositoryDriverInterface, Transaction, UniqueConstraintViolationError, UpsertRow, UUIDUtilities, Where, WriteDataUtilities } from 'zibri';
+import { coversEveryRow, EntityMetadata, EntityOrderUtilities, EntityRelationsUtilities, MetadataUtilities, ModelRegistry, OrderComparator, OrderKey, parseArray, parseNumber, parseObject, parseOneOf, PropertyMetadata, RelatedNarrowingUtilities, Relation, RelationMetadata, RelationTreeByRowId, ScopedWhere, UniqueGroup, UpsertIdentityUtilities, WhereFilterEvaluator } from 'zibri/internal';
 
 import { InMemoryScope, InMemoryStore, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -175,7 +176,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async findAndCount(options: DriverFindAndCountOptions<T>): Promise<PaginationResult<T>> {
         const counted: T[] = this.findRows(
-            { ...options, where: options.totalWhere ?? options.where, skip: undefined, take: undefined },
+            { ...options, where: options.totalWhere ?? options.where, offset: undefined, limit: undefined },
             this.scope(options.transaction)
         );
         // the window is a narrowing of what was just counted, so it is taken out of that rather than
@@ -184,9 +185,9 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             ? counted
             : counted.filter(e => this.evaluator.matches(e, options.where as Where<T>, this.entityClass));
 
-        const skip: number = options.skip ?? 0;
+        const offset: number = options.offset ?? 0;
         return {
-            items: options.take == undefined ? matching.slice(skip) : matching.slice(skip, skip + options.take),
+            items: options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit),
             totalAmount: counted.length
         };
     }
@@ -205,8 +206,8 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             : entities;
         const ordered: T[] = this.applyOrder(filtered, options.order);
 
-        const skip: number = options.skip ?? 0;
-        const window: T[] = options.take == undefined ? ordered.slice(skip) : ordered.slice(skip, skip + options.take);
+        const offset: number = options.offset ?? 0;
+        const window: T[] = options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
         // after the window rather than before it, so that nothing is taken off a row that is about to
         // be thrown away
         EntityRelationsUtilities.keepOnlyRequested(
@@ -219,16 +220,22 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
-        return this.findRows({ ...options, skip: undefined, take: 1 }, this.scope(options.transaction)).at(0);
+        return this.findRows({ ...options, offset: undefined, limit: 1 }, this.scope(options.transaction)).at(0);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
     async* stream(options: DriverStreamOptions<T>): AsyncIterable<T> {
         const scope: InMemoryScope = this.scope(options.transaction);
-        const ids: string[] = scope.ids(this.tableName);
+        // an order is decided over every match before the first row is handed out, and only the ids
+        // are kept of it, as a store ordering in its own process keeps them
+        const ids: string[] = options.order == undefined
+            ? scope.ids(this.tableName)
+            : this.findRows({ where: options.where, related: options.related, order: options.order }, scope).map(row => String(row.id));
 
+        // without the order, which is decided already, so no row carries a relation it was only ordered by
+        const reading: DriverStreamOptions<T> = { ...options, order: undefined };
         for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
-            const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), options, scope);
+            const entities: T[] = this.loadRows(ids.slice(i, i + STREAM_BATCH_SIZE), reading, scope);
             for (const entity of entities) {
                 if (options.where && !this.evaluator.matches(entity, options.where, this.entityClass)) {
                     continue;
@@ -254,13 +261,21 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
-    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+    async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         const scope: InMemoryScope = this.scope(transaction);
+        // judged and removed with nothing awaited in between, so no other write lands between the two
+        const matching: Set<string> | undefined = reach == undefined
+            ? undefined
+            : new Set(this.findRows({ where: reach.where, related: reach.related }, scope).map(row => String(row.id)));
+        const within: string[] = ids.filter(id => scope.readRow(this.tableName, id) != undefined && (matching?.has(id) ?? true));
+        // wholly: every one of them or none, so a row gone or out of reach keeps the others
+        const removed: string[] = reach?.wholly === true && within.length < ids.length ? [] : within;
 
-        for (const id of ids) {
+        for (const id of removed) {
             this.removeManyToManyRelations(id, scope);
             scope.deleteRow(this.tableName, id);
         }
+        return removed;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc, typescript/require-await
@@ -394,7 +409,7 @@ export class InMemoryRepositoryDriver<T extends BaseEntity> implements Repositor
             check => !this.evaluator.matches<BaseEntity>(entity, check, this.entityClass)
         );
         if (broken != undefined) {
-            throw new CheckConstraintViolationError(this.entityClass.name, broken);
+            throw new CheckConstraintViolationError(this.entityClass, broken);
         }
     }
 

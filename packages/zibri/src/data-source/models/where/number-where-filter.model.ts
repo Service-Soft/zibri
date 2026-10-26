@@ -1,4 +1,5 @@
 import { BaseWhereFilter, BaseWhereFilterObject } from './base-where-filter.model';
+import { PropertiesHolding, PropertyReference } from './property-reference.model';
 import { BigNumber } from '../../../utilities/number.utilities';
 
 /**
@@ -15,28 +16,34 @@ import { BigNumber } from '../../../utilities/number.utilities';
 export type AnyNumber = number | bigint | BigNumber;
 
 /**
+ * What a number is compared with: a number, or another number property of the entity `Of`.
+ */
+type NumberComparand<T extends AnyNumber, Of extends object> = T | PropertyReference<PropertiesHolding<Of, AnyNumber>>;
+
+/**
  * The number where filter object.
  */
-type NumberWhereFilterObject<T extends AnyNumber> = BaseWhereFilterObject<T> & {
+type NumberWhereFilterObject<T extends AnyNumber, Of extends object> = BaseWhereFilterObject<T> & {
     /**
      * The property needs to be greater than the provided value.
      */
-    greaterThan?: T,
+    greaterThan?: NumberComparand<T, Of>,
     /**
      * The property needs to be greater than or equal to the provided value.
      */
-    greaterThanEquals?: T,
+    greaterThanEquals?: NumberComparand<T, Of>,
     /**
      * The property needs to be lesser than the provided value.
      */
-    lesserThan?: T,
+    lesserThan?: NumberComparand<T, Of>,
     /**
      * The property needs to be lesser than or equal to the provided value.
      */
-    lesserThanEquals?: T
+    lesserThanEquals?: NumberComparand<T, Of>
 };
 
 /**
- * A filter for a number where property.
+ * A filter for a number where property. A comparison can name another number property of the entity
+ * `Of` with `propertyOf`.
  */
-export type NumberWhereFilter<T extends AnyNumber> = BaseWhereFilter<T, NumberWhereFilterObject<T>>;
+export type NumberWhereFilter<T extends AnyNumber, Of extends object = object> = BaseWhereFilter<T, NumberWhereFilterObject<T, Of>>;

@@ -22,12 +22,12 @@ export type MultithreadingOptions = {
      * The default timeout for a thread job.
      * @default 1 hour.
      */
-    defaultTimeoutMs: number,
+    defaultTimeoutInMs: number,
     /**
      * The default timeout for a priority thread job.
      * @default 5 minutes.
      */
-    defaultTimeoutPriorityMs: number,
+    defaultPriorityTimeoutInMs: number,
     /**
      * How long the claim on a running job lives before another instance may take that job over.
      *

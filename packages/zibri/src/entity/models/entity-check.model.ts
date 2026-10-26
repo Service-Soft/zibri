@@ -10,8 +10,9 @@ export type EntityCheck = {
      * completion date: `whereFor<Task>([{ status: { not: 'done' } }, { completedAt: { not: null } }])`.
      *
      * It compares a property against a string, number, boolean or null - as it is, or with `not`,
-     * `oneOf`, `notOneOf`, or a comparison of numbers. A row holding null for a property it compares
-     * matches `not` and `notOneOf` unless they name null, and never matches a comparison.
+     * `oneOf`, `notOneOf`, a comparison of numbers or a comparison of dates. A comparison can name
+     * another property of the row instead, with `propertyOf`. A row holding null for a property it
+     * compares matches `not` and `notOneOf` unless they name null, and never matches a comparison.
      */
     where: KeyWhere,
     /**

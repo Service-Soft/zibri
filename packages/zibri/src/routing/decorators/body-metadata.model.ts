@@ -73,7 +73,7 @@ export type FormDataBodyMetadata = BaseBodyMetadata & {
     /**
      * The amount of ms after which the temporary file should be deleted from the file system.
      */
-    cleanupAfterMs: number,
+    cleanupAfterInMs: number,
     /**
      * What this body may contain, where it differs from what the application allows.
      *
@@ -222,7 +222,7 @@ export type FormDataBodyShapeMetadataInput = ObjectPropertyMetadataInput & Pick<
 /**
  * Metadata Input for json http request body properties that are one of several shapes.
  */
-type JsonBodyOneOfMetadataInput = JsonBodyMetadataInput & {
+export type JsonBodyOneOfMetadataInput = JsonBodyMetadataInput & {
     /**
      * The shapes the body can be. It becomes the first, in this order, that it fits.
      */
@@ -232,7 +232,7 @@ type JsonBodyOneOfMetadataInput = JsonBodyMetadataInput & {
 /**
  * Metadata Input for xml http request bodies that are one of several shapes.
  */
-type XmlBodyOneOfMetadataInput = XmlBodyMetadataInput & {
+export type XmlBodyOneOfMetadataInput = XmlBodyMetadataInput & {
     /**
      * The shapes the body can be. It becomes the first, in this order, that it fits.
      */
@@ -242,7 +242,7 @@ type XmlBodyOneOfMetadataInput = XmlBodyMetadataInput & {
 /**
  * Metadata Input for form data http request body properties that are one of several shapes.
  */
-type FormDataBodyOneOfMetadataInput = FormDataBodyMetadataInput & {
+export type FormDataBodyOneOfMetadataInput = FormDataBodyMetadataInput & {
     /**
      * The shapes the body can be. It becomes the first, in this order, that it fits.
      */
@@ -252,7 +252,7 @@ type FormDataBodyOneOfMetadataInput = FormDataBodyMetadataInput & {
 /**
  * Metadata Input for url encoded form http request body properties that are one of several shapes.
  */
-type FormUrlEncodedBodyOneOfMetadataInput = FormUrlEncodedBodyMetadataInput & {
+export type FormUrlEncodedBodyOneOfMetadataInput = FormUrlEncodedBodyMetadataInput & {
     /**
      * The shapes the body can be. It becomes the first, in this order, that it fits.
      */
@@ -262,7 +262,7 @@ type FormUrlEncodedBodyOneOfMetadataInput = FormUrlEncodedBodyMetadataInput & {
 /**
  * Metadata Input for stream http request body properties that are one of several shapes.
  */
-type StreamBodyOneOfMetadataInput = StreamBodyMetadataInput;
+export type StreamBodyOneOfMetadataInput = StreamBodyMetadataInput;
 
 /**
  * Metadata Input for http request body properties that are one of several shapes.
@@ -276,7 +276,7 @@ export type OneOfBodyMetadataInput = JsonBodyOneOfMetadataInput
 /**
  * Metadata Input for json http request bodies that are one model.
  */
-type DeclaredJsonBodyInput = JsonBodyMetadataInput & {
+export type DeclaredJsonBodyInput = JsonBodyMetadataInput & {
     /**
      * The model class that defines the body properties structure.
      */
@@ -286,7 +286,7 @@ type DeclaredJsonBodyInput = JsonBodyMetadataInput & {
 /**
  * Metadata Input for xml http request bodies that are one model.
  */
-type DeclaredXmlBodyInput = XmlBodyMetadataInput & {
+export type DeclaredXmlBodyInput = XmlBodyMetadataInput & {
     /**
      * The model class that defines the body properties structure.
      */
@@ -296,7 +296,7 @@ type DeclaredXmlBodyInput = XmlBodyMetadataInput & {
 /**
  * Metadata Input for form data http request bodies that are one model.
  */
-type DeclaredFormDataBodyInput = FormDataBodyMetadataInput & {
+export type DeclaredFormDataBodyInput = FormDataBodyMetadataInput & {
     /**
      * The model class that defines the body properties structure.
      */
@@ -306,7 +306,7 @@ type DeclaredFormDataBodyInput = FormDataBodyMetadataInput & {
 /**
  * Metadata Input for url encoded form http request bodies that are one model.
  */
-type DeclaredFormUrlEncodedBodyInput = FormUrlEncodedBodyMetadataInput & {
+export type DeclaredFormUrlEncodedBodyInput = FormUrlEncodedBodyMetadataInput & {
     /**
      * The model class that defines the body properties structure.
      */
@@ -316,7 +316,7 @@ type DeclaredFormUrlEncodedBodyInput = FormUrlEncodedBodyMetadataInput & {
 /**
  * Metadata Input for stream http request bodies that are one model.
  */
-type DeclaredStreamBodyInput = StreamBodyMetadataInput;
+export type DeclaredStreamBodyInput = StreamBodyMetadataInput;
 
 /**
  * What a body can be declared from: one model, or several shapes.

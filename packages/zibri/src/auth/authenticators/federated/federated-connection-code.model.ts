@@ -37,10 +37,10 @@ export class FederatedConnectionCode extends BaseEntity {
     redirectTo!: string;
 
     /**
-     * Whether the identity signs in as the user once it is connected.
+     * Whether the identity logs in as the user once it is linked.
      */
     @Property.boolean()
-    signIn!: boolean;
+    forLogin!: boolean;
 
     /**
      * The scopes of the provider's apis the connection asks for, whose tokens are kept. Empty when none are.

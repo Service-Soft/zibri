@@ -6,7 +6,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
@@ -226,14 +226,14 @@ export function describeMovedEntities(dataSourceName: string, dataSourceOf: () =
     describe(`entities a migration renamed and merged, on ${dataSourceName}`, () => {
         it('holds every entity stored under the previous table names, but the one a unique leaves out', async () => {
             const gizmos: Gizmo[] = await dataSourceOf().getRepository(Gizmo)
-                .findAll({ take: 'all' });
+                .findAll({ limit: 'all' });
 
             expect(gizmos.map(g => g.name).sort()).toStrictEqual(['first', 'second', 'third']);
         });
 
         it('keeps the many to many relations it owns, of every entity moved', async () => {
             const gizmos: Gizmo[] = await dataSourceOf().getRepository(Gizmo)
-                .findAll({ take: 'all', relations: ['parts'] });
+                .findAll({ limit: 'all', relations: ['parts'] });
             const partsByGizmo: [string, string[]][] = gizmos
                 .map((g): [string, string[]] => [g.name, g.parts.map(p => p.name).sort()])
                 .sort((a, b) => a[0].localeCompare(b[0]));
@@ -244,7 +244,7 @@ export function describeMovedEntities(dataSourceName: string, dataSourceOf: () =
 
         it('keeps those relations from the other side, too', async () => {
             const parts: GizmoPart[] = await dataSourceOf().getRepository(GizmoPart)
-                .findAll({ take: 'all', relations: ['gizmos'] });
+                .findAll({ limit: 'all', relations: ['gizmos'] });
             const gizmosByPart: [string, string[]][] = parts
                 .map((p): [string, string[]] => [p.name, p.gizmos.map(g => g.name).sort()])
                 .sort((a, b) => a[0].localeCompare(b[0]));
@@ -254,7 +254,7 @@ export function describeMovedEntities(dataSourceName: string, dataSourceOf: () =
 
         it('keeps the many to many relations another entity owns to it, from both sides', async () => {
             const tags: GizmoTag[] = await dataSourceOf().getRepository(GizmoTag)
-                .findAll({ take: 'all', relations: ['gizmos'] });
+                .findAll({ limit: 'all', relations: ['gizmos'] });
             const first: Gizmo = await dataSourceOf().getRepository(Gizmo)
                 .findOne({ where: { name: 'first' }, relations: ['tags'] });
 

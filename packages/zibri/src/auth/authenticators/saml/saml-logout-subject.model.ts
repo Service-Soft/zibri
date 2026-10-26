@@ -1,6 +1,6 @@
 /**
  * What a logout request to a SAML identity provider names: the user, as the identity provider named
- * them when they signed in, and the session.
+ * them when they logged in, and the session.
  */
 export type SamlLogoutSubject = {
     /**

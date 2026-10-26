@@ -636,7 +636,7 @@ describe('the test harness', () => {
             const { createRequire } = await import('node:module');
             const require = createRequire(process.cwd() + '/index.cjs');
             const { createPostgresTestDataSource, startDataSourceContainers } = require(${JsonUtilities.stringify(builtHarness)});
-            const { initDiContainer } = require('zibri');
+            const { initDiContainer } = require('zibri/internal');
             // built before the container is initialized, which reads the registered classes once
             const dataSource = createPostgresTestDataSource();
             initDiContainer();

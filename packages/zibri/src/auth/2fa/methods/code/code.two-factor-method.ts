@@ -32,7 +32,7 @@ import { TwoFactorMethod } from '../two-factor-method.interface';
 /**
  * The data for confirming the enrollment of a method that sends codes.
  */
-export class CodeConfirmRegisterData {
+export class CodeRegistrationConfirmData {
     /**
      * The code that was sent.
      */
@@ -43,7 +43,7 @@ export class CodeConfirmRegisterData {
 /**
  * The options a code is made with, with every default filled in.
  */
-type ResolvedTwoFactorCodeOptions = Required<Omit<TwoFactorCodeOptions, 'resendAfterMs'>>;
+type ResolvedTwoFactorCodeOptions = Required<Omit<TwoFactorCodeOptions, 'resendAfterInMs'>>;
 
 /**
  * The base of the two factor methods that send the user a code: it makes the code, keeps it
@@ -53,18 +53,18 @@ type ResolvedTwoFactorCodeOptions = Required<Omit<TwoFactorCodeOptions, 'resendA
  * it back.
  * @template RequestData - What the user supplies to start enrolling.
  */
-export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMethod<RequestData, CodeConfirmRegisterData> {
+export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMethod<RequestData, CodeRegistrationConfirmData> {
 
-    abstract readonly requestRegisterModel: Newable<RequestData>;
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly confirmRegisterModel: Newable<CodeConfirmRegisterData> = CodeConfirmRegisterData;
+    abstract readonly registrationRequestModel: Newable<RequestData>;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly registrationModel: undefined = undefined;
+    readonly registrationConfirmModel: Newable<CodeRegistrationConfirmData> = CodeRegistrationConfirmData;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly secondFactorStartModel: undefined = undefined;
+    readonly registrationRequestResultModel: undefined = undefined;
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly secondFactorRequestModel: undefined = undefined;
 
     /**
      * How the codes of this method are sent, eg. `email`. Credentials and codes of another channel
@@ -112,7 +112,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<UserType extends UserAccount>(
+    async requestRegistration<UserType extends UserAccount>(
         user: UserType,
         data: RequestData
     ): Promise<void> {
@@ -122,7 +122,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
         await this.claimDelivery?.(this.resolveDestination(data));
         // asking again gives up on an enrollment that was never confirmed, as the otp method does. A
         // confirmed one stays, so a user setting up a new destination keeps the one that works.
-        await this.deleteCredentials({ userId: user.id, channel: this.channel, confirmed: false });
+        await this.deleteCredentials({ userId: user.id, channel: this.channel, confirmed: false }, undefined);
         const credentials: TwoFactorCodeCredentials = await this.credentialsRepository.create({
             userId: user.id,
             channel: this.channel,
@@ -132,9 +132,9 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<UserType extends UserAccount>(
+    async confirmRegistration<UserType extends UserAccount>(
         user: UserType,
-        data: CodeConfirmRegisterData
+        data: CodeRegistrationConfirmData
     ): Promise<void> {
         // only the enrollment that is waiting for its code. A code that was sent to a confirmed
         // destination proves nothing about the new one.
@@ -162,12 +162,17 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
-        await this.deleteCredentials({ userId: user.id, channel: this.channel });
+    async removeRegistration<UserType extends UserAccount>(user: UserType): Promise<void> {
+        await this.deleteCredentials({ userId: user.id, channel: this.channel }, undefined);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.deleteCredentials({ userId: { oneOf: userIds }, channel: this.channel }, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async isRegistered<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         return await this.findConfirmedCredentials(user.id) != undefined;
     }
 
@@ -191,7 +196,7 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
      * @throws {ForbiddenError} When the user has not enrolled this method.
      * @throws {TooManyRequestsError} When a code was sent to the user a moment ago.
      */
-    async startSecondFactor<UserType extends UserAccount>(user: UserType): Promise<void> {
+    async requestSecondFactor<UserType extends UserAccount>(user: UserType): Promise<void> {
         const credentials: TwoFactorCodeCredentials | undefined = await this.findConfirmedCredentials(user.id);
         if (credentials == undefined) {
             throw new ForbiddenError($ts`This account has no second factor of this kind.`);
@@ -267,13 +272,13 @@ export abstract class CodeTwoFactorMethod<RequestData> implements TwoFactorMetho
      * Deletes the credentials that match, and the codes that were sent for them.
      * @param where - Which credentials.
      */
-    private async deleteCredentials(where: Where<TwoFactorCodeCredentials>): Promise<void> {
-        const credentials: TwoFactorCodeCredentials[] = await this.credentialsRepository.findAll({ where });
+    private async deleteCredentials(where: Where<TwoFactorCodeCredentials>, transaction: Transaction | undefined): Promise<void> {
+        const credentials: TwoFactorCodeCredentials[] = await this.credentialsRepository.findAll({ where, transaction });
         if (!credentials.length) {
             return;
         }
-        await this.codeRepository.deleteAll({ credentialsId: { oneOf: credentials.map(c => c.id) } });
-        await this.credentialsRepository.deleteAll({ id: { oneOf: credentials.map(c => c.id) } });
+        await this.codeRepository.deleteAll({ credentialsId: { oneOf: credentials.map(c => c.id) } }, { transaction });
+        await this.credentialsRepository.deleteAll({ id: { oneOf: credentials.map(c => c.id) } }, { transaction });
     }
 
     /**

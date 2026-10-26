@@ -18,7 +18,7 @@ import { Newable } from '../types/newable.type';
  * them removes them for everybody - but not for the local tier of a multi tier cache, which is
  * local by definition. That tier is what this exists for.
  *
- * Deliberately `distributed: false`. Every instance has its own caches to clear, so every instance
+ * Deliberately `runsOn: 'everyInstance'`. Every instance has its own caches to clear, so every instance
  * has to run this; electing one would clear one instance's caches and leave the rest stale, which
  * is the very thing being fixed. Keeps no row for the same reason.
  */
@@ -30,7 +30,7 @@ export class CacheInvalidationCronJob extends PollingCronJob {
         // users are served something that has already changed
         cron: CronExpression.every(2, 'seconds').build(),
         runOnInit: false,
-        distributed: false,
+        runsOn: 'everyInstance',
         syncToDataSource: false
     };
 

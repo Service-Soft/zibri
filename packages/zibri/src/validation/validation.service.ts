@@ -1,36 +1,29 @@
-import {
-    IsRequiredValidationProblem,
-    NoShapeFitsValidationProblem,
-    RelationsNotAllowedValidationProblem,
-    TypeMismatchValidationProblem,
-    UnknownKeyValidationProblem,
-    ValidationProblem
-} from './validation-problem.model';
-import { ValidationServiceInterface } from './validation-service.interface';
 import { type CustomValidationRule } from './custom-validation.model';
-import { HttpRequestContext } from '../context/request/http-request.context';
-import { WebsocketRequestContext } from '../context/request/websocket-request.context';
 import { CheckConstraintViolationError } from '../data-source/check-constraint-violation.error';
-import { WhereFilterEvaluator } from '../data-source/data-sources/where-converter/where-filter.evaluator';
 import { BaseEntity } from '../entity/base-entity.model';
-import { type EntityCheck } from '../entity/models/entity-check.model';
-import { LocaleCode } from '../localization/models/locale-code.model';
 import { namedShapeOf, NamedShape } from './functions/shape-problems.function';
 import { validateBoolean } from './functions/validate-boolean.function';
 import { validateDate } from './functions/validate-date.function';
 import { validateFile } from './functions/validate-file.function';
 import { validateNumber } from './functions/validate-number.function';
 import { validateString } from './functions/validate-string.function';
+import { IsRequiredValidationProblem, NoShapeFitsValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, UnknownKeyValidationProblem, ValidationProblem } from './validation-problem.model';
+import { ValidationServiceInterface } from './validation-service.interface';
+import { HttpRequestContext } from '../context/request/http-request.context';
+import { WebsocketRequestContext } from '../context/request/websocket-request.context';
+import { WhereFilterEvaluator } from '../data-source/data-sources/where-converter/where-filter.evaluator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { PropertyMetadata, RelationMetadata } from '../entity/decorators/property.decorator';
 import { BasePropertyMetadata } from '../entity/models/base-property-metadata.model';
+import { type EntityCheck } from '../entity/models/entity-check.model';
 import { AnyOfShapesMetadata } from '../entity/models/one-of-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
 import { ValidationError } from '../error-handling/errors/validation.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { MimeType } from '../http/mime-type.enum';
+import { LocaleCode } from '../localization/models/locale-code.model';
 import { chooseShape, ShapeChoice } from '../parsing/functions/parse-one-of.function';
 import { BodyMetadata, BodyShapeMetadata } from '../routing/decorators/body-metadata.model';
 import { PathParamMetadata, QueryParamMetadata, HeaderParamMetadata } from '../routing/decorators/param.decorator';
@@ -486,7 +479,7 @@ export class ValidationService implements ValidationServiceInterface {
         }
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         return rules.flatMap(rule => rule(value, context)).map(({ property, code, message }) => ({
-            key: property == undefined ? fullKey : (fullKey ? `${fullKey}.${property}` : property),
+            key: property == undefined ? fullKey : fullKey ? `${fullKey}.${property}` : property,
             code,
             message
         }));

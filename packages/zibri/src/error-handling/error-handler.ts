@@ -5,6 +5,7 @@ import { ErrorResponseBody } from './error-response-body.model';
 import { ErrorUtilities } from './error.utilities';
 import { CustomBodyHttpError } from './errors/custom-body-http.error';
 import { InternalError } from './internal-error.model';
+import { CheckConstraintViolationError } from '../data-source/check-constraint-violation.error';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { XmlWriterUtilities } from '../document/xml-writer.utilities';
@@ -69,7 +70,7 @@ export const errorHandler: GlobalErrorHandler = async (error: unknown, req: Http
         name: httpError.name,
         message: httpError.message,
         paragraphs: httpError.paragraphs,
-        problems: httpError instanceof ValidationError ? httpError.problems : undefined,
+        problems: httpError instanceof ValidationError || httpError instanceof CheckConstraintViolationError ? httpError.problems : undefined,
         traceId: TracingUtilities.getCurrentTraceContext()?.traceId
     };
 

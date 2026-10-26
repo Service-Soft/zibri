@@ -19,9 +19,10 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
@@ -109,6 +110,7 @@ class DbDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     override migrations: Newable<Migration>[] = [CreateEverythingMigration];
     schemaManagement: SchemaManagement = 'migrations';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 describe('createEntity', () => {

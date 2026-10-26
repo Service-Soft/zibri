@@ -4,11 +4,14 @@ import { BehaviorSubject, first, firstValueFrom } from 'rxjs';
 
 import { BackupEncryptionUtilities } from './backup-encryption.utilities';
 import { BackupEntity, BackupEntityCreateData } from './backup-entity.model';
+import { BackupFailedError } from './backup-failed.error';
 import { READABLE_BACKUP_FORMAT_VERSIONS } from './backup-format';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
 import { BackupResourceInterface, isBackupResource } from './backup-resource.interface';
 import { BackupCreateData, BackupServiceInterface } from './backup-service.interface';
 import { BackupStagingCleanupCronJob } from './backup-staging-cleanup.cron-job';
+import { BackupStatus } from './backup-status.enum';
+import { RunQueuedBackupsCronJob } from './run-queued-backups.cron-job';
 import { RestoreJournalEntry } from './restore-journal-entry.model';
 import { RestoreJournal } from './restore-journal.model';
 import { RestoreJournalUtilities } from './restore-journal.utilities';
@@ -36,6 +39,13 @@ import { OnAppInit } from '../global/on-app-init.interface';
 import { OnAppShutdown } from '../global/on-app-shutdown.interface';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { parseObject } from '../parsing/functions/parse-object.function';
+import { WakeUpListener } from '../polling/wake-up-listener.model';
+import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
+import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { QueueDefinition } from '../queue/queue-definition.model';
+import { QueueUtilities } from '../queue/queue.utilities';
+import { QueuedWorkHandedBackError } from '../queue/queued-work-handed-back.error';
+import { QueuedWorkOutcome } from '../queue/queued-work-outcome.model';
 import { TracingUtilities } from '../tracing/tracing.utilities';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
@@ -108,18 +118,13 @@ class CorruptBackupError extends InternalError {
 }
 
 /**
- * An error to throw when a backup was stopped because the application is shutting down.
+ * An error to throw when waiting for a backup stops because the application is shutting down.
  */
 class BackupStoppedError extends InternalError {
-    constructor(backup: BackupEntity, deleteError?: unknown) {
+    constructor(backup: BackupEntity) {
         super(
-            deleteError == undefined
-                ? `The backup "${backup.name}" was stopped because the application is shutting down, and what it wrote was deleted.`
-                : [
-                    `The backup "${backup.name}" was stopped because the application is shutting down.`,
-                    'Deleting what it wrote failed, so it stays recorded as a backup that was never finished.'
-                ],
-            { cause: deleteError }
+            `Waiting for the backup "${backup.name}" stopped because the application is shutting down. `
+            + 'Another instance stores what is left of it.'
         );
         this.name = 'BackupStoppedError';
     }
@@ -242,6 +247,22 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     // service whose application is shutting down starts nothing new
     private readonly stopping: AbortController = new AbortController();
 
+    /**
+     * How many passes over the queued backups this instance is running right now. A backup is being
+     * created here until the last of them is over, recording and completing included.
+     */
+    private runningPasses: number = 0;
+
+    /**
+     * Who waits on this instance for a backup to end, by its id: told by the instance that ends it
+     * here with the backup as it ended, without reading it again.
+     */
+    private readonly waiting: Map<string, Set<(backup: BackupEntity) => void>> = new Map();
+
+    private get wakeUpService(): WakeUpServiceInterface {
+        return inject(ZIBRI_DI_TOKENS.WAKE_UP_SERVICE);
+    }
+
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
         private readonly logger: LoggerInterface,
@@ -255,6 +276,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (backupResources.length) {
             if (!app.options.cronJobs.includes(BackupStagingCleanupCronJob)) {
                 app.options.cronJobs.push(BackupStagingCleanupCronJob);
+            }
+            if (!app.options.cronJobs.includes(RunQueuedBackupsCronJob)) {
+                app.options.cronJobs.push(RunQueuedBackupsCronJob);
             }
             // eslint-disable-next-line stylistic/max-len
             this.logger.info(`configures ${backupResources.length} ${backupResources.length > 1 ? 'resources' : 'resource'} to be backed up:`);
@@ -317,6 +341,14 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             // is over, and a backup or restore killed halfway leaves more to clean up than one stopped
             this.stopping.abort();
             await finished;
+            // a resource this one was storing is handed back, and stored by whichever instance looks
+            // first rather than at their next poll
+            try {
+                await this.wakeUpService.wake(this.backupRepository.dataSource, WAKE_UP_TOPICS.BACKUPS);
+            }
+            catch (error) {
+                this.logger.warn(`Could not tell the other instances that backups were handed back: ${String(error)}`);
+            }
         }
     }
 
@@ -421,7 +453,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         // every one of them, and it means it: what this answers is which backups the transports hold
         // that are not recorded here, and a partial view of what is recorded would sync the rest a
         // second time
-        const existingEntities: BackupEntity[] = await this.backupRepository.findAll({ take: 'all' });
+        const existingEntities: BackupEntity[] = await this.backupRepository.findAll({ limit: 'all' });
         const existingNames: string[] = existingEntities.map(e => e.name);
         const resolvedEntities: BackupEntity[] = (await Promise.all(allTransports.map(async t => {
             const documents: string[] = await this.resolveDocuments(t, existingNames, unreachable);
@@ -521,6 +553,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 // transports hold as written by whatever happens to be reading them
                 zibriVersion: first.zibriVersion,
                 formatVersion: first.formatVersion,
+                status: first.status,
                 masterKeys: first.masterKeys,
                 dataKeyIds: first.dataKeyIds,
                 resources: entities.reduce<BackupResourceEntity[]>(
@@ -546,11 +579,239 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async createBackup(data?: BackupCreateData): Promise<void> {
+    async queueBackup(data?: BackupCreateData): Promise<BackupEntity> {
+        const resourceEntities: BackupResourceEntityCreateData[] = [];
+        for (const backupResource of this.backupResources) {
+            const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(backupResource);
+            if (!metadata) {
+                throw new BackupTransportNotFoundError(backupResource);
+            }
+            const transports: BackupTransportInterface[] = this.resolveTransportsFromMetadata(metadata);
+            if (!transports.length) {
+                throw new BackupTransportNotFoundError(backupResource);
+            }
+            resourceEntities.push({
+                name: metadata?.name ?? backupResource.constructor.name,
+                transportNames: transports.map(t => t.name)
+            });
+        }
+        const backup: BackupEntity = await this.backupRepository.create({
+            ...data,
+            ...await this.resolveKeysNeeded(),
+            status: BackupStatus.RUNNING,
+            resources: resourceEntities
+        });
+
+        // started here at once rather than at the next poll, and not awaited: the backup is queued
+        // work, which any instance carries on with when this one stops
+        // eslint-disable-next-line promise/prefer-await-to-then
+        void this.runQueuedBackups().catch(
+            // eslint-disable-next-line promise/prefer-await-to-callbacks
+            error => this.logger.error(new InternalError(`Could not start storing the backup "${backup.name}"`, { cause: error }))
+        );
+        return backup;
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async runQueuedBackups(): Promise<boolean> {
+        if (!this.backupResources.length || this.stopping.signal.aborted) {
+            return false;
+        }
         // a trace of its own, for the reason a cron tick gets one: a backup is usually taken on a
         // schedule, and the one that is taken by hand is still not part of the request that asked
         // for it - it outlives the answer to that request
-        await TracingUtilities.trace('createBackup', { root: true }, async () => await this.createBackupWithin(data));
+        this.runningPasses++;
+        try {
+            return await TracingUtilities.trace('runQueuedBackups', { root: true }, async () => {
+                const ran: boolean = await QueueUtilities.poll(this.resolveQueue());
+                // after the poll: the resource that completed a backup completes it, and this finds one
+                // whose completing failed, so a backup never stays RUNNING with every resource stored
+                await this.completeStoredBackups();
+                return ran;
+            });
+        }
+        finally {
+            this.runningPasses--;
+            if (!this.runningPasses && this.isCreatingBackup.value) {
+                this.isCreatingBackup.next(false);
+            }
+        }
+    }
+
+    /**
+     * Resolves the queue of the resources of the backups being taken.
+     * @returns The queue.
+     */
+    private resolveQueue(): QueueDefinition<BackupResourceEntity> {
+        return {
+            name: 'backup',
+            wakeUpTopic: WAKE_UP_TOPICS.BACKUPS,
+            dataSource: this.backupResourceRepository.dataSource,
+            // how long the resources an instance that stopped existing was storing wait for another
+            leaseInMs: Ms.MINUTE,
+            onCompletion: 'release',
+            claimedPer: 'item',
+            firstRetryDelayInMs: inject(ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS),
+            findDue: async () => await this.findDueResources(),
+            findRunId: resource => resource.id,
+            findMaxAttempts: () => inject(ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS),
+            run: async resource => await this.storeResourceCounted(resource),
+            record: async (resource, outcome) => await this.recordResourceAttempt(resource, outcome),
+            resolveGiveUpError: (resource, cause) => new InternalError(
+                `The resource "${resource.name}" of backup "${resource.backup.name}" was not stored, and is not tried again`,
+                { cause }
+            )
+        };
+    }
+
+    /**
+     * Finds the resources of the backups being taken that are due, and that this instance holds.
+     * @returns The resources, with their backups.
+     */
+    private async findDueResources(): Promise<BackupResourceEntity[]> {
+        const resources: BackupResourceEntity[] = await this.backupResourceRepository.findAll({
+            where: [
+                // eslint-disable-next-line unicorn/no-null
+                { completed: false, nextAttemptAt: null, backup: { where: { status: BackupStatus.RUNNING } } },
+                { completed: false, nextAttemptAt: { before: new Date() }, backup: { where: { status: BackupStatus.RUNNING } } }
+            ],
+            relations: ['backup'],
+            limit: 'all'
+        });
+        // one this instance has no resource for is left to an instance that has
+        return resources.filter(r => this.findBackupResource(r.name) != undefined);
+    }
+
+    /**
+     * Stores one resource, as a backup being created on this instance until its pass is over.
+     * @param resource - The resource.
+     * @throws A QueuedWorkHandedBackError when the application stopped it, so another instance stores it.
+     */
+    private async storeResourceCounted(resource: BackupResourceEntity): Promise<void> {
+        if (!this.isCreatingBackup.value) {
+            this.isCreatingBackup.next(true);
+        }
+        try {
+            await this.storeResource(resource.backup, resource);
+        }
+        catch (error) {
+            if (this.stopping.signal.aborted) {
+                throw new QueuedWorkHandedBackError(`the application is shutting down, so another instance stores "${resource.name}"`);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Records how an attempt at storing a resource ended. A resource that spent its attempts fails its
+     * backup.
+     * @param resource - The resource.
+     * @param outcome - How the attempt ended.
+     */
+    private async recordResourceAttempt(resource: BackupResourceEntity, outcome: QueuedWorkOutcome): Promise<void> {
+        await this.backupResourceRepository.updateById(
+            resource.id,
+            { attempts: outcome.attempts, nextAttemptAt: outcome.nextAttemptAt, error: outcome.error }
+        );
+        if (outcome.kind === 'failed') {
+            await this.backupRepository.updateById(resource.backupId, { status: BackupStatus.FAILED });
+            this.tellWaiting(await this.backupRepository.findById(resource.backupId, { relations: ['resources'] }));
+            await this.wakeUpService.wake(this.backupRepository.dataSource, WAKE_UP_TOPICS.backupEnded(resource.backupId));
+            return;
+        }
+        if (outcome.kind === 'succeeded') {
+            try {
+                await this.completeBackupIfStored(resource.backupId);
+            }
+            catch (error) {
+                // the next poll completes it, see runQueuedBackups
+                this.logger.error(new InternalError(`Could not complete the backup "${resource.backup.name}"`, { cause: error }));
+            }
+        }
+    }
+
+    /**
+     * Completes every backup being taken whose resources are all stored.
+     */
+    private async completeStoredBackups(): Promise<void> {
+        const running: BackupEntity[] = await this.backupRepository.findAll({
+            where: { status: BackupStatus.RUNNING },
+            relations: ['resources'],
+            limit: 'all'
+        });
+        for (const backup of running.filter(b => b.resources.every(r => r.completed))) {
+            await this.completeBackupIfStored(backup.id);
+        }
+    }
+
+    /**
+     * Completes a backup once every resource of it is stored: its record is written to the
+     * transports, and the backup is `COMPLETED`.
+     * @param id - The backup.
+     */
+    private async completeBackupIfStored(id: string): Promise<void> {
+        const backup: BackupEntity = await this.backupRepository.findById(id, { relations: ['resources'] });
+        if (backup.status !== BackupStatus.RUNNING || !backup.resources.every(r => r.completed)) {
+            return;
+        }
+        // the record first, the way a backup was always written: a backup whose record is missing
+        // is one the transports never finished, and the status says COMPLETED only once they did
+        const completed: BackupEntity = { ...backup, status: BackupStatus.COMPLETED };
+        await this.storeMetadata(completed);
+        await this.backupRepository.updateById(id, { status: BackupStatus.COMPLETED });
+        this.tellWaiting(completed);
+        await this.wakeUpService.wake(this.backupRepository.dataSource, WAKE_UP_TOPICS.backupEnded(id));
+    }
+
+    /**
+     * Hands a backup that ended here to whoever waits for it on this instance.
+     * @param backup - The backup, as it ended.
+     */
+    private tellWaiting(backup: BackupEntity): void {
+        for (const tell of this.waiting.get(backup.id) ?? []) {
+            tell(backup);
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async waitForBackup(backup: BackupEntity): Promise<BackupEntity> {
+        let endedHere: BackupEntity | undefined;
+        const tell: (ended: BackupEntity) => void = ended => {
+            endedHere = ended;
+            listener.stop();
+        };
+        const waitingFor: Set<(ended: BackupEntity) => void> = this.waiting.get(backup.id) ?? new Set();
+        waitingFor.add(tell);
+        this.waiting.set(backup.id, waitingFor);
+        const listener: WakeUpListener = await this.wakeUpService.listen(
+            this.backupRepository.dataSource,
+            WAKE_UP_TOPICS.backupEnded(backup.id)
+        );
+        try {
+            for (;;) {
+                // as it ended here when it did, and read otherwise, since another instance may have ended it
+                const current: BackupEntity = endedHere ?? await this.backupRepository.findById(backup.id, { relations: ['resources'] });
+                if (current.status === BackupStatus.COMPLETED) {
+                    return current;
+                }
+                if (current.status === BackupStatus.FAILED) {
+                    throw new BackupFailedError(current);
+                }
+                if (this.stopping.signal.aborted) {
+                    throw new BackupStoppedError(current);
+                }
+                // read again every few seconds as well, for an end told through a data source that
+                // carries no messages between instances
+                await listener.next(Ms.SECOND * 5, this.stopping.signal);
+            }
+        }
+        finally {
+            listener.stop();
+            waitingFor.delete(tell);
+            if (!waitingFor.size) {
+                this.waiting.delete(backup.id);
+            }
+        }
     }
 
     /**
@@ -573,94 +834,41 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     /**
-     * Everything taking a backup does.
-     * @param data - What the backup was asked for with.
+     * Stores one resource of a backup on every transport meant to hold it.
+     * @param backup - The backup the resource belongs to.
+     * @param r - The resource as the backup records it.
      */
-    private async createBackupWithin(data?: BackupCreateData): Promise<void> {
-        try {
-            const resourceEntities: BackupResourceEntityCreateData[] = [];
-            for (const backupResource of this.backupResources) {
-                const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(backupResource);
-                if (!metadata) {
-                    throw new BackupTransportNotFoundError(backupResource);
-                }
-                const transports: BackupTransportInterface[] = this.resolveTransportsFromMetadata(metadata);
-                if (!transports.length) {
-                    throw new BackupTransportNotFoundError(backupResource);
-                }
-                resourceEntities.push({
-                    name: metadata?.name ?? backupResource.constructor.name,
-                    transportNames: transports.map(t => t.name)
-                });
-            }
-            const createData: BackupEntityCreateData = {
-                ...data,
-                ...await this.resolveKeysNeeded(),
-                resources: resourceEntities
-            };
-            const backup: BackupEntity = await this.backupRepository.create(createData);
-
-            this.isCreatingBackup.next(true);
-
-            // settled rather than raced, so that nothing is still writing to a transport once a backup that
-            // was stopped is deleted from it
-            const settled: PromiseSettledResult<void>[] = await Promise.allSettled(backup.resources.map(async r => {
-                const resource: BackupResourceInterface | undefined = this.resolveBackupResource(r);
-                if (!resource) {
-                    this.logger.warn(
-                        `Problem while creating backup "${backup.name}". Could not find backup resource "${r.name}"`
-                    );
-                    return;
-                }
-                const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(resource);
-                if (!metadata) {
-                    throw new BackupTransportNotFoundError(resource);
-                }
-                const transports: BackupTransportInterface[] = this.resolveTransportsFromMetadata(metadata);
-                if (!transports.length) {
-                    throw new BackupTransportNotFoundError(resource);
-                }
-                const key: Buffer | undefined = metadata.encrypt ? BackupEncryptionUtilities.generateKey() : undefined;
-                // wrapped before the data is produced, so that a master key which cannot be used - a
-                // kms that is down, say - fails the backup before any of it is dumped or uploaded
-                const encryptedKey: EncryptionString | undefined = key
-                    ? await this.encryptionService.masterEncrypt(key.toString('base64'))
-                    : undefined;
-                const data: Readable = await resource.createBackupData(backup);
-                // before staging, so that neither this instance's disk nor any transport ever holds
-                // the data unencrypted
-                const stored: Readable = key ? Readable.from(BackupEncryptionUtilities.encrypt(data, key)) : data;
-                const digest: BackupDigest = await this.stopOnShutdown(
-                    data,
-                    async () => await this.storeAndMeasure(stored, transports, backup, r)
-                );
-                // only now, and only if every transport took the whole thing. What `completed` is
-                // for is telling a backup that finished from one that stopped halfway, which it can
-                // only do if nothing sets it before the halfway point
-                await this.backupResourceRepository.updateById(r.id, { ...digest, encryptedKey, completed: true });
-            }));
-
-            const failure: PromiseRejectedResult | undefined = settled.find(r => r.status === 'rejected');
-            if (failure && this.stopping.signal.aborted) {
-                // deleted rather than left unfinished: nothing can be restored from it, and every stop
-                // would otherwise leave one more behind on the transports
-                try {
-                    await this.delete(backup);
-                }
-                catch (error) {
-                    throw new BackupStoppedError(backup, error);
-                }
-                throw new BackupStoppedError(backup);
-            }
-            if (failure) {
-                throw failure.reason;
-            }
-
-            await this.storeMetadata(backup.id);
+    private async storeResource(backup: BackupEntity, r: BackupResourceEntity): Promise<void> {
+        const resource: BackupResourceInterface | undefined = this.resolveBackupResource(r);
+        if (!resource) {
+            throw new InternalError(`Could not find the backup resource "${r.name}" of backup "${backup.name}".`);
         }
-        finally {
-            this.isCreatingBackup.next(false);
+        const metadata: BackupResourceMetadata | undefined = MetadataUtilities.getBackupResourceMetadata(resource);
+        if (!metadata) {
+            throw new BackupTransportNotFoundError(resource);
         }
+        const transports: BackupTransportInterface[] = this.resolveTransportsFromMetadata(metadata);
+        if (!transports.length) {
+            throw new BackupTransportNotFoundError(resource);
+        }
+        const key: Buffer | undefined = metadata.encrypt ? BackupEncryptionUtilities.generateKey() : undefined;
+        // wrapped before the data is produced, so that a master key which cannot be used - a
+        // kms that is down, say - fails the attempt before any of it is dumped or uploaded
+        const encryptedKey: EncryptionString | undefined = key
+            ? await this.encryptionService.masterEncrypt(key.toString('base64'))
+            : undefined;
+        const data: Readable = await resource.createBackupData(backup);
+        // before staging, so that neither this instance's disk nor any transport ever holds
+        // the data unencrypted
+        const stored: Readable = key ? Readable.from(BackupEncryptionUtilities.encrypt(data, key)) : data;
+        const digest: BackupDigest = await this.stopOnShutdown(
+            data,
+            async () => await this.storeAndMeasure(stored, transports, backup, r)
+        );
+        // only now, and only if every transport took the whole thing. What `completed` is
+        // for is telling a backup that finished from one that stopped halfway, which it can
+        // only do if nothing sets it before the halfway point
+        await this.backupResourceRepository.updateById(r.id, { ...digest, encryptedKey, completed: true });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -872,10 +1080,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
      *
      * The copy the transports hold is the one a restore has when the database holding the other one
      * is the thing being restored, which is the case this is for.
-     * @param id - The backup that finished.
+     * @param backup - The backup that finished, with its resources.
      */
-    private async storeMetadata(id: string): Promise<void> {
-        const backup: BackupEntity = await this.backupRepository.findById(id);
+    private async storeMetadata(backup: BackupEntity): Promise<void> {
         const transports: BackupTransportInterface[] = backup.resources.flatMap(r => this.resolveTransports(r) ?? []);
         // written here rather than by each transport, so that what a record is stays one thing said
         // in one place however many transports hold a copy of it
@@ -978,7 +1185,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
         if (!this.backupResources.length) {
             return [];
         }
-        return await this.backupRepository.findAll({ take: 'all' });
+        return await this.backupRepository.findAll({ limit: 'all' });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

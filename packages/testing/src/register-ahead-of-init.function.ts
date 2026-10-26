@@ -1,4 +1,5 @@
-import { DiContainer, DiProvider } from 'zibri';
+import { DiProvider } from 'zibri';
+import { DiContainer } from 'zibri/internal';
 
 /**
  * Registers the application's providers ahead of its own init, which registers them again.

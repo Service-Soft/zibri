@@ -17,12 +17,12 @@ export type Authentication<UserType extends BaseUser<string>> = {
      */
     authenticatedAt: Date,
     /**
-     * The session at a provider the user signed in through, when they did. A strategy keeps it for the
+     * The session at a provider the user logged in through, when they did. A strategy keeps it for the
      * whole login, refreshes included, so a logout at the provider can end it.
      */
     federatedSession?: FederatedSession,
     /**
-     * How the user proved who they are at the provider they signed in through, when the provider
+     * How the user proved who they are at the provider they logged in through, when the provider
      * says. A strategy keeps it for the whole login, refreshes included, so a route can take the
      * second factor presented there in place of one presented here.
      */

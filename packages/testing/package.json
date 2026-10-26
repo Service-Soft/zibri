@@ -13,6 +13,10 @@
             "types": "./dist/jest-preset.d.ts",
             "default": "./dist/jest-preset.js"
         },
+        "./jest-config": {
+            "types": "./dist/jest-config.d.ts",
+            "default": "./dist/jest-config.js"
+        },
         "./package.json": "./package.json"
     },
     "repository": {

@@ -23,13 +23,13 @@ import { ScopeWhereUtilities } from './scopes/scope-where.utilities';
  * branch, and one branch without the condition is one path on which the write lands blindly.
  * @param entityClass - The entity being written to.
  * @param data - The change about to be written, by property: an update's data, or the values an
- * upsert's conflict path sets.
+ * upsert's conflict path sets. Undefined for a delete, which takes every property away.
  * @param where - The filter the caller gave, which is where the expected values live.
  * @throws When the change names an optimistically locked property that the filter does not.
  */
 export function validateWriteIsNotBlind<T extends BaseEntity>(
     entityClass: Newable<T>,
-    data: DeepPartial<T> | Record<string, unknown>,
+    data: DeepPartial<T> | Record<string, unknown> | undefined,
     where: Where<T> | undefined
 ): void {
     const locked: Set<string> = ModelRegistry.get(entityClass).optimisticLockDescriptor.keys;
@@ -38,17 +38,20 @@ export function validateWriteIsNotBlind<T extends BaseEntity>(
     }
 
     const branches: WhereFilter<T>[] = ScopeWhereUtilities.branchesOf(where);
-    for (const key of Object.keys(data)) {
+    for (const key of data == undefined ? locked : Object.keys(data)) {
         // `in` rather than a value check, because naming the property with no condition is how a
         // caller says it means to overwrite whatever is there. An import or an administrative fix
         // has nothing to compare against and is not the same as having forgotten to
         if (!locked.has(key) || branches.every(b => key in b)) {
             continue;
         }
-        throw new InternalError(
-            `${entityClass.name}.${key} declares optimistic locking, so writing it has to say what it was:`
-            + ` pass { where: { ${key}: <the value you read> } } and the write lands only if nobody`
-            + ` changed it in between. Pass { where: { ${key}: undefined } } to overwrite it regardless.`
+        throw new InternalError(data == undefined
+            ? `${entityClass.name}.${key} declares optimistic locking, so deleting a row has to say what it was:`
+                + ` pass { where: { ${key}: <the value you read> } } and the row is deleted only if nobody`
+                + ` changed it in between. Pass { where: { ${key}: undefined } } to delete it regardless.`
+            : `${entityClass.name}.${key} declares optimistic locking, so writing it has to say what it was:`
+                + ` pass { where: { ${key}: <the value you read> } } and the write lands only if nobody`
+                + ` changed it in between. Pass { where: { ${key}: undefined } } to overwrite it regardless.`
         );
     }
 }

@@ -1,4 +1,4 @@
-import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, inject, JwtAuthOptionsInput, LoggerTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, inject, JwtAuthOptionsInput, LoggerTransport, LoggingEmailTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
 
 import { optionalEnv, requireEnv } from './env';
 import { permissions, Tenant } from './models';
@@ -56,14 +56,17 @@ export const providers: DiProvider<unknown>[] = [
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,
-        useFactory: () => new SmtpEmailTransport({
-            host: optionalEnv('SMTP_HOST'),
-            port: Number(optionalEnv('SMTP_PORT')),
-            auth: {
-                user: optionalEnv('SMTP_USER'),
-                pass: optionalEnv('SMTP_PASSWORD')
-            }
-        })
+        // in development every mail is logged instead of sent, see the email docs
+        useFactory: () => GlobalRegistry.getAppData('environment') === 'development'
+            ? new LoggingEmailTransport()
+            : new SmtpEmailTransport({
+                host: optionalEnv('SMTP_HOST'),
+                port: Number(optionalEnv('SMTP_PORT')),
+                auth: {
+                    user: optionalEnv('SMTP_USER'),
+                    pass: optionalEnv('SMTP_PASSWORD')
+                }
+            })
     }),
     defineProvider({
         token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,

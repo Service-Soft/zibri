@@ -14,11 +14,11 @@ import { resolveStructuredBodyMetadata } from '../../routing/resolve-body-metada
 import { Newable } from '../../types/newable.type';
 import { type AuthServiceInterface } from '../auth-service.interface';
 import { isAuthControllerAuthenticator } from '../authenticators/auth-controller-authenticator.interface';
-import { isConnectingAuthenticator } from '../authenticators/connecting-authenticator.interface';
-import { isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface';
 import { isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
-import { isSignInOptionsAuthenticator } from '../authenticators/sign-in-options-authenticator.interface';
-import { isSignUpAuthenticator } from '../authenticators/sign-up-authenticator.interface';
+import { isLinkIdentityConfirmingAuthenticator } from '../authenticators/link-identity-confirming-authenticator.interface';
+import { isLinkIdentityRequestingAuthenticator } from '../authenticators/link-identity-requesting-authenticator.interface';
+import { isLoginOptionsAuthenticator } from '../authenticators/login-options-authenticator.interface';
+import { isRegistrationAuthenticator } from '../authenticators/registration-authenticator.interface';
 import { isAuthControllerStrategy } from '../strategies/auth-controller-strategy.interface';
 
 /**
@@ -27,24 +27,34 @@ import { isAuthControllerStrategy } from '../strategies/auth-controller-strategy
 const ROUTE_CAPABILITIES: RouteCapability[] = [
     { route: 'login', member: 'authenticate', isCapable: isAuthControllerAuthenticator, implement: 'AuthControllerAuthenticatorInterface' },
     {
-        route: 'signInOptions',
-        member: 'resolveSignInOptions',
-        isCapable: isSignInOptionsAuthenticator,
-        implement: 'SignInOptionsAuthenticatorInterface'
-    },
-    { route: 'register', member: 'completeSignUp', isCapable: isSignUpAuthenticator, implement: 'SignUpAuthenticatorInterface' },
-    { route: 'authorize', member: 'completeSignIn', isCapable: isFederatedAuthenticator, implement: 'FederatedAuthenticatorInterface' },
-    {
-        route: 'startConnection',
-        member: 'startConnection',
-        isCapable: isConnectingAuthenticator,
-        implement: 'ConnectingAuthenticatorInterface'
+        route: 'loginOptions',
+        member: 'resolveLoginOptions',
+        isCapable: isLoginOptionsAuthenticator,
+        implement: 'LoginOptionsAuthenticatorInterface'
     },
     {
-        route: 'completeConnection',
-        member: 'completeConnection',
-        isCapable: isConnectionCompletingAuthenticator,
-        implement: 'ConnectionCompletingAuthenticatorInterface'
+        route: 'confirmRegistration',
+        member: 'confirmRegistration',
+        isCapable: isRegistrationAuthenticator,
+        implement: 'RegistrationAuthenticatorInterface'
+    },
+    {
+        route: 'requestProviderLogin',
+        member: 'confirmProviderLogin',
+        isCapable: isFederatedAuthenticator,
+        implement: 'FederatedAuthenticatorInterface'
+    },
+    {
+        route: 'requestLinkIdentity',
+        member: 'requestLinkIdentity',
+        isCapable: isLinkIdentityRequestingAuthenticator,
+        implement: 'LinkIdentityRequestingAuthenticatorInterface'
+    },
+    {
+        route: 'confirmLinkIdentity',
+        member: 'confirmLinkIdentity',
+        isCapable: isLinkIdentityConfirmingAuthenticator,
+        implement: 'LinkIdentityConfirmingAuthenticatorInterface'
     }
 ];
 

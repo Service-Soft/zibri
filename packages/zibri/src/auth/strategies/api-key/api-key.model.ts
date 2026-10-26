@@ -91,7 +91,7 @@ export class ApiKey extends BaseEntity {
 
     /**
      * When the key was last used: sent itself, exchanged for a token, or by a token it was exchanged
-     * for. Exact to `recordUseAfterMs` of `API_KEY_OPTIONS`. Null for a key never used.
+     * for. Exact to `recordUseAfterInMs` of `API_KEY_OPTIONS`. Null for a key never used.
      */
     @Property.date({ required: false })
     lastUsedAt: Date | undefined | null;

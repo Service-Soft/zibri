@@ -43,7 +43,7 @@ describe('EncryptionRotationCronJob', () => {
         // through the driver, because a broken row is one the repository refuses to read - and reading
         // is what deleting through it starts with
         const raw: Repository<OtpCredentials>['driver'] = otpRepository['driver'];
-        await raw.remove(await raw.findIds({}), undefined);
+        await raw.remove(await raw.findIds({}), undefined, undefined);
         await failureRepository.deleteAll({});
         await inject(repositoryTokenFor(EncryptionRotationProgress)).deleteAll({});
     });
@@ -211,7 +211,7 @@ describe('EncryptionRotationCronJob', () => {
         const [failure] = await failureRepository.findAll({});
         assert(failure, 'nothing recorded the row');
 
-        await otpRepository['driver'].remove([broken.id], undefined);
+        await otpRepository['driver'].remove([broken.id], undefined, undefined);
         await failureRepository.updateById(failure.id, { retryAt: new Date(Date.now() - 1000) });
         await job.onTick();
 

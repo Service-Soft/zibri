@@ -1,5 +1,5 @@
 /**
- * Who signs in at a fake provider, as its ID tokens say, or its api answers when it issues none.
+ * Who logs in at a fake provider, as its ID tokens say, or its api answers when it issues none.
  */
 export type FakeOAuthIdentity = {
     /**

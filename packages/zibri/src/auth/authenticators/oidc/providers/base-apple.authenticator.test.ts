@@ -37,10 +37,10 @@ import { FederatedRegistrationTicket } from '../../federated/federated-registrat
 import { FederatedRegistration } from '../../federated/federated-registration.model';
 
 const PUBLIC_URL: string = 'http://zibri.test';
-const SERVICES_ID: string = 'com.example.app.sign-in';
+const SERVICES_ID: string = 'com.example.app.login';
 const TEAM_ID: string = 'TEAM123456';
 const KEY_ID: string = 'KEY1234567';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
 
 let apple: FakeOAuthProvider;
@@ -148,7 +148,7 @@ describe('BaseAppleAuthenticator', () => {
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: REGISTRATION_URL,
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -163,12 +163,12 @@ describe('BaseAppleAuthenticator', () => {
     }, TestTimeouts.inMemory.shutdown);
 
     /**
-     * Signs in at Apple the way a browser does, up to the answer Apple posts to the callback.
+     * Logs in at Apple the way a browser does, up to the answer Apple posts to the callback.
      * @param browser - The browser.
      * @returns The response of the callback.
      */
-    async function signIn(browser: TestBrowser): Promise<Response> {
-        const atApple: string = await browser.follow(`${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`);
+    async function logIn(browser: TestBrowser): Promise<Response> {
+        const atApple: string = await browser.follow(`${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`);
         await browser.open(atApple);
         return await browser.open(`${PUBLIC_URL}/auth/federated/apple/callback`, {
             method: 'POST',
@@ -180,7 +180,7 @@ describe('BaseAppleAuthenticator', () => {
 
     it('asks Apple for a form post, with the name and the email', async () => {
         const atApple: URL = new URL(await new TestBrowser(baseUrl, PUBLIC_URL).follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`
         ));
 
         expect(atApple.searchParams.get('response_mode')).toBe('form_post');
@@ -190,12 +190,12 @@ describe('BaseAppleAuthenticator', () => {
     it('signs a linked user in, with a client secret signed for Apple', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'grace@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: apple.issuer, subject: 'apple-grace', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: apple.issuer, subject: 'apple-grace', userId: user.id, forLogin: true, grantedScopes: [] });
         apple.identity = { subject: 'apple-grace' };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
         const secretsBefore: number = clientSecrets.length;
 
-        const res: Response = await signIn(browser);
+        const res: Response = await logIn(browser);
 
         expect(res.headers.get(KnownHeader.LOCATION)).toBe(REDIRECT_TO);
         expect(clientSecrets.slice(secretsBefore)).toStrictEqual([true]);
@@ -206,19 +206,19 @@ describe('BaseAppleAuthenticator', () => {
         apple.identity = { subject: 'apple-grace' };
         const secretsBefore: number = clientSecrets.length;
 
-        await signIn(new TestBrowser(baseUrl, PUBLIC_URL));
-        await signIn(new TestBrowser(baseUrl, PUBLIC_URL));
+        await logIn(new TestBrowser(baseUrl, PUBLIC_URL));
+        await logIn(new TestBrowser(baseUrl, PUBLIC_URL));
 
         expect(clientSecrets.slice(secretsBefore)).toStrictEqual([true, true]);
     });
 
-    it('reads the name Apple posts on the first sign-in, and the email it says is verified as text', async () => {
+    it('reads the name Apple posts on the first login, and the email it says is verified as text', async () => {
         apple.identity = { subject: 'apple-ada', email: 'ada@privaterelay.appleid.com' };
         apple.addToNextAnswer({ user: JsonUtilities.stringify({ name: { firstName: 'Ada', lastName: 'Lovelace' }, email: 'ada@privaterelay.appleid.com' }) });
         apple.rewriteNextIdToken(claims => ({ ...claims, email_verified: 'true' }));
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const landing: string = (await signIn(browser)).headers.get(KnownHeader.LOCATION) ?? '';
+        const landing: string = (await logIn(browser)).headers.get(KnownHeader.LOCATION) ?? '';
         expect(landing.startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
         const res: Response = await browser.open(`${baseUrl}/register/profile`, {
             method: 'POST',
@@ -240,7 +240,7 @@ describe('BaseAppleAuthenticator', () => {
         apple.addToNextAnswer({ user: '{not json' });
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const landing: string = (await signIn(browser)).headers.get(KnownHeader.LOCATION) ?? '';
+        const landing: string = (await logIn(browser)).headers.get(KnownHeader.LOCATION) ?? '';
         const res: Response = await browser.open(`${baseUrl}/register/profile`, {
             method: 'POST',
             headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },

@@ -1,5 +1,6 @@
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
+import { Transaction } from '../../../../data-source/transaction/transaction.model';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../../di/inject.function';
@@ -10,8 +11,8 @@ import { JsonBodyMetadata, XmlBodyMetadata } from '../../../../routing/decorator
 import { resolveStructuredBodyMetadata } from '../../../../routing/resolve-body-metadata.function';
 import { Newable } from '../../../../types/newable.type';
 import { JsonUtilities } from '../../../../utilities/json.utilities';
+import { PasskeyAdditionRequest } from '../../../authenticators/passkey/passkey-addition-request.model';
 import { PasskeyAuthenticationResponse } from '../../../authenticators/passkey/passkey-authentication-response.model';
-import { PasskeyConnectionRequest } from '../../../authenticators/passkey/passkey-connection-request.model';
 import { PasskeyCreationOptions } from '../../../authenticators/passkey/passkey-creation-options.model';
 import { PasskeyRegistrationResponse } from '../../../authenticators/passkey/passkey-registration-response.model';
 import { PasskeyRequestOptions } from '../../../authenticators/passkey/passkey-request-options.model';
@@ -23,29 +24,29 @@ import { TwoFactorMethod } from '../two-factor-method.interface';
  * A passkey as the second factor of an operation. The device always verifies its user, with a
  * fingerprint or a PIN.
  *
- * The client asks for a challenge with `startSecondFactor`, at the `2fa/start` route of `AuthController`,
+ * The client asks for a challenge with `requestSecondFactor`, at the `2fa/request` route of `AuthController`,
  * has the browser use a passkey with it, and sends the answer base64url encoded in the
  * `x-authorization-passkey` header of the guarded request.
  *
- * The passkeys are those `PasskeyAuthenticator` signs in with, so enrolling one here adds a passkey to
+ * The passkeys are those `PasskeyAuthenticator` logs in with, so enrolling one here adds a passkey to
  * the user, and removing this method removes every passkey of theirs.
  */
 export class PasskeyTwoFactorMethod
-implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse, PasskeyCreationOptions, PasskeyRequestOptions> {
+implements TwoFactorMethod<PasskeyAdditionRequest, PasskeyRegistrationResponse, PasskeyCreationOptions, PasskeyRequestOptions> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'passkey';
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly requestRegisterModel: Newable<PasskeyConnectionRequest> = PasskeyConnectionRequest;
+    readonly registrationRequestModel: Newable<PasskeyAdditionRequest> = PasskeyAdditionRequest;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly confirmRegisterModel: Newable<PasskeyRegistrationResponse> = PasskeyRegistrationResponse;
+    readonly registrationConfirmModel: Newable<PasskeyRegistrationResponse> = PasskeyRegistrationResponse;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly registrationModel: Newable<PasskeyCreationOptions> = PasskeyCreationOptions;
+    readonly registrationRequestResultModel: Newable<PasskeyCreationOptions> = PasskeyCreationOptions;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly secondFactorStartModel: Newable<PasskeyRequestOptions> = PasskeyRequestOptions;
+    readonly secondFactorRequestModel: Newable<PasskeyRequestOptions> = PasskeyRequestOptions;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.PASSKEY_SERVICE)
@@ -55,33 +56,38 @@ implements TwoFactorMethod<PasskeyConnectionRequest, PasskeyRegistrationResponse
     ) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSecondFactor<UserType extends UserAccount>(user: UserType): Promise<PasskeyRequestOptions> {
-        return await this.passkeyService.startSecondFactor(user.id);
+    async requestSecondFactor<UserType extends UserAccount>(user: UserType): Promise<PasskeyRequestOptions> {
+        return await this.passkeyService.requestSecondFactor(user.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<UserType extends UserAccount>(
+    async requestRegistration<UserType extends UserAccount>(
         user: UserType,
-        data: PasskeyConnectionRequest
+        data: PasskeyAdditionRequest
     ): Promise<PasskeyCreationOptions> {
-        return await this.passkeyService.startConnection(user.id, data.name);
+        return await this.passkeyService.requestAddition(user.id, data.name);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<UserType extends UserAccount>(
+    async confirmRegistration<UserType extends UserAccount>(
         user: UserType,
         data: PasskeyRegistrationResponse
     ): Promise<void> {
-        await this.passkeyService.completeConnection(user.id, data);
+        await this.passkeyService.confirmAddition(user.id, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
+    async removeRegistration<UserType extends UserAccount>(user: UserType): Promise<void> {
         await this.passkeyService.removePasskeys(user.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.passkeyService.deleteUserRows(userIds, transaction);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async isRegistered<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         return (await this.passkeyService.findPasskeys(user.id, undefined)).length > 0;
     }
 

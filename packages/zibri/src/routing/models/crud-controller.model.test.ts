@@ -5,12 +5,12 @@ import { CrudController } from './crud-controller.model';
 import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
+import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { Controller } from '../decorators/controller.decorator';
 
 @Entity({ tenant: 'shared', allowOrphan: true })

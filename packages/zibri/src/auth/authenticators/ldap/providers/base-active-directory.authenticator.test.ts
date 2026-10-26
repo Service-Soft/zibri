@@ -69,7 +69,7 @@ let directory: FakeLdapDirectory;
 /**
  * Every entry the hook was handed, in order.
  */
-const firstSignIns: LdapEntry[] = [];
+const firstLogins: LdapEntry[] = [];
 
 class CompanyActiveDirectory extends BaseActiveDirectoryAuthenticator<string, JwtUser> {
     readonly name: string = 'company-ad';
@@ -89,13 +89,13 @@ class CompanyActiveDirectory extends BaseActiveDirectoryAuthenticator<string, Jw
         return [directory.ldapsUrl];
     }
 
-    async resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
-        firstSignIns.push(entry);
+    async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
+        firstLogins.push(entry);
         const [email] = entry.attributes['userprincipalname'] ?? [];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: email ?? '', roles: [Roles.USER] }, { transaction });
     }
 
-    async resolveSignIn(_entry: LdapEntry, user: JwtUser): Promise<JwtUser> {
+    async resolveLogin(_entry: LdapEntry, user: JwtUser): Promise<JwtUser> {
         return await Promise.resolve(user);
     }
 }
@@ -140,11 +140,11 @@ async function postLogin(credentials: LdapCredentials): Promise<Response> {
 }
 
 /**
- * Signs in through the login route, and reads the user it logged in as.
+ * Logs in through the login route, and reads the user it logged in as.
  * @param credentials - What the user typed.
  * @returns The id of the user.
  */
-async function signIn(credentials: LdapCredentials): Promise<string> {
+async function logIn(credentials: LdapCredentials): Promise<string> {
     return (await authDataOf(await postLogin(credentials))).userId;
 }
 
@@ -162,7 +162,7 @@ async function refresh(refreshToken: string): Promise<Response> {
 }
 
 /**
- * What a successful sign-in or refresh answered.
+ * What a successful login or refresh answered.
  * @param res - The answer.
  * @returns The auth data.
  */
@@ -216,28 +216,28 @@ afterAll(async () => {
 });
 
 describe('BaseActiveDirectoryAuthenticator', () => {
-    it('signs in by account name and by user principal name as one user, linked by the objectGUID as Active Directory writes it', async () => {
-        const userId: string = await signIn({ username: 'anna', password: 'anna-secret' });
+    it('logs in by account name and by user principal name as one user, linked by the objectGUID as Active Directory writes it', async () => {
+        const userId: string = await logIn({ username: 'anna', password: 'anna-secret' });
 
-        expect(await signIn({ username: 'anna@zibri.test', password: 'anna-secret' })).toBe(userId);
-        expect(firstSignIns.map(entry => entry.id)).toStrictEqual(['33221100-5544-7766-0819-2a3b4c5d6e7f']);
+        expect(await logIn({ username: 'anna@zibri.test', password: 'anna-secret' })).toBe(userId);
+        expect(firstLogins.map(entry => entry.id)).toStrictEqual(['33221100-5544-7766-0819-2a3b4c5d6e7f']);
         expect(lastAccountSearch()).toBe(
             '(&(&(objectcategory=person)(objectclass=user))(|(samaccountname=anna@zibri.test)(userprincipalname=anna@zibri.test)))'
         );
     });
 
     it('reads an objectGUID whose bytes are not text', async () => {
-        await signIn({ username: 'bob', password: 'bob-secret' });
+        await logIn({ username: 'bob', password: 'bob-secret' });
 
-        expect(firstSignIns.at(-1)?.id).toBe('c3d2e1f0-a5b4-8796-7869-5a4b3c2d1e0f');
+        expect(firstLogins.at(-1)?.id).toBe('c3d2e1f0-a5b4-8796-7869-5a4b3c2d1e0f');
     });
 
-    it('signs in by the down-level logon name of this domain, and refuses the one of another', async () => {
-        const userId: string = await signIn({ username: 'anna', password: 'anna-secret' });
+    it('logs in by the down-level logon name of this domain, and refuses the one of another', async () => {
+        const userId: string = await logIn({ username: 'anna', password: 'anna-secret' });
 
-        expect(await signIn({ username: String.raw`ZIBRI\anna`, password: 'anna-secret' })).toBe(userId);
+        expect(await logIn({ username: String.raw`ZIBRI\anna`, password: 'anna-secret' })).toBe(userId);
         expect(lastAccountSearch()).toBe('(&(&(objectcategory=person)(objectclass=user))(samaccountname=anna))');
-        expect(await signIn({ username: String.raw`zibri\anna`, password: 'anna-secret' })).toBe(userId);
+        expect(await logIn({ username: String.raw`zibri\anna`, password: 'anna-secret' })).toBe(userId);
 
         const searchesBefore: number = directory.searches.length;
         expect((await postLogin({ username: String.raw`OTHER\anna`, password: 'anna-secret' })).status).toBe(401);
@@ -249,9 +249,9 @@ describe('BaseActiveDirectoryAuthenticator', () => {
     it('finds the groups of an account, nested ones included, in one search with the in-chain rule', async () => {
         const searchesBefore: number = directory.searches.length;
 
-        await signIn({ username: 'carla', password: 'carla-secret' });
+        await logIn({ username: 'carla', password: 'carla-secret' });
 
-        expect([...firstSignIns.at(-1)?.groups ?? []].sort()).toStrictEqual([`CN=admins,${GROUPS}`, `CN=staff,${GROUPS}`]);
+        expect([...firstLogins.at(-1)?.groups ?? []].sort()).toStrictEqual([`CN=admins,${GROUPS}`, `CN=staff,${GROUPS}`]);
         expect(directory.searches.slice(searchesBefore).map(search => search.filter)).toStrictEqual([
             expect.stringContaining('(samaccountname=carla)'),
             `(&(objectclass=group)(member:1.2.840.113556.1.4.1941:=CN=carla,${USERS}))`
@@ -264,9 +264,9 @@ describe('BaseActiveDirectoryAuthenticator', () => {
         const dora: FakeLdapEntry = account('dora', Buffer.from('d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f', 'hex'));
         dora.attributes['userAccountControl'] = ['512'];
         directory.entries.push(dora);
-        const signedIn: JwtAuthData<string> = await authDataOf(await postLogin({ username: 'dora', password: 'dora-secret' }));
+        const loggedIn: JwtAuthData<string> = await authDataOf(await postLogin({ username: 'dora', password: 'dora-secret' }));
 
-        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(signedIn.refreshToken.value));
+        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(loggedIn.refreshToken.value));
         // a normal account that is disabled
         dora.attributes['userAccountControl'] = ['514'];
 

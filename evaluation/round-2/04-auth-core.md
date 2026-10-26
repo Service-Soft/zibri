@@ -316,6 +316,18 @@ of the 401 the jwt strategy answers (`jwt.auth-strategy.ts:486`, `required: fals
 repository, call `GET` on any route: expect 401 (red: 404). Then count `CookieAuthRefreshSession` rows for the id
 and assert zero.
 
+> **Closed 2026-10-26.** The rows half closed with §A18: a user deleted for good is deleted with their
+> sessions, refresh tokens and api keys. A soft deleted user keeps them on purpose, so the 404 stayed
+> for them, and on two more paths than filed: the cookie strategy's in-request renewal and both
+> strategies' refresh looked the user up as required too. `CookieAuthStrategy.resolveUser`, its
+> renewal and refresh (`findRefreshUser`, formerly `resolveRefreshUser`) and `JwtAuthStrategy`'s refresh
+> now find the user with `required: false`: a request is answered as for no login (401, or served as to
+> nobody on an `@Auth.skip` route), a renewal renews nothing, and a refresh is refused with the
+> strategy's ordinary refusal. Tests: `cookie-auth.auth-strategy.deleted-user.test.ts` (a route needing
+> a login, an `@Auth.skip` route reading an optional user, a request carrying the refresh cookie alone,
+> a refresh, and a user deleted for good) and `jwt.auth-strategy.deleted-user.test.ts` (a refresh),
+> in memory, with a soft deleting user; red with 404 on all five soft delete cases.
+
 ### A11. The account lifecycle routines an enterprise expects are left to the application — MINOR
 *Filed 2026-10-21.*
 
@@ -398,8 +410,10 @@ lifetime, both five minutes (`dpop/dpop.service.ts:32,37`, unmodified; enterpris
 this to the server); the 2FA per-user check lease of 30 s and the throttled `Retry-After` of +1 s
 (`two-factor.service.ts:176,188`); the cookie row grace of five minutes (`cookie-auth.auth-strategy.ts:658,676`,
 see A9); the auth limiter's store bound (A4); the recovery-code count and length
-(`recovery-code.two-factor-method.ts:29,34`, a bank commonly wants 8 or 16). Fine as constants: `API_KEY_PREFIX`,
-`PASSWORD_MAX_LENGTH` (read where decorators run, per §E1), the reset token's 16 random bytes, the OTP secret's
+(`recovery-code.two-factor-method.ts:29,34`, a bank commonly wants 8 or 16); and, by the user's decision during 08
+§X20 (2026-10-25), `API_KEY_PREFIX` (`zibri_`, which a deployment wants for its own secret scanning) and the OTP
+period `OTP_PERIOD_IN_SECONDS` (30 s). Both are on `zibri/internal` since X20; the token is what becomes public. Fine
+as constants: `PASSWORD_MAX_LENGTH` (read where decorators run, per §E1), the reset token's 16 random bytes, the OTP secret's
 15 bytes, `MIN_RSA_MODULUS_LENGTH`, the recovery code alphabet. Already configurable and correctly so:
 `TWO_FACTOR_CODE_OPTIONS`, `AUTH_RATE_LIMIT_OPTIONS`, `API_KEY_OPTIONS`, the OTP window.
 
@@ -422,6 +436,52 @@ listed so the recheck is on record.
 
 **Verify:** the existing `auth-controller.jwt.test.ts` oracle cases cover the clean items; A7 and A10 carry the two
 that are not.
+
+### A17. An expired, unused password reset token is never deleted — MINOR
+*Filed and closed 2026-10-26*, found by 08 §X27's research into what ends each framework table's rows.
+
+A `PasswordResetToken` was deleted when it was used, or when the next reset its user asked for found
+it expired. A token nobody used and whose user never asked again stayed, one per such user, while every
+other expiring table of the framework has an hourly job.
+
+> **Closed 2026-10-26 (user: a cleanup job).** `PasswordResetTokenCleanupCronJob` deletes expired
+> reset tokens every hour; `PasswordAuthenticator.init` registers it, so it runs for an application
+> that logs in with a password and for no other. Test:
+> `password-reset-token-cleanup.cron-job.test.ts` (in memory, the real cron service): registered with
+> the password authenticator, an expired token deleted and a current one kept, not registered for an
+> application listing only another authenticator; red without the job.
+
+### A18. Deleting a user leaves every auth row of theirs behind — MAJOR
+*Filed and closed 2026-10-26*, found by 08 §X27's research into what ends each framework table's rows.
+
+`Repository.removeRows` deleted a user's memberships with the user, and nothing else. Their
+`PasswordCredentials` (a password hash), `PasswordResetToken`, `PasswordFailureStreak`, `OtpCredentials`,
+`TwoFactorCodeCredentials` with their `TwoFactorCode`s, `TwoFactorRecoveryCode`s, `TwoFactorFailureStreak`,
+`Passkey`s and the passkey challenges and tickets bound to them, `ApiKey`s, `FederatedIdentity`s with their
+`OAuthProviderTokens`, the federated attempts, handover and connection codes bound to them, `LdapIdentity`s,
+`JwtRefreshToken`s, cookie sessions and `LoginTicket`s stayed: tables growing with every user ever
+deleted, keeping personal data, secrets and a provider's tokens of somebody who is gone.
+
+> **Closed 2026-10-26 (user: in the same transaction, as memberships).** Authenticators, auth
+> strategies and two factor methods take an optional `deleteUserRows(userIds, transaction)`, which
+> every shipped one keeping rows per user implements (one batched delete per table, guarded by the
+> same conditions under which the table is declared); `TwoFactorService`, `PasskeyService` and
+> `ApiKeyService` have it on their interfaces. `AuthServiceInterface.deleteUserRows` calls every
+> registered authenticator, strategy and method, the services, and deletes the login tickets;
+> `removeRows` calls it beside `deleteMemberships`, so it runs only when the user row is really
+> removed: a soft delete keeps everything, and a restore brings the user back whole. Federated and
+> directory authenticators delete only their own identities (by issuer, by directory), and an OAuth
+> provider's kept tokens go before them, without being revoked at the provider (a request inside the
+> delete's transaction). Kept on purpose: `AuditEntry` (the trail outlives its subject, ended by its
+> retention), `Email` (a persisted mail is a record; a queued one is addressed by email, not by user),
+> `ScimUser` (the identity provider owns it; `ScimService` already forgets one whose user is gone).
+> Test: `auth.service.user-rows.test.ts`, one in-memory application with every shipped authenticator,
+> strategy and method that keeps rows: a deleted user's rows are gone from every table and another
+> user's are all there; a soft deleted user keeps them and a hard delete removes them. Red with all 22
+> tables when written. `framework-tables.md`, `auth.md`, `api-keys.md` and
+> `login-through-a-directory.md` say so. One behavior follows: a directory entry whose user was
+> deleted for good logs in as a first login again, as an identity at a provider already did, where
+> it was refused while the dangling link stayed (`base-ldap.authenticator.test.ts`, case rewritten).
 
 ## Code quality and architecture
 

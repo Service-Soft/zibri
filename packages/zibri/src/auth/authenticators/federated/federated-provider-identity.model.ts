@@ -2,7 +2,7 @@ import { FederatedProfile } from './federated-profile.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
- * Who signed in at a provider, as its answer to a sign-in proves.
+ * Who logged in at a provider, as its answer to a login proves.
  */
 export type FederatedProviderIdentity = {
     /**
@@ -10,11 +10,11 @@ export type FederatedProviderIdentity = {
      */
     issuer: string,
     /**
-     * Who signed in, as the provider names them.
+     * Who logged in, as the provider names them.
      */
     subject: string,
     /**
-     * When they signed in at the provider.
+     * When they logged in at the provider.
      */
     authenticatedAt: Date,
     /**

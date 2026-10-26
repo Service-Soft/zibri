@@ -2,10 +2,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import { io, Socket } from 'socket.io-client';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Repository } from '../../data-source/repository/repository';

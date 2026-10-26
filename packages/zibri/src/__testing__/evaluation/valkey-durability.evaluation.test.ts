@@ -18,9 +18,9 @@ import { RateLimitStateEntity } from '../../rate-limiting/stores/rate-limit-stat
 import { BaseRateLimitState } from '../../rate-limiting/stores/rate-limiter-store.interface';
 import { RepositoryRateLimiterStore } from '../../rate-limiting/stores/repository.rate-limiter-store';
 import { Newable } from '../../types/newable.type';
+import { TestTimeouts } from '../constants';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

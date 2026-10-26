@@ -5,8 +5,8 @@ import { DefaultDescriptor } from './default-descriptor';
 import { NestedDescriptor } from './model-descriptor';
 import { ModelRegistry } from './model.registry';
 import { restoreExcludeProperties } from './restore-exclude-properties.function';
-import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { AesGcmEncryptionStrategy } from '../../auth/encryption/strategies/aes-gcm.encryption-strategy';
 import { type HashServiceInterface } from '../../auth/hash/hash-service.interface';
@@ -23,7 +23,7 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 
 // This entity exercises all four model-registry descriptors together (exclude, default, hash,
 // encryption), created/read through a real repository. These descriptors are wired as the default
-// beforeSave/beforeReturn hooks applied to every repository (see hooks.default.ts), so a real
+// beforeSave/beforeReturn hooks applied to every repository (see repository-hook.utilities.ts), so a real
 // repository round trip is the only way to catch a break in how they actually compose — a unit test
 // per descriptor could all pass while, say, exclusion still ran before defaults were filled in.
 @Entity({ tenant: 'shared' })

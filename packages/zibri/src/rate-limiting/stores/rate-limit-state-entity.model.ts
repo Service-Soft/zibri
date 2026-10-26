@@ -45,7 +45,7 @@ export class RateLimitStateEntity extends BaseEntity {
      * is and deciding per row.
      */
     @Property.number({ required: false })
-    nextReservationExpiryMs?: number;
+    nextReservationExpiresAtMs?: number;
 
     /**
      * Counts up once per write, so that a write can require the row to be the one that was read.

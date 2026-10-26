@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { RoundTripCounter } from 'zibri-testing';
 
 import { describeEntitySelection, entitySelectionEntities, EntitySelectionRepositories, Purchase, Shopper } from './entity-selection.cases';
+import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
@@ -52,7 +52,7 @@ describe('narrowing what a read hands back, in the statement postgres runs', () 
     it('reads the columns a selection names, of the row and of the related rows, and no others', async () => {
         postgresRoundTrips.reset();
 
-        await postgres.shoppers.findAll({ relations: ['purchases'], select: { name: true, purchases: { total: true } }, take: 1 });
+        await postgres.shoppers.findAll({ relations: ['purchases'], select: { name: true, purchases: { total: true } }, limit: 1 });
 
         const statements: string = postgresRoundTrips.trips.map(t => t.statement).join('\n');
         expect(statements).toContain('"name"');

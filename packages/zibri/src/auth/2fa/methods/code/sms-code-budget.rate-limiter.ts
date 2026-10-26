@@ -36,7 +36,7 @@ export class SmsCodeBudgetRateLimiter extends TokenBucketRateLimiter {
                     'SmsCodeBudgetRateLimiter'
                 ),
                 capacity: limits.maxPerHour,
-                maxReservationWaitMs: undefined
+                maxReservationWaitInMs: undefined
             }
         );
     }

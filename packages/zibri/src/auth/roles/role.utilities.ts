@@ -53,6 +53,16 @@ export abstract class RoleUtilities {
     }
 
     /**
+     * Finds the roles a row of a user or a membership is written with.
+     * @param row - What is written, whatever it is typed as.
+     * @returns The roles, undefined when the write leaves them alone.
+     */
+    static findWrittenRoles(row: object): string[] | undefined {
+        const roles: unknown = Reflect.get(row, 'roles');
+        return Array.isArray(roles) ? roles.filter(role => typeof role === 'string') : undefined;
+    }
+
+    /**
      * Collects the roles rows hold other than the known ones.
      * @param rows - The rows, ideally only those holding such a role.
      * @param known - The roles that exist everywhere.

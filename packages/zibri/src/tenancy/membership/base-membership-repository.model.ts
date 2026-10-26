@@ -1,12 +1,14 @@
 import { BaseMembership } from './base-membership.model';
-import { MEMBERSHIP_REPOSITORY, MembershipRepositoryInterface } from './membership-repository.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { type ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { type SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { MembershipRepositoryInterface } from './membership-repository.interface';
+import { ChangeSetRepository } from '../../data-source/change-sets/change-set-repository';
+import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
+import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
+import { MEMBERSHIP_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
+import { ModelRegistry } from '../../global/model-registry/model.registry';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 
@@ -78,7 +80,11 @@ export function BaseMembershipRepository<T extends BaseMembership<string>>(
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         async deleteMembership(userId: string, transaction: Transaction | undefined): Promise<void> {
-            await this.deleteAll({ userId } as Where<T>, { transaction });
+            // whatever a locked property of the membership holds, which the caller has no value of
+            await this.deleteAll(
+                ModelRegistry.get(this.entityClass).optimisticLockDescriptor.resolveRegardlessWhere({ userId } as Where<T>),
+                { transaction }
+            );
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -88,7 +94,11 @@ export function BaseMembershipRepository<T extends BaseMembership<string>>(
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         async deleteMemberships(userIds: string[], transaction: Transaction): Promise<void> {
-            await this.deleteAll({ userId: { oneOf: userIds } } as Where<T>, { transaction, acrossTenants: true });
+            // whatever a locked property holds: the user they belong to is being deleted
+            await this.deleteAll(
+                ModelRegistry.get(this.entityClass).optimisticLockDescriptor.resolveRegardlessWhere({ userId: { oneOf: userIds } } as Where<T>),
+                { transaction, acrossTenants: true }
+            );
         }
     }
 

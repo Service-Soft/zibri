@@ -19,6 +19,7 @@ import { StartedTestServer, startTestServer } from '../../__testing__/test-serve
 import { BackupEntity } from '../../backup/backup-entity.model';
 import { BackupResourceEntity } from '../../backup/backup-resource-entity.model';
 import { BackupResourceInterface } from '../../backup/backup-resource.interface';
+import { BackupServiceInterface } from '../../backup/backup-service.interface';
 import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
@@ -128,7 +129,8 @@ describe('EncryptionService — what is still under a retired key', () => {
         assert(retiredDataKeyId, 'the previous test retired no key');
         // the settings are backed up and the data source holding the key table is not, so restoring
         // them needs the data keys to still be there
-        await inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE).createBackup({ name: 'without-the-key-table' });
+        const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'without-the-key-table' }));
         const [backup]: BackupEntity[] = await inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE).resolveRecordedBackups();
         expect(backup?.resources.map(r => r.name)).toEqual([SettingsStore.name]);
         expect(backup?.dataKeyIds).toContain(retiredDataKeyId);

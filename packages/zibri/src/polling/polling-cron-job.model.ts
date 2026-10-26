@@ -23,9 +23,9 @@ const MAX_POLL_INTERVAL_IN_MS: number = Ms.SECOND * 30;
  * A cron job that looks for work kept in a data source, as often as there is any.
  *
  * Its schedule is how often it may look at most. While it keeps finding nothing it looks ever less
- * often, up to every 30 seconds, and a tick it skips costs nothing - not even the claim of a
- * distributed job's slot. Whoever adds work wakes it through the {@link WakeUpServiceInterface}, and
- * it looks at its next tick again.
+ * often, up to every 30 seconds, and a tick it skips costs nothing - not even the claim of the slot
+ * of a job that runs on one instance. Whoever adds work wakes it through the
+ * {@link WakeUpServiceInterface}, and it looks at its next tick again.
  *
  * Without a data source that carries messages between instances, a wake up reaches this instance only,
  * so the job looks at every tick of its schedule instead.

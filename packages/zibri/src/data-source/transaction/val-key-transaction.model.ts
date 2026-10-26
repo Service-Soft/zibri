@@ -570,7 +570,7 @@ export class ValKeyTransaction implements Transaction {
             return;
         }
         if (this.guards.size) {
-            if (!await applyGuardedValKeyWrites(this.client, this.guards, this.writes)) {
+            if (!await applyGuardedValKeyWrites(this.client, { values: this.guards, hashes: new Map() }, this.writes)) {
                 throw new KeyDeclarationsChangedError();
             }
             return;

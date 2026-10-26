@@ -23,6 +23,7 @@ import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-event.model';
 import { auditReasonFor } from '../../logging/audit-reason-for.function';
 import { Response } from '../../open-api/decorators/response.decorator';
+import { ResponseDecorator } from '../../open-api/decorators/response-decorator.type';
 import { FileResponse } from '../../parsing/form-data/file-response.model';
 import { HtmlResponse } from '../../parsing/html/html-response.model';
 import { RateLimited } from '../../rate-limiting/decorators/rate-limited.decorator';
@@ -37,21 +38,21 @@ import { TwoFactorMethod } from '../2fa/methods/two-factor-method.interface';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
 import { type TwoFactorServiceInterface } from '../2fa/two-factor-service.interface';
 import { type AuthServiceInterface } from '../auth-service.interface';
-import { ConnectingAuthenticatorInterface, isConnectingAuthenticator } from '../authenticators/connecting-authenticator.interface';
-import { ConnectionCompletingAuthenticatorInterface, isConnectionCompletingAuthenticator } from '../authenticators/connection-completing-authenticator.interface';
 import { FederatedAuthenticatorInterface, isFederatedAuthenticator } from '../authenticators/federated/federated-authenticator.interface';
 import { FederatedCallbackForm } from '../authenticators/federated/federated-callback-form.model';
 import { FederatedLogoutTokenForm } from '../authenticators/federated/federated-logout-token-form.model';
 import { FederatedProviderLogoutMessage } from '../authenticators/federated/federated-provider-logout-message.model';
 import { FederatedRouteUtilities } from '../authenticators/federated/federated-route.utilities';
-import { FederatedSignInResult } from '../authenticators/federated/federated-sign-in-result.model';
+import { FederatedLoginResult } from '../authenticators/federated/federated-login-result.model';
+import { isLinkIdentityConfirmingAuthenticator, LinkIdentityConfirmingAuthenticatorInterface } from '../authenticators/link-identity-confirming-authenticator.interface';
+import { isLinkIdentityRequestingAuthenticator, LinkIdentityRequestingAuthenticatorInterface } from '../authenticators/link-identity-requesting-authenticator.interface';
 import { LinkedIdentity } from '../authenticators/linked-identity.model';
 import { ConfirmPasswordResetDto } from '../authenticators/password/confirm-password-reset-data.model';
 import { PasswordResetTokenInput } from '../authenticators/password/password-reset-token-input.model';
 import { PasswordResetTokenValidity } from '../authenticators/password/password-reset-token-validity.model';
 import { RequestPasswordResetInput } from '../authenticators/password/request-password-reset-input.model';
-import { isSignInOptionsAuthenticator, SignInOptionsAuthenticatorInterface } from '../authenticators/sign-in-options-authenticator.interface';
-import { isSignUpAuthenticator, SignUpAuthenticatorInterface } from '../authenticators/sign-up-authenticator.interface';
+import { isLoginOptionsAuthenticator, LoginOptionsAuthenticatorInterface } from '../authenticators/login-options-authenticator.interface';
+import { isRegistrationAuthenticator, RegistrationAuthenticatorInterface } from '../authenticators/registration-authenticator.interface';
 import { Auth } from '../decorators/auth.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { type BaseUser } from '../models/base-user.model';
@@ -73,34 +74,34 @@ type ModelResolver = () => Newable<unknown>;
 type OptionalModelResolver = () => Newable<unknown> | undefined;
 
 /**
- * An authenticator whose identities a user connects to their account.
+ * An authenticator whose identities a user links to their account.
  */
-type ConnectingAuthenticator = ConnectingAuthenticatorInterface<string, BaseUser<string>, unknown, unknown, unknown, {
+type LinkIdentityRequestingAuthenticator = LinkIdentityRequestingAuthenticatorInterface<string, BaseUser<string>, unknown, unknown, unknown, {
     /**
-     * The id of the identity the connection links.
+     * The id of the identity the link links.
      */
     id: string
 }, unknown, unknown>;
 
 /**
- * An authenticator that finishes connecting with an answer of the client.
+ * An authenticator that confirms a link with an answer of the client.
  */
-type ConnectionCompletingAuthenticator = ConnectionCompletingAuthenticatorInterface<string, BaseUser<string>, unknown, unknown>;
+type LinkIdentityConfirmingAuthenticator = LinkIdentityConfirmingAuthenticatorInterface<string, BaseUser<string>, unknown, unknown>;
 
 /**
- * An authenticator that signs users in at a provider.
+ * An authenticator that logs users in at a provider.
  */
 type FederatedAuthenticator = FederatedAuthenticatorInterface<string, BaseUser<string>>;
 
 /**
- * An authenticator that hands out a challenge to sign in with.
+ * An authenticator that hands out a challenge to log in with.
  */
-type SignInOptionsAuthenticator = SignInOptionsAuthenticatorInterface<string, BaseUser<string>, unknown, unknown>;
+type LoginOptionsAuthenticator = LoginOptionsAuthenticatorInterface<string, BaseUser<string>, unknown, unknown>;
 
 /**
- * An authenticator that signs up users by itself.
+ * An authenticator that registers users by itself.
  */
-type SignUpAuthenticator = SignUpAuthenticatorInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>;
+type RegistrationAuthenticator = RegistrationAuthenticatorInterface<string, BaseUser<string>, unknown, unknown, unknown, unknown, unknown>;
 
 /**
  * A strategy that issues csrf tokens.
@@ -130,7 +131,7 @@ type RouteGroup = {
 /**
  * Defines the auth routes of the given strategies, authenticators and two factor methods, below the
  * path of the controller that extends it: logging in, refreshing a login and logging out, and the
- * routes only some of them call for, such as resetting a password, signing in at a provider or
+ * routes only some of them call for, such as resetting a password, logging in at a provider or
  * enrolling a second factor.
  *
  * The options name exactly what the application registers, which it checks while it starts. Leave out
@@ -154,11 +155,11 @@ export function AuthController<
     // each route reads and answers with is read from the instances, once the application has started
     const csrfStrategies: AuthControllerStrategyClass[] = withMember(strategies, 'resolveCsrfToken');
     const resetting: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'confirmPasswordReset');
-    const challenging: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'resolveSignInOptions');
-    const signingUp: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'completeSignUp');
-    const federated: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'completeSignIn');
-    const connecting: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'startConnection');
-    const completing: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'completeConnection');
+    const challenging: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'resolveLoginOptions');
+    const registering: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'confirmRegistration');
+    const federated: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'confirmProviderLogin');
+    const requestingLinks: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'requestLinkIdentity');
+    const confirmingLinks: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'confirmLinkIdentity');
     const linking: AuthControllerAuthenticatorClass[] = withMember(authenticators, 'findIdentities');
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -365,53 +366,53 @@ export function AuthController<
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
-        @respondsWith(challenging.map(a => () => resolveInstance(a, isSignInOptionsAuthenticator)?.signInOptionsModel))
-        @Post('/sign-in-options')
-        async signInOptions(
+        @respondsWith(challenging.map(a => () => resolveInstance(a, isLoginOptionsAuthenticator)?.loginOptionsModel))
+        @Post('/login-options')
+        async loginOptions(
             @Param.query('authenticator', { type: 'string', required: challenging.length > 1 })
             authenticator: string | undefined
         ): Promise<unknown> {
-            const authenticatorClass: Newable<SignInOptionsAuthenticator> = AuthControllerUtilities
-                .resolveCapable(challenging, authenticator, 'authenticator', isSignInOptionsAuthenticator);
-            return await inject(authenticatorClass).resolveSignInOptions();
+            const authenticatorClass: Newable<LoginOptionsAuthenticator> = AuthControllerUtilities
+                .resolveCapable(challenging, authenticator, 'authenticator', isLoginOptionsAuthenticator);
+            return await inject(authenticatorClass).resolveLoginOptions();
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
-        @respondsWith(signingUp.map(a => () => resolveInstance(a, isSignUpAuthenticator)?.signUpOptionsModel))
-        @Post('/registration-options')
-        async registrationOptions(
-            @Param.query('authenticator', { type: 'string', required: signingUp.length > 1 })
+        @respondsWith(registering.map(a => () => resolveInstance(a, isRegistrationAuthenticator)?.registrationOptionsModel))
+        @Post('/registration/request')
+        async requestRegistration(
+            @Param.query('authenticator', { type: 'string', required: registering.length > 1 })
             authenticator: string | undefined,
-            @bodyOf(signingUp.map(a => () => resolveModel(a, isSignUpAuthenticator, s => s.signUpRequestModel)), true)
+            @bodyOf(registering.map(a => () => resolveModel(a, isRegistrationAuthenticator, r => r.registrationRequestModel)), true)
             request: object
         ): Promise<unknown> {
-            const instance: SignUpAuthenticator = inject(AuthControllerUtilities
-                .resolveCapable(signingUp, authenticator, 'authenticator', isSignUpAuthenticator));
-            await AuthControllerUtilities.validateBody(request, instance.signUpRequestModel);
-            return await instance.resolveSignUpOptions(request);
+            const instance: RegistrationAuthenticator = inject(AuthControllerUtilities
+                .resolveCapable(registering, authenticator, 'authenticator', isRegistrationAuthenticator));
+            await AuthControllerUtilities.validateBody(request, instance.registrationRequestModel);
+            return await instance.requestRegistration(request);
         }
 
-        // answers with the ticket the application's own sign-up route creates the user with
+        // answers with the ticket the application's own registration route creates the user with
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
-        @respondsWith(signingUp.map(a => () => resolveInstance(a, isSignUpAuthenticator)?.ticketModel))
-        @Post('/register')
-        async register(
-            @Param.query('authenticator', { type: 'string', required: signingUp.length > 1 })
+        @respondsWith(registering.map(a => () => resolveInstance(a, isRegistrationAuthenticator)?.ticketModel))
+        @Post('/registration/confirm')
+        async confirmRegistration(
+            @Param.query('authenticator', { type: 'string', required: registering.length > 1 })
             authenticator: string | undefined,
-            @bodyOf(signingUp.map(a => () => resolveModel(a, isSignUpAuthenticator, s => s.signUpAnswerModel)), true)
+            @bodyOf(registering.map(a => () => resolveModel(a, isRegistrationAuthenticator, r => r.registrationAnswerModel)), true)
             answer: object
         ): Promise<unknown> {
-            const instance: SignUpAuthenticator = inject(AuthControllerUtilities
-                .resolveCapable(signingUp, authenticator, 'authenticator', isSignUpAuthenticator));
-            await AuthControllerUtilities.validateBody(answer, instance.signUpAnswerModel);
-            return await instance.completeSignUp(answer);
+            const instance: RegistrationAuthenticator = inject(AuthControllerUtilities
+                .resolveCapable(registering, authenticator, 'authenticator', isRegistrationAuthenticator));
+            await AuthControllerUtilities.validateBody(answer, instance.registrationAnswerModel);
+            return await instance.confirmRegistration(answer);
         }
 
-        // the frontend sends the browser here, and the sign-in either logs in on the redirect back or
+        // the frontend sends the browser here, and the login either completes on the redirect back or
         // hands the login over by code.
         //
         // With the challenge of a PKCE verifier the frontend keeps, the browser lands on redirectTo
@@ -421,14 +422,14 @@ export function AuthController<
         // Without one, the callback starts the login itself. That only works for a strategy whose login
         // goes out with the response, as cookies do: the callback answers with a redirect, which has no
         // body a frontend could read tokens from, and tokens in the url end up in history, logs and
-        // Referer headers. A sign-in for any other strategy is refused here, before the user signs in
+        // Referer headers. A login for any other strategy is refused here, before the user logs in
         // at the provider for nothing
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
-        @Get(`${FEDERATED_ROUTE}/authorize`)
-        async authorize(
+        @Get(`${FEDERATED_ROUTE}/login/request`)
+        async requestProviderLogin(
             @Param.query('authenticator', { type: 'string', required: federated.length > 1 })
             authenticator: string | undefined,
             @Param.query('redirectTo')
@@ -444,7 +445,7 @@ export function AuthController<
         ): Promise<RedirectResponse> {
             const authenticatorClass: Newable<FederatedAuthenticator> = AuthControllerUtilities
                 .resolveCapable(federated, authenticator, 'authenticator', isFederatedAuthenticator);
-            const url: string = await inject(authenticatorClass).startSignIn({
+            const url: string = await inject(authenticatorClass).requestProviderLogin({
                 redirectTo,
                 codeChallenge,
                 strategy: codeChallenge == undefined ? resolveRedirectStrategy(strategies, strategy) : undefined,
@@ -465,11 +466,11 @@ export function AuthController<
             @Param.path('provider')
             provider: string
         ): Promise<RedirectResponse> {
-            return await this.completeSignIn(provider, FederatedRouteUtilities.resolveCallbackQuery());
+            return await this.confirmProviderLogin(provider, FederatedRouteUtilities.resolveCallbackQuery());
         }
 
         // where a provider that answers with a form post has the browser post its answer. Another site's
-        // page sends it, so it is let through with cookies - from that provider's sign-in page only
+        // page sends it, so it is let through with cookies - from that provider's login page only
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @AcceptCrossSitePosts({ acceptedOrigins: async params => await FederatedRouteUtilities.resolveFormPostOrigins(params) })
@@ -482,23 +483,24 @@ export function AuthController<
             @Body(FederatedCallbackForm, { type: MimeType.FORM_URL_ENCODED, allowAdditionalProperties: true })
             form: FederatedCallbackForm
         ): Promise<RedirectResponse> {
-            return await this.completeSignIn(provider, FederatedRouteUtilities.toCallbackParams(form));
+            return await this.confirmProviderLogin(provider, FederatedRouteUtilities.toCallbackParams(form));
         }
 
-        // where the frontend sends the browser to connect a provider to an account, with the url the
-        // connect route answered with. The browser is tied to the connection here and goes on to the provider
+        // where the frontend sends the browser to link a provider to an account, with the url the
+        // link-identity/request route answered with. The browser is tied to the link here and goes on
+        // to the provider
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
         @Response.redirect()
-        @Get(`${FEDERATED_ROUTE}/:provider/connect`)
-        async connectProvider(
+        @Get(`${FEDERATED_ROUTE}/:provider/link-identity`)
+        async continueLinkIdentity(
             @Param.path('provider')
             provider: string,
             @Param.query('code')
             code: string
         ): Promise<RedirectResponse> {
-            return await FederatedRouteUtilities.resolveConnectionRedirect(provider, code);
+            return await FederatedRouteUtilities.resolveLinkIdentityRedirect(provider, code);
         }
 
         // where a provider sends the browser to say the user logged out there, or that it ended its
@@ -580,35 +582,35 @@ export function AuthController<
         // guarded the way changing a password is: an identity is a way into the account
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.require2fa({ reauth: true })
-        @respondsWith(connecting.map(a => () => resolveInstance(a, isConnectingAuthenticator)?.connectionStartModel))
-        @Post('/connect')
-        async startConnection(
-            @Param.query('authenticator', { type: 'string', required: connecting.length > 1 })
+        @respondsWith(requestingLinks.map(a => () => resolveInstance(a, isLinkIdentityRequestingAuthenticator)?.linkIdentityStartModel))
+        @Post('/link-identity/request')
+        async requestLinkIdentity(
+            @Param.query('authenticator', { type: 'string', required: requestingLinks.length > 1 })
             authenticator: string | undefined,
-            @bodyOf(connecting.map(a => () => resolveModel(a, isConnectingAuthenticator, c => c.connectionRequestModel)), true)
+            @bodyOf(requestingLinks.map(a => () => resolveModel(a, isLinkIdentityRequestingAuthenticator, l => l.linkIdentityRequestModel)), true)
             request: object
         ): Promise<unknown> {
-            const authenticatorClass: Newable<ConnectingAuthenticator> = AuthControllerUtilities
-                .resolveCapable(connecting, authenticator, 'authenticator', isConnectingAuthenticator);
-            await AuthControllerUtilities.validateBody(request, inject(authenticatorClass).connectionRequestModel);
-            return await this.authService.startConnection(authenticatorClass, request);
+            const authenticatorClass: Newable<LinkIdentityRequestingAuthenticator> = AuthControllerUtilities
+                .resolveCapable(requestingLinks, authenticator, 'authenticator', isLinkIdentityRequestingAuthenticator);
+            await AuthControllerUtilities.validateBody(request, inject(authenticatorClass).linkIdentityRequestModel);
+            return await this.authService.requestLinkIdentity(authenticatorClass, request);
         }
 
-        // finishes a connection the connect route started, for the same user
+        // confirms a link the link-identity/request route requested, for the same user
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.isLoggedIn()
         @Response.empty()
-        @Post('/connect/complete')
-        async completeConnection(
-            @Param.query('authenticator', { type: 'string', required: completing.length > 1 })
+        @Post('/link-identity/confirm')
+        async confirmLinkIdentity(
+            @Param.query('authenticator', { type: 'string', required: confirmingLinks.length > 1 })
             authenticator: string | undefined,
-            @bodyOf(completing.map(a => () => resolveModel(a, isConnectionCompletingAuthenticator, c => c.connectionAnswerModel)), true)
+            @bodyOf(confirmingLinks.map(a => () => resolveModel(a, isLinkIdentityConfirmingAuthenticator, l => l.linkIdentityAnswerModel)), true)
             answer: object
         ): Promise<void> {
-            const authenticatorClass: Newable<ConnectionCompletingAuthenticator> = AuthControllerUtilities
-                .resolveCapable(completing, authenticator, 'authenticator', isConnectionCompletingAuthenticator);
-            await AuthControllerUtilities.validateBody(answer, inject(authenticatorClass).connectionAnswerModel);
-            await this.authService.completeConnection(authenticatorClass, answer);
+            const authenticatorClass: Newable<LinkIdentityConfirmingAuthenticator> = AuthControllerUtilities
+                .resolveCapable(confirmingLinks, authenticator, 'authenticator', isLinkIdentityConfirmingAuthenticator);
+            await AuthControllerUtilities.validateBody(answer, inject(authenticatorClass).linkIdentityAnswerModel);
+            await this.authService.confirmLinkIdentity(authenticatorClass, answer);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -641,67 +643,67 @@ export function AuthController<
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.require2fa({ reauth: 'onlyAsFallback' })
         @Response.empty({ mimeTypes: [MimeType.JSON] })
-        @respondsWith(twoFactorMethods.map(m => () => inject(m).registrationModel))
-        @Post('/2fa/register')
+        @respondsWith(twoFactorMethods.map(m => () => inject(m).registrationRequestResultModel))
+        @Post('/2fa/registration/request')
         async requestTwoFactorRegistration(
             @CurrentUser()
             user: CurrentUser,
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined,
-            @bodyOf(twoFactorMethods.map(m => () => inject(m).requestRegisterModel), false)
+            @bodyOf(twoFactorMethods.map(m => () => inject(m).registrationRequestModel), false)
             data: object | undefined
         ): Promise<unknown> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
             // a method that takes nothing is sent nothing, or an empty object
-            await AuthControllerUtilities.validateBody(data ?? {}, instance.requestRegisterModel);
-            return await this.twoFactorService.requestRegisterTwoFactorMethodForUser(user, instance, data);
+            await AuthControllerUtilities.validateBody(data ?? {}, instance.registrationRequestModel);
+            return await this.twoFactorService.requestTwoFactorRegistration(user, instance, data);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.isLoggedIn()
         @Response.empty()
-        @Post('/2fa/confirm')
+        @Post('/2fa/registration/confirm')
         async confirmTwoFactorRegistration(
             @CurrentUser()
             user: CurrentUser,
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined,
-            @bodyOf(twoFactorMethods.map(m => () => inject(m).confirmRegisterModel), true)
+            @bodyOf(twoFactorMethods.map(m => () => inject(m).registrationConfirmModel), true)
             data: object
         ): Promise<void> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
-            await AuthControllerUtilities.validateBody(data, instance.confirmRegisterModel);
-            await this.twoFactorService.confirmRegisterTwoFactorMethodForUser(user, instance, data);
+            await AuthControllerUtilities.validateBody(data, instance.registrationConfirmModel);
+            await this.twoFactorService.confirmTwoFactorRegistration(user, instance, data);
         }
 
         // with the factor itself rather than a recent login: a password alone must not take it away
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.require2fa()
         @Response.empty()
-        @Delete('/2fa/:method')
-        async removeTwoFactorMethod(
+        @Delete('/2fa/registration/:method')
+        async removeTwoFactorRegistration(
             @CurrentUser()
             user: CurrentUser,
             @Param.path('method')
             method: string
         ): Promise<void> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
-            await this.twoFactorService.unregisterTwoFactorMethodForUser(user, instance);
+            await this.twoFactorService.removeTwoFactorRegistration(user, instance);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.isLoggedIn()
         @Response.empty({ mimeTypes: [MimeType.JSON] })
-        @respondsWith(twoFactorMethods.map(m => () => inject(m).secondFactorStartModel))
-        @Post('/2fa/start')
-        async startSecondFactor(
+        @respondsWith(twoFactorMethods.map(m => () => inject(m).secondFactorRequestModel))
+        @Post('/2fa/request')
+        async requestSecondFactor(
             @CurrentUser()
             user: CurrentUser,
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined
         ): Promise<unknown> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
-            return await this.twoFactorService.startSecondFactor(user, instance);
+            return await this.twoFactorService.requestSecondFactor(user, instance);
         }
 
         // the routes a login that waits for its second factor continues at, each reached with the
@@ -709,45 +711,45 @@ export function AuthController<
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.empty({ mimeTypes: [MimeType.JSON] })
-        @respondsWith(twoFactorMethods.map(m => () => inject(m).secondFactorStartModel))
-        @Post('/login/2fa/start')
-        async startSecondFactorAtLogin(
+        @respondsWith(twoFactorMethods.map(m => () => inject(m).secondFactorRequestModel))
+        @Post('/login/2fa/request')
+        async requestSecondFactorAtLogin(
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined
         ): Promise<unknown> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
-            return await this.authService.startSecondFactorAtLogin(this.resolveLoginTicket(), instance);
+            return await this.authService.requestSecondFactorAtLogin(this.resolveLoginTicket(), instance);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.empty({ mimeTypes: [MimeType.JSON] })
-        @respondsWith(twoFactorMethods.map(m => () => inject(m).registrationModel))
-        @Post('/login/2fa/register')
+        @respondsWith(twoFactorMethods.map(m => () => inject(m).registrationRequestResultModel))
+        @Post('/login/2fa/registration/request')
         async requestTwoFactorRegistrationAtLogin(
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined,
-            @bodyOf(twoFactorMethods.map(m => () => inject(m).requestRegisterModel), false)
+            @bodyOf(twoFactorMethods.map(m => () => inject(m).registrationRequestModel), false)
             data: object | undefined
         ): Promise<unknown> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
-            await AuthControllerUtilities.validateBody(data ?? {}, instance.requestRegisterModel);
-            return await this.authService.requestRegisterTwoFactorMethodAtLogin(this.resolveLoginTicket(), instance, data);
+            await AuthControllerUtilities.validateBody(data ?? {}, instance.registrationRequestModel);
+            return await this.authService.requestTwoFactorRegistrationAtLogin(this.resolveLoginTicket(), instance, data);
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
         @Auth.skip({ allowRedundant: true })
         @Response.empty()
-        @Post('/login/2fa/confirm')
+        @Post('/login/2fa/registration/confirm')
         async confirmTwoFactorRegistrationAtLogin(
             @Param.query('method', { type: 'string', required: twoFactorMethods.length > 1 })
             method: string | undefined,
-            @bodyOf(twoFactorMethods.map(m => () => inject(m).confirmRegisterModel), true)
+            @bodyOf(twoFactorMethods.map(m => () => inject(m).registrationConfirmModel), true)
             data: object
         ): Promise<void> {
             const instance: AnyTwoFactorMethod = inject(AuthControllerUtilities.resolveNamed(twoFactorMethods, method, 'method'));
-            await AuthControllerUtilities.validateBody(data, instance.confirmRegisterModel);
-            await this.authService.confirmRegisterTwoFactorMethodAtLogin(this.resolveLoginTicket(), instance, data);
+            await AuthControllerUtilities.validateBody(data, instance.registrationConfirmModel);
+            await this.authService.confirmTwoFactorRegistrationAtLogin(this.resolveLoginTicket(), instance, data);
         }
 
         // on the login's budget: a factor is guessed at here, with a ticket a password already paid for
@@ -755,8 +757,8 @@ export function AuthController<
         @Auth.skip({ allowRedundant: true })
         @RateLimited(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER, { refundOnSuccess: true })
         @respondsWith(strategies.map(s => () => inject(s).authDataModel))
-        @Post('/login/2fa/complete')
-        async completeLogin(
+        @Post('/login/2fa/confirm')
+        async confirmSecondFactorAtLogin(
             @Param.query('strategy', { type: 'string', required: strategies.length > 1 })
             strategy: string | undefined
         ): Promise<unknown> {
@@ -765,14 +767,14 @@ export function AuthController<
             return await AuthControllerUtilities.runInTransaction(
                 strategyClass,
                 // eslint-disable-next-line typescript/no-unsafe-return
-                async transaction => await this.authService.completeLogin(ticket, strategyClass, transaction)
+                async transaction => await this.authService.confirmSecondFactorAtLogin(ticket, strategyClass, transaction)
             );
         }
 
-        private async completeSignIn(provider: string, answer: URLSearchParams): Promise<RedirectResponse> {
+        private async confirmProviderLogin(provider: string, answer: URLSearchParams): Promise<RedirectResponse> {
             try {
                 const authenticatorClass: Newable<FederatedAuthenticator> = FederatedRouteUtilities.resolveAuthenticator(provider);
-                const result: FederatedSignInResult = await inject(authenticatorClass).completeSignIn(answer);
+                const result: FederatedLoginResult = await inject(authenticatorClass).confirmProviderLogin(answer);
                 switch (result.type) {
                     case 'handover': {
                         if (result.strategy == undefined) {
@@ -800,8 +802,8 @@ export function AuthController<
                     case 'reauthentication': {
                         return RedirectResponse.to(result.url);
                     }
-                    case 'connected': {
-                        return FederatedRouteUtilities.toConnection(result.userId, result.redirectTo);
+                    case 'linked': {
+                        return FederatedRouteUtilities.toLinkedIdentity(result.userId, result.redirectTo);
                     }
                 }
             }
@@ -825,14 +827,14 @@ export function AuthController<
     const groups: RouteGroup[] = [
         { routes: ['csrfToken'], present: csrfStrategies.length > 0 },
         { routes: ['requestPasswordReset', 'verifyPasswordResetToken', 'confirmPasswordReset'], present: resetting.length > 0 },
-        { routes: ['signInOptions'], present: challenging.length > 0 },
-        { routes: ['registrationOptions', 'register'], present: signingUp.length > 0 },
+        { routes: ['loginOptions'], present: challenging.length > 0 },
+        { routes: ['requestRegistration', 'confirmRegistration'], present: registering.length > 0 },
         {
             routes: [
-                'authorize',
+                'requestProviderLogin',
                 'callback',
                 'formPostCallback',
-                'connectProvider',
+                'continueLinkIdentity',
                 'providerLogout',
                 'postedProviderLogout',
                 'soapProviderLogout',
@@ -841,19 +843,19 @@ export function AuthController<
             ],
             present: federated.length > 0
         },
-        { routes: ['startConnection'], present: connecting.length > 0 },
-        { routes: ['completeConnection'], present: completing.length > 0 },
+        { routes: ['requestLinkIdentity'], present: requestingLinks.length > 0 },
+        { routes: ['confirmLinkIdentity'], present: confirmingLinks.length > 0 },
         { routes: ['findIdentities', 'unlinkIdentity'], present: linking.length > 0 },
         {
             routes: [
                 'requestTwoFactorRegistration',
                 'confirmTwoFactorRegistration',
-                'removeTwoFactorMethod',
-                'startSecondFactor',
-                'startSecondFactorAtLogin',
+                'removeTwoFactorRegistration',
+                'requestSecondFactor',
+                'requestSecondFactorAtLogin',
                 'requestTwoFactorRegistrationAtLogin',
                 'confirmTwoFactorRegistrationAtLogin',
-                'completeLogin'
+                'confirmSecondFactorAtLogin'
             ],
             present: twoFactorMethods.length > 0
         }
@@ -913,7 +915,7 @@ function resolveModel<Capable>(
 }
 
 /**
- * The strategy a sign-in at a provider logs in with on the redirect back from it.
+ * The strategy a login at a provider logs in with on the redirect back from it.
  * @param strategies - The strategies of the controller.
  * @param name - The strategy the request names, if any.
  * @returns The name of the strategy.
@@ -929,7 +931,7 @@ function resolveRedirectStrategy(strategies: AuthControllerStrategyClass[], name
     if (strategy == undefined || !inject(strategy).logsInWithResponse) {
         throw new BadRequestError(
             // eslint-disable-next-line stylistic/max-len
-            $ts`Without a codeChallenge the sign-in logs in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.`
+            $ts`Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.`
         );
     }
     return inject(strategy).name;
@@ -967,7 +969,7 @@ function bodyOf(models: ModelResolver[], required: boolean): ParameterDecorator 
  * @param models - The models, as functions answering them once the application has started.
  * @returns The decorator.
  */
-function respondsWith(models: OptionalModelResolver[]): MethodDecorator {
+function respondsWith(models: OptionalModelResolver[]): ResponseDecorator<unknown> {
     return (target, propertyKey, descriptor) => {
         for (const model of models) {
             Response.object(model)(target, propertyKey, descriptor);

@@ -59,7 +59,7 @@ describe('NewCommand, as the page on the generated project describes it', () => 
         CPUtilities['cwd'] = workDir;
         jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
         // with the workflow and every feature, so that every file the generator can write is there to be named
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin', EVERY_FEATURE]));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'isLoggedIn', EVERY_FEATURE]));
         const appDir: Path = path.join(workDir, 'api') as Path;
         files = readdirSync(appDir, { recursive: true, withFileTypes: true })
             .filter(entry => entry.isFile())

@@ -113,21 +113,21 @@ export class PaymentService<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startPayment<M extends Methods[number]>(
+    async requestPayment<M extends Methods[number]>(
         method: M,
         data: ValidatedPaymentDataForMethod<Methods, M, P>
     ): Promise<PaymentForMethod<Methods, M, P>> {
         const provider: P[number] = this.findPaymentProviderForMethod(method);
-        return await provider.startPayment(method, data) as PaymentForMethod<Methods, M, P>;
+        return await provider.requestPayment(method, data) as PaymentForMethod<Methods, M, P>;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startPaymentReservation<M extends AllowedReservationMethods<Methods, P>>(
+    async requestPaymentReservation<M extends AllowedReservationMethods<Methods, P>>(
         method: M,
         data: ValidatedPaymentDataForMethod<Methods, M, P>
     ): Promise<PaymentReservationForMethod<Methods, M, P>> {
         const provider: P[number] = this.findPaymentProviderForMethod(method);
-        return await provider.startPaymentReservation(method, data) as PaymentReservationForMethod<Methods, M, P>;
+        return await provider.requestPaymentReservation(method, data) as PaymentReservationForMethod<Methods, M, P>;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

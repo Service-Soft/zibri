@@ -199,6 +199,7 @@ describe('evaluation/05-di-metadata-and-packaging', () => {
             return {
                 name: 'eval-provider-collision',
                 version: '1.0.0',
+                environment: 'development',
                 baseUrl: 'http://localhost:3000',
                 controllers: [],
                 websocketControllers: [],
@@ -507,7 +508,7 @@ describe('evaluation/05-di-metadata-and-packaging - the published artifact', () 
         // The two readonly casts that used to be left of T1 closed differently. The asset folder is
         // the ASSETS_PATH token, and ./static-assets.evaluation.test.ts serves through it - the cast
         // it replaced never reached /assets at all. The data source port stays a write past readonly
-        // inside zibri-testing's applyContainerPort, on purpose: a consumer no longer writes it, and
+        // inside zibri-testing's applyContainerPorts, on purpose: a consumer no longer writes it, and
         // both ways to remove it were declined - see evaluation/06-tooling-ci-and-testing.md.
     });
 });

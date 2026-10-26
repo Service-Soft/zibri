@@ -16,9 +16,9 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { type MetricsServiceInterface } from '../../metrics/metrics-service.interface';
 import { Newable } from '../../types/newable.type';
 import { Bytes } from '../../utilities/bytes';
+import { TestTimeouts } from '../constants';
 import { createTestDataSource } from '../test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../test-server/create-test-val-key-data-source.function';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

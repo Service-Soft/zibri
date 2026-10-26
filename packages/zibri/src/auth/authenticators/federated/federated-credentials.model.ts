@@ -1,7 +1,7 @@
 import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
- * The one-time code a sign-in at a provider is handed over with.
+ * The one-time code a login at a provider is handed over with.
  */
 export class FederatedHandoverCredentials {
     /**
@@ -11,7 +11,7 @@ export class FederatedHandoverCredentials {
     code!: string;
 
     /**
-     * The PKCE verifier whose challenge the sign-in was started with. Left out when the sign-in was
+     * The PKCE verifier whose challenge the login was started with. Left out when the login was
      * started without one, and the cookie it set is the proof instead.
      */
     @Property.string({ required: false })
@@ -19,7 +19,7 @@ export class FederatedHandoverCredentials {
 }
 
 /**
- * The one-time ticket a sign-in at a provider continues with when no user is linked to the identity.
+ * The one-time ticket a login at a provider continues with when no user is linked to the identity.
  */
 export class FederatedTicketCredentials {
     /**
@@ -29,7 +29,7 @@ export class FederatedTicketCredentials {
     ticket!: string;
 
     /**
-     * The PKCE verifier whose challenge the sign-in was started with. Left out when the sign-in was
+     * The PKCE verifier whose challenge the login was started with. Left out when the login was
      * started without one, and the cookie it set is the proof instead.
      */
     @Property.string({ required: false })
@@ -37,6 +37,6 @@ export class FederatedTicketCredentials {
 }
 
 /**
- * What an authenticator signing in at a provider logs in with.
+ * What an authenticator logging in at a provider logs in with.
  */
 export type FederatedCredentials = FederatedHandoverCredentials | FederatedTicketCredentials;

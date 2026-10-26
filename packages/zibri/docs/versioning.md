@@ -5,8 +5,15 @@ The version of your application is the one in its `package.json`. It decides whi
 | Export | Kind | Purpose |
 |---|---|---|
 | `SupportedVersionsOptions` | type | Type of the `versions` option on controllers/routes |
+| `VersionMatcher` | type | One entry of `versions`: `'latest'`, `'^latest'`, `'~latest'`, a version, or one or two ranges |
+| `SemVerRange` | type | A range of versions, such as `^1.2`, `~1.2.3` or `>=1.0.0` |
+| `SemVerMatcher` | type | A `VersionMatcher` without the `latest` forms |
+| `SemVerUtilities` | class | `isSemVerVersion`, `compare` and `matches` for versions in the SemVer format |
 | `Version` | type | One version of the application: its `value`, such as `1.0.0` |
+| `VersionFile` | class | A version as its version file holds it: its `value`, when it starts and ends, and its routes |
+| `StoredRoute`, `StoredRouteVersions` | class, type | A route as a version file holds it, and the versions it supports: `'all'`, or matchers |
 | `VersioningServiceInterface` | interface | Resolves the correct version/endpoint for an incoming request |
+| `VersioningService` | class | Default implementation of `VersioningServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.VERSIONING_SERVICE |
 
 ## Defining supported versions on endpoints
 Supported versions are written as version ranges, the way your `package.json` writes them:

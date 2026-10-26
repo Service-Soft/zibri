@@ -3,13 +3,14 @@ import Module from 'node:module';
 import { CLUSTER_MODULE_PATHS_ENV } from './cluster-message.model';
 
 /**
- * The packages an instance and its parent have to load from the same file.
+ * The entry points an instance and its parent have to load from the same file.
  *
- * Both of them, rather than the framework alone: `zibri-testing` declares `ClusterMark`, and an
+ * Both packages, rather than the framework alone: `zibri-testing` declares `ClusterMark`, and an
  * entity is identified by its class, so two copies of this package would leave the instance writing
- * rows the parent cannot read back.
+ * rows the parent cannot read back. And `zibri/internal` as well as `zibri`, because the harness
+ * imports from both, and the one left to `node_modules` loads a second copy of the framework.
  */
-const SHARED_PACKAGES: string[] = ['zibri', 'zibri-testing'];
+const SHARED_PACKAGES: string[] = ['zibri', 'zibri/internal', 'zibri-testing'];
 
 /**
  * Where this process loaded the shared packages from.
@@ -62,8 +63,8 @@ function applyClusterModulePaths(): void {
     const original: ResolveFilename = resolving._resolveFilename;
 
     resolving._resolveFilename = function(request: string, ...rest: unknown[]): string {
-        // only the bare package name. A subpath is left alone, so nothing here decides where
-        // `zibri/package.json` comes from.
+        // only the entry points named exactly. Any other subpath is left alone, so nothing here
+        // decides where `zibri/package.json` comes from.
         return paths[request] ?? original.call(this, request, ...rest);
     };
 }

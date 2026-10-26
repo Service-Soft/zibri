@@ -24,9 +24,9 @@ export interface CacheInterface<K, V, CacheTag extends string, WriteResultAvaila
      */
     readonly tags: 'all' | readonly CacheTagMatcher[],
     /**
-     * The default time to live for a cached value.
+     * The default time to live for a cached value, in milliseconds.
      */
-    readonly defaultTtl?: number | (() => number | Promise<number>),
+    readonly defaultTtlInMs?: number | (() => number | Promise<number>),
     /**
      * Whether to throw when invalidation fails or to just log and ignore.
      */
@@ -108,7 +108,7 @@ export function isCache(value: unknown): value is AnyCache {
     }
     // eslint-disable-next-line typescript/no-explicit-any
     const keys: (keyof ExcludeStrict<AnyCache, MultiTierCache<any, any, any>>)[] = [
-        'defaultTtl',
+        'defaultTtlInMs',
         'name',
         'onInvalidationFailure',
         'store',

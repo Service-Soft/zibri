@@ -20,6 +20,14 @@ export default [
         }
     },
     {
+        // the entry points only re-export: the JSDoc of every name sits where it is declared, and the
+        // shared config's ExportNamedDeclaration context also matches `export { X } from` lines
+        files: ['src/index.ts', 'src/internal.ts'],
+        rules: {
+            'jsdoc/require-jsdoc': 'off'
+        }
+    },
+    {
         rules: {
             'cspell/spellchecker': [
                 'warn',

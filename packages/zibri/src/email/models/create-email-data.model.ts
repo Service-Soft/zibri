@@ -13,6 +13,6 @@ export class CreateEmailData extends OmitClass(Email, ['id', 'createdAt', 'attem
  * Data for queuing a new email.
  */
 export class QueueEmailData extends IntersectionClass(
-    OmitClass(CreateEmailData, ['status', 'priority', 'persist', 'sender', 'retryAt']),
+    OmitClass(CreateEmailData, ['status', 'priority', 'persist', 'sender', 'nextAttemptAt', 'error']),
     PartialClass(PickClass(CreateEmailData, ['priority', 'persist', 'sender']))
 ) {}

@@ -300,6 +300,42 @@ Anyone who can write the `AuditEntry` table can change a subject, delete the ref
 
   HMAC itself is microseconds per entry; the master key is unwrapped once per chain.
 
+### F27. A mailing list subscriber on no list is kept for good — MINOR
+*Filed and closed 2026-10-26*, found by 08 §X27's research into what ends each framework table's rows.
+
+`MailingListService.unsubscribeFromList` and the preferences page took a subscriber off a list and
+kept the row, address and name included, once it was on none; deleting a list left the subscribers it
+was the last list of. Nothing deleted them, so every address that ever subscribed stayed.
+
+> **Closed 2026-10-26 (user: delete on the last unsubscribe).** A subscriber is kept only while on a
+> list. `unsubscribeFromList` and the new `updateSubscriptions` (which the preferences route goes
+> through instead of the repository) delete a subscriber left on no list; the new `deleteList`
+> deletes a list and, in the same transaction, the subscribers it was the last list of. Test:
+> `mailing-list.subscribers.test.ts` (in memory: the service, the one-click post, the preferences
+> page and `deleteList`), red for the four deleting cases when written. A list deleted through its
+> repository rather than `deleteList` still leaves its last subscribers; `mailing-list-plugin.md`
+> names `deleteList` as the way to delete one. Once a subscriber is deleted, the links of the mails
+> sent to them answer `401`, as the page says.
+
+### F28. A log batch whose drain a request started is lost once that request runs out of time — MINOR
+*Filed and closed 2026-10-26*, found in the first heavy run of 02 §S3's suite.
+
+The logger writes its queue in drains, and an entry queued while none is running starts one, now or
+after `LOGGER_FLUSH_INTERVAL_IN_MS`. That drain ran in the async scope of whoever queued the entry. A
+request past its deadline carries an aborted signal, so the db transport's write was refused - by
+the deadline-aware driver, or by the wait for a postgres connection - with the request's own
+`GatewayTimeoutError`, and the whole batch was lost, including the one record of a handler that
+failed after its deadline (`RequestDeadlineUtilities.reportFailureAfterDeadline`). Whether it
+happened depended on timing: an entry joining a drain already started elsewhere was written.
+
+> **Closed 2026-10-26.** The logger keeps the async scope it was built in (an `AsyncResource`, at
+> boot) and starts every drain in it, from `log`, the flush timer and `flush`. Test:
+> `logger.deadline.test.ts` (in memory): a handler that fails after its deadline, later than the
+> flush interval so its entry starts a drain of its own, and the timeout itself; red for the first
+> when written (`There was an error when logging on the transport DbLoggerTransport
+> GatewayTimeoutError`). The tenant was already read when the entry was made, so a drain outside
+> the tenant writes what it wrote before.
+
 ## Code quality and architecture
 
 Moved to [code-review/06-infrastructure.md](./code-review/06-infrastructure.md) (Q1–Q9; Q4 is rated MAJOR).

@@ -44,15 +44,15 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         // unique name, so the losing replica threw during afterAppInit and failed to start.
 
         // 1.3 is CLOSED and proven for real in ../../cron/cron.test.ts: a job that does not ask for a
-        // startup run does not get one, and two instances of a distributed job that do ask for one
-        // produce a single tick between them rather than one each. ./cluster/cron-startup.cluster.test.ts
+        // startup run does not get one, and two instances of a job that runs on one instance that do
+        // ask for one produce a single tick between them rather than one each. ./cluster/cron-startup.cluster.test.ts
         // shows the same for instances booting after the first one's claim on a scheduled execution
         // would have lapsed, which is what a slow rolling deploy is.
         // runOnInit used to default to true *and* to bypass the coordinator outright, because
         // `task.execute()` runs what it is given without asking anybody.
 
         // 2.11 is CLOSED and proven for real in ../../cron/cron.test.ts: a job with
-        // `catchUpWithinMs` set runs once for the slot it missed, one without still does not, and
+        // `catchUpWithinInMs` set runs once for the slot it missed, one without still does not, and
         // two instances coming back from the same outage make it up once between them. `lastRun`
         // used to be written on every tick and never read by anything. An instance rejoining later
         // reads the `lastRun` the make-up run wrote, so it finds nothing missed at all.
@@ -177,11 +177,11 @@ describe('evaluation/04-infrastructure-subsystems', () => {
         // second is the one the finding does not mention. A transport contract taking Log[] is not
         // enough on its own, because a drain used to start the instant an entry arrived - so the
         // first entry of every quiet period was written alone, and an application logging one line
-        // per request is quiet between requests. LOGGER_FLUSH_INTERVAL_MS is where they gather.
+        // per request is quiet between requests. LOGGER_FLUSH_INTERVAL_IN_MS is where they gather.
         //
         // 3.4 is CLOSED and tested against the real mail queue in
         // ../../logging/transport/log-to-email.digest.test.ts: one digest per batch, bounded by
-        // maxEntriesPerEmail and by minIntervalMs, naming what it left out both times.
+        // maxEntriesPerEmail and by minIntervalInMs, naming what it left out both times.
 
         // the per-call stack capture is observed for real in ./logging.evaluation.test.ts
     });

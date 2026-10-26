@@ -54,7 +54,7 @@ describe('BaseFsBackupTransport', () => {
         const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
         const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
         const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
-        await backupService.createBackup({ name: 'deleted-for-good' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'deleted-for-good' }));
         const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'deleted-for-good' }, relations: ['resources'] });
         assert(backup, 'the backup was not created');
         expect(await FsUtilities.exists(FsUtilities.getPath(backupsPath, 'deleted-for-good'))).toBe(true);

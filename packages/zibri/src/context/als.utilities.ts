@@ -274,6 +274,15 @@ export abstract class AlsUtilities {
     }
 
     /**
+     * Runs the given function with no tenant active, whichever is active around it.
+     * @param fn - The function to run.
+     * @returns The result of the function.
+     */
+    static runOutsideTenant<T>(fn: () => T): T {
+        return this.tenant.exit(fn);
+    }
+
+    /**
      * Resolves the tenant the work running here acts in.
      * @returns The id of the tenant, or undefined when no tenant is active.
      */

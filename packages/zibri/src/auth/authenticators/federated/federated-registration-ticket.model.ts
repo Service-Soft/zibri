@@ -7,10 +7,10 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
- * A sign-in at a provider whose identity no user is linked to yet.
+ * A login at a provider whose identity no user is linked to yet.
  *
  * Read while the user is created, and spent once by the login that follows - by the browser the
- * sign-in was started in or by the frontend holding the PKCE verifier.
+ * login was started in or by the frontend holding the PKCE verifier.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class FederatedRegistrationTicket extends BaseEntity {
@@ -21,7 +21,7 @@ export class FederatedRegistrationTicket extends BaseEntity {
     value!: HashString;
 
     /**
-     * The name of the authenticator the sign-in went through.
+     * The name of the authenticator the login went through.
      */
     @Property.string()
     provider!: string;
@@ -33,7 +33,7 @@ export class FederatedRegistrationTicket extends BaseEntity {
     issuer!: string;
 
     /**
-     * Who signed in at the provider, as the provider names them.
+     * Who logged in at the provider, as the provider names them.
      */
     @Property.string()
     subject!: string;
@@ -69,7 +69,7 @@ export class FederatedRegistrationTicket extends BaseEntity {
     familyName: string | undefined | null;
 
     /**
-     * Everything the provider proved about who signed in, for the registration to read.
+     * Everything the provider proved about who logged in, for the registration to read.
      */
     @Property.unknown()
     claims!: Record<string, unknown>;
@@ -82,13 +82,13 @@ export class FederatedRegistrationTicket extends BaseEntity {
     providerAuthentication: ProviderAuthentication | undefined | null;
 
     /**
-     * Where the sign-in was to go once it was done.
+     * Where the login was to go once it was done.
      */
     @Property.string()
     redirectTo!: string;
 
     /**
-     * When the user signed in at the provider.
+     * When the user logged in at the provider.
      */
     @Property.date()
     authenticatedAt!: Date;
@@ -131,7 +131,7 @@ export class FederatedRegistrationTicket extends BaseEntity {
     codeChallenge: string | undefined | null;
 
     /**
-     * The access token the provider issued, when the sign-in asked for access to its apis. Kept for the
+     * The access token the provider issued, when the login asked for access to its apis. Kept for the
      * identity once it is linked.
      */
     @Property.string({ encryption: true, required: false })

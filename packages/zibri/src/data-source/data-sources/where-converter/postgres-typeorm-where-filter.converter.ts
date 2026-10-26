@@ -25,6 +25,7 @@ import { OneOfWhereFilterUtilities } from '../../models/where/one-of-where-filte
 import { WhereFilterKeys } from '../../models/where/where-filter-keys.model';
 import { Where } from '../../models/where/where-filter.model';
 import { WhereValueUtilities } from '../../models/where/where-value.utilities';
+import { PropertyReferenceUtilities } from '../../where/property-reference.utilities';
 
 const ALIAS: string = '$$COL$$';
 
@@ -110,7 +111,13 @@ type JsonbOperatorContext = {
     /**
      * Collects every value that is bound rather than written into the statement.
      */
-    parameters: TypeOrmParameters
+    parameters: TypeOrmParameters,
+    /**
+     * Reads another property of the object the field is in, cast as its own type is, for a
+     * comparison naming it. Undefined for a value that is in no object of properties, such as an
+     * item of a list.
+     */
+    sibling: ((property: string) => string) | undefined
 };
 
 /**
@@ -202,14 +209,14 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             // rather than bound so that a NaN still fails loudly instead of matching nothing.
             return `similarity(${textPath}, ${search}) >= ${minSimilarityRatio}`;
         },
-        greaterThan: ({ castPath, value, parameters }) => `${castPath} > ${parameters.add(value)}`,
-        after: ({ castPath, value, parameters }) => `${castPath} > ${parameters.add(value)}`,
-        greaterThanEquals: ({ castPath, value, parameters }) => `${castPath} >= ${parameters.add(value)}`,
-        afterOrOn: ({ castPath, value, parameters }) => `${castPath} >= ${parameters.add(value)}`,
-        lesserThan: ({ castPath, value, parameters }) => `${castPath} < ${parameters.add(value)}`,
-        before: ({ castPath, value, parameters }) => `${castPath} < ${parameters.add(value)}`,
-        lesserThanEquals: ({ castPath, value, parameters }) => `${castPath} <= ${parameters.add(value)}`,
-        beforeOrOn: ({ castPath, value, parameters }) => `${castPath} <= ${parameters.add(value)}`,
+        greaterThan: context => `${context.castPath} > ${this.jsonbComparand(context)}`,
+        after: context => `${context.castPath} > ${this.jsonbComparand(context)}`,
+        greaterThanEquals: context => `${context.castPath} >= ${this.jsonbComparand(context)}`,
+        afterOrOn: context => `${context.castPath} >= ${this.jsonbComparand(context)}`,
+        lesserThan: context => `${context.castPath} < ${this.jsonbComparand(context)}`,
+        before: context => `${context.castPath} < ${this.jsonbComparand(context)}`,
+        lesserThanEquals: context => `${context.castPath} <= ${this.jsonbComparand(context)}`,
+        beforeOrOn: context => `${context.castPath} <= ${this.jsonbComparand(context)}`,
         length: ({ jsonPath, value, parameters }) => `jsonb_array_length(${jsonPath}) = ${parameters.add(value)}`,
         lengthGreaterThan: ({ jsonPath, value, parameters }) => `jsonb_array_length(${jsonPath}) > ${parameters.add(value)}`,
         lengthGreaterThanEquals: ({ jsonPath, value, parameters }) => `jsonb_array_length(${jsonPath}) >= ${parameters.add(value)}`,
@@ -580,7 +587,9 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
                 shapeFilter,
                 { ...shape } as PropertyMetadata,
                 parameters,
-                `${path}.${name}`
+                `${path}.${name}`,
+                // the value of a shape is one value, with no property beside it to compare with
+                undefined
             );
             parts.push(`(${isShape} AND ${condition})`);
         }
@@ -828,9 +837,14 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         const andParts: string[] = [];
+        // a property of the same object, read the way a condition on it reads it
+        const sibling: (property: string) => string = property => {
+            const key: string = `${parameters.add(property)}::text`;
+            return `(${jsonbAlias}->>${key})${this.getJsonbCast(propertyMetadataMap[property], `${path}.${property}`)}`;
+        };
         for (const [key, filterValue] of ObjectUtilities.entries(whereFilter as Record<string, unknown>)) {
             const propMeta: PropertyMetadata | undefined = propertyMetadataMap[key];
-            andParts.push(this.buildJsonbFieldCondition(jsonbAlias, key, filterValue, propMeta, parameters, path));
+            andParts.push(this.buildJsonbFieldCondition(jsonbAlias, key, filterValue, propMeta, parameters, path, sibling));
         }
         return andParts.length ? andParts.join(' AND ') : 'TRUE';
     }
@@ -900,7 +914,9 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             fieldKey,
             path,
             propMeta: WhereValueUtilities.itemMetadata(metadata),
-            parameters
+            parameters,
+            // an item of a list is a value alone, with no property beside it
+            sibling: undefined
         });
     }
 
@@ -910,7 +926,8 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         filterValue: unknown,
         propMeta: PropertyMetadata | undefined,
         parameters: TypeOrmParameters,
-        parentPath: string
+        parentPath: string,
+        sibling: ((property: string) => string) | undefined
     ): string {
         // Guard against relations inside JSONB
         if (propMeta && (
@@ -933,7 +950,8 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             fieldKey,
             path: `${parentPath}.${fieldKey}`,
             propMeta,
-            parameters
+            parameters,
+            sibling
         });
     }
 
@@ -977,7 +995,7 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
             throw new InternalError(`Unexpected JSONB filter value for field "${fieldKey}": ${JsonUtilities.stringify(filterValue)}`);
         }
 
-        return this.buildJsonbOperatorCondition(filterValue, { jsonPath, textPath, castPath, fieldKey, path, propMeta, parameters });
+        return this.buildJsonbOperatorCondition(filterValue, { jsonPath, textPath, castPath, fieldKey, path, propMeta, parameters, sibling: context.sibling });
     }
 
     private buildJsonbOperatorCondition(
@@ -999,6 +1017,24 @@ export class PostgresTypeOrmWhereFilterConverter extends TypeOrmWhereFilterConve
         }
 
         return conditions.length ? conditions.join(' AND ') : 'TRUE';
+    }
+
+    /**
+     * What a comparison inside json compares with: the value it names, bound, or another property of
+     * the same object, read as a condition on it reads it.
+     * @param context - The comparison.
+     * @returns The sql of what it compares with.
+     * @throws When it names a property where the value has none beside it.
+     */
+    private jsonbComparand(context: JsonbOperatorContext): string {
+        const value: unknown = context.value;
+        if (!PropertyReferenceUtilities.isReference(value)) {
+            return context.parameters.add(value);
+        }
+        if (context.sibling == undefined) {
+            throw new InternalError(`"${context.path}" compares with "${value.property}", and holds no property beside it.`);
+        }
+        return context.sibling(value.property);
     }
 
     private toJsonbParameter(val: object, parameters: TypeOrmParameters): string {

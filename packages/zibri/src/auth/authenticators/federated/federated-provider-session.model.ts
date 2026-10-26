@@ -1,5 +1,5 @@
 /**
- * The session a provider's answer to a sign-in says the user has there.
+ * The session a provider's answer to a login says the user has there.
  */
 export type FederatedProviderSession = {
     /**

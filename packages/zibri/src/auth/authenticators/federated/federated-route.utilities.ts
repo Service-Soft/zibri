@@ -6,8 +6,8 @@ import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
-import { FederatedSignInError } from './federated-sign-in.error';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginError } from './federated-login.error';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { FederationOptions } from './federation-options.model';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
@@ -35,12 +35,12 @@ import { BaseUser } from '../../models/base-user.model';
 import { Authenticators } from '../authenticators.model';
 
 /**
- * A class of an authenticator that signs users in at a provider.
+ * A class of an authenticator that logs users in at a provider.
  */
-type FederatedAuthenticatorClass = Newable<FederatedAuthenticatorInterface<string, BaseUser<string>>>;
+export type FederatedAuthenticatorClass = Newable<FederatedAuthenticatorInterface<string, BaseUser<string>>>;
 
 /**
- * What the routes of a sign-in at a provider share, whichever strategy they log in with.
+ * What the routes of a login at a provider share, whichever strategy they log in with.
  */
 export abstract class FederatedRouteUtilities {
     /**
@@ -58,7 +58,7 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Finds the authenticators of the application that sign users in at a provider.
+     * Finds the authenticators of the application that log users in at a provider.
      * @param authenticators - The authenticators of the application.
      * @returns The ones implementing `FederatedAuthenticatorInterface`.
      */
@@ -113,7 +113,7 @@ export abstract class FederatedRouteUtilities {
     /**
      * The origins whose pages may post a provider's answer to its callback, for `@AcceptCrossSitePosts`.
      * @param pathParams - The parameters of the callback's path, which name the provider.
-     * @returns The origin of the provider's sign-in page when it answers with a form post, none otherwise.
+     * @returns The origin of the provider's login page when it answers with a form post, none otherwise.
      */
     static async resolveFormPostOrigins(pathParams: Record<string, string>): Promise<string[]> {
         const provider: string | undefined = pathParams['provider'];
@@ -124,14 +124,14 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Sends the browser on to the provider to connect it to an account, with the code of the connection.
+     * Sends the browser on to the provider to link it to an account, with the code of the link.
      * @param provider - The name in the route.
-     * @param code - The one-time code `startConnection` put into the url.
+     * @param code - The one-time code `requestLinkIdentity` put into the url.
      * @returns The redirect to the provider, or to the error url when the code is not good.
      */
-    static async resolveConnectionRedirect(provider: string, code: string): Promise<RedirectResponse> {
+    static async resolveLinkIdentityRedirect(provider: string, code: string): Promise<RedirectResponse> {
         try {
-            return RedirectResponse.to(await inject(this.resolveAuthenticator(provider)).continueConnection(code));
+            return RedirectResponse.to(await inject(this.resolveAuthenticator(provider)).continueLinkIdentity(code));
         }
         catch (error) {
             return this.toFailure(error);
@@ -139,7 +139,7 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Reads the scopes of a provider's apis a sign-in asks for, from the authorize route's query.
+     * Reads the scopes of a provider's apis a login asks for, from the query of the federated login/request route.
      * @param scopes - The `scopes` of the query, separated by spaces as OAuth2 separates them.
      * @returns The scopes, none when the query names none.
      */
@@ -155,7 +155,7 @@ export abstract class FederatedRouteUtilities {
     static resolveCallbackQuery(): URLSearchParams {
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (!(context instanceof HttpRequestContext)) {
-            throw new InternalError('The callback of a sign-in runs inside an http request.');
+            throw new InternalError('The callback of a login runs inside an http request.');
         }
         const url: string = context.request.originalUrl;
         return new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1) : '');
@@ -178,7 +178,7 @@ export abstract class FederatedRouteUtilities {
 
     /**
      * Takes what a provider sent the browser to the logout route with: ends the logins of a session
-     * the user logged out of there and tells the provider, or lands the browser on `signedOutUrl` once
+     * the user logged out of there and tells the provider, or lands the browser on `loggedOutUrl` once
      * the provider ended a session a logout here sent it to end.
      * @param provider - The name in the route.
      * @param message - The query of a redirect, or the fields of a posted form.
@@ -191,12 +191,12 @@ export abstract class FederatedRouteUtilities {
     ): Promise<RedirectResponse | HtmlResponse> {
         const logout: FederatedProviderLogout = await inject(this.resolveAuthenticator(provider)).readProviderLogout(message);
         if (logout.type === 'response') {
-            return this.toSignedOut(provider);
+            return this.toLoggedOut(provider);
         }
         await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).endFederatedLogins(logout.session, undefined);
         inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.LOGOUT, outcome: AuditOutcome.SUCCESS });
         if (logout.answer == undefined) {
-            return this.toSignedOut(provider);
+            return this.toLoggedOut(provider);
         }
         return logout.answer.binding === 'redirect'
             ? RedirectResponse.to(new URL(logout.answer.url))
@@ -276,7 +276,7 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Sends the browser to the registration, with the ticket the sign-in continues with.
+     * Sends the browser to the registration, with the ticket the login continues with.
      * @param ticket - The ticket.
      * @returns The redirect.
      */
@@ -287,20 +287,20 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Sends the browser on once a provider is connected to an account, and records the link.
+     * Sends the browser on once a provider is linked to an account, and records the link.
      * @param userId - The user the identity is linked to.
-     * @param redirectTo - Where the connection goes, one of the allowed redirects.
+     * @param redirectTo - Where the link goes, one of the allowed redirects.
      * @returns The redirect.
      */
-    static toConnection(userId: string, redirectTo: string): RedirectResponse {
+    static toLinkedIdentity(userId: string, redirectTo: string): RedirectResponse {
         inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId });
         return RedirectResponse.to(new URL(redirectTo));
     }
 
     /**
-     * Sends the browser on once the sign-in is done.
-     * @param redirectTo - Where the sign-in goes, one of the allowed redirects.
-     * @param code - The one-time code the login is handed over with. Undefined when the sign-in logged in on
+     * Sends the browser on once the login is done.
+     * @param redirectTo - Where the login goes, one of the allowed redirects.
+     * @param code - The one-time code the login is handed over with. Undefined when the login logged in on
      * the redirect back.
      * @returns The redirect.
      */
@@ -313,11 +313,11 @@ export abstract class FederatedRouteUtilities {
     }
 
     /**
-     * Sends the browser to the error url when the sign-in was refused, and records the refusal.
+     * Sends the browser to the error url when the login was refused, and records the refusal.
      *
      * A fault is thrown on rather than turned into a redirect: it is not something the user did, and
-     * folding it in would make an outage look like a failed sign-in.
-     * @param error - Why the sign-in did not complete.
+     * folding it in would make an outage look like a failed login.
+     * @param error - Why the login did not complete.
      * @returns The redirect.
      * @throws The error, when it is a fault rather than a refusal.
      */
@@ -326,7 +326,7 @@ export abstract class FederatedRouteUtilities {
             throw error;
         }
         inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({
-            action: error instanceof FederatedSignInError ? error.action : AuditAction.LOGIN,
+            action: error instanceof FederatedLoginError ? error.action : AuditAction.LOGIN,
             outcome: AuditOutcome.FAILURE,
             reason: auditReasonFor(error)
         });
@@ -340,28 +340,28 @@ export abstract class FederatedRouteUtilities {
      * @param error - The refusal.
      * @returns The failure.
      */
-    private static toFailureCode(error: unknown): FederatedSignInFailure {
-        if (error instanceof FederatedSignInError) {
+    private static toFailureCode(error: unknown): FederatedLoginFailure {
+        if (error instanceof FederatedLoginError) {
             return error.failure;
         }
-        // a sign-in that was proven and then turned away: the account is deactivated or locked, or the
+        // a login that was proven and then turned away: the account is deactivated or locked, or the
         // authenticator refused it. Everything else a refusal can be here is a code or a ticket that
         // is no longer good
-        return error instanceof ForbiddenError ? FederatedSignInFailure.REFUSED : FederatedSignInFailure.EXPIRED;
+        return error instanceof ForbiddenError ? FederatedLoginFailure.REFUSED : FederatedLoginFailure.EXPIRED;
     }
 
     /**
-     * Lands the browser on `signedOutUrl`.
+     * Lands the browser on `loggedOutUrl`.
      * @param provider - The name in the route, for the message when it is not set.
      * @returns The redirect.
-     * @throws InternalError when `FEDERATION_OPTIONS` name no `signedOutUrl`.
+     * @throws InternalError when `FEDERATION_OPTIONS` name no `loggedOutUrl`.
      */
-    private static toSignedOut(provider: string): RedirectResponse {
-        const signedOutUrl: string | undefined = this.resolveOptions().signedOutUrl;
-        if (signedOutUrl == undefined) {
-            throw new InternalError(`FEDERATION_OPTIONS name no signedOutUrl to land on after a logout at ${provider}.`);
+    private static toLoggedOut(provider: string): RedirectResponse {
+        const loggedOutUrl: string | undefined = this.resolveOptions().loggedOutUrl;
+        if (loggedOutUrl == undefined) {
+            throw new InternalError(`FEDERATION_OPTIONS name no loggedOutUrl to land on after a logout at ${provider}.`);
         }
-        return RedirectResponse.to(new URL(signedOutUrl));
+        return RedirectResponse.to(new URL(loggedOutUrl));
     }
 
     /**

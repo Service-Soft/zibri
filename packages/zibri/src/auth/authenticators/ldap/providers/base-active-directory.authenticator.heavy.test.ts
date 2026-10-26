@@ -56,7 +56,7 @@ let ldapsUrl: string;
 /**
  * Every entry the hook was handed, in order.
  */
-const firstSignIns: LdapEntry[] = [];
+const firstLogins: LdapEntry[] = [];
 
 abstract class TestDomain extends BaseActiveDirectoryAuthenticator<string, JwtUser> {
     // what the entrypoint provisions the domain as
@@ -71,13 +71,13 @@ abstract class TestDomain extends BaseActiveDirectoryAuthenticator<string, JwtUs
     // read as the authenticator is built, which is once the key is made
     override readonly trustedCertificates: string[] = [authority.certificate];
 
-    async resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
-        firstSignIns.push(entry);
+    async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
+        firstLogins.push(entry);
         const [email] = entry.attributes['userprincipalname'] ?? [];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: email ?? '', roles: [Roles.USER] }, { transaction });
     }
 
-    async resolveSignIn(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
+    async resolveLogin(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
         const roles: Roles[] = entry.groups.some(dn => dn.toLowerCase() === `cn=admins,${USERS}`.toLowerCase()) ? [Roles.ADMIN] : [Roles.USER];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).updateById(user.id, { roles }, { transaction });
     }
@@ -148,7 +148,7 @@ async function refresh(refreshToken: string): Promise<Response> {
 }
 
 /**
- * What a successful sign-in or refresh answered.
+ * What a successful login or refresh answered.
  * @param res - The answer.
  * @returns The auth data.
  */
@@ -160,12 +160,12 @@ async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
 }
 
 /**
- * Signs in through the login route of a domain.
+ * Logs in through the login route of a domain.
  * @param credentials - What the user typed.
  * @param name - The domain.
  * @returns The answer.
  */
-async function signIn(credentials: LdapCredentials, name: string = 'ldaps'): Promise<Response> {
+async function logIn(credentials: LdapCredentials, name: string = 'ldaps'): Promise<Response> {
     return await fetch(`${baseUrl}/login-ad/${name}`, {
         method: 'POST',
         headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
@@ -249,61 +249,61 @@ describe('BaseActiveDirectoryAuthenticator against a Samba domain controller', (
         await container?.stop();
     });
 
-    it('signs in by account name and by user principal name as one user, linked by the objectGUID the domain shows', async () => {
-        const first: Response = await signIn({ username: 'anna', password: ANNA_PASSWORD });
+    it('logs in by account name and by user principal name as one user, linked by the objectGUID the domain shows', async () => {
+        const first: Response = await logIn({ username: 'anna', password: ANNA_PASSWORD });
         expect(first.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId }: JwtAuthData<string> = await first.json();
 
         // the domain's own tool writes the objectGUID the way Active Directory shows it
         const shown: string = await sambaTool('user', 'show', 'anna', '--attributes=objectGUID');
-        expect(firstSignIns.map(entry => entry.id)).toStrictEqual([/objectGUID: (\S+)/.exec(shown)?.[1]]);
-        expect(firstSignIns[0]?.attributes['userprincipalname']).toStrictEqual(['anna@zibri.test']);
+        expect(firstLogins.map(entry => entry.id)).toStrictEqual([/objectGUID: (\S+)/.exec(shown)?.[1]]);
+        expect(firstLogins[0]?.attributes['userprincipalname']).toStrictEqual(['anna@zibri.test']);
 
-        const again: Response = await signIn({ username: 'anna@zibri.test', password: ANNA_PASSWORD });
+        const again: Response = await logIn({ username: 'anna@zibri.test', password: ANNA_PASSWORD });
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId: againUserId }: JwtAuthData<string> = await again.json();
         expect(againUserId).toBe(userId);
     });
 
-    it('signs in over ldap:// upgraded with StartTLS', async () => {
-        expect((await signIn({ username: 'bob', password: BOB_PASSWORD }, 'start-tls')).status).toBe(200);
+    it('logs in over ldap:// upgraded with StartTLS', async () => {
+        expect((await logIn({ username: 'bob', password: BOB_PASSWORD }, 'start-tls')).status).toBe(200);
     });
 
     it('refuses a wrong password, an unknown name and a disabled account alike', async () => {
         const answers: Response[] = await Promise.all([
-            signIn({ username: 'anna', password: 'Wrong-Password-1' }),
-            signIn({ username: 'nobody', password: ANNA_PASSWORD }),
-            signIn({ username: 'carla', password: CARLA_PASSWORD })
+            logIn({ username: 'anna', password: 'Wrong-Password-1' }),
+            logIn({ username: 'nobody', password: ANNA_PASSWORD }),
+            logIn({ username: 'carla', password: CARLA_PASSWORD })
         ]);
 
         expect(answers.map(res => res.status)).toStrictEqual([401, 401, 401]);
     });
 
-    // an account of its own: the two test domains keep their links apart, so an account signed in
-    // through the other one already would be a second first sign-in, creating a user of the same email
-    it('signs in by the down-level logon name of the domain, and refuses the one of another', async () => {
-        const res: Response = await signIn({ username: String.raw`ZIBRI\eve`, password: EVE_PASSWORD });
+    // an account of its own: the two test domains keep their links apart, so an account logged in
+    // through the other one already would be a second first login, creating a user of the same email
+    it('logs in by the down-level logon name of the domain, and refuses the one of another', async () => {
+        const res: Response = await logIn({ username: String.raw`ZIBRI\eve`, password: EVE_PASSWORD });
         expect(res.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId }: JwtAuthData<string> = await res.json();
 
-        const byAccountName: Response = await signIn({ username: 'eve', password: EVE_PASSWORD });
+        const byAccountName: Response = await logIn({ username: 'eve', password: EVE_PASSWORD });
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId: byAccountNameUserId }: JwtAuthData<string> = await byAccountName.json();
         expect(byAccountNameUserId).toBe(userId);
-        expect((await signIn({ username: String.raw`OTHER\eve`, password: EVE_PASSWORD })).status).toBe(401);
+        expect((await logIn({ username: String.raw`OTHER\eve`, password: EVE_PASSWORD })).status).toBe(401);
     });
 
     it('hands the groups of the account to the hooks, nested ones included, and keeps the roles in step with them', async () => {
-        const first: Response = await signIn({ username: 'dave', password: DAVE_PASSWORD });
+        const first: Response = await logIn({ username: 'dave', password: DAVE_PASSWORD });
         expect(first.status).toBe(200);
 
         // the primary group of the account, Domain Users, is not listed
-        expect(firstSignIns.at(-1)?.groups.map(dn => dn.toLowerCase()).sort())
+        expect(firstLogins.at(-1)?.groups.map(dn => dn.toLowerCase()).sort())
             .toStrictEqual([`cn=admins,${USERS}`.toLowerCase(), `cn=staff,${USERS}`.toLowerCase()]);
 
-        const again: Response = await signIn({ username: 'dave', password: DAVE_PASSWORD });
+        const again: Response = await logIn({ username: 'dave', password: DAVE_PASSWORD });
         expect(again.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { roles }: JwtAuthData<string> = await again.json();
@@ -313,8 +313,8 @@ describe('BaseActiveDirectoryAuthenticator against a Samba domain controller', (
     // evaluation/03-auth-and-security H22
     it('finds an account by its objectGUID on a refresh, and refuses it once the domain disabled it', async () => {
         await sambaTool('user', 'create', 'frank', FRANK_PASSWORD);
-        const signedIn: JwtAuthData<string> = await authDataOf(await signIn({ username: 'frank', password: FRANK_PASSWORD }));
-        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(signedIn.refreshToken.value));
+        const loggedIn: JwtAuthData<string> = await authDataOf(await logIn({ username: 'frank', password: FRANK_PASSWORD }));
+        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(loggedIn.refreshToken.value));
 
         await sambaTool('user', 'disable', 'frank');
 

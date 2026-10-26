@@ -513,7 +513,7 @@ describe('server code never reaches the client script', () => {
 
         it('writes nothing of a value client code only tests', () => {
             const page: string = pageWith(
-                'const Page = ({ account }) => { onClient(() => { if (account) { console.log(\'signed in\'); } }); return <div/>; };',
+                'const Page = ({ account }) => { onClient(() => { if (account) { console.log(\'logged in\'); } }); return <div/>; };',
                 { account }
             );
 

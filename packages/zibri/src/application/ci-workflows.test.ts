@@ -851,3 +851,45 @@ describe('the release workflow', () => {
     });
 
 });
+
+// 08 §X26: the pages are written for a developer and for the assistant that developer asks, and an
+// assistant finds a site's pages through llms.txt, and all of them at once in llms-full.txt
+describe('the docs build', () => {
+    const zibriDir: string = path.join(repoRoot, 'packages', 'zibri');
+    const docsDir: string = path.join(zibriDir, 'docs');
+    const llmsTxtPath: string = path.join(zibriDir, 'scripts', 'llms-txt.mjs');
+
+    it('writes llms.txt and llms-full.txt beside the generated site', () => {
+        const manifest: { scripts: Record<string, string> } = JsonUtilities.parse(readFileSync(path.join(zibriDir, 'package.json'), 'utf8'));
+
+        expect(manifest.scripts['build:prod']).toMatch(/&& typedoc && node scripts\/llms-txt\.mjs$/);
+    });
+
+    it('lists every page in llms.txt with what it is, and holds every page whole in llms-full.txt', () => {
+        // the whole text is checked in the child, since it is larger than what a child may print
+        const res: { index: string, missingFromFull: string[] } = inResolverProcess(`
+            const { readdirSync, readFileSync } = await import('node:fs');
+            const path = await import('node:path');
+            const { resolveLlmsTxt, resolveLlmsFullTxt } = await import('${pathToFileURL(llmsTxtPath).href}');
+            const docsDir = ${JsonUtilities.stringify(docsDir)};
+            const full = resolveLlmsFullTxt(docsDir);
+            const missingFromFull = readdirSync(docsDir)
+                .filter(name => name.endsWith('.md'))
+                .filter(name => !full.includes(readFileSync(path.join(docsDir, name), 'utf8').trim()));
+            console.log(JSON.stringify({ index: resolveLlmsTxt(docsDir), missingFromFull }));
+        `);
+        const pages: string[] = readdirSync(docsDir).filter(name => name.endsWith('.md'));
+
+        expect(res.index).toMatch(/^# Zibri\n\n> \S/);
+        expect(res.missingFromFull).toEqual([]);
+        for (const page of pages) {
+            const content: string = readFileSync(path.join(docsDir, page), 'utf8');
+            const title: string = (content.split('\n')[0] ?? '').replace(/^# /, '');
+            const url: string = `https://service-soft.github.io/zibri/documents/${page.replace(/\.md$/, '')}.html`;
+            expect({ page, line: res.index.split('\n').find(line => line.startsWith(`- [${title}](${url}): `)) })
+                .toEqual({ page, line: expect.stringMatching(/\): \S/) });
+        }
+        // in the order of the site, which opens with getting started
+        expect(res.index.indexOf('getting-started.html')).toBeLessThan(res.index.indexOf('architecture.html'));
+    });
+});

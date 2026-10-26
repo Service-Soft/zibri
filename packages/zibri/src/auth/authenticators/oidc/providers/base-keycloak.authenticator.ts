@@ -3,7 +3,7 @@ import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
- * Authenticates a user by a sign-in at a Keycloak realm.
+ * Authenticates a user by a login at a Keycloak realm.
  *
  * Extend it with the url Keycloak is reached at, the realm, and the client id and credentials of the
  * client created in the realm.
@@ -24,7 +24,7 @@ export abstract class BaseKeycloakAuthenticator<
     abstract readonly baseUrl: string;
 
     /**
-     * The realm whose users sign in.
+     * The realm whose users log in.
      */
     abstract readonly realm: string;
 

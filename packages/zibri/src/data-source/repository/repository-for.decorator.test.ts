@@ -4,15 +4,14 @@ import { createInMemoryDataSource, InMemoryDataSource, StartedTestServer, startT
 import { Repository } from './repository';
 import { RepositoryClass } from './repository-class.type';
 import { RepositoryFor } from './repository-for.decorator';
+import { USER_REPOSITORY } from './repository-kind.model';
 import { TestTimeouts } from '../../__testing__/constants';
-import { BaseUser, BaseUserEntity, USER_ENTITY } from '../../auth/models/base-user.model';
+import { BaseUserEntity } from '../../auth/models/base-user.model';
 import { BaseRoleRepository } from '../../auth/roles/base-role-repository.model';
 import { BaseRoleEntity } from '../../auth/roles/base-role.model';
 import { BaseUserRepository } from '../../auth/user/base-user-repository.model';
-import { USER_REPOSITORY, UserRepositoryInterface } from '../../auth/user/user-repository.interface';
+import { UserRepositoryInterface } from '../../auth/user/user-repository.interface';
 import { type UserServiceInterface } from '../../auth/user/user-service.interface';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -25,9 +24,10 @@ import { BaseMembershipEntity } from '../../tenancy/membership/base-membership.m
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { type Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { DataSource } from '../decorators/data-source.decorator';
-import { whereFor } from '../models/where/where-for.function';
 import { Transaction } from '../transaction/transaction.model';
 
 // a file of its own, because a class declared with @RepositoryFor is checked by every application
@@ -55,22 +55,11 @@ class Archive extends SoftDeleteEntity {
 }
 
 /**
- * A user that soft deletes, declared by hand: the unique email of BaseUserEntity() does not say
- * whether a soft deleted user keeps the address.
+ * A user that soft deletes, declared through the base, which asks whether a soft deleted user keeps
+ * the address.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
-class ArchivedUser extends SoftDeleteEntity implements BaseUser<string> {
-    static readonly [USER_ENTITY]: true = true;
-
-    @Property.string({ format: 'email', unique: { where: whereFor<ArchivedUser>({ deleted: false }) } })
-    email!: string;
-
-    @Property.array({ items: { type: 'string' } })
-    roles!: string[];
-
-    @Property.date({ required: false })
-    deactivatedAt?: Date | null;
-}
+class ArchivedUser extends BaseUserEntity(SoftDeleteEntity, { deletedUserKeepsEmail: false }) {}
 
 @RepositoryFor(TeamUser)
 class TeamUserRepository extends BaseUserRepository<TeamUser>() {}
@@ -180,6 +169,18 @@ describe('@RepositoryFor', () => {
 
         expect(archivedUsers).toBeInstanceOf(SoftDeleteRepository);
         expect((await userService.findByEmail('grace@example.com')).id).toBe(user.id);
+    });
+
+    it('lets someone register again with the address of a user it soft deleted', async () => {
+        const archivedUsers: ArchivedUserRepository = inject(ArchivedUserRepository);
+        const first: ArchivedUser = await archivedUsers.create({ email: 'ada@example.com', roles: [] });
+        await archivedUsers.deleteById(first.id);
+
+        const second: ArchivedUser = await archivedUsers.create({ email: 'ada@example.com', roles: [] });
+
+        expect(second.id).not.toBe(first.id);
+        expect((await archivedUsers.findAll({ where: { email: 'ada@example.com' }, deleted: 'only' })).map(user => user.id))
+            .toEqual([first.id]);
     });
 
     it('deletes the memberships of a user it deletes', async () => {
@@ -310,6 +311,7 @@ class HandmadeUserRepository extends BaseUserRepository<HandmadeUser>() {}
 
 @RepositoryFor(FieldMarkedUser)
 class FieldMarkedUserRepository extends Repository<FieldMarkedUser> implements UserRepositoryInterface<string, FieldMarkedUser> {
+    // eslint-disable-next-line typescript/typedef
     readonly [USER_REPOSITORY] = true as const;
 
     async findByEmail(email: string): Promise<FieldMarkedUser> {

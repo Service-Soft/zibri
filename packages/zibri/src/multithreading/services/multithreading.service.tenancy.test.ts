@@ -64,8 +64,8 @@ describe('MultithreadingService across tenants', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 0,
-                        defaultTimeoutMs: Ms.MINUTE,
-                        defaultTimeoutPriorityMs: Ms.MINUTE,
+                        defaultTimeoutInMs: Ms.MINUTE,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},
@@ -126,7 +126,7 @@ describe('MultithreadingService across tenants', () => {
             progress: 0,
             attempts: 0,
             workerData,
-            timeout: Ms.MINUTE
+            timeoutInMs: Ms.MINUTE
         }));
 
         // outside every tenant, the way the poll runs it

@@ -5,8 +5,9 @@ A service calls your API, or another service of yours, with an access token your
 | Export | Kind | Purpose |
 |---|---|---|
 | `AuthorizationServerController` | function | Defines the routes of the authorization server, for a controller of yours to extend |
+| `AuthorizationServerControllerClass`, `isAuthorizationServerControllerClass` | type, function | A controller class `AuthorizationServerController` defined, and the function telling one apart |
 | `AuthorizationServerControllerOptions` | type | Who may introspect tokens, and the services tokens may be issued for |
-| `ClientAccessTokenAuthStrategy` | class | The auth strategy issuing the access tokens of clients, and reading them |
+| `ClientAccessTokenAuthStrategy` | class | The [auth strategy](./glossary.md#auth-strategy) issuing the access tokens of clients, and reading them |
 | `ClientAccessTokenIssuingAuthStrategyInterface`, `isClientAccessTokenIssuingAuthStrategy` | interface, function | What a strategy issuing the access tokens of clients implements, see [your own token format](#your-own-token-format) |
 | `TokenIntrospectingAuthStrategyInterface`, `isTokenIntrospectingAuthStrategy` | interface, function | What a strategy answering at `/introspect` and `/revoke` for its tokens implements |
 | `ClientAccessTokenGrant`, `IssuedClientAccessToken` | type | What a token a client is issued may do, and the token |
@@ -17,6 +18,7 @@ A service calls your API, or another service of yours, with an access token your
 | `JwtRevokedAccessTokenCleanupCronJob` | cron job | Deletes revoked tokens once they expire |
 | `OAuth2Error`, `OAuth2ErrorCode`, `OAuth2ErrorOptions` | class, enum, type | An error answered the way OAuth2 says errors look |
 | `ZIBRI_DI_TOKENS.AUTHORIZATION_SERVER_SERVICE` | DI token | The service answering the routes, replaceable |
+| `AuthorizationServerService` | class | Answers the routes of the authorization server. Replaceable through `ZIBRI_DI_TOKENS.AUTHORIZATION_SERVER_SERVICE` |
 | `AuthorizationServerServiceInterface`, `AuthorizationServerEndpoint`, `TokenRequest`, `TokenPresentation`, `OAuth2ClientCredentials`, `TokenResponse`, `IntrospectionResponse`, `IntrospectedConfirmation`, `AuthorizationServerMetadata` | type | What a service of your own implements, and what it is handed and answers |
 
 ## Setting it up
@@ -97,7 +99,7 @@ A token lasts as long as the access tokens of logins, `accessTokenExpiresInMs`, 
 
 A request with the token acts as the key's user, holding those of the token's permissions the user's roles carry right now, like a request with the key.
 
-A client sending a DPoP proof in the `DPoP` header is issued a token bound to its key: the answer's `token_type` is `DPoP`, and a request sends the token with the `DPoP` scheme and a proof of the key, see [binding tokens to a key](./dpop.md). A key created with `requireDpop: true` is issued tokens only for a proof.
+A client sending a [DPoP](./glossary.md#dpop) proof in the `DPoP` header is issued a token bound to its key: the answer's `token_type` is `DPoP`, and a request sends the token with the `DPoP` scheme and a proof of the key, see [binding tokens to a key](./dpop.md). A key created with `requireDpop: true` is issued tokens only for a proof.
 
 ## Clients
 A client is an API key. It authenticates in one of five ways:
@@ -153,7 +155,7 @@ token=eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9...
 }
 ```
 
-It answers for the tokens of every registered strategy implementing `TokenIntrospectingAuthStrategyInterface`: access tokens of clients and of logins, refresh tokens, and API keys. `scope` holds the permissions a request with the token may use now, in the tenant it is bound to or in any tenant of its user, and `cnf` what the token is bound to. A token that does not verify, has expired or was revoked, or whose user is gone or [deactivated](./auth.md#deactivating-a-user), answers `{ "active": false }`.
+It answers for the tokens of every registered strategy implementing `TokenIntrospectingAuthStrategyInterface`: access tokens of clients and of logins, refresh tokens, and API keys. `scope` holds the permissions a request with the token may use now, in the [tenant](./glossary.md#tenant) it is bound to or in any tenant of its user, and `cnf` what the token is bound to. A token that does not verify, has expired or was revoked, or whose user is gone or [deactivated](./auth.md#deactivating-a-user), answers `{ "active": false }`.
 
 ## Revocation
 Whoever holds a token revokes it, without authenticating:
@@ -269,6 +271,8 @@ Your data source declares these entities:
 |---|---|
 | `ApiKey` | The authorization server is registered, since its clients are API keys |
 | `JwtRevokedAccessToken` | `ClientAccessTokenAuthStrategy` is registered and `ACCESS_TOKEN_REVOCATION` is not `'onExpiry'` |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [API keys](./api-keys.md) — the clients, and creating keys without a secret

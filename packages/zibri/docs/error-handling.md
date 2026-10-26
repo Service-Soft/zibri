@@ -14,9 +14,12 @@ Every error a request throws reaches one global error handler. It answers with J
 | `UnmatchedRouteError` | error | 404, the route itself doesn't exist (extends `NotFoundError`) |
 | `BadRequestError` | error | 400, generic invalid client input |
 | `ValidationError` | error | 400, thrown automatically by Zibri's validation (extends `BadRequestError`) |
+| `ValidationErrorType` | type | The part of the request a `ValidationError` is about: `body`, `path`, `query`, `header` or `websocketRequest` |
 | `UnauthorizedError` | error | 401, the caller didn't say who it is, or the credential it sent isn't good |
 | `ForbiddenError` | error | 403, the caller is known and still isn't allowed to do this |
 | `CredentialReusedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the [audit trail](./audit.md) a spent credential came back |
+| `CredentialClonedError` | error | A 401 that reads as `UnauthorizedError` on the wire, but tells the audit trail a credential came from a copy of its device, such as a [passkey](./glossary.md#passkey) whose signature counter went backwards |
+| `PasswordLockedError` | error | A 401 that reads as a wrong password on the wire, but tells the audit trail the right password came for an account locked after too many wrong ones |
 | `AccountDeactivatedError` | error | 403, a [deactivated user](./auth.md#deactivating-a-user) tried to log in |
 | `MethodNotAllowedError` | error | 405, the path exists under other methods; thrown by Zibri itself and answered with an `Allow` header |
 | `NotAcceptableError` | error | 406, the caller accepts nothing the route produces; thrown by Zibri itself |
@@ -30,8 +33,10 @@ Every error a request throws reaches one global error handler. It answers with J
 | `MissingEntitiesError` | error | Internal, entities not registered on a data source |
 | `MissingTokensError` | error | Internal, DI tokens that couldn't be injected |
 | `InvalidDecoratorCombinationError` | error | Internal, conflicting decorators on the same target |
+| `EntityMetadataMissingError` | error | Internal, a class used as an entity without `@Entity` |
 | `GlobalErrorHandler` | type | Signature of the express-style handler that processes every error |
 | `ErrorPageTemplate` | type | Signature of a tsx component used to render the HTML error page |
+| `ErrorPageTemplateProps` | type | What the error page component receives: the `HttpError` as `error` |
 | `ErrorUtilities` | class | Static helpers for classifying and converting errors |
 | `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` | DI token | Injects/overrides the `GlobalErrorHandler` |
 | `ZIBRI_DI_TOKENS.ERROR_PAGE_TEMPLATE` | DI token | Injects/overrides the `ErrorPageTemplate` |
@@ -170,7 +175,7 @@ Every error thrown while a request is handled reaches the `GlobalErrorHandler` r
 1. Converts the error to an `HttpError` with `ErrorUtilities.toHttpError`. An `HttpError` stays as it is, anything else becomes a generic `InternalServerError`.
 2. Logs it. A thrown value that is not an `Error` is wrapped in a `GlobalError` and logged with `logger.critical`. An error answered with a `5xx` status is logged with `logger.error`. An error answered with a `4xx` status is not logged, and a `TooManyRequestsError` is recorded in the [audit trail](./audit.md).
 3. Sets the rate limit headers (`X-RateLimit-*`, `Retry-After`) for a `TooManyRequestsError`, and the `Allow` header for a `MethodNotAllowedError`.
-4. Answers a `CustomBodyHttpError` with its own body, and every other error in the format the request's `Accept` asks for: JSON clients get `{ status, name, message, paragraphs, traceId }`, with `problems` for a `ValidationError`; XML clients get the same as an `Error` document, with one `paragraph` element per paragraph; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured. A client naming none of them, or accepting anything, gets JSON. Between formats a client weighs equally, the one it names first is taken.
+4. Answers a `CustomBodyHttpError` with its own body, and every other error in the format the request's `Accept` asks for: JSON clients get `{ status, name, message, paragraphs, traceId }`, with `problems` for a `ValidationError` and a `CheckConstraintViolationError`; XML clients get the same as an `Error` document, with one `paragraph` element per paragraph; HTML clients get the rendered `ErrorPageTemplate`, falling back to the same JSON (with a warning logged) if no template is configured. A client naming none of them, or accepting anything, gets JSON. Between formats a client weighs equally, the one it names first is taken.
 
 ## Errors outside the request pipeline
 The global error handler only sees errors that come back through a request. A promise nothing awaits, like `void this.auditService.record(order)`, rejects outside of it, even when a request started it. Such a rejection is logged as an `InternalError` and the application keeps serving. An exception nothing catches is logged and then ends the process with a non-zero exit code.

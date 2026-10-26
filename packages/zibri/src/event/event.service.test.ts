@@ -7,8 +7,8 @@ import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } fr
 import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event, EventStatus } from './event.model';
 import { EventSubscription } from './event.service';
-import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerProviders } from '../__testing__/test-server/providers';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
@@ -244,7 +244,7 @@ describe('EventService', () => {
         assert(pending, 'no run was recorded for retry-sub');
         expect(pending.attempts).toBe(1);
         expect(pending.error).toBeDefined();
-        expect(pending.nextRetryAt?.getTime()).toBeGreaterThan(Date.now());
+        expect(pending.nextAttemptAt?.getTime()).toBeGreaterThan(Date.now());
         expect(callCount).toBe(1);
 
         // and the event is not offered to it again while the backoff is still running
@@ -268,7 +268,7 @@ describe('EventService', () => {
         assert(succeeded, 'no run was recorded for retry-sub');
         expect(succeeded.attempts).toBe(2);
         expect(succeeded.error == undefined).toBe(true);
-        expect(succeeded.nextRetryAt == undefined).toBe(true);
+        expect(succeeded.nextAttemptAt == undefined).toBe(true);
 
         sub.unsubscribe();
     }, 20000);
@@ -303,7 +303,7 @@ describe('EventService', () => {
         });
         assert(run, 'no run was recorded for always-fails-sub');
         expect(run.attempts).toBe(2);
-        expect(run.nextRetryAt == undefined).toBe(true);
+        expect(run.nextAttemptAt == undefined).toBe(true);
         // readable and not merely present: an Error's message and stack are not enumerable, so the
         // column would keep `{}` of one - a row saying a failure happened and nothing about what it
         // was, which is no better than the row that used to say it had succeeded
@@ -359,6 +359,7 @@ describe('EventService', () => {
         const registration: EventSubscriberRegistration = await registrationRepo.create({
             subscriberId: 'lapsing-sub',
             eventType: 'lapse.event',
+            runsOn: 'oneInstance',
             expiresAt: new Date(Date.now() + Ms.MINUTE)
         });
 
@@ -401,7 +402,7 @@ describe('EventService', () => {
                 await held;
                 running--;
             },
-            { subscriberId: 'burst-sub', timeout: Ms.SECOND * 10 }
+            { subscriberId: 'burst-sub', timeoutInMs: Ms.SECOND * 10 }
         );
 
         const burst: number = 8;

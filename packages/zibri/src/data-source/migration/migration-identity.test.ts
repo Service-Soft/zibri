@@ -11,7 +11,8 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
@@ -54,6 +55,7 @@ class MigrationIdentityDataSource extends PostgresDataSource {
     override migrations: Newable<Migration>[] = [FirstChangeOfTheRelease, SecondChangeOfTheRelease];
     // the framework entities still need their tables; the two migrations below are what this asserts
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 @Injectable()

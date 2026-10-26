@@ -35,7 +35,7 @@ describe('RemoveCommand', () => {
         process.env['GIT_CONFIG_NOSYSTEM'] = '1';
         workDir = await emptyWorkDirectory('remove-command');
         execSpy = jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
-        project = await GeneratedProject.create(workDir, ['none', 'requireLogin', EVERY_FEATURE]);
+        project = await GeneratedProject.create(workDir, ['none', 'isLoggedIn', EVERY_FEATURE]);
         execSpy.mockClear();
     });
 

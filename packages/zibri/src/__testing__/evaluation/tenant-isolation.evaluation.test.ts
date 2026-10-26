@@ -11,6 +11,7 @@ import { ApiKey } from '../../auth/strategies/api-key/api-key.model';
 import { JwtAuthData } from '../../auth/strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
+import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -19,7 +20,6 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { Body } from '../../routing/decorators/body.decorator';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Delete } from '../../routing/decorators/delete.decorator';
@@ -312,7 +312,7 @@ const entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, ApiKey, I
 const websocketOptions: WebsocketOptionsInput = {
     messageRetentionInMs: Ms.DAY,
     timeoutInMs: 5000,
-    handlerInMs: 5000,
+    handlerTimeoutInMs: 5000,
     isAllowedToConnect: () => true
 };
 
@@ -440,7 +440,7 @@ function describeTenantIsolationOverHttp(name: string, dataSourceClass: Newable<
                 ],
                 // the posture this is worth testing under: every route asks for a login unless it says
                 // otherwise, so the only anonymous callers are the routes that declared themselves public
-                defaultAuth: 'requireLogin'
+                defaultAuth: 'isLoggedIn'
             });
             baseUrl = await server.start();
 

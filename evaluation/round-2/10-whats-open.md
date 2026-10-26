@@ -3,14 +3,14 @@
 Every finding of this round in one table, by severity, and nothing else. A finding leaves this file
 the moment it is completely done; what was decided and how it closed belongs to its chapter, under
 its heading. Code quality items (the files under [code-review/](./code-review/), one per chapter plus
-the cross-cutting [09](./code-review/09-architecture-and-code-quality.md)) are listed after the findings. The two MAJOR and five MINOR rows still open of [08 Part 1](./08-docs-and-dx.md)
+the cross-cutting [09](./code-review/09-architecture-and-code-quality.md)) are listed after the findings. The five MINOR rows still open of [08 Part 1](./08-docs-and-dx.md)
 (claims the code does not support) are a table in that chapter and are not repeated here.
 
-**0 CRITICAL, 10 MAJOR, 88 MINOR findings; 1 MAJOR and 44 MINOR code quality items** (counted 2026-10-21;
+**0 CRITICAL, 9 MAJOR, 89 MINOR findings; 1 MAJOR and 42 MINOR code quality items** (counted 2026-10-21;
 01 §D1, §D2, §D3, §D6, 03 §H1, 05 §I1 and 09 §Q3 closed the same day, and 01 §D14–§D16, which the Q3
 file's first postgres run found, were filed and closed the same day too; 03 §H2, §H3, §H4, 01 §D17,
 04 §A1, §A2, §A3, §A4, §A5, 05 §I2, §I3, §I4, §I5, 06 §F1, §F2, §F3, §F4, §F5, §F6, §F7, §F8, §F9, §F10, §F14, §F25, 01 §D4, §D5, 02 §S1, §S2, §S4, §S5 and §S6 closed 2026-10-22,
-and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, §S8, §S9, §S10, §S11, 03 §H18, 07 §T1, §T2, §T3, §T4, §T5 and §T6 closed 2026-10-23, and 07 §T21 split out of §T5 and 08 §X26 and 09 §Q14 filed and 08 §X13, §X8, §X9, §X10, §X11, §X12, §X24, §X1, §X2, §X3 and §X4 closed the same day, and 08 §X27 split out of §X3; 08 §X5 closed 2026-10-24, and 01 §D19 and §D20 filed from it the same day, and 08 §X14 and §X15 closed the same day, and 08 §X28 filed from §X15, and 08 §X16 closed 2026-10-25, widening 08 §X28, and 08 §X17 and §X19 closed the same day).
+and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, §S8, §S9, §S10, §S11, 03 §H18, 07 §T1, §T2, §T3, §T4, §T5 and §T6 closed 2026-10-23, and 07 §T21 split out of §T5 and 08 §X26 and 09 §Q14 filed and 08 §X13, §X8, §X9, §X10, §X11, §X12, §X24, §X1, §X2, §X3 and §X4 closed the same day, and 08 §X27 split out of §X3; 08 §X5 closed 2026-10-24, and 01 §D19 and §D20 filed from it the same day, and 08 §X14 and §X15 closed the same day, and 08 §X28 filed from §X15, and 08 §X16 closed 2026-10-25, widening 08 §X28, and 08 §X17 and §X19 closed the same day, and 08 §X20 closed the same day with 07 §T16 and 09 §Q10, and 01 §D21 filed from it, and 02 §S20 filed and closed the same day, and 01 §D21, 08 §X21, §X6, §X7, §X18, §X22 and §X23 closed the same day; 08 §X25, §X26, §X27 and §X28 closed 2026-10-26, and 06 §F27, 04 §A17 and §A18 filed from §X27 and closed the same day, and 03 §H20 filed and closed the same day, and 04 §A10, 01 §D18 and 02 §S3 closed the same day, and 06 §F28 filed and closed the same day, and 01 §D7, §D8, §D9, §D10, §D11, §D12, §D13, §D19 and §D20 closed the same day, and 09 §Q1, §Q6 and 06 §Q4 closed the same day, and 09 §Q9 closed the same day with §Q15 and §Q16 filed from it; 09 §Q5 closed 2026-10-27).
 
 ---
 
@@ -20,8 +20,6 @@ and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, 
 
 | | |
 |---|---|
-| [01 §D18](./01-data-layer-repository.md) | no documented way to run a query the repository cannot express (typeorm passthrough or Kysely: evaluate first) |
-| [02 §S3](./02-data-layer-stores.md) | session-level state breaks under the transaction pooler the docs recommend |
 
 ### Auth and identity
 
@@ -42,19 +40,12 @@ and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, 
 
 | | |
 |---|---|
-| [08 §X20](./08-docs-and-dx.md) | the public surface is the whole package |
-| [08 §X21](./08-docs-and-dx.md) | naming is consistent inside a subsystem and inconsistent across them |
 
 ### Architecture (MAJOR)
 
 | | |
 |---|---|
-| [09 §Q1](./code-review/09-architecture-and-code-quality.md) | the repository is a five-deep decorator stack carrying entity-specific policy in the generic layer |
 | [09 §Q2](./code-review/09-architecture-and-code-quality.md) | typeorm carries a double model and is bypassed for every store-specific guarantee |
-| [09 §Q5](./code-review/09-architecture-and-code-quality.md) | the persisted queue exists three times, backups a fourth without the pattern |
-| [09 §Q6](./code-review/09-architecture-and-code-quality.md) | the framework does not use its own event service; two subsystems re-implement an after-commit bus |
-| [09 §Q9](./code-review/09-architecture-and-code-quality.md) | the data layer depends upward on auth and tenancy; `MetadataUtilities` is a hub |
-| [06 §Q4](./code-review/06-infrastructure.md) | three polling buses where one notification system would do |
 
 ## MINOR
 
@@ -62,15 +53,6 @@ and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, 
 
 | | |
 |---|---|
-| [01 §D7](./01-data-layer-repository.md) | the scope function is evaluated once per row and up to three times per single-row write |
-| [01 §D8](./01-data-layer-repository.md) | `deleteAll`/`deleteById` judge the scope in a read and delete by id afterwards, outside a transaction |
-| [01 §D9](./01-data-layer-repository.md) | a keyset walk ordered by a `bigint`/`bignumber` property fails after the first page |
-| [01 §D10](./01-data-layer-repository.md) | bulk soft delete marks owned rows one owner at a time |
-| [01 §D11](./01-data-layer-repository.md) | the role and membership reporting drivers read every matched row into memory on a bulk write |
-| [01 §D12](./01-data-layer-repository.md) | a soft deleted child given by id to a `oneToMany` write answers 404 |
-| [01 §D13](./01-data-layer-repository.md) | `deleteById` has no condition and no `relations`; `stream` has no order anywhere |
-| [01 §D19](./01-data-layer-repository.md) | a check cannot compare two properties, nor a date |
-| [01 §D20](./01-data-layer-repository.md) | a check the data source refuses answers without the check's code |
 | [02 §S12](./02-data-layer-stores.md) | the valkey schema lock is shared by every application on the server |
 | [02 §S13](./02-data-layer-stores.md) | a migration's transaction idles out after ten seconds, and a migration cannot say otherwise |
 | [02 §S14](./02-data-layer-stores.md) | migrations: no checksum, no generator, no operator entry point |
@@ -107,7 +89,6 @@ and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, 
 | [04 §A7](./04-auth-core.md) | `POST /request-password-reset` is a timing oracle for account existence |
 | [04 §A8](./04-auth-core.md) | enrolling or removing a second factor is not audited; neither is deactivating a membership |
 | [04 §A9](./04-auth-core.md) | the cookie strategy's documented in-request renewal cannot happen in a browser |
-| [04 §A10](./04-auth-core.md) | deleting a user leaves sessions, refresh tokens and api keys behind |
 | [04 §A11](./04-auth-core.md) | the account lifecycle routines an enterprise expects are left to the application |
 | [04 §A12](./04-auth-core.md) | roles have no inheritance or wildcard; role assignment is a read-modify-write |
 | [04 §A13](./04-auth-core.md) | access tokens carry the user's email and role names |
@@ -159,25 +140,16 @@ and 06 §F26 split out of §F25 and 01 §D18 out of §D5 the same day; 02 §S7, 
 
 | | |
 |---|---|
-| [08 §X6](./08-docs-and-dx.md) | release notes and the cli README are empty |
-| [08 §X7](./08-docs-and-dx.md) | no glossary |
-| [08 §X18](./08-docs-and-dx.md) | permissions, roles and the one-permission-per-route rule |
-| [08 §X22](./08-docs-and-dx.md) | what a controller cannot say, and what fails quietly |
-| [08 §X23](./08-docs-and-dx.md) | testing: two rough edges |
-| [08 §X25](./08-docs-and-dx.md) | deployment and configuration |
-| [08 §X26](./08-docs-and-dx.md) | no `llms.txt` |
-| [08 §X27](./08-docs-and-dx.md) | no page says how large a framework table gets and what cleans it up |
-| [08 §X28](./08-docs-and-dx.md) | `BaseTenantEntity`, `BaseUserEntity()` and `BaseMembershipEntity()` do not combine with `SoftDeleteEntity` or `ChangeSetEntity` |
 
 ## Code quality items (all MINOR unless marked)
 
 | | |
 |---|---|
-| [01 §Q1-Q7](./code-review/01-data-layer-repository.md) | `repository.ts` holds four concerns; five forwarding drivers; service locator in the write path; class helper semantics; naming; stale comments; two soft-delete paths |
+| [01 §Q1-Q7](./code-review/01-data-layer-repository.md) | `repository.ts` holds four concerns; service locator in the write path; class helper semantics; naming; stale comments; two soft-delete paths |
 | [02 §Q1-Q6](./code-review/02-data-layer-stores.md) | `PostgresDataSource` is five concerns; two trigram implementations; error classification by prose; placeholder renumbering by regex; private backup errors; valkey lock namespace |
 | [03 §Q1-Q9](./code-review/03-http-runtime-core.md) | three shutdown runners; version-overlap refusal built four times; browser JS as string arrays; the four largest files; file suffixes; two deadline mechanisms; manual routes reimplement the controller path; error classification three times; five identical parser arms |
 | [04 §Q1-Q5](./code-review/04-auth-core.md) | `AuthService` at 2,041 lines with four decorator-resolution copies; `get` verbs doing round trips; error swallowing; module-level functions; per-tenant indexes through `runAs` |
 | [05 §Q1-Q6](./code-review/05-identity-providers.md) | `ScimService` and `BaseFederatedAuthenticator` sizes; orphaned JSDoc; four cleanup jobs of one shape; `startConnection`/`linkIdentity` naming; duplicated lookups with `inject` per request; collapsed error reasons |
 | [06 §Q1-Q3, Q5, Q6, Q9](./code-review/06-infrastructure.md) | three files carry their subsystem; dead `adoptDeclaredPolicy`; wrong-cost verbs; wrong JSDoc; `any` payment interface; seventeen sweepers |
-| [07 §T16-T20](./code-review/07-di-packaging-tooling.md) | the barrel publishes container internals; `??` dedupe by `useValue`; `register` side channel; the scaffold as string arrays; the sandbox is not a reference app |
-| [09 §Q4, Q7, Q8, Q10-Q14](./code-review/09-architecture-and-code-quality.md) | two data sources duplicate construction; auth constants vs tokens; seventeen cleanup jobs; the barrel; time units spelled two ways; positional vs option transactions; inconsistent `Base` prefix; reasoning in published JSDoc |
+| [07 §T17-T20](./code-review/07-di-packaging-tooling.md) | `??` dedupe by `useValue`; `register` side channel; the scaffold as string arrays; the sandbox is not a reference app |
+| [09 §Q4, Q7, Q8, Q11-Q16](./code-review/09-architecture-and-code-quality.md) | two data sources duplicate construction; auth constants vs tokens; seventeen cleanup jobs; time units spelled two ways; positional vs option transactions; inconsistent `Base` prefix; reasoning in published JSDoc; `MetadataUtilities` holds every subsystem's accessors; `HttpStatus` cycle |

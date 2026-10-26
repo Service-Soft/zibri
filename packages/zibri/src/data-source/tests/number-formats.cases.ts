@@ -4,6 +4,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { BigNumber } from '../../utilities/number.utilities';
+import { KeysetPage } from '../models/pagination-result.model';
 import { Repository } from '../repository/repository';
 
 /**
@@ -157,6 +158,49 @@ export function describeNumberFormats(dataSourceName: string, repositoryOf: () =
             expect(await repository.findAll({ where: { sequence: pastSafeInteger } })).toHaveLength(1);
             expect(await repository.findAll({ where: { sequence: { greaterThan: 9007199254740992n } } })).toHaveLength(1);
             expect(await repository.findAll({ where: { sequence: { lesserThan: 9007199254740992n } } })).toHaveLength(0);
+        }, 30000);
+    });
+
+    // 01 §D9: the cursor carried only strings, numbers and booleans, so the first full page of a walk
+    // ordered by a bigint or an exact decimal ended in an error - and read back through Number, a
+    // cursor past what a double holds would have named a different row
+    describe(`a keyset walk ordered by a number past what a double holds, on ${dataSourceName}`, () => {
+        it('walks a bigint order once over every row', async () => {
+            const repository: Repository<Measurement> = repositoryOf();
+            await repository.deleteAll({});
+            // next to each other past 2^53, where a double holds only every second whole number
+            const sequences: bigint[] = [0n, 1n, 2n, 3n, 4n, 5n].map(i => pastSafeInteger + i);
+            await repository.createAll(sequences.map(sequence => ({ temperature: 1, readings: 1, sequence, price: new BigNumber(1) })));
+
+            const walked: bigint[] = [];
+            let cursor: string | undefined;
+            do {
+                const page: KeysetPage<Measurement> = await repository.findAllAfter(cursor, 2, { order: { sequence: 'ASC' } });
+                walked.push(...page.items.map(m => m.sequence));
+                cursor = page.nextCursor;
+            }
+            while (cursor != undefined);
+
+            expect(walked).toEqual(sequences);
+        }, 30000);
+
+        it('walks an exact decimal order once over every row', async () => {
+            const repository: Repository<Measurement> = repositoryOf();
+            await repository.deleteAll({});
+            // apart only in digits a double does not hold
+            const prices: string[] = ['0.3', '0.2', '0.1'].map(fraction => `${exactDecimal}${fraction.slice(2)}`);
+            await repository.createAll(prices.map(price => ({ temperature: 1, readings: 1, sequence: 1n, price: new BigNumber(price) })));
+
+            const walked: string[] = [];
+            let cursor: string | undefined;
+            do {
+                const page: KeysetPage<Measurement> = await repository.findAllAfter(cursor, 1, { order: { price: 'DESC' } });
+                walked.push(...page.items.map(m => m.price.toFixed()));
+                cursor = page.nextCursor;
+            }
+            while (cursor != undefined);
+
+            expect(walked).toEqual(prices);
         }, 30000);
     });
 }

@@ -44,7 +44,7 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         readonly name: N,
         readonly store: CacheStoreInterface<K, V>,
         readonly tags: 'all' | readonly CacheTagMatcher[],
-        readonly defaultTtl?: number | (() => number | Promise<number>),
+        readonly defaultTtlInMs?: number | (() => number | Promise<number>),
         readonly onInvalidationFailure?: OnInvalidationFailure
     ) {}
 
@@ -267,10 +267,10 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         args: TArgs
     ): Promise<number | undefined> {
         if (provider == undefined) {
-            if (typeof this.defaultTtl === 'function') {
-                return await this.defaultTtl();
+            if (typeof this.defaultTtlInMs === 'function') {
+                return await this.defaultTtlInMs();
             }
-            return this.defaultTtl;
+            return this.defaultTtlInMs;
         }
         if (typeof provider === 'function') {
             return await provider(result, ...args);
@@ -289,10 +289,10 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
         args: TArgs
     ): Promise<number | undefined> {
         if (provider == undefined) {
-            if (typeof this.defaultTtl === 'function') {
-                return await this.defaultTtl();
+            if (typeof this.defaultTtlInMs === 'function') {
+                return await this.defaultTtlInMs();
             }
-            return this.defaultTtl;
+            return this.defaultTtlInMs;
         }
         if (typeof provider === 'function') {
             return await provider(...args);
@@ -304,12 +304,12 @@ implements OmitStrict<CacheInterface<K, V, CacheTag, WriteResultAvailable, N>, '
      * Creates a cached value from the given input.
      * @param value - The value of the value to cache.
      * @param tags - The tags that should mark this cache entry.
-     * @param ttl - The time that this cache entry should be valid.
+     * @param ttlInMs - How long this cache entry should be valid, in milliseconds.
      * @returns A cached value definition.
      */
-    protected createCachedValue(value: V, tags: CacheTag[], ttl: number | undefined): CachedValue<V> {
+    protected createCachedValue(value: V, tags: CacheTag[], ttlInMs: number | undefined): CachedValue<V> {
         const createdAt: Date = new Date();
-        const expiresAt: Date | undefined = ttl != undefined ? new Date(createdAt.getTime() + ttl) : undefined;
+        const expiresAt: Date | undefined = ttlInMs != undefined ? new Date(createdAt.getTime() + ttlInMs) : undefined;
 
         return {
             createdAt,

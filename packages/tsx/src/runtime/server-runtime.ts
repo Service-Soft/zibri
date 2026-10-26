@@ -91,7 +91,7 @@ export function raw(html: string): Raw {
 }
 
 /**
- * Emits a trusted HTML string as an element, unescaped. The template-facing form of {@link raw}, for
+ * Emits a trusted HTML string as an element, unescaped. The template-facing form of `raw`, for
  * markup JSX cannot express - most notably the Outlook conditional comments (`<!--[if mso]>...`) MJML
  * wraps its layout in, which are siblings rather than a subtree.
  *
@@ -613,7 +613,7 @@ export type RenderContext<T> = {
      */
     __renderContext: true,
     /**
-     * The value {@link RenderServerRuntime.useContext} returns when no ancestor provided one.
+     * The value {@link useContext} returns when no ancestor provided one.
      */
     default: T
 };
@@ -627,6 +627,33 @@ export type RenderContext<T> = {
 export function createContext<T>(defaultValue: T): RenderContext<T> {
     return { __renderContext: true, default: defaultValue };
 }
+
+// The two hooks below are what a template imports. The compiler lowers a call to either to the
+// render runtime of the component it is in (`$ssr.provideContext`, `$ssr.useContext`) and drops the
+// import, so these bodies only run when code the compiler never saw calls them - and there is no
+// render to provide to or read from.
+
+/**
+ * Provides a value for a context to every component the calling component renders, however deep.
+ * Call it in the body of a tsx component.
+ * @param context - The context to provide a value for.
+ * @param value - The value.
+ * @throws When called anywhere but in the body of a compiled tsx component.
+ */
+export const provideContext: <T>(context: RenderContext<T>, value: T) => void = () => {
+    throw new Error('provideContext was called outside a tsx component. Call it in the body of a component in a .tsx template.');
+};
+
+/**
+ * Reads the value the nearest component above provided for a context, or the context's default when
+ * none did. Call it in the body of a tsx component.
+ * @param context - The context to read.
+ * @returns The value.
+ * @throws When called anywhere but in the body of a compiled tsx component.
+ */
+export const useContext: <T>(context: RenderContext<T>) => T = () => {
+    throw new Error('useContext was called outside a tsx component. Call it in the body of a component in a .tsx template.');
+};
 
 /**
  * One provided context value on the runtime's stack.

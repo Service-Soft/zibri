@@ -6,6 +6,7 @@ import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { $ts } from '../../localization/translate.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { PropertyReferenceUtilities } from './property-reference.utilities';
 import { WhereFilter } from '../models/where/where-filter.model';
 import { ScopeWhereUtilities } from '../scopes/scope-where.utilities';
 
@@ -136,6 +137,8 @@ function narrowBranch<T extends BaseEntity>(
         }
         const metadata: PropertyMetadata | undefined = properties[property];
         const propertyPath: string = `${path}${property}`;
+        // a filter built at run time can name what its type would have refused
+        PropertyReferenceUtilities.validateReferences(propertyPath, metadata, condition, properties);
         const narrowed: unknown | typeof IMPOSSIBLE = narrowPropertyCondition(condition, metadata, propertyPath);
         if (narrowed === IMPOSSIBLE) {
             return IMPOSSIBLE;

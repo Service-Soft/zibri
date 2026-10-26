@@ -1,6 +1,7 @@
 import { ZibriApplication } from '../../../application/application';
 import { HttpRequestContext } from '../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../context/request/websocket-request.context';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { Newable } from '../../../types/newable.type';
 import { UserAccount } from '../../models/user-account.model';
 
@@ -8,32 +9,32 @@ import { UserAccount } from '../../models/user-account.model';
  * Interface for a two factor method.
  */
 export interface TwoFactorMethod<
-    TwoFactorRequestRegisterData,
-    TwoFactorConfirmRegisterData,
-    TwoFactorRequestRegisterResult = void,
-    SecondFactorStartType = void
+    TwoFactorRegistrationRequestData,
+    TwoFactorRegistrationConfirmData,
+    TwoFactorRegistrationRequestResult = void,
+    SecondFactorRequestType = void
 > {
     /**
      * The name of the method, which the 2fa routes of `AuthController` name it by, eg. `otp`.
      */
     readonly name: string,
     /**
-     * The model of what requesting to register the method takes. `NoRegisterData` for a method that
-     * takes nothing.
+     * The model of what requesting to register the method takes. `NoRegistrationRequestData` for a
+     * method that takes nothing.
      */
-    readonly requestRegisterModel: Newable<TwoFactorRequestRegisterData>,
+    readonly registrationRequestModel: Newable<TwoFactorRegistrationRequestData>,
     /**
      * The model of what confirming the registration takes.
      */
-    readonly confirmRegisterModel: Newable<TwoFactorConfirmRegisterData>,
+    readonly registrationConfirmModel: Newable<TwoFactorRegistrationConfirmData>,
     /**
      * The model of what requesting to register answers with, undefined when it answers with nothing.
      */
-    readonly registrationModel: Newable<TwoFactorRequestRegisterResult> | undefined,
+    readonly registrationRequestResultModel: Newable<TwoFactorRegistrationRequestResult> | undefined,
     /**
-     * The model of what starting a second factor answers with, undefined when it answers with nothing.
+     * The model of what requesting a second factor answers with, undefined when it answers with nothing.
      */
-    readonly secondFactorStartModel: Newable<SecondFactorStartType> | undefined,
+    readonly secondFactorRequestModel: Newable<SecondFactorRequestType> | undefined,
     /**
      * Whether the method is the way back for a user whose second factor is locked after too many wrong
      * codes, as recovery codes are.
@@ -55,33 +56,39 @@ export interface TwoFactorMethod<
      * everything in it is derived from the secret, so keeping a copy at rest would mean a second
      * plaintext of the thing the row exists to protect.
      */
-    requestRegisterForUser: <UserType extends UserAccount>(
+    requestRegistration: <UserType extends UserAccount>(
         user: UserType,
-        data: TwoFactorRequestRegisterData
-    ) => TwoFactorRequestRegisterResult | Promise<TwoFactorRequestRegisterResult>,
+        data: TwoFactorRegistrationRequestData
+    ) => TwoFactorRegistrationRequestResult | Promise<TwoFactorRegistrationRequestResult>,
     /**
      * Confirms the registration of the two factor method for the given user.
      */
-    confirmRegisterForUser: <UserType extends UserAccount>(
+    confirmRegistration: <UserType extends UserAccount>(
         user: UserType,
-        data: TwoFactorConfirmRegisterData
+        data: TwoFactorRegistrationConfirmData
     ) => void | Promise<void>,
     /**
      * Removes the two factor method from the given user.
      */
-    unregisterForUser: <UserType extends UserAccount>(user: UserType) => void | Promise<void>,
+    removeRegistration: <UserType extends UserAccount>(user: UserType) => void | Promise<void>,
+    /**
+     * Deletes every row the method keeps for the given users, confirmed or not. Called in the
+     * transaction that deletes the users for good; a soft deleted user keeps them. Optional: leave it
+     * out for a method that keeps nothing per user.
+     */
+    deleteUserRows?: (userIds: string[], transaction: Transaction) => Promise<void>,
     /**
      * Whether the given user has a confirmed registration of this method.
      *
      * A registration that was requested but never confirmed does not count.
      */
-    isRegisteredForUser: <UserType extends UserAccount>(user: UserType) => boolean | Promise<boolean>,
+    isRegistered: <UserType extends UserAccount>(user: UserType) => boolean | Promise<boolean>,
     /**
-     * Starts the second factor of an operation of the given user, who has a confirmed registration of
+     * Requests the second factor of an operation of the given user, who has a confirmed registration of
      * the method: sends them a code, or answers with a challenge for their device. Does nothing for a
-     * method whose second factor needs nothing started, such as an authenticator app.
+     * method whose second factor needs nothing requested, such as an authenticator app.
      */
-    startSecondFactor: <UserType extends UserAccount>(user: UserType) => Promise<SecondFactorStartType>,
+    requestSecondFactor: <UserType extends UserAccount>(user: UserType) => Promise<SecondFactorRequestType>,
     /**
      * Validates that the given request has a valid second factor.
      */
@@ -106,15 +113,15 @@ export function isTwoFactorMethod(value: unknown): value is TwoFactorMethod<unkn
 
     const keys: (keyof TwoFactorMethod<unknown, unknown>)[] = [
         'name',
-        'requestRegisterModel',
-        'confirmRegisterModel',
-        'registrationModel',
-        'secondFactorStartModel',
-        'startSecondFactor',
-        'requestRegisterForUser',
-        'confirmRegisterForUser',
-        'unregisterForUser',
-        'isRegisteredForUser',
+        'registrationRequestModel',
+        'registrationConfirmModel',
+        'registrationRequestResultModel',
+        'secondFactorRequestModel',
+        'requestSecondFactor',
+        'requestRegistration',
+        'confirmRegistration',
+        'removeRegistration',
+        'isRegistered',
         'validate'
     ];
 

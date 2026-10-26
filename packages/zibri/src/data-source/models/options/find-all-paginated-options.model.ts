@@ -7,5 +7,5 @@ import { OmitStrict } from '../../../types/omit-strict.type';
  * Options for finding entities in paginated form.
  */
 export type FindAllPaginatedOptions<T extends BaseEntity, S extends EntitySelection<T> | undefined = undefined> = OmitStrict<
-    FindAllOptions<T, S>, 'skip' | 'take'
+    FindAllOptions<T, S>, 'offset' | 'limit'
 >;

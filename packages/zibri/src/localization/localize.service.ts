@@ -245,7 +245,7 @@ export class LocalizeService implements LocalizeServiceInterface, OnAppInit {
      */
     private textOrderOf(locale: LocaleCode): string {
         const collator: Intl.Collator = new Intl.Collator(locale, TEXT_COLLATOR_OPTIONS);
-        return [...TEXT_ORDER_PROBE].sort((a, b) => collator.compare(a, b)).join(' ');
+        return [...TEXT_ORDER_PROBE].sort((a, b) => collator.compare(a, b)).join('\0');
     }
 
     /**

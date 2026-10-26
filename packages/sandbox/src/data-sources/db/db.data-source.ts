@@ -1,4 +1,4 @@
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { entities } from './entities';
 import { repositories } from './repositories';
@@ -13,6 +13,9 @@ export class DbDataSource extends PostgresDataSource {
     // property takes the old column and its contents with it. Switch to 'migrations' before
     // this application holds data anyone would miss. See the data source docs.
     schemaManagement: SchemaManagement = 'synchronize';
+    // the database is reached directly. Behind a pooler in transaction mode, such as PgBouncer,
+    // declare it together with where the server itself is. See the data source docs.
+    readonly pooler: PostgresPooler = 'none';
 
     options: OmitStrict<PostgresOptions, 'type' | 'entities'> = {
         host: requireEnv('DB_HOST'),

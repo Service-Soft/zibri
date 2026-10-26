@@ -5,14 +5,14 @@ import { InitialCronConfig } from '../cron/cron-job.model';
 import { Inject } from '../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { BaseEntity } from '../entity/base-entity.model';
-import { PollingCronJob } from '../polling/polling-cron-job.model';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { QueuePollCronJob } from '../queue/queue-poll.cron-job';
 import { Newable } from '../types/newable.type';
 
 /**
  * Cron Job for sending out queued emails.
  */
-export class SendQueuedEmailsCronJob extends PollingCronJob {
+export class SendQueuedEmailsCronJob extends QueuePollCronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {
         name: 'send queued emails',
@@ -34,11 +34,7 @@ export class SendQueuedEmailsCronJob extends PollingCronJob {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async poll(): Promise<boolean> {
-        let sentAny: boolean = false;
-        while (await this.emailService.sendQueuedEmails()) {
-            sentAny = true;
-        }
-        return sentAny;
+    protected async runPass(): Promise<boolean> {
+        return await this.emailService.sendQueuedEmails();
     }
 }

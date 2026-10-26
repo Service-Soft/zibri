@@ -4,18 +4,15 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { StoredStringPropertyMetadata, StringFormat } from '../../entity/models/string-property-metadata.model';
+import { ValidationProblemCode } from '../../error-handling/validation-problem-code.enum';
 import { $ts } from '../../localization/translate.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { StringParamMetadata } from '../../routing/models/string-param-metadata.model';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { RegexUtilities } from '../../utilities/regex.utilities';
-import { ValidationProblemCode } from '../validation-problem-code.enum';
+import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
-/**
- * Regex that matches a uuid.
- */
-export const UUID_REGEX: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
 const EMAIL_REGEX: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // E.164: a plus, a country code that does not start with 0, and at most 15 digits in all
 const PHONE_REGEX: RegExp = /^\+[1-9]\d{6,14}$/;
@@ -76,25 +73,31 @@ export function stringValueProblems(
         return [{ key: fullKey, code: ValidationProblemCode.REGEX, message: $ts`needs to match regex "${meta.regex}"` }];
     }
     if (meta.enum && !ObjectUtilities.values(meta.enum).includes(property)) {
-        return [{
-            key: fullKey,
-            code: ValidationProblemCode.ENUM,
-            message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"`
-        }];
+        return [
+            {
+                key: fullKey,
+                code: ValidationProblemCode.ENUM,
+                message: $ts`needs to match one of "${ObjectUtilities.values(meta.enum)}"`
+            }
+        ];
     }
     if (meta.minLength && meta.minLength > property.length) {
-        return [{
-            key: fullKey,
-            code: ValidationProblemCode.MIN_LENGTH,
-            message: $ts`needs to be at least ${meta.minLength} characters long`
-        }];
+        return [
+            {
+                key: fullKey,
+                code: ValidationProblemCode.MIN_LENGTH,
+                message: $ts`needs to be at least ${meta.minLength} characters long`
+            }
+        ];
     }
     if (meta.maxLength && property.length > meta.maxLength) {
-        return [{
-            key: fullKey,
-            code: ValidationProblemCode.MAX_LENGTH,
-            message: $ts`needs to be at most ${meta.maxLength} characters long`
-        }];
+        return [
+            {
+                key: fullKey,
+                code: ValidationProblemCode.MAX_LENGTH,
+                message: $ts`needs to be at most ${meta.maxLength} characters long`
+            }
+        ];
     }
     return [];
 }
@@ -103,7 +106,7 @@ export function stringValueProblems(
 function isFormatValid(format: StringFormat, value: string): boolean {
     switch (format) {
         case 'uuid': {
-            return UUID_REGEX.test(value);
+            return UUIDUtilities.STRICT_SHAPE.test(value);
         }
         case 'email': {
             return EMAIL_REGEX.test(value);

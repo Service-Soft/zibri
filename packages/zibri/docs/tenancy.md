@@ -1,5 +1,5 @@
 # Tenants
-A tenant is one customer of your application, such as a team, with its own rows. Every row your
+A [tenant](./glossary.md#tenant) is one customer of your application, such as a team, with its own rows. Every row your
 application stores belongs to one tenant, or is shared by all of them. Each read and each write is
 narrowed to the tenant the work is done for, whatever the code around it forgets to filter, so a
 tenant's rows stay out of every other tenant's reach.
@@ -8,15 +8,17 @@ tenant's rows stay out of every other tenant's reach.
 | Export | Kind | Purpose |
 |---|---|---|
 | `EntityTenant` | type | What `@Entity({ tenant })` takes: `'shared'`, or the property holding the tenant id of each row |
-| `BaseTenantEntity` | class | The base of an entity whose rows each belong to a tenant: `BaseEntity` with the uuid `tenantId` |
+| `BaseTenantEntity` | function | The base of an entity whose rows each belong to a tenant: `BaseEntity`, or the `SoftDeleteEntity` or `ChangeSetEntity` it is given, with the uuid `tenantId` |
 | `TenantServiceInterface` | interface | `runAs` to do work as a tenant, `getActiveTenantId` to ask which tenant is active, `resolveTenant` to read the tenant of a request, `resolveTenantUrl` to put a tenant into a link |
 | `TenantService` | class | Default implementation, reading the tenant of a request from its `x-tenant-id` header or query parameter |
 | `ZIBRI_DI_TOKENS.TENANT_SERVICE` | DI token | Override to replace the implementation |
 | `NoActiveTenantError` | error | Thrown when a tenant's rows are reached while no tenant is active |
-| `BaseMembershipEntity`, `BaseMembership` | function, type | A user belonging to a tenant: `tenantId`, `userId`, the `roles` they hold there and when it was deactivated |
-| `CurrentMembership` | type | The membership a request acts through, as a handler or a scope is handed it: without its roles |
+| `BaseMembershipEntity`, `BaseMembership` | function, type | A user belonging to a tenant: `tenantId`, `userId`, the `roles` they hold there and when it was deactivated. Extends `BaseEntity`, or the `SoftDeleteEntity` or `ChangeSetEntity` it is given |
+| `CurrentMembership` | type | The [membership](./glossary.md#membership) a request acts through, as a handler or a scope is handed it: without its roles |
 | `BaseMembershipRepository` | function | The base class the repository of your membership entity extends |
+| `MembershipRepositoryClass` | type | What `BaseMembershipRepository` returns: a repository class with the methods of `MembershipRepositoryInterface` |
 | `MembershipRepositoryInterface` | interface | What the membership repository answers: `findMembership`, `findMemberships`, `resolveMembership`, `updateDeactivatedAt`, `deleteMembership`, `deleteMemberships` |
+| `isMembershipRepository` | function | Checks whether a value carries the mark of the membership repository |
 | `MEMBERSHIP_ENTITY`, `MEMBERSHIP_REPOSITORY` | constant | Mark an entity and a repository as the ones of memberships. `BaseMembershipEntity` and `BaseMembershipRepository` set them |
 | `MembershipServiceInterface` | interface | Finds the memberships of a user, and follows every change to them |
 | `ChangedMembership` | type | A user and a tenant whose membership was written |
@@ -24,15 +26,16 @@ tenant's rows stay out of every other tenant's reach.
 | `ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE` | DI token | Override to replace the implementation |
 
 ## Declaring the tenant of an entity
-Every entity holds the tenant of each row in its uuid property `tenantId`. `BaseTenantEntity`
-declares it:
+Every entity holds the tenant of each row in its uuid property `tenantId`. `BaseTenantEntity()`
+declares it, and `BaseTenantEntity(SoftDeleteEntity)` or `BaseTenantEntity(ChangeSetEntity)` for an
+entity that [soft deletes](./glossary.md#soft-delete) or records its [change sets](./glossary.md#change-set):
 
 ```ts
 // src/models/project.model.ts
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Project extends BaseTenantEntity {
+export class Project extends BaseTenantEntity() {
     @Property.string()
     name!: string;
 
@@ -41,7 +44,7 @@ export class Project extends BaseTenantEntity {
 }
 
 @Entity()
-export class Task extends BaseTenantEntity {
+export class Task extends BaseTenantEntity() {
     @Property.string()
     title!: string;
 
@@ -120,7 +123,7 @@ import { Project } from '../models/project.model';
 export async function nameProjects(tenantId: string): Promise<string[]> {
     const tenants: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
     const projects: Repository<Project> = inject(repositoryTokenFor(Project));
-    return await tenants.runAs(tenantId, async () => (await projects.findAll({ take: 'all' })).map(p => p.name));
+    return await tenants.runAs(tenantId, async () => (await projects.findAll({ limit: 'all' })).map(p => p.name));
 }
 ```
 
@@ -235,7 +238,7 @@ export class MembershipRepository extends BaseMembershipRepository<Membership>()
 A membership repository is required in an application with users, and an application has one.
 `BaseMembershipRepository` implements `MembershipRepositoryInterface`, which the framework reads and
 writes memberships through. Override one of its methods to do that differently. A membership
-entity that soft deletes passes the repository it extends, such as
+entity that [soft deletes](./glossary.md#soft-delete) passes the repository it extends, such as
 `BaseMembershipRepository<Membership>(SoftDeleteRepository)`.
 
 A change to a membership reaches the [websocket connections](./websocket.md#tenants) of its user,
@@ -248,7 +251,7 @@ Deleting a user deletes their memberships in every tenant, in the same transacti
 is deleted. A soft deleted user keeps them.
 
 A membership whose `deactivatedAt` is set counts as none: every request of the user for that tenant
-answers `403`, and `findMembership` and `findMemberships` of the `MembershipService` leave it out.
+answers `403`, and `findActiveMembership` and `findActiveMemberships` of the `MembershipService` leave it out.
 It keeps its roles, so setting `deactivatedAt` back to `null` returns the user to the tenant as they
 were.
 
@@ -267,7 +270,7 @@ A platform role never makes a user a member of a tenant. Work across tenants is 
 A [scope](./data-source.md#what-a-scope-is-told) gets the `tenantId` and the `currentMembership` of
 the request next to the `currentUser`, whose `permissions` are those of that membership, and asks for
 one with `hasPermission`. `AuthService.getCurrentMembership` answers the membership a request acts
-through, without its roles: the `CurrentMembership`. `findMembership` of the `MembershipService`
+through, without its roles: the `CurrentMembership`. `findActiveMembership` of the `MembershipService`
 answers it with its roles.
 
 ## Serving one tenant
@@ -351,7 +354,7 @@ row of settings per tenant:
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity({ uniques: [['tenantId']] })
-export class TenantSettings extends BaseTenantEntity {
+export class TenantSettings extends BaseTenantEntity() {
     @Property.string()
     locale!: string;
 }
@@ -427,3 +430,4 @@ use `acrossTenants` to do work for all of them.
 - [Authentication & authorization](./auth.md) — users, and the logins their requests carry
 - [API keys](./api-keys.md) — keys bound to one tenant
 - [FAQ](./faq.md#why-does-every-entity-have-a-tenant) — why every entity has a tenant
+- [Glossary](./glossary.md) — what tenant, membership and scope mean

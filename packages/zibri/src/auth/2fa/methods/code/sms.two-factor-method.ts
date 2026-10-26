@@ -2,7 +2,7 @@ import { CodeTwoFactorMethod } from './code.two-factor-method';
 import { SmsCodeBudgetRateLimiter } from './sms-code-budget.rate-limiter';
 import { type SmsCodeLimits } from './sms-code-limits.model';
 import { SmsCodeNumberRateLimiter } from './sms-code-number.rate-limiter';
-import { SmsRegisterData } from './sms-register-data.model';
+import { SmsRegistrationRequestData } from './sms-registration-request-data.model';
 import { ZibriApplication } from '../../../../application/application';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
 import { NoProviderError } from '../../../../di/errors/no-provider.error';
@@ -23,20 +23,20 @@ import { UserAccount } from '../../../models/user-account.model';
 /**
  * A code sent as a text message to a phone number of the user as the second factor.
  *
- * The user enrolls with the number and confirms it with the first code. The `2fa/start` route of
- * `AuthController` asks for a code with `startSecondFactor`, and the user sends it back in the
+ * The user enrolls with the number and confirms it with the first code. The `2fa/request` route of
+ * `AuthController` asks for a code with `requestSecondFactor`, and the user sends it back in the
  * `x-authorization-sms-code` header of the guarded request. Text messages can be redirected to another device, so an
  * authenticator app or a passkey protects better where the users have one.
  *
  * Needs a sender registered under `ZIBRI_DI_TOKENS.SMS_SERVICE`, see `SmsServiceInterface`, and what its
  * text messages may cost under `ZIBRI_DI_TOKENS.SMS_CODE_LIMITS`, see `SmsCodeLimits`.
  */
-export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
+export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegistrationRequestData> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected readonly channel: string = 'sms';
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly requestRegisterModel: Newable<SmsRegisterData> = SmsRegisterData;
+    readonly registrationRequestModel: Newable<SmsRegistrationRequestData> = SmsRegistrationRequestData;
 
     override init(app: ZibriApplication): void {
         super.init(app);
@@ -47,17 +47,17 @@ export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
         inject(ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE).addLimiter(inject(SmsCodeNumberRateLimiter));
     }
 
-    override async requestRegisterForUser<UserType extends UserAccount>(
+    override async requestRegistration<UserType extends UserAccount>(
         user: UserType,
-        data: SmsRegisterData
+        data: SmsRegistrationRequestData
     ): Promise<void> {
         // checked here as well as where it is a request body, since enrolling is also called from code
         const metadata: JsonBodyMetadata | XmlBodyMetadata = resolveStructuredBodyMetadata(
-            { type: MimeType.JSON, modelClass: SmsRegisterData },
+            { type: MimeType.JSON, modelClass: SmsRegistrationRequestData },
             0
         );
         await inject(ZIBRI_DI_TOKENS.VALIDATION_SERVICE).validateBody(data, metadata);
-        await super.requestRegisterForUser(user, data);
+        await super.requestRegistration(user, data);
     }
 
     protected override async claimDelivery(destination: string | undefined): Promise<void> {
@@ -98,7 +98,7 @@ export class SmsTwoFactorMethod extends CodeTwoFactorMethod<SmsRegisterData> {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected resolveDestination(data: SmsRegisterData): string {
+    protected resolveDestination(data: SmsRegistrationRequestData): string {
         return data.phoneNumber;
     }
 

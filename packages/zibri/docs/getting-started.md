@@ -73,10 +73,10 @@ uses. Install the package of a feature you use:
 | `BcryptHashStrategy` | `bcryptjs` |
 | A `regex` on a string property or parameter, see [models](./models.md) | `re2` |
 | The otp two factor method, which ships as the default | `otpauth` |
-| `JwtAuthStrategy`, which ships as the default auth strategy | `jose` |
-| Sign-in through a provider, see [sign-in through a provider](./sign-in-through-a-provider.md) | `openid-client` |
-| Sign-in through a SAML provider, see [SAML](./sign-in-through-a-provider.md#saml) | `@node-saml/node-saml` |
-| Sign-in through a directory, see [sign-in through a directory](./sign-in-through-a-directory.md) | `ldapts` |
+| `JwtAuthStrategy`, which ships as the default [auth strategy](./glossary.md#auth-strategy) | `jose` |
+| Login through a provider, see [login through a provider](./login-through-a-provider.md) | `openid-client` |
+| Login through a SAML provider, see [SAML](./login-through-a-provider.md#saml) | `@node-saml/node-saml` |
+| Login through a directory, see [login through a directory](./login-through-a-directory.md) | `ldapts` |
 | Client certificates, see [client certificates](./client-certificates.md) | `@peculiar/x509` |
 | Passkeys, see [passkeys](./passkeys.md) | `@simplewebauthn/server`, and `jose` when the devices are [restricted](./passkeys.md#restricting-the-devices) |
 | Websocket controllers | `socket.io`, and `socket.io-parser`, which `socket.io` brings with it |
@@ -115,11 +115,11 @@ and answer four questions:
 |---|---|
 | The name of the project | Any npm package name |
 | Whether it gets a continuous integration workflow | `github` or `none` |
-| What a route without `@Auth` requires, see [what an undecorated route requires](./auth.md#what-an-undecorated-route-requires) | `requireLogin`: a forgotten decorator answers `401`. `public`: a forgotten decorator serves anyone |
+| What a route without `@Auth` requires, see [what an undecorated route requires](./auth.md#what-an-undecorated-route-requires) | `isLoggedIn`: a forgotten decorator answers `401`. `public`: a forgotten decorator serves anyone |
 | The features it has, see [choosing the features](./project-layout.md#choosing-the-features) | Any of `pages`, `mailingList`, `metricsDashboard` and `logEmail`. None is a JSON API |
 
 All four can be given on the command line instead, as
-`zi new <name> <github|none> <requireLogin|public> <features|none>`, with the features comma separated.
+`zi new <name> <github|none> <isLoggedIn|public> <features|none>`, with the features comma separated.
 
 With `github`, the project gets `.github/workflows/ci.yml`, which installs, builds and tests it on
 every pull request and every push to `main`. A checkout has no `.env`, so the workflow copies
@@ -128,18 +128,22 @@ every pull request and every push to `main`. A checkout has no `.env`, so the wo
 ## Configuring the project
 
 A generated project reads everything that differs between one machine and the next from the
-environment: the port it listens on, the database it connects to, the secrets it signs tokens and
-encrypts columns with, and the first administrator it creates.
+environment: where it runs, the port it listens on, the database it connects to, the secrets it signs
+tokens and encrypts columns with, the mail server, and the first administrator it creates.
 
 Two files describe that:
 
 - **`.env.example`** is the checked in list of every variable the project reads, with the secrets
-  left blank. It tells a deployment, or the next person to clone the repository, what has to be set.
+  and `ENVIRONMENT` left blank. It tells a deployment, or the next person to clone the repository,
+  what has to be set.
 - **`.env`** holds the values, and is git ignored. `zi new` writes one with a freshly generated
-  secret for each blank, so a new project runs as it stands.
+  secret for each blank and `ENVIRONMENT=development`, so a new project runs as it stands. In
+  development, every mail is logged instead of sent, see
+  [saying where the application runs](./architecture.md#saying-where-the-application-runs). In
+  production, the project starts once `SMTP_HOST` and `SMTP_PORT` name a mail server.
 
-`src/env.ts` reads them. `requireEnv` is for a variable the project needs, and `optionalEnv` for one
-it runs without, like the mail server it has not chosen yet.
+`src/env.ts` reads them. `requireEnv` is for a variable the project needs, `requireOneOfEnv` for one
+that holds one of a few values, and `optionalEnv` for one it runs without.
 
 A deployment that sets its variables directly needs no `.env` at all: the file is loaded when it is
 there and skipped when it is not.
@@ -147,6 +151,10 @@ there and skipped when it is not.
 ## Starting the application
 Go into the new project and run `npm start`. [The generated project](./project-layout.md) goes
 through every file `zi new` wrote, and how to add or remove a feature later.
+
+The first start records the routes of the project's version in the `versions` folder. Commit it: each
+release is checked against what the ones before it recorded, see
+[checking a new version against the earlier ones](./versioning.md#checking-a-new-version-against-the-earlier-ones).
 
 ## Upgrading a project
 Run `zi upgrade` in your project with the cli of the release you upgrade to:

@@ -16,6 +16,44 @@ CODE_STYLE: `getX` hands over what is there, `resolveX` does work. `InvoiceNumbe
 ### Q4. Three polling buses where one notification system would do — MAJOR (architecture; this is item 1 of `after-all-findings-fixed.md`)
 The framework now has three independent "every instance polls a table to hear what another instance did" mechanisms: `CacheInvalidation` rows (`cache.service.ts:163-196`), `Event` rows (`event.service.ts:668-700`) and the cron sync (`cron.service.ts:240-261`), plus the thread-job and mail polls that are queues rather than buses. The cache invalidation is a pub/sub without durability, the event system is a durable pub/sub, and the cron sync is a pub/sub with one topic — the first and third are special cases of the second, and `RoleService` already invalidates through the cache bus (`auth/roles/role.service.ts`) because the event bus has no framework-emitted events: nothing in `auth/` or `tenancy/` calls `emit` (grep), so a user deletion, a membership revocation or a role change tells nobody, and an application wanting to react to one has no hook. The architectural move the user's list anticipates is: the framework declares its own `ZibriEventMap` entries (`userDeleted`, `membershipRevoked`, `cronJobChanged`, `cacheTagsInvalidated`), the cache and cron syncs become subscribers, and F10's notification channel is built once under the event service. That is the single change that removes two polls, gives applications the lifecycle hooks, and makes F9's metrics one set rather than three.
 
+> **Closed 2026-10-26 (user's design: keep the buses apart; framework events opt-in, named by the
+> application, default off).** The notification channel is §F10's `WakeUpService`, already shared by
+> all three, each polled by a `PollingCronJob` that backs off. The merge into the event service was
+> not made, on merit. An event runs once per subscriber across the deployment, the claim deciding
+> which replica runs it. A cache invalidation has to reach every instance, since each clears its own
+> local caches. The cron sync re-reads the stored jobs, which are the state rather than a message
+> about it. Carrying either on the event service needs a subscriber per instance: an event row and a
+> run row per instance for every invalidation, where today it is one row, and every event unfinished
+> while an instance is down, until its registration lapses.
+>
+> The framework does not need lifecycle events of its own: the websocket and the role cache follow
+> writes through 09 §Q1's observers (09 §Q6). Applications get them as an opt-in:
+> - `ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES` (`FrameworkEventNames`, default `{}`) maps `userDeleted`,
+>   `userDeactivated`, `userReactivated`, `membershipStarted`, `membershipEnded` and `rolesChanged`
+>   to event types of the application's own `ZibriEventMap`;
+> - `EventTypeFor<Data>` lets only a type whose declared payload the data fits compile
+>   (`UserEventData`, `MembershipEventData`, `RolesChangedEventData`).
+>
+> Each is emitted after commit by a write observer its domain registers in `onAppInit` only when it
+> is named: `UserEventWriteObserver`, `MembershipEventWriteObserver`, `RoleEventWriteObserver`.
+> Unnamed, nothing is registered, read or written. A user's change and a shared role's are emitted
+> outside every tenant (`AlsUtilities.runOutsideTenant`), and a membership's and a tenant role's in
+> that tenant. A membership start or end is judged against `findActiveMembership` after commit,
+> since memberships declare no unique. One commented cast, in `FrameworkEventUtilities.emit`, carries
+> `EventTypeFor`'s guarantee into `emit`'s signature over the open map. The events are at most once:
+> an instance stopping between commit and emit loses one, which `events.md` says.
+>
+> Tests, red first: `event/event.service.framework-events.test.ts` (5 red, then green), covering:
+> - user deleted outside every tenant;
+> - deactivated and reactivated once each, and nothing for a repeat;
+> - a membership started, ended, started and ended in its tenant, and nothing for a roles change;
+> - an `updateAll` moving memberships between users;
+> - a shared role and a tenant's role, each in their tenant;
+> - a type case with `@ts-expect-error` for a payload that does not fit and a type no map declares.
+>
+> The default staying free is pinned by `write-observing.repository-driver.test.ts`'s cost cases,
+> which run with nothing named.
+
 ### Q5. Published JSDoc that is wrong or misplaced — MINOR
 `ThreadJobEntity`'s class JSDoc reads "Contains information about an invoice." (`thread-job-entity.model.ts:23-25`); `http-client.ts:707-718` carries the JSDoc for `withTraceContext` ("Passes the trace the caller is in on to the request…") immediately above `resolveMaxResponseSize`, and `withTraceContext` itself at `:780` has none. Typedoc publishes both.
 

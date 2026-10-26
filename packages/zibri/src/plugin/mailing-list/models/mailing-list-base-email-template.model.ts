@@ -27,7 +27,7 @@ export type MailingListTemplateData = {
 /**
  * Properties of a mailing list base email.
  */
-type MailingListBaseEmailTemplateProps = MailingListTemplateData & {
+export type MailingListBaseEmailTemplateProps = MailingListTemplateData & {
     /**
      * The title of the email.
      */

@@ -21,7 +21,7 @@ export class FailedRateLimitReservationResult {
      * RateLimitReservationRejectionReason.QUEUE_TOO_LONG.
      */
     @Property.number({ required: false, min: 0 })
-    estimatedWaitMs?: number;
+    estimatedWaitInMs?: number;
 }
 
 /**

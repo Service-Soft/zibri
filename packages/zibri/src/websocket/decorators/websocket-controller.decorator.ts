@@ -25,7 +25,7 @@ export type WebsocketControllerData = {
     /**
      * How long the handlers of this controller's events have to produce a result.
      *
-     * Overrides the application's `handlerInMs` for every event on it, and an event overrides this
+     * Overrides the application's `handlerTimeoutInMs` for every event on it, and an event overrides this
      * with its own `timeoutInMs`.
      */
     timeoutInMs: HandlerTimeout | undefined

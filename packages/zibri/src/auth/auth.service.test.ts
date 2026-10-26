@@ -42,7 +42,7 @@ import { CookieAuthStrategy } from './strategies/cookie/cookie-auth.auth-strateg
 import { JwtAuthData } from './strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
 
-// a provider, for the types of linking an identity only: nothing here signs in through it
+// a provider, for the types of linking an identity only: nothing here logs in through it
 class TypedAuthenticator extends BaseGoogleAuthenticator<string, JwtUser> {
     readonly clientId: string = 'client';
 
@@ -787,21 +787,21 @@ describe('AuthService contract', () => {
                     { code: 'code' },
                     undefined
                 ),
-                async () => await authService.linkIdentity(
+                async () => await authService.linkTicketIdentity(
                     TypedAuthenticator,
-                    // @ts-expect-error the ticket is the proof of who signed in, a user id alone is not
+                    // @ts-expect-error the ticket is the proof of who logged in, a user id alone is not
                     testUser.id,
                     testUser.id,
                     undefined
                 ),
-                async () => await authService.startConnection(
+                async () => await authService.requestLinkIdentity(
                     // @ts-expect-error a password is no identity somewhere else that could be linked
                     PasswordAuthenticator<Roles>,
-                    { redirectTo: 'https://app.example.com/account', signIn: true }
+                    { redirectTo: 'https://app.example.com/account', forLogin: true }
                 ),
-                async () => await authService.startConnection(
+                async () => await authService.requestLinkIdentity(
                     TypedAuthenticator,
-                    // @ts-expect-error whether the identity signs in has two right answers, so it is always said
+                    // @ts-expect-error whether the identity logs in has two right answers, so it is always said
                     { redirectTo: 'https://app.example.com/account', scopes: ['calendar.read'] }
                 ),
                 async () => {

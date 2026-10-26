@@ -38,7 +38,7 @@ export interface MultithreadingServiceInterface {
      * through `input`.
      * @param func - The function that should be run in a separate thread.
      * @param input - The input value of the function.
-     * @param timeout - A custom timeout for the task. Defaults to 5 minutes or an hour, depending on the priority.
+     * @param timeoutInMs - A custom timeout for the task. Defaults to 5 minutes or an hour, depending on the priority.
      * @param priority - Whether or not the function should make use of priority workers or not. Defaults to **true**.
      * @returns The result value of the function passed.
      * @throws When either the function itself throws an error or something didn't work during parsing/evaluation.
@@ -46,7 +46,7 @@ export interface MultithreadingServiceInterface {
     run: <InputType, ResultType>(
         func: ThreadJobFunction<InputType, ResultType>,
         input: InputType,
-        timeout?: number,
+        timeoutInMs?: number,
         priority?: boolean
     ) => Promise<ResultType> | ResultType,
     /**

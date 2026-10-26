@@ -9,7 +9,7 @@ import { createLogToEmail, EmailLoggerTransportConfig, EmailLoggerTransportConfi
 /**
  * Properties for a log email template.
  */
-type LogEmailTemplateProps = {
+export type LogEmailTemplateProps = {
     /**
      * The entries this email is reporting, oldest first.
      *

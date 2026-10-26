@@ -32,11 +32,11 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { Ms } from '../../utilities/ms';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -114,7 +114,7 @@ class EvaluationContextController {
 
     @Get('/optional-user')
     optionalUser(
-        @CurrentUser(false)
+        @CurrentUser({ required: false })
         user: CurrentUser<JwtUser> | undefined
     ): { id: string | undefined } {
         return { id: user?.id };
@@ -122,7 +122,7 @@ class EvaluationContextController {
 
     @Get('/cookie-user')
     cookieUser(
-        @CurrentUser(true, [CookieAuthStrategy])
+        @CurrentUser({ authStrategies: [CookieAuthStrategy] })
         user: CurrentUser<JwtUser>
     ): { id: string } {
         return { id: user.id };
@@ -178,13 +178,13 @@ async function enrollInOtp(): Promise<string> {
     const twoFactorService: TwoFactorServiceInterface = inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE);
     const otpMethod: OtpTwoFactorMethod = inject(OtpTwoFactorMethod);
 
-    await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+    await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
     const [credentials]: OtpCredentials[] = await inject(repositoryTokenFor(OtpCredentials))
         .findAll({ where: { userId: user.id } });
     assert(credentials, 'no otp credential was registered for the user');
     const secret: string = credentials.secret;
 
-    await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+    await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
         token: new TOTP({ secret, period: OTP_PERIOD_IN_SECONDS })
             .generate({ timestamp: Date.now() - (OTP_PERIOD_IN_SECONDS * Ms.SECOND) })
     });
@@ -198,7 +198,7 @@ beforeAll(async () => {
         controllers: [EvaluationContextController, EvaluationAuthController],
         // two of them, because a route naming one is the only way to observe that the name is read.
         // The caller below logs in with a bearer token and is then a caller the cookie strategy has
-        // never heard of, which is exactly the case `@CurrentUser(true, [CookieAuthStrategy])` exists
+        // never heard of, which is exactly the case `@CurrentUser({ authStrategies: [CookieAuthStrategy] })` exists
         // to refuse.
         authStrategies: [JwtAuthStrategy, CookieAuthStrategy],
         twoFactorMethods: [OtpTwoFactorMethod],

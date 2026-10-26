@@ -1,5 +1,5 @@
 /**
- * Who a fake SAML identity provider signs in.
+ * Who a fake SAML identity provider logs in.
  */
 export type FakeSamlIdentity = {
     /**
@@ -15,7 +15,7 @@ export type FakeSamlIdentity = {
      */
     attributes: Record<string, string | string[]>,
     /**
-     * How the user signed in, as the AuthnContextClassRef of the assertion says. A password over a
+     * How the user logged in, as the AuthnContextClassRef of the assertion says. A password over a
      * protected connection, when undefined.
      */
     authnContextClassRef?: string

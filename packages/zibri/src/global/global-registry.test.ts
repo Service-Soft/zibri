@@ -184,10 +184,11 @@ describe('GlobalRegistry', () => {
     });
 
     describe('app data', () => {
-        it('setAppData stores name, version and baseUrl', () => {
+        it('setAppData stores name, version, baseUrl and environment', () => {
             const options: ZibriApplicationOptions = {
                 name: 'my-app',
                 version: '1.2.3',
+                environment: 'production',
                 baseUrl: 'http://localhost:3000',
                 controllers: [],
                 websocketControllers: [],
@@ -200,6 +201,7 @@ describe('GlobalRegistry', () => {
             expect(GlobalRegistry.getAppData('name')).toBe('my-app');
             expect(GlobalRegistry.getAppData('version')).toBe('1.2.3');
             expect(GlobalRegistry.getAppData('baseUrl')).toBe('http://localhost:3000');
+            expect(GlobalRegistry.getAppData('environment')).toBe('production');
         });
     });
 });

@@ -1,8 +1,7 @@
 import { Event } from './event.model';
-import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
-import { LoggedError } from '../logging/logged-error.model';
+import { QueuedWorkEntity } from '../queue/queued-work-entity.model';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
@@ -17,7 +16,7 @@ export enum EventSubscriberRunStatus {
     /**
      * The last attempt failed and another one is owed.
      *
-     * `nextRetryAt` says when. Until then the subscriber is passed over, which is the whole reason
+     * `nextAttemptAt` says when. Until then the subscriber is passed over, which is the whole reason
      * the failure is a state rather than a deletion: something has to remember that this is a retry
      * and how many have already been spent.
      */
@@ -38,13 +37,14 @@ export enum EventSubscriberRunStatus {
 /**
  * The ledger of one subscriber's attempts at one event.
  *
- * One row per pair, written the first time the hook runs and updated on every attempt after that.
- * It used to be a record that the run had happened at all - created once, its existence the whole
- * answer - which meant a hook that threw was indistinguishable from one that returned, and the
- * event it belonged to was declared finished on the strength of it.
+ * One row per pair, written the first time the hook runs and updated on every attempt after that:
+ * `attempts` counts the runs of the hook, successful one included, `error` holds what the last one
+ * failed with, and `nextAttemptAt` when the next one is due while the status is `PENDING_RETRY`.
  */
+// a hook that threw was once indistinguishable from one that returned, the row's existence being the
+// whole answer, and the event it belonged to was declared finished on the strength of it
 @Entity({ allowOrphan: true, uniques: [['eventId', 'subscriberId']] })
-export class EventSubscriberRun<T> extends BaseEntity {
+export class EventSubscriberRun<T> extends QueuedWorkEntity {
     /**
      * The tenant of the event this run belongs to, or null for an event of no tenant.
      */
@@ -75,32 +75,6 @@ export class EventSubscriberRun<T> extends BaseEntity {
      */
     @Property.string({ enum: EventSubscriberRunStatus })
     status!: EventSubscriberRunStatus;
-    /**
-     * How many times the hook has been run for this event, successful attempt included.
-     *
-     * Counted on the row rather than in the process that runs it, because the attempts are spread
-     * across polls and restarts and no one process sees all of them.
-     */
-    @Property.number({ format: 'integer' })
-    attempts!: number;
-    /**
-     * What the last attempt failed with, if it did.
-     *
-     * Cleared by a later attempt that succeeds, so it always describes the ending the status names.
-     *
-     * A `LoggedError` rather than the `Error` itself, the way `LogContext` stores one. An `Error`'s
-     * message and stack are not enumerable, so the column it goes into keeps `{}` of it - which is
-     * a row that says a failure happened and nothing about what it was.
-     */
-    @Property.object({ cls: () => LoggedError, required: false })
-    error?: LoggedError | null;
-    /**
-     * When the next attempt becomes due, while the status is `PENDING_RETRY`.
-     *
-     * Null on both terminal states: nothing is owed, so there is nothing to be due.
-     */
-    @Property.date({ required: false })
-    nextRetryAt?: Date | null;
     /**
      * When the last attempt ended, successfully or not.
      *

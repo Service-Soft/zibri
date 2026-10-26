@@ -19,6 +19,7 @@ import { Cached } from '../../caching/decorators/cached.decorator';
 import { AlsUtilities } from '../../context/als.utilities';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
 import { type BaseRepositoryOptions } from '../../data-source/models/options/base-repository-options.model';
+import { KeysetPage } from '../../data-source/models/pagination-result.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
@@ -36,7 +37,6 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
-import { KeysetPage } from '../../open-api/pagination-result.model';
 import { type DeepPartial } from '../../types/deep-partial.type';
 import { type Newable } from '../../types/newable.type';
 import { type OmitStrict } from '../../types/omit-strict.type';
@@ -579,18 +579,18 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findRetiredKeyIds(): Promise<string[]> {
-        const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], limit: 'all' });
         return keys.filter(k => this.isRetired(k)).map(k => k.id);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveRetiredKeyUsage(): Promise<RetiredKeyUsage> {
         await this.loadStrategies();
-        const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], take: 'all' });
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ relations: ['strategy'], limit: 'all' });
         const retiredKeys: EncryptionKey[] = keys.filter(k => this.isRetired(k));
         const values: Map<string, number> = new Map(retiredKeys.map(k => [k.id, 0]));
         const failures: EncryptionRotationFailure[] = retiredKeys.length
-            ? await this.rotationFailureRepository.findAll({ take: 'all' })
+            ? await this.rotationFailureRepository.findAll({ limit: 'all' })
             : [];
         // the stored values are only worth reading when there is a retired key to find among them
         if (values.size) {
@@ -635,7 +635,7 @@ export class EncryptionService implements EncryptionServiceInterface, OnAppInit 
             strategyName: this.options.currentMasterStrategy.name,
             strategyVersion: this.options.currentMasterStrategy.version
         };
-        const keys: EncryptionKey[] = await this.keyRepository.findAll({ take: 'all' });
+        const keys: EncryptionKey[] = await this.keyRepository.findAll({ limit: 'all' });
         const references: MasterKeyReference[] = [current, ...keys.map(k => this.toMasterKeyReference(k.value))];
         return {
             currentMasterKey: current,

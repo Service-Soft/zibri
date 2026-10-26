@@ -236,3 +236,5 @@ cooldown
 UNLISTEN
 Cooldown
 PTTL
+Misdeclared
+plpgsql

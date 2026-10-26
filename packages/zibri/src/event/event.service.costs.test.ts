@@ -4,8 +4,8 @@ import { createInMemoryDataSource, InMemoryDataSource, RoundTripCounter } from '
 import { type EventServiceInterface } from './event-service.interface';
 import { EventSubscriberRegistration } from './event-subscriber-registration.model';
 import { Event, EventCreateData } from './event.model';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';

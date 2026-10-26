@@ -12,14 +12,7 @@ import { File } from '../../parsing/form-data/file.model';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { BigNumber } from '../../utilities/number.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
-import {
-    IsRequiredValidationProblem,
-    RelationsNotAllowedValidationProblem,
-    TypeMismatchValidationProblem,
-    UnknownKeyValidationProblem,
-    UnknownShapeValidationProblem,
-    ValidationProblem
-} from '../validation-problem.model';
+import { IsRequiredValidationProblem, RelationsNotAllowedValidationProblem, TypeMismatchValidationProblem, UnknownKeyValidationProblem, UnknownShapeValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**
  * The problems of a value as the given shape, judged by the value alone.

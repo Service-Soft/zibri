@@ -7,7 +7,7 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
  * with `403` for any request that changes something.
  *
  * For a route another site sends the browser to with a form on purpose, like an identity provider
- * answering a sign-in. Only that route, and only those origins.
+ * answering a login. Only that route, and only those origins.
  * @param options - The origins.
  * @returns The decorator.
  * @throws When the origins are a list that is empty, or holds something that is not an origin.

@@ -6,7 +6,9 @@ A Zibri application is one `ZibriApplication`, built from the options that say w
 |---|---|---|
 | `ZibriApplication` | class | The application: built from its options, then initialized, started and shut down |
 | `ZibriApplicationOptions` | type | What the application is made of |
-| `ZibriPlugin` | class | A set of controllers, providers, cron jobs, body parsers and auth strategies added to an application as one |
+| `FullZibriApplicationOptions` | type | The options of a built application, `app.options`, with every default filled in |
+| `ZibriEnvironment`, `ZIBRI_ENVIRONMENTS` | type, constant | Where the application runs: `'development'` or `'production'`. Required |
+| `ZibriPlugin` | class | A set of controllers, providers, cron jobs, body parsers and [auth strategies](./glossary.md#auth-strategy) added to an application as one |
 | `ZIBRI_DI_TOKENS` | constant | The tokens every service of the framework is provided under |
 | `MiddlewarePhase` | enum | Where a middleware sits in the request pipeline |
 | `HttpRequestContext` | class | Everything known about the request being handled |
@@ -27,6 +29,7 @@ async function start(): Promise<void> {
         name: 'reports',
         baseUrl: 'http://localhost:3000',
         version: '1.0.0',
+        environment: 'development',
         defaultAuth: 'public',
         twoFactorAtLogin: 'never',
         controllers: [ReportController],
@@ -40,6 +43,16 @@ async function start(): Promise<void> {
 ```
 
 A plugin adds its controllers, providers, cron jobs, body parsers and auth strategies to the ones the application names. See [plugins](./plugin.md).
+
+## Saying where the application runs
+`environment` says where the application runs: `'development'` on a developer's machine, `'production'` serving its users. It is required.
+
+| Environment | What changes |
+|---|---|
+| `'development'` | An application that provides no email transport gets one that logs every mail instead of sending it, see [configuring email](./email.md#configuring-email) |
+| `'production'` | An application that provides no email transport does not start |
+
+`zi new` reads it from the `ENVIRONMENT` variable. The `.env` it writes says `development`, and `.env.example` leaves it blank, so a deployment sets it, see [deployment](./deployment.md).
 
 ## The container
 Everything the application uses is a provider in one container: your services, the repository of every entity, and every service of the framework, such as the logger, the router, the parser, the validation service, the auth service, the error handler and the email service.
@@ -102,7 +115,7 @@ A transaction is passed along as an option. A repository used inside a request a
 ## Work outside a request
 Cron jobs, event subscribers, the email queue and thread jobs run outside any request. There is no request context there: `CURRENT_REQUEST_CONTEXT` is `undefined`, and a request scoped provider cannot be built.
 
-Each of them takes a lease before it runs, so a job runs on one instance at a time when several instances share a data source. See [cron](./cron.md), [events](./events.md), [email](./email.md), [multithreading](./multithreading.md) and [replication](./replication.md).
+Each of them takes a [lease](./glossary.md#lease) before it runs, so a job runs on one instance at a time when several instances share a data source. See [cron](./cron.md), [events](./events.md), [email](./email.md), [multithreading](./multithreading.md) and [replication](./replication.md).
 
 ## See also
 - [Getting started](./getting-started.md) — creating a project that is already wired this way

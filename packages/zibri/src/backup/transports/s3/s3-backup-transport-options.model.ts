@@ -46,5 +46,5 @@ export interface S3BackupTransportOptions {
     /**
      * How long a single request to the service may take, in milliseconds. Defaults to five minutes.
      */
-    readonly timeoutMs?: number
+    readonly timeoutInMs?: number
 }

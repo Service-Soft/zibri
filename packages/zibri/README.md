@@ -27,6 +27,8 @@ See the [getting started guide](https://service-soft.github.io/zibri/documents/g
 # 📑 Documentation
 The official documentation of Zibri can be found under [https://service-soft.github.io/zibri](https://service-soft.github.io/zibri)
 
+For an AI assistant, [llms.txt](https://service-soft.github.io/zibri/llms.txt) indexes every page, and [llms-full.txt](https://service-soft.github.io/zibri/llms-full.txt) holds them all.
+
 # 🏆 Goals
 ## 🔋 Batteries included
 Zibri aims to be an ***actual*** batteries included framework. 

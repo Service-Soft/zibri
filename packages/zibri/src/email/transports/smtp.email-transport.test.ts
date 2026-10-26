@@ -57,12 +57,35 @@ function headersOf(message: string | undefined): string[] {
 }
 
 describe('SmtpEmailTransport', () => {
+    // 08 §X25: an unset port read as 0 and an unset host as '', and the transport was built with
+    // both, so the application started and every mail failed when it was sent
+    it.each([
+        ['an empty host', { host: '', port: 587 }, /host/],
+        ['port 0', { host: 'mail.example.com', port: 0 }, /port/],
+        ['a port that is no number', { host: 'mail.example.com', port: Number.NaN }, /port/],
+        ['a port past 65535', { host: 'mail.example.com', port: 70_000 }, /port/]
+    ])('refuses %s when it is built', (_, server, message) => {
+        expect(() => new SmtpEmailTransport({ ...server, auth: { user: '', pass: '' } })).toThrow(message);
+    });
+
     it('writes the one-click unsubscribe headers of RFC 8058 for a mail sent to a list', async () => {
         await transport.send(queuedEmail({ listUnsubscribeUrl: 'https://example.com/unsubscribe?secret=abc' }));
 
         const headers: string[] = headersOf(smtp.messages[0]);
         expect(headers).toContain('List-Unsubscribe: <https://example.com/unsubscribe?secret=abc>');
         expect(headers).toContain('List-Unsubscribe-Post: List-Unsubscribe=One-Click');
+    });
+
+    // 09 §Q5: a send retried after the server took it gave the copy a new Message-ID, so nothing
+    // downstream could tell it was the same mail
+    it('names the message by the mail, the same on every attempt', async () => {
+        const email: Email = queuedEmail({});
+
+        await transport.send(email);
+        await transport.send(email);
+
+        const messageIds: (string | undefined)[] = smtp.messages.map(m => headersOf(m).find(h => h.toLowerCase().startsWith('message-id:')));
+        expect(messageIds).toEqual([`Message-ID: <${email.id}@example.com>`, `Message-ID: <${email.id}@example.com>`]);
     });
 
     it('writes neither for a mail sent to no list', async () => {

@@ -17,7 +17,6 @@ Everything here has a working default, and CORS allows every origin by default. 
 | `ZibriApplicationSecurityOptionsInput` | type | The `security` option as you write it. Each header you name replaces its default |
 | `CorsOptions` | type | Which browser origins may call the API, and what they may send |
 | `CorsOrigin` | type | A single origin, as `https://host` or `http://host` |
-| `corsMiddleware` | function | The middleware itself, for tests and setups of your own. Registered for you |
 | `crossOriginCookieMiddleware` | function | Refuses a request that changes something when a page on an origin `cors` does not allow credentials for sent it with cookies. Registered for you |
 | `AcceptCrossSitePosts` | decorator | Lets pages on the given origins send one route requests with cookies |
 | `AcceptCrossSitePostsOptions`, `AcceptedOrigins` | type | The origins a route accepts, as a list or worked out from its path |
@@ -25,6 +24,7 @@ Everything here has a working default, and CORS allows every origin by default. 
 | `HstsOptions` | type | Configuration for the strict transport security header |
 | `CspOptions` | type | Every directive of a content security policy |
 | `CspOptionsInput` | type | The directives you set, each replacing the default's |
+| `buildCspOptions`, `buildCspHeaders` | function, function | The policy your directives make over `ZIBRI_DI_TOKENS.DEFAULT_CSP_OPTIONS`, and the `Content-Security-Policy` header value of a policy and its nonce |
 | `CspSource` | type | One source a directive allows, such as `'self'` or `https://host` |
 
 ## CORS
@@ -42,7 +42,7 @@ import { CorsOptions } from 'zibri';
 const corsDefault: CorsOptions = { origins: '*' };
 ```
 
-Under that default, a page on another origin can send a request, and the browser attaches no cookies to it. To act as a signed in user, that page needs a token you gave it. This fits a public API, or one called with bearer tokens.
+Under that default, a page on another origin can send a request, and the browser attaches no cookies to it. To act as a logged in user, that page needs a token you gave it. This fits a public API, or one called with bearer tokens.
 
 Change it as soon as either of these is true:
 
@@ -77,7 +77,7 @@ The one exception is a request that changes something and carries cookies. Any m
 
 ### A route other sites post to
 
-Some routes are meant to be posted to by another site's page, like a payment provider sending the user back, or a [sign-in provider answering with a form post](./sign-in-through-a-provider.md#providers-that-answer-with-a-form-post). Name the origins of those pages with `@AcceptCrossSitePosts`, and that route takes their requests with cookies:
+Some routes are meant to be posted to by another site's page, like a payment provider sending the user back, or a [login provider answering with a form post](./login-through-a-provider.md#providers-that-answer-with-a-form-post). Name the origins of those pages with `@AcceptCrossSitePosts`, and that route takes their requests with cookies:
 
 ```ts
 // src/controllers/payment-return.controller.ts
@@ -99,7 +99,7 @@ The decorator goes on a route that changes something, and every version of the r
 
 ### Headers your browser clients may send
 
-The framework's own headers are always allowed, such as `authorization`, `dpop`, the CSRF token, the two-factor codes, the API key, the trace context and the version header, under the names their DI tokens give them. Add your own with `additionalAllowedHeaders`:
+The framework's own headers are always allowed, such as `authorization`, `dpop`, the CSRF token, the two-factor codes, the [API key](./glossary.md#api-key), the trace context and the version header, under the names their DI tokens give them. Add your own with `additionalAllowedHeaders`:
 
 ```ts
 // src/application-options.base.ts

@@ -20,7 +20,7 @@ const ACCOUNT_DISABLED: number = 0x2;
 /**
  * Authenticates a user by the password of their account in Active Directory, or a Samba domain.
  *
- * Users sign in with their account name (`anna`), their user principal name (`anna@example.com`) or
+ * Users log in with their account name (`anna`), their user principal name (`anna@example.com`) or
  * their down-level logon name (`EXAMPLE\anna`). An account is linked to a user by its `objectGUID`,
  * written the way Active Directory shows it.
  */
@@ -84,7 +84,7 @@ export abstract class BaseActiveDirectoryAuthenticator<
     }
 
     /**
-     * Whether an account may go on signing in: not when its `userAccountControl` marks it disabled.
+     * Whether an account may go on logging in: not when its `userAccountControl` marks it disabled.
      * @param entry - The account, with the attributes that were read.
      * @returns Whether it is active.
      */

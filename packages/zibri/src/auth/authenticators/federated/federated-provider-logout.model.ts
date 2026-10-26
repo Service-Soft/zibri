@@ -15,7 +15,7 @@ export type FederatedProviderLogout = {
     session: FederatedSessionMatch,
     /**
      * How the browser tells the provider they ended. Undefined when the provider takes no answer, and
-     * the browser lands on `signedOutUrl`.
+     * the browser lands on `loggedOutUrl`.
      */
     answer: FederatedLogoutAnswer | undefined
 } | {

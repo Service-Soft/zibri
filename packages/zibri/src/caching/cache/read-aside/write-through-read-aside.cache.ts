@@ -44,7 +44,7 @@ export abstract class WriteThroughReadAsideCache<K, V, N extends string, CacheTa
                     cacheCtx.key = key;
                     const [tags, ttl] = await Promise.all([
                         this.resolveResultTags(options?.tags, value, args),
-                        this.resolveResultTtl(options?.ttl, value, args)
+                        this.resolveResultTtl(options?.ttlInMs, value, args)
                     ]);
 
                     const storeStart: number = performance.now();
@@ -72,7 +72,7 @@ export abstract class WriteThroughReadAsideCache<K, V, N extends string, CacheTa
     // eslint-disable-next-line jsdoc/require-jsdoc
     async setDirect(key: K, value: V, options?: CacheSetDirectOptions<CacheTag>): Promise<void> {
         try {
-            const ttl: number | undefined = options?.ttl ?? await this.resolveResultTtl(undefined, value, []);
+            const ttl: number | undefined = options?.ttlInMs ?? await this.resolveResultTtl(undefined, value, []);
             const tags: CacheTag[] = options?.tags ?? [];
             await this.store.set(key, this.createCachedValue(value, tags, ttl));
             this.metrics.writes.increase({ cache: this.name });

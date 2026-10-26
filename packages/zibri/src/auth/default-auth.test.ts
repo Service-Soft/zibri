@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
 import { AuthServiceInterface } from './auth-service.interface';
 import { Auth } from './decorators/auth.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
 import { TestPermissions } from '../__testing__/mocks/entities/test-permissions.model';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -14,7 +15,7 @@ import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 
 /**
- * The `'requireLogin'` half of `defaultAuth`.
+ * The `'isLoggedIn'` half of `defaultAuth`.
  *
  * The `'public'` half is in ./auth.service.test.ts, whose server declares it - including the
  * "Useless @Auth.skip" warning, which is only correct there. Both halves exist because the warning
@@ -44,6 +45,17 @@ class DefaultAuthController {
     @Auth.hasPermission.skip()
     permissionSkipped(): string {
         return 'said nothing about a login';
+    }
+
+    @Get('/optional-user')
+    optionalUser(@CurrentUser({ required: false }) user: CurrentUser | undefined): string {
+        return user == undefined ? 'anonymous' : user.id;
+    }
+
+    @Get('/optional-user-public')
+    @Auth.skip()
+    optionalUserPublic(@CurrentUser({ required: false }) user: CurrentUser | undefined): string {
+        return user == undefined ? 'anonymous' : user.id;
     }
 }
 
@@ -94,7 +106,7 @@ function authService(): AuthServiceInterface {
 beforeAll(async () => {
     server = await startTestServer({
         controllers: [DefaultAuthController, PublicControllerWithOneGuardedRoute, LoginSkippedController],
-        defaultAuth: 'requireLogin'
+        defaultAuth: 'isLoggedIn'
     });
     baseUrl = await server.start();
 }, 60000);
@@ -103,7 +115,7 @@ afterAll(async () => {
     await server.shutdown();
 }, 30000);
 
-describe('defaultAuth: requireLogin', () => {
+describe('defaultAuth: isLoggedIn', () => {
     it('refuses a route that carries no auth decorators', async () => {
         const res: Response = await fetch(`${baseUrl}/default-auth/undecorated`);
 
@@ -133,6 +145,17 @@ describe('defaultAuth: requireLogin', () => {
         // hasPermission.skip, require2fa.skip and isNotLoggedIn.skip say nothing about one, so they
         // must not - a route that skipped a permission check has not thereby become public.
         expect(res.status).toBe(401);
+    });
+
+    // 08 §X22: `@CurrentUser({ required: false })` says what the handler is given, not who may call
+    // it, so under this default an anonymous caller is refused until the route says it is public
+    it('refuses an anonymous caller of a route whose user is optional, until the route skips auth', async () => {
+        const optional: Response = await fetch(`${baseUrl}/default-auth/optional-user`);
+        const skipped: Response = await fetch(`${baseUrl}/default-auth/optional-user-public`);
+
+        expect(optional.status).toBe(401);
+        expect(skipped.status).toBe(200);
+        expect(await skipped.json()).toBe('anonymous');
     });
 
     it('serves every route of a controller that skips auth', async () => {

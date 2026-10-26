@@ -4,7 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 
 /**
- * An entry of a directory, linked to the user it signs in as.
+ * An entry of a directory, linked to the user it logs in as.
  */
 @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['directory', 'entryId']] })
 export class LdapIdentity extends BaseEntity {
@@ -28,7 +28,7 @@ export class LdapIdentity extends BaseEntity {
 
     /**
      * When the entry was found disabled or deleted, and the logins of the user ended. Null while it
-     * is not, and again once someone signs in as it.
+     * is not, and again once someone logs in as it.
      */
     @Property.date({ required: false })
     disabledAt?: Date | null;

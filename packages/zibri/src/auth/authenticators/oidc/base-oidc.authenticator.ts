@@ -16,7 +16,7 @@ import { JsonUtilities } from '../../../utilities/json.utilities';
 import { Ms } from '../../../utilities/ms';
 import { BaseUser } from '../../models/base-user.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
-import { EncodedJwt } from '../../strategies/jwt/encoded-jwt-access-token.model';
+import { EncodedJwt } from '../../strategies/jwt/encoded-jwt.model';
 import { isJwtConfirmation, JwtConfirmation } from '../../strategies/jwt/jwt-confirmation.model';
 import { JwtRemoteKeySet } from '../../strategies/jwt/jwt-remote-key-set.type';
 import { JwtUtilities } from '../../strategies/jwt/jwt.utilities';
@@ -29,12 +29,12 @@ import { FederatedReauthentication } from '../federated/federated-reauthenticati
 import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import { FederatedSessionMatch } from '../federated/federated-session-match.model';
 import { FederatedSession } from '../federated/federated-session.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginError } from '../federated/federated-login.error';
 import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator';
 import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model';
 import { OAuthOfflineAccess } from '../oauth/oauth-offline-access.model';
-import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model';
+import { OAuthProviderLogin } from '../oauth/oauth-provider-login.model';
 import { OpenIdClient } from '../oauth/open-id-client.type';
 import { ProviderTokenAuthenticatorInterface } from '../provider-token-authenticator.interface';
 import { ProviderToken } from '../provider-token.model';
@@ -50,11 +50,11 @@ const BACK_CHANNEL_LOGOUT_EVENT: string = 'http://schemas.openid.net/event/backc
 const LOGOUT_TOKEN_MAX_AGE_IN_MS: number = Ms.MINUTE * 10;
 
 /**
- * Authenticates a user by a sign-in at an OpenID Connect provider, which proves who signed in with a
+ * Authenticates a user by a login at an OpenID Connect provider, which proves who logged in with a
  * signed ID token.
  *
  * Extend it once for every provider, naming the provider and the client registered there. The
- * sign-in itself runs through the routes of `AuthController`.
+ * login itself runs through the routes of `AuthController`.
  */
 export abstract class BaseOidcAuthenticator<
     RoleType extends string,
@@ -67,8 +67,8 @@ export abstract class BaseOidcAuthenticator<
     abstract override readonly issuer: string;
 
     /**
-     * How the provider says when the user signed in there. `auth_time` for one that answers `max_age`
-     * with the `auth_time` claim, `none` for one that does not say, whose sign-ins never count as a
+     * How the provider says when the user logged in there. `auth_time` for one that answers `max_age`
+     * with the `auth_time` claim, `none` for one that does not say, whose logins never count as a
      * recent login.
      */
     abstract readonly authenticationTime: OidcAuthenticationTime;
@@ -77,14 +77,14 @@ export abstract class BaseOidcAuthenticator<
     readonly scopes: string[] = ['openid', 'email', 'profile'];
 
     /**
-     * The claim an identity at the provider is known by, in the ID token of a sign-in and in a token a
+     * The claim an identity at the provider is known by, in the ID token of a login and in a token a
      * request sends. `sub` by default. `oid` for a provider whose `sub` differs from one client to
      * another, such as Microsoft Entra ID.
      */
     readonly subjectClaim: string = 'sub';
 
     /**
-     * The classes of authentication a sign-in asks the provider for, as `acr_values`, such as one that
+     * The classes of authentication a login asks the provider for, as `acr_values`, such as one that
      * stands for a second factor. None by default.
      */
     readonly acrValues: string[] = [];
@@ -143,7 +143,7 @@ export abstract class BaseOidcAuthenticator<
 
     /**
      * Verifies a token of the provider a request sends as its credential, against the keys the provider
-     * publishes, as `bearerTokens` says, and finds the user its identity is linked to for signing in.
+     * publishes, as `bearerTokens` says, and finds the user its identity is linked to for logging in.
      * @param token - The token.
      * @returns What it says, or undefined when it does not verify, is not taken, or names an identity
      * linked to nobody.
@@ -176,10 +176,10 @@ export abstract class BaseOidcAuthenticator<
         ) {
             return undefined;
         }
-        // the issuer identities are stored with is the one the ID token of the sign-in named, which is
+        // the issuer identities are stored with is the one the ID token of the login named, which is
         // the one the token was verified against
         const identity: FederatedIdentity | undefined = await this.identityRepository.findOne({
-            where: { issuer: metadata.issuer, subject, signIn: true },
+            where: { issuer: metadata.issuer, subject, forLogin: true },
             required: false
         });
         if (identity == undefined) {
@@ -322,7 +322,7 @@ export abstract class BaseOidcAuthenticator<
     protected override getAuthorizationParameters(exchange: Pick<OAuthCodeExchange, 'nonce' | 'maxAgeInSeconds'>): Record<string, string> {
         return {
             nonce: exchange.nonce,
-            // what makes a provider say when the user signed in: a provider that silently reused its
+            // what makes a provider say when the user logged in: a provider that silently reused its
             // session has not produced a fresh login, and the login time is what a route accepting a
             // recent login in place of a second factor reads. Not sent to a provider that does not
             // answer it, which may refuse a parameter it does not know
@@ -353,14 +353,14 @@ export abstract class BaseOidcAuthenticator<
      * audience, expiry, nonce and login time.
      * @param answer - Everything the provider sent the browser back with.
      * @param exchange - What the answer is checked and exchanged with.
-     * @returns Who the ID token says signed in and when, and the tokens. Or that the user signed in at
-     * the provider longer ago than allowed, which starts the sign-in again asking for a fresh one.
-     * @throws FederatedSignInError when the provider cannot be reached or the token cannot be verified.
+     * @returns Who the ID token says logged in and when, and the tokens. Or that the user logged in at
+     * the provider longer ago than allowed, which starts the login again asking for a fresh one.
+     * @throws FederatedLoginError when the provider cannot be reached or the token cannot be verified.
      */
-    protected override async resolveSignIn(
+    protected override async resolveLogin(
         answer: URLSearchParams,
         exchange: OAuthCodeExchange
-    ): Promise<OAuthProviderSignIn | FederatedReauthentication> {
+    ): Promise<OAuthProviderLogin | FederatedReauthentication> {
         const tokens: TokenEndpointResponse & TokenEndpointResponseHelpers = await this.exchangeCode(answer, exchange, {
             expectedNonce: exchange.nonce,
             idTokenExpected: true
@@ -369,7 +369,7 @@ export abstract class BaseOidcAuthenticator<
         const subject: string | undefined = claims == undefined ? undefined : this.findStringClaim(claims, this.subjectClaim);
         // a token without the claim the identity is known by names nobody
         if (claims == undefined || subject == undefined || !this.isSignedWithAllowedAlgorithm(tokens.id_token)) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: exchange.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: exchange.action });
         }
         const authenticatedAt: Date | FederatedReauthentication = this.resolveAuthenticatedAt(claims, exchange);
         if ('reauthenticate' in authenticatedAt) {
@@ -409,27 +409,27 @@ export abstract class BaseOidcAuthenticator<
     }
 
     /**
-     * Reads when the user signed in at the provider off the ID token, as `authenticationTime` says the
+     * Reads when the user logged in at the provider off the ID token, as `authenticationTime` says the
      * provider reports it.
      * @param claims - The verified claims of the ID token.
      * @param exchange - What the answer is checked with.
-     * @returns The time. Or that it is longer ago than allowed, which starts the sign-in again.
-     * @throws FederatedSignInError when the provider should have said and did not.
+     * @returns The time. Or that it is longer ago than allowed, which starts the login again.
+     * @throws FederatedLoginError when the provider should have said and did not.
      */
     private resolveAuthenticatedAt(claims: IDToken, exchange: OAuthCodeExchange): Date | FederatedReauthentication {
         if (this.authenticationTime === 'none') {
             // the provider does not say, and may have reused its own session without asking the user.
-            // So the sign-in never counts as a recent login, rather than passing a provider session as
+            // So the login never counts as a recent login, rather than passing a provider session as
             // a fresh login to a route that would take one for a second factor
             return new Date(0);
         }
         // the provider was asked with max_age, so a token without the claim is not what it promised
         if (typeof claims.auth_time !== 'number') {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: exchange.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: exchange.action });
         }
         const authenticatedAt: Date = new Date(claims.auth_time * Ms.SECOND);
         // judged here rather than by the library's own max_age check, which refuses: a provider that
-        // ignored max_age is asked for a fresh sign-in with the prompt instead, so the user signs in
+        // ignored max_age is asked for a fresh login with the prompt instead, so the user logs in
         // once more and lands where they wanted
         if (Date.now() - authenticatedAt.getTime() > exchange.maxAgeInSeconds * Ms.SECOND) {
             return { reauthenticate: true };

@@ -1,10 +1,11 @@
 import { Readable } from 'node:stream';
 
-import { EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsSelect, FindOptionsWhere, InsertResult, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
+import { DeleteQueryBuilder, DeleteResult, EntityManager, FindManyOptions, FindOptionsOrder, FindOptionsSelect, FindOptionsWhere, InsertResult, QueryFailedError as TOQueryFailedError, QueryRunner, Repository as TORepository, SelectQueryBuilder, DeepPartial as ToDeepPartial, UpdateQueryBuilder, UpdateResult } from 'typeorm';
 import { DriverUtils } from 'typeorm/driver/DriverUtils';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
+import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { OperationLimit } from '../../context/operation-limit.model';
@@ -17,19 +18,18 @@ import { SelectionTree } from '../../entity/models/entity-selection.utilities';
 import { isRelationMetadata } from '../../entity/models/is-relation-metadata.function';
 import { KeyWhere } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
-import { cancelsStatements, StatementCancellingDataSource } from '../data-sources/statement-cancelling-data-source.model';
 import { limitsStatements, OPERATION_LIMIT_DATA_KEY, StatementLimitingDataSource } from '../data-sources/statement-limiting-data-source.model';
 import { type TypeOrmBaseDataSource } from '../data-sources/typeorm-base-data-source.model';
 import { ParameterizedSql } from '../data-sources/where-converter/parameterized-sql.model';
 import { AggregateRow } from '../models/aggregate.model';
 import { DataSourceOptions } from '../models/data-source-options.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
@@ -86,6 +86,16 @@ type PageRows<T> = {
      * The raw rows, one per joined row, each carrying the selections of the driver's own.
      */
     raw: unknown[]
+};
+
+/**
+ * A row a delete statement hands back.
+ */
+type RemovedRow = {
+    /**
+     * The id of the row it removed.
+     */
+    id: string
 };
 
 /**
@@ -207,8 +217,8 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         const findOptions: FindManyOptions<T> = {
             where: this.resolveWhere(options),
             order: this.orderOf(options),
-            skip: options.skip,
-            take: options.take
+            skip: options.offset,
+            take: options.limit
         };
         const rows: T[] = await this.run(async () => await this.onConnection(
             options.transaction,
@@ -550,9 +560,9 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
      * everything joined are the ones among them. Still one statement, which is what keeps the page
      * and its total in one moment.
      *
-     * Offset and limit rather than skip and take: those have the orm page a query that joins
-     * anything through a second statement, and the window here is over a query whose joins reach
-     * one row each.
+     * The query builder's offset and limit rather than the orm's skip and take: those have the orm
+     * page a query that joins anything through a second statement, and the window here is over a
+     * query whose joins reach one row each.
      * @param manager - The manager to query through.
      * @param findOptions - The find options of the read.
      * @param options - The read's options, for its window, its order and the relations it asks for.
@@ -589,11 +599,11 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
      * @returns The query, narrowed.
      */
     private window(query: SelectQueryBuilder<T>, options: DriverFindAndCountOptions<T>): SelectQueryBuilder<T> {
-        if (options.skip != undefined) {
-            query.offset(options.skip);
+        if (options.offset != undefined) {
+            query.offset(options.offset);
         }
-        if (options.take != undefined) {
-            query.limit(options.take);
+        if (options.limit != undefined) {
+            query.limit(options.limit);
         }
         return query;
     }
@@ -644,11 +654,18 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         // answers at all. What the cursor is still doing the work of is deciding *which* rows: it is
         // fixed when the query runs, where paging re-asks the question on every page and lets rows
         // shift across the boundaries.
+        // An order goes into the cursor as well, so it decides once in which order the rows come too:
+        // built the way a read builds it, which joins what the order reaches through and selects a
+        // similarity it sorts by, narrowed to the id
         const alias: string = this.typeOrmRepository.metadata.name;
-        const query: SelectQueryBuilder<T> = this.getManager(options.transaction)
-            .createQueryBuilder(this.entityClass, alias)
-            .setFindOptions({ where: this.resolveWhere(options) })
-            .select(`${alias}.id`);
+        const manager: EntityManager = this.getManager(options.transaction);
+        const query: SelectQueryBuilder<T> = options.order == undefined
+            ? manager.createQueryBuilder(this.entityClass, alias).setFindOptions({ where: this.resolveWhere(options) }).select(`${alias}.id`)
+            : this.selectQuery(
+                manager,
+                { where: this.resolveWhere(options), order: this.orderOf(options) },
+                { ...options, relations: undefined, select: new Map() }
+            );
 
         const stream: Readable = await this.run(async () => await query.stream());
         let ids: T['id'][] = [];
@@ -679,10 +696,11 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
      * @returns The entities, in the order their ids were streamed.
      */
     private async streamBatch(ids: T['id'][], options: DriverStreamOptions<T>): Promise<T[]> {
-        const found: T[] = await this.find({ ...options, where: { id: { oneOf: ids } } as Where<T> });
-        // `oneOf` says which rows, never in which order. A stream is unordered, but it should at
-        // least be *consistently* unordered - a batch coming back shuffled against the ids that
-        // asked for it would be a second, invisible reordering on top of that
+        // without the order, which the cursor decided already
+        const found: T[] = await this.find({ ...options, where: { id: { oneOf: ids } } as Where<T>, order: undefined });
+        // `oneOf` says which rows, never in which order. The ids came in the order of the stream, or
+        // in no particular one, and a batch coming back shuffled against them would be a second,
+        // invisible reordering on top of that
         const byId: Map<T['id'], T> = new Map(found.map(entity => [entity.id, entity]));
         // a row the cursor named and the read did not find was deleted in between, which a stream
         // over a moving table is allowed to miss
@@ -690,20 +708,80 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+    async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         if (!ids.length) {
-            return;
+            return [];
         }
+        // a filter reaching through a relation cannot be part of a delete statement, as it cannot be
+        // part of an update one: the rows it matches are held first, and removed by id
+        if (reach != undefined && !this.filtersOwnColumnsOnly(reach.where)) {
+            return await this.inTransaction(transaction, async own => {
+                const held: Set<string> = new Set((await this.findLockedIds(reach.where, reach.related, own)).map(id => String(id)));
+                const within: string[] = ids.filter(id => held.has(id));
+                if (reach.wholly && within.length < ids.length) {
+                    return [];
+                }
+                return await this.removeInOneStatement(within, undefined, own);
+            });
+        }
+        return await this.removeInOneStatement(ids, reach, transaction);
+    }
 
+    /**
+     * Removes the rows with the given ids that are within a reach on this table's own columns, with
+     * one statement, which judges the reach as it removes.
+     * @param ids - The ids of the rows to remove.
+     * @param reach - What a row has to match to be removed, on this table's own columns, and whether
+     * the rows go wholly.
+     * @param transaction - The transaction to run the statement in.
+     * @returns The ids of the rows it removed.
+     */
+    private async removeInOneStatement(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
+        if (!ids.length) {
+            return [];
+        }
+        const idsWhere: FindOptionsWhere<T> | FindOptionsWhere<T>[] = this.resolveIdsWhere(ids);
+        const resolved: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = reach == undefined
+            ? undefined
+            : this.resolveWhere({ where: reach.where });
+        const narrowing: FindOptionsWhere<T> | FindOptionsWhere<T>[] | undefined = resolved != undefined && !this.matchesEveryRow(resolved)
+            ? resolved
+            : undefined;
         // by id in one statement rather than `remove`, which issues a delete per entity. Relations
         // declaring a cascading remove are emitted as `ON DELETE CASCADE` on the constraint, so what
         // goes with a row is decided by the schema either way.
-        await this.run(async () => await this.onConnection(transaction, async manager => await manager
-            .createQueryBuilder()
-            .delete()
-            .from(this.entityClass)
-            .where(this.resolveIdsWhere(ids))
-            .execute()));
+        const res: DeleteResult = await this.run(async () => await this.onConnection(transaction, async manager => {
+            const builder: DeleteQueryBuilder<T> = manager
+                .createQueryBuilder()
+                .delete()
+                .from(this.entityClass);
+            // wholly in the statement itself: a statement removes what matches as it runs, so a row
+            // gone or out of reach by then would leave the others removed. Counting the rows still
+            // within reach as part of it costs no round trip, where reading and holding them in a
+            // transaction around it costs three. A single row is all or nothing on its own
+            if (reach?.wholly === true && ids.length > 1) {
+                const within: SelectQueryBuilder<T> = manager
+                    .createQueryBuilder()
+                    .subQuery()
+                    .select('COUNT(*)')
+                    .from(this.entityClass, 'within')
+                    .where(idsWhere);
+                if (narrowing != undefined) {
+                    within.andWhere(narrowing);
+                }
+                // its parameters first, so the ones the statement binds below take names after them
+                builder.setParameters(within.getParameters());
+                builder.where(idsWhere).andWhere(`${within.getQuery()} = :withinCount`, { withinCount: ids.length });
+            }
+            else {
+                builder.where(idsWhere);
+            }
+            if (narrowing != undefined) {
+                builder.andWhere(narrowing);
+            }
+            return await builder.returning('id').execute();
+        }));
+        return (res.raw as RemovedRow[]).map(row => String(row.id));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -713,8 +791,8 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             order: this.orderOf(options),
             // the id column alone, which is what keeps a large match from being read to be thrown away
             select: ['id'],
-            skip: options.skip,
-            take: options.take
+            skip: options.offset,
+            take: options.limit
         };
         const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(options.order, this.entityClass);
         const found: T[] = await this.run(async () => await this.onConnection(
@@ -1172,18 +1250,13 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
     }
 
     /**
-     * Runs one operation, on a connection this can stop if the request it belongs to ends first.
+     * Runs one operation, on a connection whose statements have the time the current limit gives.
      *
-     * Outside a request there is nothing that could end, so the operation takes a connection the way
-     * it always has and none of this is in the way. Inside one there has to be a connection to name
-     * when the statement on it has to be stopped: a transaction already holds one and everything it
-     * runs belongs on that one, and a statement standing alone gets one taken out for it - which the
-     * orm does per statement anyway.
-     *
-     * A statement stopped inside a transaction takes the transaction with it, which is what it is
-     * for. The request it belonged to has been answered, so nothing it writes is going to be asked
-     * for; holding its rows until whatever it is queued behind lets go is the cost the deadline
-     * exists to refuse.
+     * Without a limit the operation takes a connection the way it always has and none of this is in
+     * the way. Under one there has to be a connection to set it on: a transaction already holds one
+     * and everything it runs belongs on that one, and a statement standing alone gets one taken out
+     * for it - which the orm does per statement anyway. Stopping a statement whose request ended
+     * first is the data source's, which sees every statement, this one's included.
      * @param transaction - The transaction the operation runs in, if there is one.
      * @param fn - The operation, given the manager to run on.
      * @returns Whatever the operation returned.
@@ -1192,39 +1265,28 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
         transaction: Transaction | undefined,
         fn: (manager: EntityManager) => Promise<R>
     ): Promise<R> {
-        const signal: AbortSignal | undefined = AlsUtilities.findCurrentSignal();
         const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
         const store: TypeOrmBaseDataSource<DataSourceOptions> = this.dataSource;
-        const cancelling: StatementCancellingDataSource | undefined = signal != undefined && cancelsStatements(store) ? store : undefined;
-        const limiting: StatementLimitingDataSource | undefined = limit != undefined && limitsStatements(store) ? store : undefined;
-        if (cancelling == undefined && limiting == undefined) {
+        if (limit == undefined || !limitsStatements(store)) {
             return await fn(this.getManager(transaction));
         }
 
-        const run: (runner: QueryRunner) => Promise<R> = async runner => signal != undefined && cancelling != undefined
-            ? await this.whileCancellable(signal, cancelling, runner, fn)
-            : await fn(runner.manager);
+        const run: (runner: QueryRunner) => Promise<R> = async runner => await fn(runner.manager);
 
         if (transaction) {
             const held: QueryRunner = TypeOrmUtilities.toTypeOrmTransaction(transaction).queryRunner;
             // a transaction begun under this same limit already holds it, for every statement in it
-            const alreadyLimited: boolean = held.data[OPERATION_LIMIT_DATA_KEY] === limit;
-            return limiting == undefined || limit == undefined || alreadyLimited
+            return held.data[OPERATION_LIMIT_DATA_KEY] === limit
                 ? await run(held)
-                : await this.whileLimited(limiting, held, limit, true, run);
+                : await this.whileLimited(store, held, limit, true, run);
         }
 
         const runner: QueryRunner = this.dataSource.createQueryRunner();
         await this.dataSource.connectQueryRunner(runner);
         try {
-            return limiting == undefined || limit == undefined
-                ? await run(runner)
-                : await this.whileLimited(limiting, runner, limit, false, run);
+            return await this.whileLimited(store, runner, limit, false, run);
         }
         finally {
-            // after the cancel has landed rather than before it. Handing the connection back first
-            // would leave a cancel on its way to one the pool has already given to somebody else,
-            // and it would stop their statement instead
             await runner.release();
         }
     }
@@ -1262,40 +1324,6 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
             // transaction refuses every statement until it is rolled back, which takes the limit with
             // it. So putting it back is only allowed to fail where the operation already has
             await (failed ? restore().catch(() => undefined) : restore());
-        }
-    }
-
-    /**
-     * Runs one operation on a named connection, with the request able to stop what is on it.
-     * @param signal - The signal of the request the operation belongs to.
-     * @param store - The data source, which is what knows how to stop a statement.
-     * @param runner - The connection the operation runs on.
-     * @param fn - The operation, given the manager to run on.
-     * @returns Whatever the operation returned.
-     */
-    private async whileCancellable<R>(
-        signal: AbortSignal,
-        store: StatementCancellingDataSource,
-        runner: QueryRunner,
-        fn: (manager: EntityManager) => Promise<R>
-    ): Promise<R> {
-        // kept so that whoever owns the connection waits for the cancel before doing anything else
-        // with it
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        const cancelling: { pending: Promise<void> | undefined } = { pending: undefined };
-        const onAbort: () => void = () => {
-            cancelling.pending = store.cancelStatementOn(runner);
-        };
-        signal.addEventListener('abort', onAbort, { once: true });
-
-        try {
-            return await fn(runner.manager);
-        }
-        finally {
-            signal.removeEventListener('abort', onAbort);
-            // a failed cancel is not this operation's failure to report: the statement it was aimed
-            // at has either stopped or finished, and the caller is being told about whichever
-            await cancelling.pending?.catch(() => undefined);
         }
     }
 
@@ -1344,7 +1372,7 @@ export class TypeOrmRepositoryDriver<T extends BaseEntity> implements Repository
                 // the same for a check, which is declared on the entity as well
                 const check: KeyWhere | undefined = this.dataSource.findViolatedCheck(error as TOQueryFailedError, this.entityClass);
                 if (check != undefined) {
-                    throw new CheckConstraintViolationError(this.entityClass.name, check, { cause: failed });
+                    throw new CheckConstraintViolationError(this.entityClass, check, { cause: failed });
                 }
                 // and a conflict that ended the transaction, which every store holding rows for a
                 // transaction ends the same way

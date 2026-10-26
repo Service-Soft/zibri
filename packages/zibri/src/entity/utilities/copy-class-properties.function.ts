@@ -1,5 +1,5 @@
 import { CheckConstraintViolationError } from '../../data-source/check-constraint-violation.error';
-import { ControllerRouteConfiguration } from '../../routing/controller-route-configuration.model';
+import type { ControllerRouteConfiguration } from '../../routing/controller-route-configuration.model';
 import { Newable } from '../../types/newable.type';
 import { MetadataInjectionKeys } from '../../utilities/metadata-injection-keys.enum';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';

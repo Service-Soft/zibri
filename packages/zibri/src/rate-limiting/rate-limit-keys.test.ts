@@ -27,7 +27,7 @@ class OneCallRateLimiter extends TokenBucketRateLimiter {
             name: 'one-call-rate-limiter',
             capacity: 1,
             store: new InMemoryRateLimiterStore<TokenBucketState>(),
-            maxReservationWaitMs: undefined
+            maxReservationWaitInMs: undefined
         });
     }
 }
@@ -42,7 +42,7 @@ class OneCallSharedRateLimiter extends TokenBucketRateLimiter {
             name: 'one-call-shared-rate-limiter',
             capacity: 1,
             store: new InMemoryRateLimiterStore<TokenBucketState>(),
-            maxReservationWaitMs: undefined
+            maxReservationWaitInMs: undefined
         });
     }
 }

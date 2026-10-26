@@ -7,8 +7,8 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { KeysetPage, PaginationResult } from '../models/pagination-result.model';
 import { Repository } from '../repository/repository';
 
 /**

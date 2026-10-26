@@ -19,7 +19,7 @@ type ExtractWrapOptions<C, TArgs extends unknown[]>
  * Marks the method for caching via the given cache token.
  * @param cacheToken - The token of the cache to use.
  * @param keyFn - How to resolve the key under which results are cached.
- * @param options - Additional options like ttl or tags.
+ * @param options - Additional options like ttlInMs or tags.
  */
 // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
 export function Cached<C extends { wrap: (...args: any[]) => any }, K, V, TArgs extends unknown[]>(

@@ -1,16 +1,17 @@
 import { EmailAttachment } from './email-attachment.model';
 import { EmailPriority } from './email-priority.enum';
 import { EmailStatus } from './email-status.enum';
-import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
+import { QueuedWorkEntity } from '../../queue/queued-work-entity.model';
 
 /**
- * Definition of a Email.
+ * Definition of a Email. Its `attempts` count the sends that threw, such as because its server could
+ * not be reached, and `nextAttemptAt` says when a queued one whose send threw is tried again.
  */
 // indexed as the queue reads it: the queued mails of a priority that are due
-@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' }, indexes: [['status', 'priority', 'retryAt']] })
-export class Email extends BaseEntity {
+@Entity({ allowOrphan: true, defaultOrder: { createdAt: 'ASC' }, indexes: [['status', 'priority', 'nextAttemptAt']] })
+export class Email extends QueuedWorkEntity {
     /**
      * The tenant the mail was queued in, or null for one queued outside every tenant.
      */
@@ -113,16 +114,4 @@ export class Email extends BaseEntity {
      */
     @Property.string({ enum: EmailPriority })
     priority!: EmailPriority;
-
-    /**
-     * How many times sending the email threw, eg. Because its server could not be reached.
-     */
-    @Property.number({ format: 'integer', default: 0 })
-    attempts!: number;
-
-    /**
-     * When a queued email whose send threw is tried again, or undefined for one that is due now.
-     */
-    @Property.date({ required: false })
-    retryAt?: Date | null;
 }

@@ -35,7 +35,7 @@ class SlowNightlyCronJob extends CronJob {
         cron: CronExpression.daily().at(3, 'hours')
             .build(),
         timezone: 'UTC',
-        catchUpWithinMs: Ms.DAY
+        catchUpWithinInMs: Ms.DAY
     };
 
     /**

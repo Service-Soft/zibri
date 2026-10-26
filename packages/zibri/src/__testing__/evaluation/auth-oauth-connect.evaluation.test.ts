@@ -29,11 +29,11 @@ import { Controller } from '../../routing/decorators/controller.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -80,7 +80,7 @@ class AccountController {
         input: ConnectionInput
     ): Promise<{ url: string }> {
         return {
-            url: (await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).startConnection(ProviderAuthenticator, { redirectTo: input.redirectTo, signIn: true })).url
+            url: (await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(ProviderAuthenticator, { redirectTo: input.redirectTo, forLogin: true })).url
         };
     }
 }
@@ -119,7 +119,7 @@ describe('evaluation/03-auth-and-security H16 - adding an identity provider to a
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: 'https://app.example.com/register',
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -133,7 +133,7 @@ describe('evaluation/03-auth-and-security H16 - adding an identity provider to a
         await provider?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('connects a provider to the account of a user logged in with their password, which then signs them in', async () => {
+    it('connects a provider to the account of a user logged in with their password, which then logs them in', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'connect@example.com', roles: [Roles.USER] });
         await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
             .create({ password: 'secure123', userId: user.id });
@@ -161,13 +161,13 @@ describe('evaluation/03-auth-and-security H16 - adding an identity provider to a
         const callback: string = await browser.follow(atProvider);
         expect(await browser.follow(callback)).toBe(CONNECTED_URL);
 
-        // a sign-in through the provider in another browser now logs in as that user, though the
+        // a login through the provider in another browser now logs in as that user, though the
         // provider reports another email
         const elsewhere: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
-        const signedIn: string = await elsewhere.follow(await elsewhere.follow(await elsewhere.follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'company', redirectTo: 'https://app.example.com/home' }).toString()}`
+        const loggedIn: string = await elsewhere.follow(await elsewhere.follow(await elsewhere.follow(
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'company', redirectTo: 'https://app.example.com/home' }).toString()}`
         )));
-        expect(signedIn).toBe('https://app.example.com/home');
+        expect(loggedIn).toBe('https://app.example.com/home');
         const sessions: CookieAuthRefreshSession[] = await inject(repositoryTokenFor(CookieAuthRefreshSession))
             .findAll({ where: { userId: user.id } });
         expect(sessions).toHaveLength(2);

@@ -4,7 +4,7 @@ import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 
 /**
- * An identity at a provider, linked to a user: to sign in as them, to call the provider's apis for
+ * An identity at a provider, linked to a user: to log in as them, to call the provider's apis for
  * them, or both.
  */
 @Entity({ tenant: 'shared', allowOrphan: true, uniques: [['issuer', 'subject']] })
@@ -29,11 +29,11 @@ export class FederatedIdentity extends BaseEntity {
     userId!: string;
 
     /**
-     * Whether a sign-in through the provider logs in as the user. False for an identity connected only
-     * for access to the provider's apis.
+     * Whether a login through the provider logs in as the user. False for an identity linked only for
+     * access to the provider's apis.
      */
     @Property.boolean()
-    signIn!: boolean;
+    forLogin!: boolean;
 
     /**
      * The scopes the provider granted the tokens that are kept for the identity, for calling its apis.

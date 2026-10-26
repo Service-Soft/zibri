@@ -7,11 +7,13 @@ The public API is what you can import from a package's entry points:
 | Package | Entry points |
 |---|---|
 | `zibri` | `zibri`, `zibri/webpack`, `zibri/tsconfig.application.json` |
-| `zibri-testing` | `zibri-testing`, `zibri-testing/jest-preset` |
+| `zibri-testing` | `zibri-testing`, `zibri-testing/jest-config`, `zibri-testing/jest-preset` |
 | `zibri-tsx` | `zibri-tsx`, `zibri-tsx/compiler`, `zibri-tsx/webpack`, `zibri-tsx/jest`, `zibri-tsx/email`, `zibri-tsx/jsx-runtime` |
 | `zibri-cli` | the `zi` commands and their arguments |
 
 Files inside a package can only be reached through these entry points.
+
+`zibri/internal` holds what the other Zibri packages use from `zibri`. Any release can change it.
 
 ## What a version number tells you
 | Release | Contains |

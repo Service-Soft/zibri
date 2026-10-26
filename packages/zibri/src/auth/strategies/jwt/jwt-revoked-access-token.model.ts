@@ -15,6 +15,12 @@ export class JwtRevokedAccessToken extends BaseEntity {
     tokenId!: string;
 
     /**
+     * The id of the user the token was issued for, its `sub`.
+     */
+    @Property.string({ format: 'uuid' })
+    userId!: string;
+
+    /**
      * When the token expires, after which it is refused anyway.
      */
     @Property.date()

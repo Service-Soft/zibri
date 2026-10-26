@@ -3,9 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { Auth } from '../../auth/decorators/auth.decorator';
@@ -90,10 +90,10 @@ describe('a websocket message', () => {
                 ...defaultTestServerProviders,
                 defineProvider({
                     token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
-                    useValue: { messageRetentionInMs: Ms.DAY, timeoutInMs: 5000, handlerInMs: 5000, isAllowedToConnect: () => true }
+                    useValue: { messageRetentionInMs: Ms.DAY, timeoutInMs: 5000, handlerTimeoutInMs: 5000, isAllowedToConnect: () => true }
                 })
             ],
-            defaultAuth: 'requireLogin'
+            defaultAuth: 'isLoggedIn'
         });
         baseUrl = await server.start();
         // eslint-disable-next-line typescript/no-unsafe-assignment

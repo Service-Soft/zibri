@@ -29,16 +29,16 @@ export interface PaymentServiceInterface<
         data: PaymentDataForMethod<Methods, M, P>
     ) => ValidatedPaymentDataForMethod<Methods, M, P> | Promise<ValidatedPaymentDataForMethod<Methods, M, P>>,
     /**
-     * Starts a payment with the given method and data.
+     * Requests a payment with the given method and data, which `confirmPayment` finishes.
      */
-    startPayment: <M extends Methods[number]>(
+    requestPayment: <M extends Methods[number]>(
         method: M,
         data: ValidatedPaymentDataForMethod<Methods, M, P>
     ) => PaymentForMethod<Methods, M, P> | Promise<PaymentForMethod<Methods, M, P>>,
     /**
-     * Starts a payment reservation.
+     * Requests a payment reservation, which `confirmPaymentReservation` finishes.
      */
-    startPaymentReservation: <M extends AllowedReservationMethods<Methods, P>>(
+    requestPaymentReservation: <M extends AllowedReservationMethods<Methods, P>>(
         method: M,
         data: ValidatedPaymentDataForMethod<Methods, M, P>
     ) => PaymentReservationForMethod<Methods, M, P> | Promise<PaymentReservationForMethod<Methods, M, P>>,

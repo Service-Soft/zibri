@@ -18,7 +18,7 @@ export type FixedWindowState = BaseRateLimitState & {
     /**
      * Timestamp (ms) at which the current window started.
      */
-    readonly windowStartMs: number,
+    readonly windowStartedAtMs: number,
     /**
      * Slots held by pending reservations.
      */
@@ -35,7 +35,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         config: RateLimiterConfigInput<FixedWindowState>
     ) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
@@ -46,7 +46,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
     protected initialAlgoState(now: number): FixedWindowState {
         return {
             count: 0,
-            windowStartMs: now,
+            windowStartedAtMs: now,
             reservedCount: 0,
             reservations: [],
             expiresAtMs: now + this.intervalInMs
@@ -71,7 +71,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
         now: number
     ): number {
         // Determine the current window start.
-        const windowStart: number = state.windowStartMs;
+        const windowStart: number = state.windowStartedAtMs;
         const elapsed: number = now - windowStart;
         const windowExpired: boolean = elapsed >= this.intervalInMs;
         const currentCount: number = windowExpired ? 0 : state.count;
@@ -116,7 +116,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
             }
 
             const now: number = Date.now();
-            const windowStart: number = current.windowStartMs;
+            const windowStart: number = current.windowStartedAtMs;
             const elapsed: number = now - windowStart;
             const windowExpired: boolean = elapsed >= this.intervalInMs;
             const currentCount: number = windowExpired ? 0 : current.count;
@@ -125,7 +125,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
             return {
                 ...current,
                 count: currentCount + r.count,
-                windowStartMs: windowExpired ? now : windowStart,
+                windowStartedAtMs: windowExpired ? now : windowStart,
                 reservedCount: current.reservedCount - r.count,
                 reservations: current.reservations.filter((_, i) => i !== index)
             };
@@ -170,7 +170,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
                 key,
                 (current) => {
                     current ??= this.initialAlgoState(now);
-                    const windowStart: number = current.windowStartMs;
+                    const windowStart: number = current.windowStartedAtMs;
                     const elapsed: number = now - windowStart;
                     const windowExpired: boolean = elapsed >= this.intervalInMs;
                     const currentCount: number = windowExpired ? 0 : current.count;
@@ -191,7 +191,7 @@ export class FixedWindowRateLimiter extends BaseRateLimiter<FixedWindowState> {
                     return {
                         ...current,
                         count: countAfterOp,
-                        windowStartMs: windowStartAfterOp,
+                        windowStartedAtMs: windowStartAfterOp,
                         // reservedCount unchanged
                         expiresAtMs: Math.max(current.expiresAtMs, now + this.intervalInMs)
                     };

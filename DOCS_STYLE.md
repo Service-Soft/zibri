@@ -41,9 +41,9 @@ this file takes a reader.
 **They know TypeScript, Node, HTTP and SQL. They do not know Zibri, and they may not know the
 domain.** Passkeys, OIDC, SAML, SCIM, leases and envelope encryption are new to many readers.
 Explain such a term in one plain sentence where the page introduces it, and link it to the
-glossary.
+[glossary](./packages/zibri/docs/glossary.md).
 
-**They come with a task.** They want to sign users in, send a mail, run a job every night. Pages
+**They come with a task.** They want to log users in, send a mail, run a job every night. Pages
 and sections are named and ordered by those tasks, not by how the code is organized.
 
 # The voice
@@ -164,7 +164,7 @@ No scenario openers ("At some point you will probably stumble across…"), no "T
 ```md
 | Export | Kind | Purpose |
 |---|---|---|
-| `PasskeyAuthenticator` | class | Signs users in with a passkey, and links passkeys to them |
+| `PasskeyAuthenticator` | class | Logs users in with a passkey, and links passkeys to them |
 | `PasskeyOptions` | type | Where passkeys are used, via `ZIBRI_DI_TOKENS.PASSKEY_OPTIONS`. Required |
 | `PasskeyCleanupCronJob` | cron job | Deletes the challenges and tickets that expired. Registered for you |
 ```
@@ -189,7 +189,7 @@ page:
 
 ## Sections
 
-**Headings name the task, as a gerund, in sentence case**: "Signing in", "Adding a passkey to an
+**Headings name the task, as a gerund, in sentence case**: "Logging in", "Adding a passkey to an
 account", "Restricting the devices". They are `##` directly under the page, with no "Usage"
 section around them.
 
@@ -274,7 +274,7 @@ What another block of the page declares is imported from the file that block nam
 file of the reader's.
 
 **The first line names the file**: `// src/providers.ts`. Browser code says so:
-`// src/sign-in.ts, in the browser`.
+`// src/login.ts, in the browser`.
 
 **A comment in an example marks what the reader changes** (`// your own domain`). It never explains
 why and never offers an alternative. Say that in the sentence before or after the block.
@@ -287,7 +287,7 @@ running example, a task tracker for teams:
 | Name | What it is |
 |---|---|
 | Tenant | A team. Its rows are its projects, tasks and comments |
-| `User` | Someone who signs in. Ada, `ada@example.com` |
+| `User` | Someone who logs in. Ada, `ada@example.com` |
 | `Project` | Holds the tasks of a team |
 | `Task` | Belongs to a project, assigned to a user |
 | `Comment` | Written by a user on a task |
@@ -303,7 +303,7 @@ third and link to it.
 **Split a page by reader task.** When a section is something a reader does on a different day
 (relations, transactions, migrations), it is a page of its own. There is no line limit.
 
-**Related pages share a folder**, such as `docs/auth/` for the sign-in pages.
+**Related pages share a folder**, such as `docs/auth/` for the login pages.
 
 **Anything worth documenting is documented in the same change**, or written down as a TODO.
 

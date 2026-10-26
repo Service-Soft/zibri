@@ -130,7 +130,7 @@ export class CronJobEntity extends BaseEntity {
      * stops being a service and becomes a surprise, which is where the limit comes from.
      */
     @Property.number({ required: false })
-    catchUpWithinMs?: number | null;
+    catchUpWithinInMs?: number | null;
 
     /**
      * The error message that this cron job failed with.

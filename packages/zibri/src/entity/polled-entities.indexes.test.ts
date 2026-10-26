@@ -16,7 +16,7 @@ import { MetadataUtilities } from '../utilities/metadata.utilities';
  */
 const polled: [Newable<BaseEntity>, string[]][] = [
     [ThreadJobEntity, ['status', 'priority', 'queuedAtMs']],
-    [Email, ['status', 'priority', 'retryAt']],
+    [Email, ['status', 'priority', 'nextAttemptAt']],
     [Event, ['status', 'nextDispatchAt']],
     [CacheInvalidation, ['at']]
 ];

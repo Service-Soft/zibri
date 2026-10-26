@@ -1,5 +1,6 @@
 import { BACKUP_FORMAT_VERSION } from './backup-format';
 import { BackupResourceEntity, BackupResourceEntityCreateData } from './backup-resource-entity.model';
+import { BackupStatus } from './backup-status.enum';
 import { MasterKeyReference } from '../auth/encryption/master-key-reference.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
@@ -9,7 +10,7 @@ import { Property } from '../entity/decorators/property.decorator';
 import { LocalizeServiceInterface } from '../localization/localize-service.interface';
 import { LocaleCode } from '../localization/models/locale-code.model';
 import { OmitStrict } from '../types/omit-strict.type';
-import { type SemVerVersion } from '../versioning/sem-ver.utilities';
+import { type SemVerVersion } from '../utilities/sem-ver.utilities';
 import { zibriVersion } from '../versioning/zibri-version.function';
 
 /**
@@ -66,6 +67,13 @@ export class BackupEntity extends BaseEntity {
      */
     @Property.array({ items: { type: 'string' } })
     dataKeyIds!: string[];
+    /**
+     * Where the backup stands: its resources being stored, every one stored, or one given up on.
+     */
+    // COMPLETED by default for the records the transports hold, which are written once a backup is
+    // complete, including those written before backups had a status
+    @Property.string({ enum: BackupStatus, default: BackupStatus.COMPLETED })
+    status!: BackupStatus;
     /**
      * The resources that have been backed up.
      */

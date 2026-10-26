@@ -33,7 +33,7 @@ export class CircuitBreaker {
     /**
      * Lets a request to the origin through, or refuses it while the origin's circuit is open.
      *
-     * Once the circuit has been open for `openForMs`, exactly one request is let through, and the
+     * Once the circuit has been open for `openForInMs`, exactly one request is let through, and the
      * others are refused until its outcome is recorded.
      * @param origin - The origin the request goes to.
      * @returns When the next request is let through, or undefined when this one is.
@@ -69,7 +69,7 @@ export class CircuitBreaker {
         const circuit: Circuit = this.circuits.get(origin) ?? { failures: 0, trialInFlight: false };
         circuit.failures++;
         if (circuit.trialInFlight || circuit.failures >= this.options.failuresToOpen) {
-            circuit.openUntil = Date.now() + this.options.openForMs;
+            circuit.openUntil = Date.now() + this.options.openForInMs;
         }
         circuit.trialInFlight = false;
         this.circuits.set(origin, circuit);

@@ -57,7 +57,7 @@ const TEST_SERVER_ROLES: InjectionToken<TestServerRole[]> = new InjectionToken('
 class TestServerRoleSeeder implements AfterAppInit {
     async afterAppInit(): Promise<void> {
         const repository: DefaultTestServerRoleRepository = inject(DefaultTestServerRoleRepository);
-        const existing: Set<string> = new Set((await repository.findAll({ take: 'all' })).map(role => role.name));
+        const existing: Set<string> = new Set((await repository.findAll({ limit: 'all' })).map(role => role.name));
         const missing: TestServerRole[] = inject(TEST_SERVER_ROLES).filter(role => !existing.has(role.name));
         if (missing.length) {
             await repository.createAll(missing);

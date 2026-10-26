@@ -63,6 +63,21 @@ class CancelController {
             throw new Error('the write did not go through');
         }
     }
+
+    @Get('/hand-built-read', { timeoutInMs: 300 })
+    async handBuiltRead(): Promise<{ ok: boolean }> {
+        const startedAt: number = Date.now();
+        try {
+            // a statement the repository did not write, which takes a known, long time on its own
+            await inject(dataSourceClass).query(JwtUser).select('pg_sleep(3)', 'slept').limit(1).getRawOne();
+            statement = { tookMs: Date.now() - startedAt, ended: true };
+            return { ok: true };
+        }
+        catch {
+            statement = { tookMs: Date.now() - startedAt, ended: true };
+            throw new Error('the read did not go through');
+        }
+    }
 }
 
 const dataSourceClass: ReturnType<typeof createTestDataSource> = createTestDataSource();
@@ -126,4 +141,43 @@ describe('a statement whose request runs out of time', () => {
             await holder.rollback();
         }
     }, 60000);
+});
+
+// 01 §D18: a query built by hand ran on a connection the request's deadline knew nothing about, so it
+// went on after the caller had been answered
+describe('a query built by hand', () => {
+
+    it('is stopped where it runs when its request runs out of time', async () => {
+        statement = undefined;
+
+        const res: Response = await fetch(`${baseUrl}/cancel/hand-built-read`);
+        expect(res.status).toBe(HttpStatus.GATEWAY_TIMEOUT);
+
+        // well inside the three seconds the statement sleeps, so a statement that has ended by now
+        // ended because it was stopped
+        await new Promise<void>(resolve => {
+            setTimeout(resolve, 1500).unref();
+        });
+
+        const recorded: StatementRecord | undefined = readStatement();
+        if (!recorded) {
+            throw new Error('the handler recorded nothing, so its statement never came back');
+        }
+        expect(recorded.tookMs).toBeLessThan(3000);
+    }, 60000);
+
+    it('runs in the transaction it is given, and sees what the transaction wrote', async () => {
+        const users: Repository<JwtUser> = inject(repositoryTokenFor(JwtUser));
+        const transaction: Transaction = await inject(dataSourceClass).startTransaction();
+        try {
+            const created: JwtUser = await users.create({ email: 'uncommitted@example.com', roles: [] }, { transaction });
+
+            const found: JwtUser | null = await inject(dataSourceClass).query(JwtUser, { transaction }).select().where({ id: created.id }).getOne();
+
+            expect(found?.email).toBe('uncommitted@example.com');
+        }
+        finally {
+            await transaction.rollback();
+        }
+    });
 });

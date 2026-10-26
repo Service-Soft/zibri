@@ -15,12 +15,12 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
+import { TestTimeouts } from '../constants';
 import { JwtTestAuthController } from '../mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { TestPlatformPermissions } from '../mocks/entities/test-permissions.model';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

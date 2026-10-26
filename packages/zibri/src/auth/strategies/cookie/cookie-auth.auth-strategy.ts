@@ -42,6 +42,7 @@ import { EndedLogin } from '../../models/ended-login.model';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
+import { CredentialEntity } from '../credential-entity.model';
 import { CsrfTokenAuthStrategyInterface } from '../csrf-token-auth-strategy.interface';
 
 /**
@@ -108,6 +109,9 @@ export class CookieAuthStrategy<
 >, CsrfTokenAuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'cookie';
+    // the session a request's cookie is checked against, rather than the refresh session beside it
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialEntities: CredentialEntity[] = [{ entityClass: CookieAuthSession, endedBy: 'remove' }];
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly authDataModel: Newable<CookieAuthData<RoleType>> = CookieAuthData;
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -187,6 +191,12 @@ export class CookieAuthStrategy<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.sessionRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        await this.refreshSessionRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         // first, since the cleanup job below needs them as well
         validateEntitiesRegistered(CookieAuthStrategy.name, app, CookieAuthSession, CookieAuthRefreshSession);
@@ -221,7 +231,8 @@ export class CookieAuthStrategy<
             return undefined;
         }
 
-        return await this.userService.findById<RoleType, UserType>(sessions.session.userId);
+        // not required: the cookies of a user who is gone are no login, as for every other strategy
+        return await this.userService.findById<RoleType, UserType, false>(sessions.session.userId, { required: false });
     }
 
     /**
@@ -396,7 +407,11 @@ export class CookieAuthStrategy<
         if (!this.isCsrfTokenValid(presented.token, context)) {
             throw new UnauthorizedError($ts`No valid csrf token`);
         }
-        const user: UserType = await this.resolveRefreshUser(currentRefreshSession.userId, data.transaction);
+        const user: UserType | undefined = await this.findRefreshUser(currentRefreshSession.userId, data.transaction);
+        if (user == undefined) {
+            this.clearCookies();
+            throw new UnauthorizedError($ts`No valid refresh session`);
+        }
 
         const currentSession: CookieAuthSession | undefined = await this.resolveSession(context, data.transaction);
         if (currentSession && new Date(currentSession.expirationDate).getTime() > Date.now()) {
@@ -528,16 +543,16 @@ export class CookieAuthStrategy<
     }
 
     /**
-     * Resolves the user a refresh continues the login of, which the authenticators have a say in.
+     * Finds the user a refresh continues the login of, which the authenticators have a say in.
      * @param userId - The user of the refresh session.
      * @param transaction - The transaction of the refresh, if any.
-     * @returns The user, as the authenticators answered them.
+     * @returns The user, as the authenticators answered them, or undefined when there is no such user.
      */
-    private async resolveRefreshUser(userId: string, transaction: Transaction | undefined): Promise<UserType> {
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveRefreshUser<RoleType, UserType>(
-            await this.userService.findById<RoleType, UserType>(userId),
-            transaction
-        );
+    private async findRefreshUser(userId: string, transaction: Transaction | undefined): Promise<UserType | undefined> {
+        const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(userId, { required: false });
+        return user == undefined
+            ? undefined
+            : await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveRefreshUser<RoleType, UserType>(user, transaction);
     }
 
     private async resolveSession(
@@ -583,7 +598,9 @@ export class CookieAuthStrategy<
             : new Date(session.expirationDate).getTime() <= Date.now();
         if (lapsed) {
             // a refresh like any other, so the authenticators have their say before anything rotates
-            await this.resolveRefreshUser(refreshSession.userId, transaction);
+            if (await this.findRefreshUser(refreshSession.userId, transaction) == undefined) {
+                return undefined;
+            }
             // the new csrf token reaches this caller through the response header, since this renewal
             // happens inside somebody else's request and there is no body of ours to put it in
             return await this.rotateSessions(refreshSession, transaction);

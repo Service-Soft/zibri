@@ -71,6 +71,8 @@ export function resolveApplicationOptions(
         name: options.name ?? base.name ?? fallback.name,
         baseUrl: options.baseUrl ?? base.baseUrl ?? 'http://localhost:3000',
         version: options.version ?? base.version ?? '1.0.0',
+        // a test runs on a developer's machine or in ci, never serving users
+        environment: options.environment ?? base.environment ?? 'development',
         controllers: options.controllers ?? base.controllers ?? [],
         websocketControllers: options.websocketControllers ?? base.websocketControllers ?? [],
         // an explicit choice by the caller or by the application rather than a framework default,

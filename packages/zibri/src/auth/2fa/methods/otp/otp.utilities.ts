@@ -18,8 +18,8 @@ export const OTP_PERIOD_IN_SECONDS: number = 30;
  * step or it does not, so a window of 45 seconds is not a narrower 60 - it is 30 wearing a number
  * that says otherwise. Every value here is one the validation can actually carry out.
  *
- * These are the multiples of {@link OTP_PERIOD_IN_SECONDS}, and have to move with it. It is fixed at
- * 30 because that is what authenticator apps generate, so in practice neither moves.
+ * These are the multiples of the OTP period, and have to move with it. It is fixed at 30 seconds
+ * because that is what authenticator apps generate, so in practice neither moves.
  *
  * Stopping at 90 seconds is deliberate. Each step either side is another code an observer could
  * still spend, and RFC 6238 asks for at most one - a deployment needing more than three steps of

@@ -385,7 +385,7 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
         // ZIBRI_CLI_LOCAL_DEV is deliberately not set: the generator is asked for the same project it
         // writes for anybody else, one that depends on the framework by name. What makes that
         // resolvable is the registry above rather than a path back into this repository.
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
         appDir = path.join(workDir, 'api') as Path;
 
         // the lock the generator just wrote resolves to "127.0.0.1", which inside the image is the
@@ -424,16 +424,21 @@ describe('NewCommand (the generated Dockerfile, built and run)', () => {
             () => 'The database container never became ready.'
         );
 
-        // the environment the generator wrote for this project, with the two values that are about
-        // where it runs pointed at the container network instead of at localhost. Everything else is
-        // what "zi new" already decided, which is the point: a deployment sets these and nothing else.
+        // the environment the generator wrote for this project, with what is about where it runs
+        // pointed at the container network instead of at localhost, and what makes it a deployment:
+        // production, which starts only with a mail server named. Nothing has to listen there, since
+        // a mail server is reached only when a mail is sent. Everything else is what "zi new" already
+        // decided, which is the point: a deployment sets these and nothing else.
         const generatedEnv: string = await FsUtilities.readFile(path.join(appDir, '.env') as Path);
         containerEnvPath = path.join(workDir, 'container.env') as Path;
         await FsUtilities.createFile(
             containerEnvPath,
             generatedEnv
+                .replace(/^ENVIRONMENT=.*$/m, 'ENVIRONMENT=production')
                 .replace(/^DB_HOST=.*$/m, `DB_HOST=${DATABASE_CONTAINER}`)
                 .replace(/^BASE_URL=.*$/m, `BASE_URL=http://127.0.0.1:${HOST_PORT}`)
+                .replace(/^SMTP_HOST=.*$/m, 'SMTP_HOST=mail.example.com')
+                .replace(/^SMTP_PORT=.*$/m, 'SMTP_PORT=587')
         );
 
         run(

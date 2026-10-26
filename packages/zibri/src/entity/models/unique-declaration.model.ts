@@ -18,7 +18,7 @@ declare const declaredWhere: unique symbol;
  */
 export type KeyWhere = Where<BaseEntity> & {
     /**
-     * Present in the type and in no value. See {@link declaredWhere}.
+     * Present in the type and in no value.
      */
     readonly [declaredWhere]: true
 };

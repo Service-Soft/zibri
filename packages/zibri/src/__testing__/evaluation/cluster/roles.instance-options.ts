@@ -180,7 +180,12 @@ const options: StartTestServerOptions = {
     authStrategies: [ApiKeyAuthStrategy],
     // this repository's own fixtures plus the keys and the mark table, the way every other suite here
     // declares a data source
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ApiKey, ClusterMark], repositories: defaultTestServerRepositories })],
+    dataSources: [
+        createTestDataSource({
+            entities: [...defaultTestServerEntities, ApiKey, ClusterMark],
+            repositories: defaultTestServerRepositories
+        })
+    ],
     providers: [
         ...defaultClusterProviders,
         ...rolesAndPermissionsProviders({ permissions: [INVOICES_EXPORT], platformPermissions: [REPORTS_READ] }, [])

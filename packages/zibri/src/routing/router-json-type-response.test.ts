@@ -3,8 +3,8 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { Controller } from './decorators/controller.decorator';
 import { Get } from './decorators/get.decorator';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Property } from '../entity/decorators/property.decorator';
 import { KnownHeader } from '../http/known-header.enum';

@@ -2,6 +2,7 @@ import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
 import { OmitStrict } from '../types/omit-strict.type';
+import { type RunsOn } from '../types/runs-on.type';
 
 /**
  * The event type recorded for a subscriber that listens to every event.
@@ -37,10 +38,17 @@ export class EventSubscriberRegistration extends BaseEntity {
     subscriberId!: string;
 
     /**
-     * The event type it subscribes to, or {@link ALL_EVENTS_TYPE} when it takes every event.
+     * The event type it subscribes to, or `'zibri.all-events'` when it takes every event.
      */
     @Property.string()
     eventType!: string;
+
+    /**
+     * `'everyInstance'` for a subscriber every instance hosting it runs, which owes an event no run
+     * and is told of one emitted elsewhere as it is emitted. `'oneInstance'` otherwise.
+     */
+    @Property.string({ enum: { oneInstance: 'oneInstance', everyInstance: 'everyInstance' } })
+    runsOn!: RunsOn;
 
     /**
      * When this registration stops counting if no instance has refreshed it.

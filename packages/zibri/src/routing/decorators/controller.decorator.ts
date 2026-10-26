@@ -25,7 +25,7 @@ export type ControllerData = {
     /**
      * How long the handlers of this controller's routes have to produce a result.
      *
-     * Overrides the application's `handlerInMs` for every route on it, and a route overrides this
+     * Overrides the application's `handlerTimeoutInMs` for every route on it, and a route overrides this
      * with its own `timeoutInMs`.
      */
     timeoutInMs: HandlerTimeout | undefined

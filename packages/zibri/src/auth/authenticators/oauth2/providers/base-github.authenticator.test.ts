@@ -38,7 +38,7 @@ import { OAuthProviderTokens } from '../../oauth/oauth-provider-tokens.model';
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-github-client';
 const CLIENT_SECRET: string = 'zibri-github-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
 
 let github: FakeOAuthProvider;
@@ -130,7 +130,7 @@ describe('BaseGitHubAuthenticator', () => {
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: REGISTRATION_URL,
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -144,19 +144,19 @@ describe('BaseGitHubAuthenticator', () => {
         await github?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    const authorizeUrl: (query?: Record<string, string>) => string = query => `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, ...query }).toString()}`;
+    const authorizeUrl: (query?: Record<string, string>) => string = query => `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, ...query }).toString()}`;
 
-    it('asks for the user and their emails, and has the user pick the account when signing in again', async () => {
+    it('asks for the user and their emails, and has the user pick the account when logging in again', async () => {
         const asked: URLSearchParams = new URL(await new TestBrowser(baseUrl, PUBLIC_URL).follow(authorizeUrl({ reauthenticate: 'true' }))).searchParams;
 
         expect(asked.get('scope')).toBe('read:user user:email');
         expect(asked.get('prompt')).toBe('select_account');
     });
 
-    it('signs in the user linked to the id of the GitHub account', async () => {
+    it('logs in the user linked to the id of the GitHub account', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'octocat@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: github.issuer, subject: '583231', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: github.issuer, subject: '583231', userId: user.id, forLogin: true, grantedScopes: [] });
         github.identity = { subject: '583231', email: 'octocat@example.com', emailVerified: true };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
@@ -209,7 +209,7 @@ describe('BaseGitHubAuthenticator', () => {
     it('withdraws the grant of the OAuth app through GitHub\'s api when the access is revoked', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'hubot@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: github.issuer, subject: '4096', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: github.issuer, subject: '4096', userId: user.id, forLogin: true, grantedScopes: [] });
         github.identity = { subject: '4096', email: 'hubot@example.com', emailVerified: true };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
         await browser.follow(await browser.follow(await browser.follow(authorizeUrl({ scopes: 'repo' }))));

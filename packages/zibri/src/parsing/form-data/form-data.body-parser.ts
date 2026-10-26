@@ -116,7 +116,7 @@ export class FormDataBodyParser implements BodyParserInterface<MimeType.FORM_DAT
             const formData: FormData<object> = await FormData.create(
                 formDataValue,
                 tempFolder,
-                metadata.cleanupAfterMs
+                metadata.cleanupAfterInMs
             );
             return formData;
         }

@@ -16,5 +16,5 @@ export type TwoFactorCodeOptions = {
      * How long a user has to wait before another code is sent to them, for each channel.
      * @default 60000
      */
-    resendAfterMs?: number
+    resendAfterInMs?: number
 };

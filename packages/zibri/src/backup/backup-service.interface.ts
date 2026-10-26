@@ -11,7 +11,7 @@ import { BackupTransportInterface } from './transports/backup-transport.interfac
 /**
  * The data needed to create a new backup.
  */
-export type BackupCreateData = OmitStrict<BackupEntityCreateData, 'resources' | 'masterKeys' | 'dataKeyIds'>;
+export type BackupCreateData = OmitStrict<BackupEntityCreateData, 'resources' | 'masterKeys' | 'dataKeyIds' | 'status'>;
 
 /**
  * Interface for a backup service.
@@ -33,9 +33,23 @@ export interface BackupServiceInterface {
      */
     syncBackupEntities: () => Promise<void>,
     /**
-     * Starts a new backup based on the given configuration.
+     * Queues a new backup based on the given configuration, and starts storing its resources on this
+     * instance.
+     * @returns The backup, `RUNNING`. `waitForBackup` waits for it to complete.
      */
-    createBackup: (data?: BackupCreateData) => Promise<void>,
+    queueBackup: (data?: BackupCreateData) => Promise<BackupEntity>,
+    /**
+     * Waits for a backup to complete, whichever instance stores its resources.
+     * @returns The backup, `COMPLETED`.
+     * @throws A BackupFailedError when a resource spent its attempts without being stored.
+     */
+    waitForBackup: (backup: BackupEntity) => Promise<BackupEntity>,
+    /**
+     * Stores the resources of queued backups that are due on this instance: those nobody else is
+     * storing, and those whose retry is due.
+     * @returns Whether a resource was stored or tried.
+     */
+    runQueuedBackups: () => Promise<boolean>,
     /**
      * Restores the given backup.
      */

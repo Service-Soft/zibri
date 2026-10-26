@@ -20,8 +20,8 @@ class TestLeakyBucketLimiter extends LeakyBucketQueueRateLimiter {
             name: 'test-leaky',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<LeakyBucketQueueState>(),
-            maxReservationWaitMs: 10_000,
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            maxReservationWaitInMs: 10_000,
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY
         });
     }
@@ -149,9 +149,9 @@ describe('LeakyBucketQueueRateLimiter', () => {
                 // b already started at `now` - cancelling c (which was behind
                 // it) must not retroactively reschedule b to start "now" (100ms in).
                 const state: LeakyBucketQueueState | undefined = await limiter.config.store.get('k');
-                const bItem: { startMs: number, finishMs: number } | undefined = state?.queue.find(i => i.id === b.reservation.id);
-                expect(bItem?.startMs).toBe(now);
-                expect(bItem?.finishMs).toBe(now + 200);
+                const bItem: { startsAtMs: number, finishesAtMs: number } | undefined = state?.queue.find(i => i.id === b.reservation.id);
+                expect(bItem?.startsAtMs).toBe(now);
+                expect(bItem?.finishesAtMs).toBe(now + 200);
             }
             finally {
                 jest.useRealTimers();
@@ -174,9 +174,9 @@ describe('LeakyBucketQueueRateLimiter', () => {
 
                 // a: untouched (already started).
                 const state: LeakyBucketQueueState | undefined = await limiter.config.store.get('k');
-                const aItem: { startMs: number, finishMs: number } | undefined = state?.queue.find(i => i.id === a.reservation.id);
-                expect(aItem?.startMs).toBe(now);
-                expect(aItem?.finishMs).toBe(now + 200);
+                const aItem: { startsAtMs: number, finishesAtMs: number } | undefined = state?.queue.find(i => i.id === a.reservation.id);
+                expect(aItem?.startsAtMs).toBe(now);
+                expect(aItem?.finishesAtMs).toBe(now + 200);
 
                 // c: pulled forward to start right when a finishes, filling
                 // the gap that cancelling b left - not reset to "now" (50ms in).

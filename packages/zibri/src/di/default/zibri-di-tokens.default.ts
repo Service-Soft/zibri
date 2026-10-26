@@ -41,11 +41,13 @@ import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
 import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
+import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
 import { EmailServiceInterface } from '../../email/email-service.interface';
 import { EmailConfigInput } from '../../email/models/email-config.model';
 import { EmailTransportInterface } from '../../email/transports/email-transport.interface';
 import { GlobalErrorHandler, ErrorPageTemplate } from '../../error-handling/error-handler.model';
 import { EventServiceInterface } from '../../event/event-service.interface';
+import { FrameworkEventNames } from '../../event/framework-event-names.model';
 import { HandlebarOptions } from '../../handlebars/handlebar.utilities';
 import { CompressionOptions } from '../../http/compression.middleware';
 import { HttpServerLimits } from '../../http/http-server-limits.model';
@@ -100,8 +102,8 @@ export const ZIBRI_DI_TOKENS = {
     LOGGER: ziToken<LoggerInterface>('zi.logger'),
     LOGGER_TRANSPORTS: ziToken<LoggerTransport<BaseLoggerTransportConfig>[]>('zi.logger_transports'),
     LOGGER_BUFFER_CAPACITY: ziToken<number>('zi.logger_buffer_capacity'),
-    LOGGER_FLUSH_INTERVAL_MS: ziToken<number>('zi.logger_flush_interval_ms'),
-    LOGGER_CLEANUP_AFTER_MS: ziToken<Record<LogLevel, number>>('zi.logger_cleanup_after_ms'),
+    LOGGER_FLUSH_INTERVAL_IN_MS: ziToken<number>('zi.logger_flush_interval_in_ms'),
+    LOGGER_CLEANUP_AFTER_IN_MS: ziToken<Record<LogLevel, number>>('zi.logger_cleanup_after_in_ms'),
     /**
      * Whether one line is written for every request that finishes.
      *
@@ -175,6 +177,7 @@ export const ZIBRI_DI_TOKENS = {
     PARSER: ziToken<ParserInterface>('zi.parser_service'),
     VALIDATION_SERVICE: ziToken<ValidationServiceInterface>('zi.validation_service'),
     DATA_SOURCE_SERVICE: ziToken<DataSourceServiceInterface>('zi.data_source_service'),
+    REPOSITORY_HOOKS: ziToken<RepositoryHooks>('zi.repository_hooks'),
     SCHEMA_LOCK_TIMEOUT_IN_MS: ziToken<number>('zi.schema_lock_timeout_in_ms'),
     SCHEMA_LOCK_HOLD_IN_MS: ziToken<number>('zi.schema_lock_hold_in_ms'),
     VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS: ziToken<number>('zi.val_key_transaction_lock_timeout_in_ms'),
@@ -215,6 +218,8 @@ export const ZIBRI_DI_TOKENS = {
     FILE_UPLOAD_TEMP_FOLDER: ziToken<FsPath>('zi.file_upload_temp_folder'),
     BACKUP_TEMP_FOLDER: ziToken<FsPath>('zi.backup_temp_folder'),
     BACKUP_SHUTDOWN_WAIT_IN_MS: ziToken<number>('zi.backup_shutdown_wait_in_ms'),
+    BACKUP_MAX_ATTEMPTS: ziToken<number>('zi.backup_max_attempts'),
+    BACKUP_RETRY_DELAY_IN_MS: ziToken<number>('zi.backup_retry_delay_in_ms'),
     VERSIONS_PATH: ziToken<FsPath>('zi.versions_path'),
     TRANSLATIONS_PATH: ziToken<FsPath>('zi.translations_path'),
     ASSETS_PATH: ziToken<FsPath>('zi.assets_path'),
@@ -242,6 +247,7 @@ export const ZIBRI_DI_TOKENS = {
     EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: ziToken<number>('zi.event_subscriber_registration_ttl_in_ms'),
     EVENT_RETRY_DELAY_IN_MS: ziToken<number>('zi.event_retry_delay_in_ms'),
     EVENT_MAX_CONCURRENT_HOOKS: ziToken<number>('zi.event_max_concurrent_hooks'),
+    FRAMEWORK_EVENT_NAMES: ziToken<FrameworkEventNames>('zi.framework_event_names'),
     // undefined for an application that provides none, which the event service refuses to start
     EVENT_FAILED_RETENTION_IN_MS: ziToken<RetentionInMs | undefined>('zi.event_failed_retention_in_ms'),
     /**

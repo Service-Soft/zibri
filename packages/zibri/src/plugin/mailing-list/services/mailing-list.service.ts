@@ -6,6 +6,7 @@ import { type HashServiceInterface } from '../../../auth/hash/hash-service.inter
 import { Sha256HashStrategy } from '../../../auth/hash/strategies/sha256.hash-strategy';
 import { Repository } from '../../../data-source/repository/repository';
 import { NoActiveTenantError } from '../../../data-source/tenancy/no-active-tenant.error';
+import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
@@ -196,7 +197,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestSubscribeToList<T>(
+    async requestSubscription<T>(
         listId: string,
         subscriber: MailingListSubscriberCreateData,
         emailData: OmitStrict<MailingListQueueEmailData<T>, 'template' | 'compile'>
@@ -238,7 +239,7 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmSubscribeToList(listId: string, confirmationTokenValue: string): Promise<MailingListSubscriber> {
+    async confirmSubscription(listId: string, confirmationTokenValue: string): Promise<MailingListSubscriber> {
         // the list is part of the lookup, so the list a link names is the one it subscribes to
         const foundToken: MailingListSubscriptionConfirmationToken | undefined = await this.confirmationTokenRepository.findOne({
             where: { value: await this.hashService.hash(confirmationTokenValue, { strategy: Sha256HashStrategy }), listId },
@@ -311,7 +312,46 @@ export class MailingListService implements MailingListServiceInterface, OnAppIni
             // Is not subscribed to the mailing list.
             return;
         }
-        const newMailingLists: MailingList[] = foundSubscriber.mailingLists.filter(l => l.id !== listId);
-        await this.subscriberRepository.updateById(subscriberId, { mailingLists: newMailingLists });
+        await this.updateSubscriptions(subscriberId, foundSubscriber.mailingLists.filter(l => l.id !== listId).map(l => l.id));
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async updateSubscriptions(subscriberId: string, mailingListIds: string[]): Promise<void> {
+        const mailingLists: MailingList[] = mailingListIds.length
+            ? await this.mailingListRepository.findAll({ where: { id: { oneOf: mailingListIds } }, limit: 'all' })
+            : [];
+        // an address is kept only while it is on a list: on none, nothing is left it consented to
+        if (!mailingLists.length) {
+            await this.subscriberRepository.deleteById(subscriberId);
+            return;
+        }
+        await this.subscriberRepository.updateById(subscriberId, { mailingLists });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteList(listId: string): Promise<void> {
+        const list: MailingList = await this.mailingListRepository.findById(listId, { relations: ['subscribers'] });
+        const subscribers: MailingListSubscriber[] = list.subscribers.length
+            ? await this.subscriberRepository.findAll({
+                where: { id: { oneOf: list.subscribers.map(s => s.id) } },
+                relations: ['mailingLists'],
+                limit: 'all'
+            })
+            : [];
+        const lastListOf: string[] = subscribers.filter(s => s.mailingLists.every(l => l.id === listId)).map(s => s.id);
+
+        // in one transaction, so a list is never gone while the addresses only it held stay
+        const transaction: Transaction = await this.mailingListRepository.dataSource.startTransaction();
+        try {
+            if (lastListOf.length) {
+                await this.subscriberRepository.deleteAll({ id: { oneOf: lastListOf } }, { transaction });
+            }
+            await this.mailingListRepository.deleteById(listId, { transaction });
+            await transaction.commit();
+        }
+        catch (error) {
+            await transaction.rollback();
+            throw error;
+        }
     }
 }

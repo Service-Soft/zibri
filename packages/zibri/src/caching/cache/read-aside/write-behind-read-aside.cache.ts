@@ -43,7 +43,7 @@ export abstract class WriteBehindReadAsideCache<K, V, N extends string, CacheTag
                 cacheCtx.key = key;
                 const [tags, ttl] = await Promise.all([
                     this.resolveResultTags(options?.tags, value, args),
-                    this.resolveResultTtl(options?.ttl, value, args)
+                    this.resolveResultTtl(options?.ttlInMs, value, args)
                 ]);
 
                 // Fire‑and‑forget write
@@ -75,7 +75,7 @@ export abstract class WriteBehindReadAsideCache<K, V, N extends string, CacheTag
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async setDirect(key: K, value: V, options?: CacheSetDirectOptions<CacheTag>): Promise<void> {
-        const ttl: number | undefined = options?.ttl ?? await this.resolveResultTtl(undefined, value, []);
+        const ttl: number | undefined = options?.ttlInMs ?? await this.resolveResultTtl(undefined, value, []);
         const tags: CacheTag[] = options?.tags ?? [];
         Promise.resolve()
             // eslint-disable-next-line promise/prefer-await-to-then

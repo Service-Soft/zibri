@@ -15,7 +15,7 @@ import { BaseRateLimitState } from '../stores/rate-limiter-store.interface';
 /**
  * A single scheduled item in the leaky bucket queue.
  */
-type ScheduledItem = {
+export type ScheduledItem = {
     /**
      * The unique identifier of the item scheduled.
      */
@@ -27,11 +27,11 @@ type ScheduledItem = {
     /**
      * When the request is allowed to proceed.
      */
-    startMs: number,
+    startsAtMs: number,
     /**
      * When it finishes.
      */
-    finishMs: number,
+    finishesAtMs: number,
     /**
      * True for regular consume, false for pending reservations.
      */
@@ -45,7 +45,7 @@ type ScheduledItem = {
 export type LeakyBucketQueueState = BaseRateLimitState & {
     /**
      * Ordered queue of all future work (both committed and pending reservations).
-     * The first item is the one currently being processed (if startMs <= now).
+     * The first item is the one currently being processed (if startsAtMs <= now).
      */
     queue: readonly ScheduledItem[]
 };
@@ -68,7 +68,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         config: RateLimiterConfigInput<LeakyBucketQueueState>
     ) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
@@ -102,7 +102,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
      * @returns The timestamp (ms since epoch) at which this key expires.
      */
     private queueExpiresAtMs(queue: readonly ScheduledItem[], now: number): number {
-        const latestFinish: number = queue.at(-1)?.finishMs ?? now;
+        const latestFinish: number = queue.at(-1)?.finishesAtMs ?? now;
         return Math.max(now + this.intervalInMs, latestFinish);
     }
 
@@ -127,7 +127,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
     ): number {
         // Insert a hypothetical item at the end of the queue and return its start time.
         const last: ScheduledItem | undefined = state.queue.at(state.queue.length - 1);
-        const startTime: number = last ? Math.max(now, last.finishMs) : now;
+        const startTime: number = last ? Math.max(now, last.finishesAtMs) : now;
         return startTime;
     }
 
@@ -137,7 +137,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
      *
      * Already-finished items are dropped - they're done, and keeping them
      * around would make them count against `maxQueueSize` forever. Items
-     * that have already started (`startMs <= now`) are left untouched: time
+     * that have already started (`startsAtMs <= now`) are left untouched: time
      * has already passed for them, they can't retroactively start earlier.
      * Items that haven't started yet are rescheduled to start as soon as the
      * server is free (which may now be earlier, since something ahead of
@@ -158,19 +158,19 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         const newQueue: ScheduledItem[] = [];
 
         for (const item of queue) {
-            if (item.finishMs <= now) {
+            if (item.finishesAtMs <= now) {
                 continue;
             }
 
-            if (item.startMs <= now) {
+            if (item.startsAtMs <= now) {
                 newQueue.push(item);
-                serverFreeAtMs = Math.max(serverFreeAtMs, item.finishMs);
+                serverFreeAtMs = Math.max(serverFreeAtMs, item.finishesAtMs);
                 continue;
             }
 
             const start: number = Math.max(serverFreeAtMs, now);
             const finish: number = start + (item.count * this.serviceTimePerUnitMs);
-            newQueue.push({ ...item, startMs: start, finishMs: finish });
+            newQueue.push({ ...item, startsAtMs: start, finishesAtMs: finish });
             serverFreeAtMs = finish;
         }
 
@@ -182,7 +182,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         const newQueue: ScheduledItem[] = this.recomputeQueue(state.queue, now);
 
         // Update readyAtMs for pending reservations that are still in the queue
-        const queueReadyMap: Map<string, number> = new Map(newQueue.filter(i => !i.committed).map(i => [i.id, i.startMs]));
+        const queueReadyMap: Map<string, number> = new Map(newQueue.filter(i => !i.committed).map(i => [i.id, i.startsAtMs]));
         const newReservations: RateLimitReservation[] = state.reservations.map(r => ({
             ...r,
             readyAtMs: queueReadyMap.get(r.id) ?? r.readyAtMs
@@ -213,11 +213,11 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                 (current) => {
                     const state: LeakyBucketQueueState = current ?? this.initialAlgoState(now);
                     const queue: ScheduledItem[] = [...state.queue];
-                    const active: ScheduledItem[] = queue.filter(item => item.finishMs > now);
+                    const active: ScheduledItem[] = queue.filter(item => item.finishesAtMs > now);
 
                     // Calculate start time for the new request
                     const last: ScheduledItem | undefined = active.at(active.length - 1);
-                    const startTime: number = last ? Math.max(now, last.finishMs) : now;
+                    const startTime: number = last ? Math.max(now, last.finishesAtMs) : now;
                     const finishTime: number = startTime + serviceTime;
 
                     const newQueueLength: number = active.reduce((sum, item) => sum + item.count, 0) + count;
@@ -236,8 +236,8 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                     const newItem: ScheduledItem = {
                         id: UUIDUtilities.generate(),
                         count,
-                        startMs: startTime,
-                        finishMs: finishTime,
+                        startsAtMs: startTime,
+                        finishesAtMs: finishTime,
                         committed: true // regular request, cannot be cancelled
                     };
                     active.push(newItem);
@@ -251,7 +251,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
         }
 
         if (!allowed) {
-            const firstFinish: number = state?.queue[0]?.finishMs ?? now;
+            const firstFinish: number = state?.queue[0]?.finishesAtMs ?? now;
             return {
                 allowed: false,
                 limit: this.maxQueueSize,
@@ -261,7 +261,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
             };
         }
 
-        const lastFinish: number = state.queue.at(state.queue.length - 1)?.finishMs ?? now;
+        const lastFinish: number = state.queue.at(state.queue.length - 1)?.finishesAtMs ?? now;
         const remaining: number = Math.max(0, this.maxQueueSize - state.queue.reduce((sum, i) => sum + i.count, 0));
         return {
             allowed: true,
@@ -285,7 +285,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                     // Same pruning consume() applies - without it, long-finished
                     // items would count against maxQueueSize forever and would
                     // be treated as "active" by computeReadyAtMs.
-                    const active: ScheduledItem[] = state.queue.filter(item => item.finishMs > now);
+                    const active: ScheduledItem[] = state.queue.filter(item => item.finishesAtMs > now);
                     state = { ...state, queue: active };
 
                     // The ready time is determined by the current (active) queue
@@ -316,7 +316,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                         key,
                         count,
                         readyAtMs: readyAt,
-                        expiresAtMs: readyAt + this.resolveGracePeriodMs(readyAt - now)
+                        expiresAtMs: readyAt + this.resolveGracePeriodInMs(readyAt - now)
                     };
 
                     // Add to reservations (for cleanup / metrics)
@@ -326,8 +326,8 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                     const newItem: ScheduledItem = {
                         id,
                         count,
-                        startMs: readyAt,
-                        finishMs: finishTime,
+                        startsAtMs: readyAt,
+                        finishesAtMs: finishTime,
                         committed: false
                     };
                     const updatedQueue: ScheduledItem[] = [...state.queue, newItem];
@@ -349,7 +349,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
                 return {
                     allowed: false,
                     reason: error.reason,
-                    estimatedWaitMs: error.estimatedWaitMs
+                    estimatedWaitInMs: error.estimatedWaitInMs
                 };
             }
             throw error;
@@ -395,7 +395,7 @@ export class LeakyBucketQueueRateLimiter extends BaseRateLimiter<LeakyBucketQueu
             const recalculatedQueue: ScheduledItem[] = this.recomputeQueue(withoutCancelled, now);
 
             // Also update readyAtMs in any remaining reservations to match the new queue
-            const queueReadyMap: Map<string, number> = new Map(recalculatedQueue.filter(i => !i.committed).map(i => [i.id, i.startMs]));
+            const queueReadyMap: Map<string, number> = new Map(recalculatedQueue.filter(i => !i.committed).map(i => [i.id, i.startsAtMs]));
             const updatedReservationsWithReady: RateLimitReservation[] = updatedReservations.map(r => ({
                 ...r,
                 readyAtMs: queueReadyMap.get(r.id) ?? r.readyAtMs

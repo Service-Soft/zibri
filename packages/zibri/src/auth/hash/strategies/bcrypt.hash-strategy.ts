@@ -18,7 +18,7 @@ export type BcryptHashOptions = {
  * Hashes with 10 rounds unless `rounds` says otherwise, and does its work on the main thread, where
  * scrypt runs on the thread pool. Keep it registered while stored hashes need it, and mark it
  * `DEPRECATED` in the hash strategy table: each of its hashes is then replaced with one of the
- * default strategy the next time its user signs in.
+ * default strategy the next time its user logs in.
  * @deprecated Use `ScryptHashStrategy` for new hashes.
  */
 // the default of 10 rounds stays as it is: this exists to read what 2.x wrote, and raising it would

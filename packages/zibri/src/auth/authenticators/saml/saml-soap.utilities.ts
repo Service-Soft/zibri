@@ -75,6 +75,6 @@ export abstract class SamlSoapUtilities {
     }
 
     private static resolveNodeSamlXml(): NodeSamlXml {
-        return optionalPeer<NodeSamlXml>('@node-saml/node-saml/lib/xml', 'Sign-in through a SAML identity provider');
+        return optionalPeer<NodeSamlXml>('@node-saml/node-saml/lib/xml', 'Login through a SAML identity provider');
     }
 }

@@ -1,4 +1,4 @@
-import { OpenApiDefinition } from '../../../open-api/open-api.model';
+import type { OpenApiDefinition } from '../../../open-api/open-api.model';
 import { EntityTenant } from '../../models/entity-tenant.model';
 
 /**

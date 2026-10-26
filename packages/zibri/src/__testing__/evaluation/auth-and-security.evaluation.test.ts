@@ -68,7 +68,7 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
 /**
  * A route with no auth metadata at all, beside one that says it has none on purpose.
  *
- * The pair is the point: an application that declared `requireLogin` has to be able to tell the
+ * The pair is the point: an application that declared `isLoggedIn` has to be able to tell the
  * route somebody forgot from the route somebody meant, and a decorator is the only place that
  * distinction can live.
  */
@@ -234,7 +234,7 @@ beforeAll(async () => {
         // the posture A1 is about being able to declare at all. The rest of this file is unaffected
         // by it: every route it drives is either on JwtTestAuthController, which states its own, or is
         // the undecorated one A1 exists to talk about.
-        defaultAuth: 'requireLogin',
+        defaultAuth: 'isLoggedIn',
         // the numbers the framework ships with, since E1 is about what a deployment gets by default.
         // The test server otherwise raises them out of the way so that suites which merely *use* the
         // auth endpoints are not answered 429 halfway through.
@@ -313,7 +313,7 @@ describe('evaluation/03-auth-and-security', () => {
 
             // the finding: every branch of checkAccess was skipped for a route carrying no @Auth
             // metadata, so a forgotten @Auth.hasRole shipped a world writable endpoint with no
-            // build error, no warning and no failing test. This server declares `requireLogin`,
+            // build error, no warning and no failing test. This server declares `isLoggedIn`,
             // which is the answer to "what should a route that says nothing get".
             //
             // Also the fixture guard the old first case was: 404 would fail this outright, so a
@@ -339,7 +339,7 @@ describe('evaluation/03-auth-and-security', () => {
 
             // a controller shipped by the framework cannot know which default the application
             // picked, and these are the routes a caller uses to stop being anonymous - if the
-            // application wide requirement reached them, `requireLogin` would be an api nobody
+            // application wide requirement reached them, `isLoggedIn` would be an api nobody
             // could ever log into.
             //
             // Asserted as "not 401" rather than as a success on purpose: what this route answers
@@ -416,8 +416,8 @@ describe('evaluation/03-auth-and-security', () => {
             // through the enrollment flow rather than by inserting rows, which is the whole point:
             // what has to be bounded is what a user starting setup twice leaves behind, and rows
             // written directly say nothing about that
-            await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
-            await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+            await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
+            await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
 
             const stored: OtpCredentials[] = await otpRepository.findAll({ where: { userId: user.id } });
             const unconfirmed: OtpCredentials[] = stored.filter(c => !c.confirmed);
@@ -630,7 +630,7 @@ describe('evaluation/03-auth-and-security', () => {
 
             // through the driver, because the tampered row is precisely one the repository refuses to
             // read - and reading is what deleting through it starts with
-            await raw.remove(await raw.findIds({}), undefined);
+            await raw.remove(await raw.findIds({}), undefined, undefined);
         });
     });
 
@@ -789,7 +789,7 @@ describe('evaluation/03-auth-and-security', () => {
     // verifying after a rotation. The allowlist was widened per key rather than per token, so the
     // algorithm is always the configured key's and never the header's.
 
-    // H2 - sign-in through an OpenID Connect provider - is CLOSED and tested over http in
+    // H2 - login through an OpenID Connect provider - is CLOSED and tested over http in
     // ../../auth/authenticators/oidc/base-oidc.authenticator.test.ts against an in-process fake
     // provider (both handovers, the browser binding, single use, a wrong audience, nonce or auth_time,
     // the redirect allowlist, the registration) and in
@@ -799,14 +799,14 @@ describe('evaluation/03-auth-and-security', () => {
     // H3 - SAML 2.0 service provider - is CLOSED and tested over http in
     // ../../auth/authenticators/saml/base-saml.authenticator.test.ts against an in-process fake identity
     // provider (only an answer to this browser's request, signatures, issuer and audience, encrypted
-    // assertions, signed requests, a sign-in too old, single logout both ways, cookie and jwt) and in
+    // assertions, signed requests, a login too old, single logout both ways, cookie and jwt) and in
     // ../../auth/authenticators/oidc/providers/base-keycloak.authenticator.test.ts against a real
     // Keycloak.
 
     // H4 - LDAP / Active Directory bind - is CLOSED and tested over http in
     // ../../auth/authenticators/ldap/base-ldap.authenticator.test.ts against an in-process fake
     // directory (search then bind, TLS and StartTLS, an empty password, a name read as a filter, a
-    // locked account by every code, the first sign-in hook and its race) and in
+    // locked account by every code, the first login hook and its race) and in
     // ../../auth/authenticators/ldap/base-ldap.authenticator.heavy.test.ts and
     // ../../auth/authenticators/ldap/providers/base-active-directory.authenticator.heavy.test.ts
     // against 389 Directory Server and a Samba domain controller.
@@ -843,7 +843,7 @@ describe('evaluation/03-auth-and-security', () => {
     // code is spent by the operation it opened.
 
     // H10 - WebAuthn / passkeys - is CLOSED and tested over http in ./auth-passkey.evaluation.test.ts:
-    // a sign-up with nothing but a passkey logs in and signs in again later, a passkey used on another
+    // a registration with nothing but a passkey logs in and logs in again later, a passkey used on another
     // origin is refused, and a passkey is the second factor of a require2fa route. The cases of each
     // check are in ../../auth/authenticators/passkey/passkey.authenticator.test.ts.
 
@@ -867,18 +867,18 @@ describe('evaluation/03-auth-and-security', () => {
     // acts as the user its identity is linked to. Audiences, types, ID tokens, binding and the login
     // time are in ../../auth/strategies/provider-token/provider-token.auth-strategy.test.ts.
 
-    // H15 - sign-in through a plain OAuth2 provider - is CLOSED and tested over http in
-    // ./auth-oauth2.evaluation.test.ts: a provider that issues no ID token signs a linked user in, who
+    // H15 - login through a plain OAuth2 provider - is CLOSED and tested over http in
+    // ./auth-oauth2.evaluation.test.ts: a provider that issues no ID token logs a linked user in, who
     // is read from its api. The login time and GitHub are in ../../auth/authenticators/oauth2.
 
     // H16 - adding an identity provider to an existing account - is CLOSED and tested over http in
     // ./auth-oauth-connect.evaluation.test.ts: a user logged in with a password connects a provider,
-    // whose next sign-in logs into that account. The attacks and refusals are in
+    // whose next login logs into that account. The attacks and refusals are in
     // ../../auth/authenticators/oidc/base-oidc.authenticator.test.ts.
 
     // H18 - connecting a provider for access to its apis - is CLOSED and tested over http in
     // ./auth-oauth-api-access.evaluation.test.ts: a user connects a provider for its calendar only, the
-    // application reads it with refreshed access tokens, and the connection signs nobody in. Rotation,
+    // application reads it with refreshed access tokens, and the connection logs nobody in. Rotation,
     // declined scopes and revocation are in ../../auth/authenticators/oidc/base-oidc.authenticator.test.ts.
 
     // H19 - auth routes built from what is registered - is CLOSED and tested over http in
@@ -944,10 +944,10 @@ describe('evaluation/03-auth-and-security', () => {
         }, 60000);
     });
 
-    describe('H20 - a tenant cannot bring its own sign-in', () => {
+    describe('H20 - a tenant cannot bring its own login', () => {
         // deferred: every authenticator is configured in code for the whole application, and nothing
         // models a connection per tenant for a login to resolve
         it.todo('signs a member of a tenant in through the identity provider their tenant connected at runtime');
-        it.todo('refuses a sign-in through one tenant\'s identity provider for a user who is not a member there');
+        it.todo('refuses a login through one tenant\'s identity provider for a user who is not a member there');
     });
 });

@@ -10,13 +10,14 @@ or the startup error asks for them once, in the one place they can be answered:
 | Option | Two answers |
 |---|---|
 | [`defaultAuth`](./auth.md#what-an-undecorated-route-requires) | A route without `@Auth` is public, or needs a login |
-| [`twoFactorAtLogin`](./two-factor.md#asking-for-a-second-factor-at-login) | Whether a login asks for a second factor |
+| [`environment`](./architecture.md#saying-where-the-application-runs) | The application runs on a developer's machine, or serves its users |
+| [`twoFactorAtLogin`](./two-factor.md#asking-for-a-second-factor-at-login) | Whether a login asks for a [second factor](./glossary.md#second-factor) |
 | [`textOrder`](./localization.md#which-order-text-is-in) | Which order text is sorted in, when the supported locales disagree |
 | [`backupScope`](./backup.md#backing-up-a-data-source) | What a backup of a Postgres data source covers |
 | [`EVENT_FAILED_RETENTION_IN_MS`](./events.md#when-an-event-cannot-be-handled), [`THREAD_JOB_RETENTION_IN_MS`](./multithreading.md#what-happens-to-a-finished-job), `AUDIT_RETENTION_IN_MS` | Keeping rows forever, or deleting them after a while |
 
 `defaultAuth` has exactly two values. Every other check, such as a permission or a second factor,
-needs a login first, so it implies `'requireLogin'`.
+needs a login first, so it implies `'isLoggedIn'`.
 
 ## Why does every application set up email, events and thread jobs?
 They are building blocks that features and plugins rely on being there, such as a password reset
@@ -25,7 +26,7 @@ data source declares their entities. An application that does without one replac
 [running without email, events or thread jobs](./configuration.md#running-without-email-events-or-thread-jobs).
 
 ## Why does every entity have a tenant?
-Every application has tenants, even one with a single customer, so isolation never depends on a
+Every application has [tenants](./glossary.md#tenant), even one with a single customer, so isolation never depends on a
 setting someone has to turn on. Each entity says where its rows belong: in one tenant, or shared by
 all. A forgotten tenant does not compile, and a row without one never ends up where every tenant
 sees it. Crossing tenants is always explicit, with `runAs` for one tenant or `acrossTenants` on a

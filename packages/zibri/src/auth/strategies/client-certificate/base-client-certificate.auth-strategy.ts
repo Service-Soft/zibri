@@ -15,6 +15,7 @@ import { optionalPeer } from '../../../utilities/optional-peer.function';
 import { BaseUser } from '../../models/base-user.model';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { ClientCertificateAuthStrategyInterface } from '../client-certificate-auth-strategy.interface';
+import { CredentialEntity } from '../credential-entity.model';
 
 /**
  * The extended key usage of TLS client authentication.
@@ -37,6 +38,10 @@ export abstract class BaseClientCertificateAuthStrategy<
 > implements ClientCertificateAuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'client-certificate';
+
+    // a certificate is checked against the authority that signed it
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialEntities: CredentialEntity[] = [];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {

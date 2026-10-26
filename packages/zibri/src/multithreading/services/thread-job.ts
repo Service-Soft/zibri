@@ -78,7 +78,7 @@ export class ThreadJob<
      */
     readonly completedSubject: BehaviorSubject<boolean> = new BehaviorSubject(false);
     // eslint-disable-next-line jsdoc/require-jsdoc
-    timeout: number;
+    timeoutInMs: number;
     // eslint-disable-next-line jsdoc/require-jsdoc
     priority: boolean;
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -112,7 +112,7 @@ export class ThreadJob<
         this.progress = entity.progress;
         this.attempts = entity.attempts;
         this.priority = entity.priority;
-        this.timeout = entity.timeout;
+        this.timeoutInMs = entity.timeoutInMs;
         this.error = entity.error;
         this.progress = entity.progress;
         this.startedAtMs = entity.startedAtMs;

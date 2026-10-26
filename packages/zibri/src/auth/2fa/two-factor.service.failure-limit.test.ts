@@ -165,15 +165,15 @@ for (const lock of locks) {
         beforeEach(async () => {
             await twoFactorService.resetSecondFactors(user);
             const otp: OtpTwoFactorMethod = inject(OtpTwoFactorMethod);
-            otpSecret = (await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otp, undefined)).secret;
+            otpSecret = (await twoFactorService.requestTwoFactorRegistration(user, otp, undefined)).secret;
             // the previous step's code, so the current one is still unspent for the test
-            await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otp, {
+            await twoFactorService.confirmTwoFactorRegistration(user, otp, {
                 token: new TOTP({ secret: otpSecret }).generate({ timestamp: Date.now() - 30_000 })
             });
             const recovery: RecoveryCodeTwoFactorMethod = inject(RecoveryCodeTwoFactorMethod);
-            const registration: RecoveryCodeRegistration = await twoFactorService.requestRegisterTwoFactorMethodForUser(user, recovery, undefined);
+            const registration: RecoveryCodeRegistration = await twoFactorService.requestTwoFactorRegistration(user, recovery, undefined);
             recoveryCodes = registration.codes;
-            await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, recovery, { code: recoveryCodes[0] ?? '' });
+            await twoFactorService.confirmTwoFactorRegistration(user, recovery, { code: recoveryCodes[0] ?? '' });
         });
 
         afterAll(async () => {
@@ -192,14 +192,14 @@ for (const lock of locks) {
 
         it('replaces a set of recovery codes only once a code of the new one is confirmed', async () => {
             const recovery: RecoveryCodeTwoFactorMethod = inject(RecoveryCodeTwoFactorMethod);
-            const next: RecoveryCodeRegistration = await twoFactorService.requestRegisterTwoFactorMethodForUser(user, recovery, undefined);
+            const next: RecoveryCodeRegistration = await twoFactorService.requestTwoFactorRegistration(user, recovery, undefined);
 
-            await expect(twoFactorService.confirmRegisterTwoFactorMethodForUser(user, recovery, { code: recoveryCodes[1] ?? '' }))
+            await expect(twoFactorService.confirmTwoFactorRegistration(user, recovery, { code: recoveryCodes[1] ?? '' }))
                 .rejects.toThrow('The provided two factor code is invalid.');
             // the old set still works until then
             expect((await call('/second-factor', await accessToken(), recoveryHeaders(recoveryCodes[1] ?? ''))).status).toBe(200);
 
-            await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, recovery, { code: next.codes[0] ?? '' });
+            await twoFactorService.confirmTwoFactorRegistration(user, recovery, { code: next.codes[0] ?? '' });
             expect((await call('/second-factor', await accessToken(), recoveryHeaders(recoveryCodes[2] ?? ''))).status).toBe(401);
             expect((await call('/second-factor', await accessToken(), recoveryHeaders(next.codes[1] ?? ''))).status).toBe(200);
         });
@@ -249,7 +249,7 @@ for (const lock of locks) {
                 expect(res.status).toBe(200);
                 expect(await twoFactorService.resolveLock(user)).toBeUndefined();
                 // the authenticator that was guessed at is gone, so the user enrolls a new one
-                expect(await inject(OtpTwoFactorMethod).isRegisteredForUser(user)).toBe(false);
+                expect(await inject(OtpTwoFactorMethod).isRegistered(user)).toBe(false);
                 expect(await inject<Repository<OtpCredentials>>(repositoryTokenFor(OtpCredentials)).count({ where: { userId: user.id } }))
                     .toBe(0);
                 // and the code is spent, while the rest of the set still works

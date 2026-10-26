@@ -5,13 +5,18 @@ The email service queues mails in your data source and sends them in the backgro
 | Export | Kind | Purpose |
 |---|---|---|
 | `EmailServiceInterface` | interface | Queue emails |
+| `QueueEmailData` | class | What `queue` takes: the mail, with its `priority`, `persist` and `sender` optional |
 | `ZIBRI_DI_TOKENS.EMAIL_SERVICE` | DI token | Injects `EmailServiceInterface` |
+| `EmailService` | class | Default implementation of `EmailServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.EMAIL_SERVICE |
 | `EmailConfigInput` | type | Options accepted by the `EMAIL_CONFIG` DI token |
+| `EmailConfig` | type | The email configuration with every option of `EmailConfigInput` filled in |
 | `ZIBRI_DI_TOKENS.EMAIL_CONFIG` | DI token | Configures the sender, the rate limit and how the queue is drained |
 | `EmailTransportInterface` | interface | What delivers a mail |
 | `EmailSendResult` | type | What a transport answers for a mail: the recipients the provider refused |
 | `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` | DI token | Injects `EmailTransportInterface` |
 | `SmtpEmailTransport` | class | The transport Zibri ships, over SMTP |
+| `LoggingEmailTransport` | class | Logs every mail instead of sending it. Defaults to it in development |
+| `SmtpEmailTransportOptions` | type | How `SmtpEmailTransport` reaches the SMTP server: `host`, `port`, `auth`, `pool` and `secure` |
 | `EmailPriority` | enum | Priority of a queued email (such as `HIGH`, `NORMAL`) |
 | `EmailStatus` | enum | Status of a queued email: `QUEUED`, `SENT` or `FAILED` |
 | `Email` | entity | A queued email |
@@ -19,7 +24,7 @@ The email service queues mails in your data source and sends them in the backgro
 | `EmailCleanupCronJob` | cron job | Deletes the failed emails older than `failedRetentionInMs`. Registered for you |
 
 ## Configuring email
-Email takes two providers, and both are required. `ZIBRI_DI_TOKENS.EMAIL_CONFIG` says what the queue does, and `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` delivers a mail. There is no default transport, since each one needs a server or an API key of your deployment.
+Email takes two providers. `ZIBRI_DI_TOKENS.EMAIL_CONFIG` says what the queue does, and is required. `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT` delivers a mail. In [production](./architecture.md#saying-where-the-application-runs) it is required too, since every transport needs a server or a mail service account of your deployment. In development, an application that provides none gets a `LoggingEmailTransport`, which logs each mail with its links instead of sending it, so a password reset can be followed before there is a mail server.
 
 ```ts
 // src/providers.ts
@@ -52,6 +57,8 @@ export const providers: DiProvider<unknown>[] = [
 ];
 ```
 
+`SmtpEmailTransport` refuses an empty `host` and a `port` outside 1 to 65535 when it is built, so an application missing its mail server does not start.
+
 | Option | What it is |
 |---|---|
 | `defaultSender` | The address a mail queued without a sender goes out as. Required |
@@ -62,7 +69,7 @@ export const providers: DiProvider<unknown>[] = [
 | `maxSendAttempts` | How many times sending a mail may throw before it is `FAILED`. Defaults to 5 |
 | `retryDelayInMs` | How long a mail whose send threw waits before it is tried again, doubling with each further attempt. Defaults to one minute |
 
-Every priority gets a slot in each pass, whatever `sendBatchSize` is. A priority takes at most `sendBatchSize` slots, less one per priority below it, so a steady flood of `HIGH` still leaves one slot for `NORMAL` and one for `LOW`.
+Every priority gets a place in each pass, whatever `sendBatchSize` is. A priority takes at most `sendBatchSize` places, less one per priority below it, so a steady flood of `HIGH` still leaves one place for `NORMAL` and one for `LOW`.
 
 ## Sending through something other than SMTP
 To send through an HTTP API, such as SES, SendGrid or Postmark, implement `EmailTransportInterface` and register it under `ZIBRI_DI_TOKENS.EMAIL_TRANSPORT`. The queue works the same with every transport.
@@ -93,7 +100,7 @@ How `send` ends decides whether a mail is retried or recorded as failed:
 
 | The transport | Means | The row |
 |---|---|---|
-| Throws | The message never reached the provider, such as a refused connection, a timeout, a 5xx or an expired credential | Stays `QUEUED` and is attempted again at its `retryAt`, `FAILED` after `maxSendAttempts` attempts |
+| Throws | The message never reached the provider, such as a refused connection, a timeout, a 5xx or an expired credential | Stays `QUEUED` and is attempted again at its `nextAttemptAt`, `FAILED` after `maxSendAttempts` attempts |
 | Returns `rejectedRecipients` | The provider answered and refused those addresses | `FAILED`, and never attempted again |
 
 > [!WARNING]
@@ -191,10 +198,12 @@ A queued mail is a row in the `Email` table, and what becomes of it depends on h
 | Sent, `persist: false` (the default) | Deleted, so the queue drains |
 | Sent, `persist: true` | Kept, `status: SENT` |
 | A recipient was refused | Kept, `status: FAILED`, with `rejectedRecipients` naming the addresses |
-| The send threw before reaching the server, such as the server could not be reached | Kept, `status: QUEUED`, with `attempts` counting it and `retryAt` saying when it is tried again |
+| The send threw before reaching the server, such as the server could not be reached | Kept, `status: QUEUED`, with `attempts` counting it, `nextAttemptAt` saying when it is tried again and `error` holding what it threw |
 | The send threw `maxSendAttempts` times | Kept, `status: FAILED` |
 
-Each mail of a pass is sent on its own, so one whose send throws holds back none of the others. It is passed over until its `retryAt`: `retryDelayInMs` after the first attempt, and twice as long after each further one.
+Each mail of a pass is sent on its own, so one whose send throws holds back none of the others. It is passed over until its `nextAttemptAt`: `retryDelayInMs` after the first attempt, and twice as long after each further one.
+
+A mail is sent with a `Message-ID` made from its id, the same on every attempt. A send that reached the server and threw before it could be recorded is sent again with that id, which receiving servers drop duplicates by.
 
 `persist` applies to mails that were sent. A failed mail is kept either way, so you can look up a password reset or a 2FA code that never arrived.
 
@@ -212,6 +221,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `Email` | Every application |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Templating](./templating.md) — writing the tsx email templates

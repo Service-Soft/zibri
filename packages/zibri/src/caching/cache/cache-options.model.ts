@@ -41,9 +41,9 @@ export type OnInvalidationFailure = 'bestEffort' | 'throw';
  */
 export type CacheSetDirectOptions<CacheTag extends string> = {
     /**
-     * The time to live value.
+     * The time to live value, in milliseconds.
      */
-    ttl?: number,
+    ttlInMs?: number,
     /**
      * Additional tags to set.
      */
@@ -55,9 +55,9 @@ export type CacheSetDirectOptions<CacheTag extends string> = {
  */
 export type CacheWrapOptions<V, TArgs extends unknown[], CacheTag extends string> = {
     /**
-     * A provider for the time to live value.
+     * A provider for the time to live value, in milliseconds.
      */
-    ttl?: ResultCacheTtlProvider<V, TArgs>,
+    ttlInMs?: ResultCacheTtlProvider<V, TArgs>,
     /**
      * A provider for the tags to set.
      */
@@ -69,9 +69,9 @@ export type CacheWrapOptions<V, TArgs extends unknown[], CacheTag extends string
  */
 export type CacheWrapWriteOptionsWithResult<V, TArgs extends unknown[], CacheTag extends string> = {
     /**
-     * A provider for the time to live value.
+     * A provider for the time to live value, in milliseconds.
      */
-    ttl?: ResultCacheTtlProvider<V, TArgs>,
+    ttlInMs?: ResultCacheTtlProvider<V, TArgs>,
     /**
      * A provider for the tags to set.
      */
@@ -87,9 +87,9 @@ export type CacheWrapWriteOptionsWithResult<V, TArgs extends unknown[], CacheTag
  */
 export type CacheWrapWriteOptionsArgsOnly<TArgs extends unknown[], CacheTag extends string> = {
     /**
-     * A provider for the time to live value.
+     * A provider for the time to live value, in milliseconds.
      */
-    ttl?: CacheTtlProvider<TArgs>,
+    ttlInMs?: CacheTtlProvider<TArgs>,
     /**
      * A provider for the tags to set.
      */

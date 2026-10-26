@@ -15,7 +15,8 @@ import { ZibriPlugin } from '../plugin/plugin.model';
 import { DeepPartial } from '../types/deep-partial.type';
 import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
-import { SemVerVersion } from '../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../utilities/sem-ver.utilities';
+import { ZibriEnvironment } from './zibri-environment.type';
 
 /**
  * Configuration options for strict transport security / hsts.
@@ -39,16 +40,16 @@ export type HstsOptions = {
  * What a route that carries no `@Auth` decorator of its own requires.
  *
  * `'public'` lets it through unauthenticated, which is what an api that is open by design wants.
- * `'requireLogin'` refuses it to anyone who is not logged in, so forgetting a decorator costs a 401
+ * `'isLoggedIn'` refuses it to anyone who is not logged in, so forgetting a decorator costs a 401
  * in development rather than a world writable endpoint in production.
  *
  * Deliberately only these two. Every other check - a role, ownership, a second factor - resolves a
- * user first, so `'requireLogin'` is implied by all of them: whether a route's own decorators
+ * user first, so `'isLoggedIn'` is implied by all of them: whether a route's own decorators
  * replace the default or combine with it is a question that cannot be answered wrong. An
  * application wide role would make that question real, and every answer to it is defensible, which
  * is the reliable sign the next reader will assume the other one.
  */
-export type DefaultAuth = 'public' | 'requireLogin';
+export type DefaultAuth = 'public' | 'isLoggedIn';
 
 /**
  * The global security options for a Zibri application.
@@ -119,6 +120,12 @@ export type ZibriApplicationOptions = {
      * Is also used by migrations by default.
      */
     version: SemVerVersion,
+    /**
+     * Where the application runs: `'development'` on a developer's machine, `'production'` serving
+     * its users. In development, an application that provides no email transport logs every mail
+     * instead of sending it; in production it does not start without one.
+     */
+    environment: ZibriEnvironment,
     /**
      * The controllers to register in the app.
      */

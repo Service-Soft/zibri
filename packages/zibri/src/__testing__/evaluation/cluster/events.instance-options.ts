@@ -29,7 +29,11 @@ declare module '../../../event/event-service.interface' {
          * replicas write down themselves.
          */
 
-        clusterEvent: {}
+        clusterEvent: {},
+        /**
+         * Carries nothing: what this cluster observes is which replicas heard it.
+         */
+        clusterBroadcast: {}
     }
 }
 
@@ -129,6 +133,15 @@ class ClusterEventRecorder implements OnAppStart {
             // on the first try
             { subscriberId, attempts: 3 }
         );
+
+        // the same id on every replica, and every one of them runs it
+        await eventService.subscribe(
+            'clusterBroadcast',
+            async (event: Event<unknown>) => {
+                await this.markRepository.create({ instanceId, kind: 'broadcast-heard', tag: event.id, at: new Date() });
+            },
+            { subscriberId: 'cluster-broadcast-listener', runsOn: 'everyInstance' }
+        );
     }
 }
 
@@ -144,6 +157,15 @@ class ClusterEventController {
     async emit(): Promise<void> {
         const eventService: EventServiceInterface = inject(ZIBRI_DI_TOKENS.EVENT_SERVICE);
         await eventService.emit(eventType, {});
+    }
+
+    /**
+     * Emits one event every instance hears, from this instance.
+     */
+    @Post('/broadcast')
+    async broadcast(): Promise<void> {
+        const eventService: EventServiceInterface = inject(ZIBRI_DI_TOKENS.EVENT_SERVICE);
+        await eventService.emit('clusterBroadcast', {});
     }
 
     /**

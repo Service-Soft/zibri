@@ -1,7 +1,7 @@
 import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { TraceSpanAttributeName } from '../../tracing/trace-span-attributes.model';
 import { TraceSpanKind } from '../../tracing/trace-span-kind.enum';
 import { TraceSpanInterface } from '../../tracing/trace-span.interface';
@@ -9,6 +9,7 @@ import { TracingUtilities } from '../../tracing/tracing.utilities';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { AggregateRow } from '../models/aggregate.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
@@ -116,10 +117,11 @@ export class TracedRepositoryDriver<T extends BaseEntity> extends ForwardingRepo
         });
     }
 
-    override async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
-        await this.traced('remove', async span => {
-            span.recordAttribute(returnedRows, ids.length);
-            await super.remove(ids, transaction);
+    override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
+        return await this.traced('remove', async span => {
+            const removed: string[] = await super.remove(ids, reach, transaction);
+            span.recordAttribute(returnedRows, removed.length);
+            return removed;
         });
     }
 

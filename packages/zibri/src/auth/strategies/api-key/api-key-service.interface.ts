@@ -51,7 +51,7 @@ export interface ApiKeyServiceInterface {
     findActiveById: (id: string) => Promise<ApiKey | undefined>,
     /**
      * Writes down that an api key was used, unless its last use written down is more recent than
-     * `recordUseAfterMs` of `API_KEY_OPTIONS`.
+     * `recordUseAfterInMs` of `API_KEY_OPTIONS`.
      */
     recordUse: (apiKey: ApiKey) => Promise<void>,
     /**
@@ -63,7 +63,12 @@ export interface ApiKeyServiceInterface {
      */
     revokeForUser: (userId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
-     * Deletes the api keys that expired longer ago than `deleteExpiredAfterMs` of `API_KEY_OPTIONS`.
+     * Deletes every api key of the given users. Called in the transaction that deletes the users for
+     * good. Does nothing in an application where nothing reads api keys.
+     */
+    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>,
+    /**
+     * Deletes the api keys that expired longer ago than `deleteExpiredAfterInMs` of `API_KEY_OPTIONS`.
      */
     deleteExpired: () => Promise<void>
 }

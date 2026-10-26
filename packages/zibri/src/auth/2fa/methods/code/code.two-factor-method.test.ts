@@ -8,13 +8,13 @@ import { createInMemoryDataSource,
     RecordingSmsService,
     TestBrowser } from 'zibri-testing';
 
-import { TestTimeouts } from '../../../../__testing__/constants';
 import { EmailTwoFactorMethod } from './email.two-factor-method';
 import { SmsCodeLimits } from './sms-code-limits.model';
 import { SmsTwoFactorMethod } from './sms.two-factor-method';
 import { TwoFactorCodeCredentials } from './two-factor-code-credentials.model';
 import { TwoFactorCodeOptions } from './two-factor-code-options.model';
 import { TwoFactorCode } from './two-factor-code.model';
+import { TestTimeouts } from '../../../../__testing__/constants';
 import { JwtUser } from '../../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../../__testing__/test-server/create-test-data-source.function';
@@ -169,7 +169,7 @@ async function resolveRunningApp(server: StartedTestServer): Promise<void> {
  */
 async function requestSmsEnrollment(user: JwtUser, phoneNumber: string): Promise<unknown> {
     await afterResendInterval();
-    return await twoFactorService.requestRegisterTwoFactorMethodForUser(user, smsMethod, { phoneNumber })
+    return await twoFactorService.requestTwoFactorRegistration(user, smsMethod, { phoneNumber })
         .catch((error: unknown) => error);
 }
 
@@ -277,8 +277,8 @@ async function findStoredCodes(credentialsId: string): Promise<(string | undefin
  * @param user - The user.
  */
 async function enrollByEmail(user: JwtUser): Promise<void> {
-    await twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined);
-    await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, emailMethod, { code: await mailedCode() });
+    await twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined);
+    await twoFactorService.confirmTwoFactorRegistration(user, emailMethod, { code: await mailedCode() });
 }
 
 // first, for the reason on startAndStopTestServerWithout
@@ -351,7 +351,7 @@ describe('Two factor codes — by email and text message', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startApp({ resendAfterMs: 1 });
+        server = await startApp({ resendAfterInMs: 1 });
     }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
@@ -362,18 +362,18 @@ describe('Two factor codes — by email and text message', () => {
         const { browser, csrfToken, user } = await createLoggedInUser();
         const loggedIn: LoggedIn = { browser, csrfToken, user };
 
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined);
         const enrollmentCode: string = await mailedCode();
         expect(transport.sends.at(-1)?.recipients).toEqual([user.email]);
         // asked for but not confirmed: nothing to present yet
         expect(await twoFactorService.isRegistered(user, [EmailTwoFactorMethod])).toBe(false);
 
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, emailMethod, { code: enrollmentCode });
+        await twoFactorService.confirmTwoFactorRegistration(user, emailMethod, { code: enrollmentCode });
         expect(await twoFactorService.isRegistered(user, [EmailTwoFactorMethod])).toBe(true);
 
         expect(await updatePaymentDetails(loggedIn)).toBe(401);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(user);
+        await emailMethod.requestSecondFactor(user);
         const code: string = await mailedCode();
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: code })).toBe(200);
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: code })).toBe(401);
@@ -381,7 +381,7 @@ describe('Two factor codes — by email and text message', () => {
 
     it('keeps the code encrypted', async () => {
         const { user } = await createLoggedInUser();
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined);
         const code: string = await mailedCode();
         const credentials: TwoFactorCodeCredentials[] = await inject(repositoryTokenFor(TwoFactorCodeCredentials))
             .findAll({ where: { userId: user.id } });
@@ -399,7 +399,7 @@ describe('Two factor codes — by email and text message', () => {
         await enrollByEmail(owner.user);
         await enrollByEmail(other.user);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(owner.user);
+        await emailMethod.requestSecondFactor(owner.user);
         const ownersCode: string = await mailedCode();
 
         expect(await updatePaymentDetails(other, { [EMAIL_HEADER]: ownersCode })).toBe(401);
@@ -410,11 +410,11 @@ describe('Two factor codes — by email and text message', () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
         await enrollByEmail(loggedIn.user);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(loggedIn.user);
+        await emailMethod.requestSecondFactor(loggedIn.user);
         const challengeCode: string = await mailedCode();
         await afterResendInterval();
         // somebody holding the session starts enrolling again, and reads the code that goes with it
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(loggedIn.user, emailMethod, undefined);
         const enrollmentCode: string = await mailedCode();
 
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: enrollmentCode })).toBe(401);
@@ -426,7 +426,7 @@ describe('Two factor codes — by email and text message', () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
         await enrollByEmail(loggedIn.user);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(loggedIn.user);
+        await emailMethod.requestSecondFactor(loggedIn.user);
         const code: string = await mailedCode();
 
         for (let attempt: number = 0; attempt < 3; attempt++) {
@@ -441,10 +441,10 @@ describe('Two factor codes — by email and text message', () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
         await enrollByEmail(loggedIn.user);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(loggedIn.user);
+        await emailMethod.requestSecondFactor(loggedIn.user);
         const first: string = await mailedCode();
         await afterResendInterval();
-        await emailMethod.startSecondFactor(loggedIn.user);
+        await emailMethod.requestSecondFactor(loggedIn.user);
         const second: string = await mailedCode();
 
         expect(second).not.toBe(first);
@@ -457,7 +457,7 @@ describe('Two factor codes — by email and text message', () => {
         const { user } = await createLoggedInUser();
         const sent: number = sms.sent.length;
 
-        await expect(twoFactorService.requestRegisterTwoFactorMethodForUser(user, smsMethod, { phoneNumber: '0151 12345678' }))
+        await expect(twoFactorService.requestTwoFactorRegistration(user, smsMethod, { phoneNumber: '0151 12345678' }))
             .rejects.toThrow();
 
         expect(sms.sent).toHaveLength(sent);
@@ -467,19 +467,19 @@ describe('Two factor codes — by email and text message', () => {
     it('sends a code only to a user who enrolled', async () => {
         const { user } = await createLoggedInUser();
 
-        await expect(emailMethod.startSecondFactor(user)).rejects.toThrow(/no second factor of this kind/);
+        await expect(emailMethod.requestSecondFactor(user)).rejects.toThrow(/no second factor of this kind/);
     });
 
     it('enrolls by text message with a number, keeps it encrypted, and takes a texted code once', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
 
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, smsMethod, { phoneNumber: PHONE_NUMBER });
+        await twoFactorService.requestTwoFactorRegistration(loggedIn.user, smsMethod, { phoneNumber: PHONE_NUMBER });
         expect(sms.sent.at(-1)?.to).toBe(PHONE_NUMBER);
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(loggedIn.user, smsMethod, { code: textedCode() });
+        await twoFactorService.confirmTwoFactorRegistration(loggedIn.user, smsMethod, { code: textedCode() });
         expect(await twoFactorService.isRegistered(loggedIn.user, [SmsTwoFactorMethod])).toBe(true);
 
         await afterResendInterval();
-        await smsMethod.startSecondFactor(loggedIn.user);
+        await smsMethod.requestSecondFactor(loggedIn.user);
         expect(sms.sent.at(-1)?.to).toBe(PHONE_NUMBER);
         const code: string = textedCode();
         // the code of a text message does not open the email factor, nor the other way round
@@ -493,13 +493,13 @@ describe('Two factor codes — by email and text message', () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
         await enrollByEmail(loggedIn.user);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(loggedIn.user);
+        await emailMethod.requestSecondFactor(loggedIn.user);
         const code: string = await mailedCode();
         const credentialsRepository: Repository<TwoFactorCodeCredentials> = inject(repositoryTokenFor(TwoFactorCodeCredentials));
         const credentialsIds: string[] = (await credentialsRepository.findAll({ where: { userId: loggedIn.user.id } })).map(c => c.id);
         expect(credentialsIds).toHaveLength(1);
 
-        await twoFactorService.unregisterTwoFactorMethodForUser(loggedIn.user, emailMethod);
+        await twoFactorService.removeTwoFactorRegistration(loggedIn.user, emailMethod);
 
         expect(await twoFactorService.isRegistered(loggedIn.user, [EmailTwoFactorMethod])).toBe(false);
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: code })).toBe(401);
@@ -523,11 +523,11 @@ describe('Two factor codes — sending again', () => {
 
     it('sends the user no second code before the interval is over, and the first one still works', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(loggedIn.user, emailMethod, undefined);
         const enrollmentCode: string = await mailedCode();
         const sent: number = transport.sends.length;
 
-        const refused: unknown = await twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, undefined)
+        const refused: unknown = await twoFactorService.requestTwoFactorRegistration(loggedIn.user, emailMethod, undefined)
             .catch((error: unknown) => error);
         expect(refused).toBeInstanceOf(TooManyRequestsError);
         // says when the next code can go out, which is within the minute
@@ -538,17 +538,17 @@ describe('Two factor codes — sending again', () => {
         await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).sendQueuedEmails();
         expect(transport.sends).toHaveLength(sent);
         // the enrollment that was turned away is still the one waiting for its code
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, { code: enrollmentCode });
+        await twoFactorService.confirmTwoFactorRegistration(loggedIn.user, emailMethod, { code: enrollmentCode });
         expect(await twoFactorService.isRegistered(loggedIn.user, [EmailTwoFactorMethod])).toBe(true);
         // the code that confirmed it counts as the last one sent
-        await expect(emailMethod.startSecondFactor(loggedIn.user)).rejects.toThrow(TooManyRequestsError);
+        await expect(emailMethod.requestSecondFactor(loggedIn.user)).rejects.toThrow(TooManyRequestsError);
     });
 
     it('counts the interval for each channel of a user separately', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(loggedIn.user, emailMethod, undefined);
 
-        await expect(twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, smsMethod, { phoneNumber: PHONE_NUMBER }))
+        await expect(twoFactorService.requestTwoFactorRegistration(loggedIn.user, smsMethod, { phoneNumber: PHONE_NUMBER }))
             .resolves.toBeUndefined();
     });
 });
@@ -557,7 +557,7 @@ describe('Two factor codes — where text messages go', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startApp({ resendAfterMs: 1 }, 1, { ...generousSmsLimits, maxPerNumberPerDay: 2 });
+        server = await startApp({ resendAfterInMs: 1 }, 1, { ...generousSmsLimits, maxPerNumberPerDay: 2 });
     }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
@@ -594,7 +594,7 @@ describe('Two factor codes — what text messages cost', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startApp({ resendAfterMs: 1 }, 1, { ...generousSmsLimits, maxPerHour: 2 });
+        server = await startApp({ resendAfterInMs: 1 }, 1, { ...generousSmsLimits, maxPerHour: 2 });
     }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
@@ -610,7 +610,7 @@ describe('Two factor codes — what text messages cost', () => {
         expect(await requestSmsEnrollment(late, '+4915100000004')).toBeInstanceOf(TooManyRequestsError);
 
         expect(sms.sent).toHaveLength(sent + 2);
-        await expect(twoFactorService.requestRegisterTwoFactorMethodForUser(late, emailMethod, undefined)).resolves.toBeUndefined();
+        await expect(twoFactorService.requestTwoFactorRegistration(late, emailMethod, undefined)).resolves.toBeUndefined();
     });
 });
 
@@ -627,13 +627,13 @@ describe('Two factor codes — counted across instances', () => {
 
     it('keeps the wait between two codes in the data source, where a restarted instance finds it', async () => {
         const { user } = await createLoggedInUser();
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined);
 
         // a restart starts from nothing but the data source, which every other instance shares too
         await server.reInit();
         await resolveRunningApp(server);
 
-        await expect(twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined)).rejects.toThrow(TooManyRequestsError);
+        await expect(twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined)).rejects.toThrow(TooManyRequestsError);
     }, 30000);
 });
 
@@ -641,7 +641,7 @@ describe('Two factor codes — wrong ones', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startApp({ resendAfterMs: 1 }, 500);
+        server = await startApp({ resendAfterInMs: 1 }, 500);
     }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
@@ -652,7 +652,7 @@ describe('Two factor codes — wrong ones', () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
         await enrollByEmail(loggedIn.user);
         await afterResendInterval();
-        await emailMethod.startSecondFactor(loggedIn.user);
+        await emailMethod.requestSecondFactor(loggedIn.user);
         const code: string = await mailedCode();
 
         expect(await updatePaymentDetails(loggedIn, { [EMAIL_HEADER]: otherThan(code) })).toBe(401);
@@ -667,7 +667,7 @@ describe('Two factor codes — expiring', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
-        server = await startApp({ resendAfterMs: 1, expiresInMs: 1000 });
+        server = await startApp({ resendAfterInMs: 1, expiresInMs: 1000 });
     }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
@@ -676,12 +676,12 @@ describe('Two factor codes — expiring', () => {
 
     it('refuses a code once its time is up', async () => {
         const loggedIn: LoggedIn = await createLoggedInUser();
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(loggedIn.user, emailMethod, undefined);
         const code: string = await mailedCode();
 
         await setTimeout(1100);
 
-        await expect(twoFactorService.confirmRegisterTwoFactorMethodForUser(loggedIn.user, emailMethod, { code }))
+        await expect(twoFactorService.confirmTwoFactorRegistration(loggedIn.user, emailMethod, { code }))
             .rejects.toThrow(/No code is waiting/);
     });
 });

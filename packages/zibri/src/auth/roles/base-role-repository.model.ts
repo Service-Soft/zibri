@@ -1,10 +1,11 @@
 import { BaseRole } from './base-role.model';
-import { ROLE_REPOSITORY, RoleRepositoryInterface } from './role-repository.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { type ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { type SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { RoleRepositoryInterface } from './role-repository.interface';
+import { ChangeSetRepository } from '../../data-source/change-sets/change-set-repository';
+import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
+import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
 import { Repository } from '../../data-source/repository/repository';
+import { ROLE_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { Newable } from '../../types/newable.type';
 
 /**

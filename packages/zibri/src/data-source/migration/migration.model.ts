@@ -4,7 +4,7 @@ import { OperationLimitUtilities } from '../../context/operation-limit.utilities
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';

@@ -54,7 +54,7 @@ export type RateLimiterConfig<TState extends BaseRateLimitState> = {
      * rejected with `QUEUE_TOO_LONG` instead of being queued
      * indefinitely. Left unset, there is no cap.
      */
-    readonly maxReservationWaitMs: number | undefined,
+    readonly maxReservationWaitInMs: number | undefined,
     /**
      * How much additional time (ms), beyond a reservation's `readyAtMs`,
      * to wait before treating it as abandoned and auto-cancelling it.
@@ -63,7 +63,7 @@ export type RateLimiterConfig<TState extends BaseRateLimitState> = {
      * going to take. Defaults to whichever is larger: 5 seconds, or the
      * reservation's own wait time.
      */
-    readonly reservationGracePeriodMs: number | ((waitMs: number) => number),
+    readonly reservationGracePeriodInMs: number | ((waitInMs: number) => number),
     /**
      * What to do when the store cannot be read or written at all - the data source is down, or the
      * lock could not be taken. Defaults to refusing the call.
@@ -75,4 +75,4 @@ export type RateLimiterConfig<TState extends BaseRateLimitState> = {
  * Configuration input for the rate limiter.
  */
 export type RateLimiterConfigInput<TState extends BaseRateLimitState> = Partial<RateLimiterConfig<TState>>
-    & Pick<RateLimiterConfig<TState>, 'name' | 'capacity' | 'store' | 'maxReservationWaitMs'>;
+    & Pick<RateLimiterConfig<TState>, 'name' | 'capacity' | 'store' | 'maxReservationWaitInMs'>;

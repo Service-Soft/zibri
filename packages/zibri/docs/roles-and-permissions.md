@@ -1,11 +1,12 @@
 # Roles and permissions
-A route asks for a permission, and a role carries permissions. You declare every permission in code, each at the level it is held at: a tenant permission through a user's [membership](./tenancy.md#members-and-their-roles) in a tenant, a platform permission by the user themself. Roles are rows in your database, which your administrators create, change and hand out at runtime. A role is one every tenant shares, or one of a [tenant's own](#a-tenants-own-roles).
+A route asks for a permission, and a role carries permissions. You declare every permission in code, each at the level it is held at: a [tenant](./glossary.md#tenant) permission through a user's [membership](./tenancy.md#members-and-their-roles) in a tenant, a platform permission by the user themself. Roles are rows in your database, which your administrators create, change and hand out at runtime. A role is one every tenant shares, or one of a [tenant's own](#a-tenants-own-roles).
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `definePermissions`, `definePlatformPermissions` | function | Define your tenant and platform permissions, as an object to name them by like an enum |
 | `DefinedPermissions`, `DefinedPlatformPermissions` | type | What the two functions above answer: every permission, by its name in upper case |
+| `PermissionKey` | type | The name a permission has in that object: upper case, with every `.` and `-` turned into `_`, such as `INVOICES_READ` for `invoices.read` |
 | `Permission`, `PlatformPermission` | type | A tenant and a platform permission, as only the two functions above make them |
 | `PermissionDeclaration` | type | Every permission of your application, as `ZIBRI_DI_TOKENS.PERMISSIONS` takes them |
 | `ZIBRI_DI_TOKENS.PERMISSIONS` | DI token | Provide your declaration |
@@ -13,13 +14,16 @@ A route asks for a permission, and a role carries permissions. You declare every
 | `ZibriPermissions`, `ZibriPlatformPermissions` | constant | The same, by name |
 | `BaseRoleEntity`, `BaseRole` | class, type | What your role entity extends: a `name`, a `level`, the `tenantId` of a tenant's own role and the `permissions` it carries |
 | `BaseRoleRepository`, `RoleRepositoryInterface` | function, interface | The base class the repository of your role entity extends, and what marks it as the one roles are read from |
+| `RoleRepositoryClass`, `isRoleRepository` | type, function | The class `BaseRoleRepository` answers, and tells a role repository apart |
 | `ROLE_ENTITY`, `ROLE_REPOSITORY` | constant | Mark an entity and a repository as the ones of roles. `BaseRoleEntity` and `BaseRoleRepository` set them |
 | `RoleLevel` | type | Where a role is held: `'tenant'` through a membership, `'platform'` by the user |
 | `ZIBRI_DI_TOKENS.ROLE_SERVICE`, `RoleServiceInterface` | DI token, interface | Reads, creates, changes, deletes, gives and takes roles, see [managing roles](#managing-roles). Replaceable |
+| `RoleService` | class | Keeps the roles of the application in the one role repository. Replaceable through `ZIBRI_DI_TOKENS.ROLE_SERVICE` |
 | `RoleCreateData`, `RoleUpdateData` | type | What a role is created with, and what of it changes |
 | `RoleIdentity`, `WrittenRole` | type | What names a role, and a role as a write leaves it, as a `RoleServiceInterface` of your own takes them |
 | `Auth.hasPermission`, `Auth.hasPlatformPermission` | decorator | A route only reachable when one of the caller's roles carries the permission, see [securing endpoints](./creating-endpoints.md#securing-endpoints) |
 | `HasPermissionMetadata` | type | What both decorators declare, and what `auth.hasPermission` and `auth.hasPlatformPermission` of a manually registered route take |
+| `HasPermissionFn` | interface | The type of both decorators: a permission and the strategies allowed, with their `skip` |
 | `CurrentUser` | type | The user a handler or a scope is handed: the user without their roles, with the `permissions` and `platformPermissions` the request may use |
 
 ## Declaring permissions
@@ -125,7 +129,7 @@ const defaultRoles: RoleCreateData<Role>[] = [
 
 export async function createDefaultRoles(): Promise<void> {
     const roleRepository: RoleRepository = inject(RoleRepository);
-    const existing: Set<string> = new Set((await roleRepository.findAll({ take: 'all' })).map(role => role.name));
+    const existing: Set<string> = new Set((await roleRepository.findAll({ limit: 'all' })).map(role => role.name));
     await roleRepository.createAll(defaultRoles.filter(role => !existing.has(role.name)));
 }
 ```
@@ -330,7 +334,7 @@ import { Membership } from '../models/membership.model';
 
 export async function holdsMemberAdmin(userId: string, tenantId: string): Promise<boolean> {
     const membership: Membership | undefined = await inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE)
-        .findMembership<string, Membership>(userId, tenantId);
+        .findActiveMembership<string, Membership>(userId, tenantId);
     return membership?.roles.includes(MemberRoles.ADMIN) === true;
 }
 ```

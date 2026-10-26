@@ -3,7 +3,7 @@
  */
 export type PasskeyRegistration = {
     /**
-     * The name the device lists the account under, as the sign-up named it, such as an email.
+     * The name the device lists the account under, as the registration named it, such as an email.
      * Nothing has proven it.
      */
     name: string,

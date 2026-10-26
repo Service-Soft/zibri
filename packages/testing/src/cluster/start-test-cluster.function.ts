@@ -3,7 +3,8 @@ import { createRequire } from 'node:module';
 
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import type { ExecResult } from 'testcontainers';
-import { DataSourceInterface, DiContainer, FsPath, FsUtilities, initDiContainer, inject, Newable, optionalPeer, PostgresDataSource } from 'zibri';
+import { DataSourceInterface, FsPath, FsUtilities, inject, Newable, optionalPeer, PostgresDataSource } from 'zibri';
+import { DiContainer, initDiContainer } from 'zibri/internal';
 
 import { defaultClusterDataSources } from './cluster-data-sources';
 import { ClusterMarkRow } from './cluster-mark.model';
@@ -11,7 +12,7 @@ import { CLUSTER_DATA_SOURCE_PORTS_ENV, CLUSTER_INSTANCE_ID_ENV, CLUSTER_INSTANC
 import { clusterModulePaths } from './cluster-module-paths';
 import { createScratchDirectory, removeScratchDirectory } from '../scratch-directory.function';
 import { settleAfterFailure } from '../settle-after-failure.function';
-import { StartedDataSourceContainer, startDataSourceContainers } from '../start-data-source-containers.function';
+import { StartedDataSourceContainer, startDataSourceContainers, stopDataSourceContainer } from '../start-data-source-containers.function';
 import { StartTestServerOptions } from '../start-test-server-options.model';
 
 const requireModule: NodeJS.Require = createRequire(__filename);
@@ -433,7 +434,7 @@ export class StartedTestCluster {
     async shutdown(): Promise<void> {
         await Promise.all(this.startedInstances.map(i => i.kill()));
         this.startedInstances.length = 0;
-        await Promise.all(this.containers.map(c => c.container.stop()));
+        await Promise.all(this.containers.map(c => stopDataSourceContainer(c)));
         removeScratchDirectory(this.scratchPath);
     }
 
@@ -472,7 +473,7 @@ export class StartedTestCluster {
                 [CLUSTER_SCRATCH_PATH_ENV]: this.scratchPath,
                 [CLUSTER_INSTANCE_ID_ENV]: id,
                 [CLUSTER_INSTANCE_OPTIONS_ENV]: this.instanceOptionsPath,
-                [CLUSTER_DATA_SOURCE_PORTS_ENV]: JSON.stringify(this.containers.map(c => c.port))
+                [CLUSTER_DATA_SOURCE_PORTS_ENV]: JSON.stringify(this.containers.map(c => c.ports))
             }
         });
         return new ClusterInstance(id, child);

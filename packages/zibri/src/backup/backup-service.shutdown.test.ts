@@ -13,6 +13,7 @@ import { BackupEntity } from './backup-entity.model';
 import { BackupResourceEntity } from './backup-resource-entity.model';
 import { BackupResourceInterface } from './backup-resource.interface';
 import { BackupServiceInterface } from './backup-service.interface';
+import { BackupStatus } from './backup-status.enum';
 import { Backup } from './decorators/backup-resource.decorator';
 import { BackupTransport } from './decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from './transports/fs.backup-transport';
@@ -148,7 +149,8 @@ async function startServer(shutdownWaitInMs?: number): Promise<StartedTestServer
 async function createBackedUpState(name: string): Promise<BackupEntity> {
     inject(FirstStore).value = 'backed up';
     inject(SecondStore).value = 'backed up';
-    await getBackupService().createBackup({ name });
+    const service: BackupServiceInterface = getBackupService();
+    await service.waitForBackup(await service.queueBackup({ name }));
     const [backup]: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({
         where: { name },
         relations: ['resources']
@@ -164,7 +166,11 @@ async function createBackedUpState(name: string): Promise<BackupEntity> {
  */
 type RunningBackup = {
     /**
-     * What it ends with: nothing, or the error it failed with.
+     * The backup as it was queued.
+     */
+    backup: BackupEntity,
+    /**
+     * What waiting for it ends with: the backup once it completed, or the error waiting stopped with.
      */
     ended: Promise<unknown>
 };
@@ -176,14 +182,25 @@ type RunningBackup = {
  */
 async function startBackup(name: string): Promise<RunningBackup> {
     const service: BackupServiceInterface = getBackupService();
+    const backup: BackupEntity = await service.queueBackup({ name });
     // eslint-disable-next-line promise/prefer-await-to-then, promise/prefer-await-to-callbacks
-    const ended: Promise<unknown> = service.createBackup({ name }).catch((error: unknown) => error);
+    const ended: Promise<unknown> = service.waitForBackup(backup).catch((error: unknown) => error);
     await firstValueFrom(service.isCreatingBackup.pipe(first(v => v)));
     // long enough for the first chunk to reach the transport
     await sleep(200);
-    return { ended };
+    return { backup, ended };
 }
 
+/**
+ * Reads a backup with its resources.
+ * @param id - The backup.
+ * @returns The backup.
+ */
+async function findBackup(id: string): Promise<BackupEntity> {
+    return await inject(repositoryTokenFor(BackupEntity)).findById(id, { relations: ['resources'] });
+}
+
+// 09 §Q5: a backup stopped by a shutdown was deleted, and one whose instance died was abandoned
 describe('BackupService — a backup when the application stops', () => {
     let server: StartedTestServer | undefined;
 
@@ -193,48 +210,52 @@ describe('BackupService — a backup when the application stops', () => {
         await FsUtilities.rm(backupFolder);
     }, 60000);
 
-    it('stops a running backup at once by default, and deletes what it wrote', async () => {
+    it('hands a running backup over at once by default, without counting the attempt it stopped', async () => {
         server = await startServer();
         inject(FirstStore).dataArrival = 'never';
-        const backup: RunningBackup = await startBackup('stopped');
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'stopped'))).toBe(true);
+        const running: RunningBackup = await startBackup('handed-over');
 
         const startedAt: number = Date.now();
-        await server.shutdown();
-        server = undefined;
+        // a restart, which keeps what the data source holds
+        await server.reInit();
 
         expect(Date.now() - startedAt).toBeLessThan(Ms.SECOND * 10);
-        const error: unknown = await backup.ended;
-        assert(error instanceof Error, 'the backup did not fail');
-        expect(error.message).toContain('The backup "stopped" was stopped because the application is shutting down');
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'stopped'))).toBe(false);
+        const error: unknown = await running.ended;
+        assert(error instanceof Error, 'waiting for the backup did not stop');
+        expect(error.message).toContain('Another instance stores what is left of it');
+        const handedOver: BackupEntity = await findBackup(running.backup.id);
+        expect(handedOver.status).toBe(BackupStatus.RUNNING);
+        expect(handedOver.resources.map(r => [r.completed, r.attempts])).toContainEqual([false, 0]);
+
+        // the instance that carries on, with a store whose data arrives
+        await getBackupService().runQueuedBackups();
+        expect((await getBackupService().waitForBackup(handedOver)).status).toBe(BackupStatus.COMPLETED);
     }, TestTimeouts.inMemory.start);
 
     it('lets a running backup finish within BACKUP_SHUTDOWN_WAIT_IN_MS', async () => {
         server = await startServer(Ms.SECOND * 10);
         inject(FirstStore).dataArrival = Ms.SECOND;
-        const backup: RunningBackup = await startBackup('waited-for');
+        const running: RunningBackup = await startBackup('waited-for');
 
         await server.shutdown();
         server = undefined;
 
-        expect(await backup.ended).toBeUndefined();
+        expect(await running.ended).toMatchObject({ status: BackupStatus.COMPLETED });
         expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'waited-for', 'metadata.json'))).toBe(true);
     }, TestTimeouts.inMemory.start);
 
-    it('stops a running backup once BACKUP_SHUTDOWN_WAIT_IN_MS is over', async () => {
+    it('hands a running backup over once BACKUP_SHUTDOWN_WAIT_IN_MS is over', async () => {
         server = await startServer(Ms.SECOND / 2);
         inject(FirstStore).dataArrival = 'never';
-        const backup: RunningBackup = await startBackup('waited-for-in-vain');
+        const running: RunningBackup = await startBackup('waited-for-in-vain');
 
         const startedAt: number = Date.now();
-        await server.shutdown();
-        server = undefined;
+        await server.reInit();
 
         expect(Date.now() - startedAt).toBeGreaterThanOrEqual(Ms.SECOND / 2);
         expect(Date.now() - startedAt).toBeLessThan(Ms.SECOND * 10);
-        expect(await backup.ended).toBeInstanceOf(Error);
-        expect(await FsUtilities.exists(FsUtilities.getPath(backupFolder, 'waited-for-in-vain'))).toBe(false);
+        expect(await running.ended).toBeInstanceOf(Error);
+        expect((await findBackup(running.backup.id)).status).toBe(BackupStatus.RUNNING);
     }, TestTimeouts.inMemory.start);
 });
 

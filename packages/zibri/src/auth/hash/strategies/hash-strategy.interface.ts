@@ -37,7 +37,7 @@ export interface HashStrategyInterface<THashOptions extends Record<string, unkno
      *
      * Optional: a strategy with no tunable cost has nothing to answer. A strategy that does have one
      * should record it in the hash and compare against it here, so that raising the cost upgrades
-     * accounts as they sign in instead of invalidating what is stored.
+     * accounts as they log in instead of invalidating what is stored.
      */
     needsRehash?: (hash: HashString) => boolean,
     /**

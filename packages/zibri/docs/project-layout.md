@@ -18,11 +18,11 @@ Most changes start in four places:
 | `src/index.ts` | Starts the application: builds it, creates the default data, then listens on `PORT` |
 | `src/application-options.base.ts` | The controllers, plugins, providers and auth settings, see [architecture](./architecture.md#the-application) |
 | `src/application-options.ts` | The same options with the production data source added |
-| `src/providers.ts` | The values the framework reads through `ZIBRI_DI_TOKENS`: the master key, the jwt secrets, the mail transport and the templates it renders, see [configuring the framework](./configuration.md) |
+| `src/providers.ts` | The values the framework reads through `ZIBRI_DI_TOKENS`: the [master key](./glossary.md#master-key), the jwt secrets, the mail transport and the templates it renders, see [configuring the framework](./configuration.md) |
 | `src/env.ts` | `requireEnv` and `optionalEnv`, which read the environment |
 | `.env.example` | Every variable the application reads, with the secrets left blank. Committed |
 | `.env` | The values, with a secret generated for each blank. Git ignored |
-| `src/create-default-data.function.ts` | Creates the roles and the first administrator on startup, when they are missing, in one transaction. With the administrator, it creates the tenant `Default` and their membership in it as its `admin` |
+| `src/create-default-data.function.ts` | Creates the roles and the first administrator on startup, when they are missing, in one transaction. With the administrator, it creates the [tenant](./glossary.md#tenant) `Default` and their [membership](./glossary.md#membership) in it as its `admin` |
 
 ## Building
 
@@ -69,7 +69,7 @@ Most changes start in four places:
 
 | File | What it is for |
 |---|---|
-| `src/controllers/auth.controller.ts` | The login, logout, password reset and second factor routes under `/auth`, see [auth routes](./auth-routes.md) |
+| `src/controllers/auth.controller.ts` | The login, logout, password reset and [second factor](./glossary.md#second-factor) routes under `/auth`, see [auth routes](./auth-routes.md) |
 | `src/controllers/health.controller.ts` | `/health/live` and `/health/ready`, see [health endpoints](./deployment.md#health-endpoints) |
 | `src/controllers/page.controller.ts` | The home page at `/` and the assets explorer at `/assets` |
 | `src/controllers/index.ts` | Exports the controllers |
@@ -133,7 +133,7 @@ test and deploy it.
 comma separated list, or `none`:
 
 ```sh
-zi new api github requireLogin none
+zi new api github isLoggedIn none
 ```
 
 ## Adding and removing a feature

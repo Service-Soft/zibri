@@ -17,7 +17,7 @@ import { toJsonValue } from '../parsing/functions/to-json-value.function';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { BigNumber } from '../utilities/number.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
-import { UUID_REGEX } from '../validation/functions/validate-string.function';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 
 /**
  * What a property change does to the values it converts, whichever data source stores them.
@@ -236,7 +236,7 @@ export abstract class ValueConversionUtilities {
      * no longer than the property's length.
      */
     private static fitsString(text: string, into: StoredStringPropertyMetadata): boolean {
-        if ((into.format === 'uuid' || into.primary) && !UUID_REGEX.test(text)) {
+        if ((into.format === 'uuid' || into.primary) && !UUIDUtilities.STRICT_SHAPE.test(text)) {
             return false;
         }
         if (into.enum != undefined && !ObjectUtilities.values(into.enum).includes(text)) {

@@ -6,14 +6,23 @@ A durable pub/sub system for decoupling parts of your app. Unlike a plain event 
 |---|---|---|
 | `EventService` | class | Default implementation of `EventServiceInterface` |
 | `EventServiceInterface` | interface | Contract for emitting and subscribing to events |
-| `EventSubscribeOptions` | type | Options passed to `subscribe`/`subscribeAll` (`subscriberId`, `attempts`, `timeout`) |
+| `ZibriEventMap` | interface | The events of your application and their payloads, declared by extending it |
+| `EventSubscribeOptions` | type | Options passed to `subscribe`/`subscribeAll` (`subscriberId`, `attempts`, `timeoutInMs`, `delivery`, `runsOn`) |
+| `EventHook` | type | The hook of a subscriber: handed the event, a signal and its run |
+| `QueuedWorkRun` | type | What an attempt is handed: a `runId` the same on every attempt, which `attempt` it is, its `signal` and its `transaction` |
+| `QueueDelivery` | type | How often a hook runs when an instance stops at the wrong moment: `'atLeastOnce'`, `'atMostOnce'` or `'transactional'`, see [choosing how a hook is delivered](#choosing-how-a-hook-is-delivered) |
 | `EventSubscriptionInterface` | type | Return value of `subscribe`/`subscribeAll`, exposes `unsubscribe` |
+| `EventSubscription` | class | What `EventService` returns from `subscribe`/`subscribeAll` |
 | `EventReplayOptions` | type | Which failed runs `replayFailed` offers again (`eventIds`, `subscriberIds`, `types`, `acrossTenants`) |
+| `FrameworkEventNames` | type | Which writes of users, [memberships](./glossary.md#membership) and roles are emitted, each as an event type of yours, via `ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES`. Defaults to none, see [hearing of users, memberships and roles](#hearing-of-users-memberships-and-roles) |
+| `UserEventData`, `MembershipEventData`, `RolesChangedEventData` | type, type, type | What the events of users, memberships and roles carry |
+| `EventTypeFor` | type | The event types of your `ZibriEventMap` whose payload some data fits |
 | `Event` | entity | Persisted record of an emitted event |
 | `EventSubscriberRun` | entity | Persisted ledger of one subscriber's attempts at one event: where it stands, how many it has spent, and what the last one failed with |
 | `EventStatus` | enum | `CREATED`, `FINISHED` or `FAILED`: where an event stands with all of its subscribers |
 | `EventSubscriberRunStatus` | enum | `PENDING_RETRY`, `SUCCEEDED` or `FAILED`: where a subscriber stands with an event |
 | `EventSubscriberRegistration` | entity | Which subscribers exist across the deployment |
+| `EventDispatchCronJob` | cron job | Hands unfinished events back to the subscribers of this instance, so an event survives a restart. Registered for you |
 | `EventCleanupCronJob` | cron job | Deletes `FINISHED` events past their `cleanupAt`, and `FAILED` ones older than `EVENT_FAILED_RETENTION_IN_MS` |
 | `EventProcessingError` | error | Logged when a subscriber's hook fails after exhausting all attempts |
 | `ZIBRI_DI_TOKENS.EVENT_SERVICE` | DI token | Injects `EventServiceInterface` |
@@ -21,6 +30,7 @@ A durable pub/sub system for decoupling parts of your app. Unlike a plain event 
 | `ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS` | DI token | How long the first retry waits, doubling for each one after it. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS` | DI token | How many hooks one instance runs at a time. Defaults to 50 |
 | `ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS` | DI token | How long a `FAILED` event is kept, counted from when it was emitted, or `'forever'`. Required |
+| `ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES` | DI token | Injects `FrameworkEventNames`. Defaults to none |
 
 ## Declaring what your application emits
 Declare your events once, anywhere in your project, by extending `ZibriEventMap`:
@@ -29,7 +39,8 @@ Declare your events once, anywhere in your project, by extending `ZibriEventMap`
 // src/events/app-events.ts
 declare module 'zibri' {
     interface ZibriEventMap {
-        userCreated: { userId: string }
+        userCreated: { userId: string },
+        taskAssigned: { taskId: string, userId: string }
     }
 }
 
@@ -55,7 +66,7 @@ export async function registerUserEvents(): Promise<void> {
         async (event) => {
             await sendWelcomeMail(event.data.userId);
         },
-        { subscriberId: 'send-welcome-mail', attempts: 3, timeout: 5000 }
+        { subscriberId: 'send-welcome-mail', attempts: 3, timeoutInMs: 5000 }
     );
 }
 ```
@@ -78,9 +89,52 @@ export async function announceUser(eventService: EventServiceInterface, userId: 
 
 `emit` stores the event together with the ids of every subscriber registered for it at that moment, and hands it to them. A subscriber registered after the emit does not receive it.
 
-An optional third argument, `cleanupAfterMs`, sets how long a finished event is kept after it was created. `EventCleanupCronJob` deletes it after that. Defaults to one day (`Ms.DAY`).
+An optional third argument, `cleanupAfterInMs`, sets how long a finished event is kept after it was created. `EventCleanupCronJob` deletes it after that. Defaults to one day (`Ms.DAY`).
 
 An event emitted in a [tenant](./tenancy.md#work-outside-a-request) belongs to it, and every hook runs in that tenant, whichever instance picks the event up.
+
+## Hearing of users, memberships and roles
+A write to users, memberships or roles can be emitted as an event of yours, however it is made: through the auth service, a repository or a provisioning provider. Declare a type for each one you want in your event map:
+
+```ts
+// src/events/account-events.ts
+import { MembershipEventData, UserEventData } from 'zibri';
+
+declare module 'zibri' {
+    interface ZibriEventMap {
+        accountRemoved: UserEventData,
+        teamMemberLeft: MembershipEventData
+    }
+}
+
+export {};
+```
+
+and name it in `ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES`:
+
+```ts
+// src/providers.ts
+import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
+
+defineProvider({
+    token: ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES,
+    useValue: { userDeleted: 'accountRemoved', membershipEnded: 'teamMemberLeft' }
+})
+```
+
+| Name | Emitted when | Carries |
+|---|---|---|
+| `userDeleted` | A user is removed from the store. A soft deleted user is not | `UserEventData` |
+| `userDeactivated` | An active user is deactivated | `UserEventData` |
+| `userReactivated` | A deactivated user is reactivated | `UserEventData` |
+| `membershipStarted` | A user becomes an active member of a tenant: a membership is created, reactivated, or moved to them | `MembershipEventData` |
+| `membershipEnded` | A user stops being an active member of a tenant: their membership is deleted, deactivated, or moved to somebody else | `MembershipEventData` |
+| `rolesChanged` | A role is created, changed or deleted. Once for each tenant whose own roles changed, and once with `tenantId: null` for the roles every tenant shares | `RolesChangedEventData` |
+
+A type whose payload the event does not fit does not compile. None is emitted until you name it, and each one you name costs every write of its kind a read of the rows it changes and an event. An event of a membership or of a tenant's own role belongs to that tenant, and one of a user or of a shared role to none.
+
+> [!NOTE]
+> An event is emitted once its write is committed. An instance that stops between the commit and the emit loses that one event.
 
 ## Unsubscribing
 Both `subscribe` and `subscribeAll` resolve to an `EventSubscriptionInterface`:
@@ -136,6 +190,75 @@ A registration is refreshed while any instance hosting that subscriber is alive.
 
 Raise it if a tier can be down longer than a minute during a deploy, and its events should wait for it.
 
+## Choosing how a hook is delivered
+A hook runs at least once: an instance that stops after the hook did its work and before its run is recorded leaves the work to another, which runs the hook again. The third argument of a hook is its run. Its `runId` names the event and the subscriber, the same on every attempt, so the work it does elsewhere can be made safe to repeat, such as the idempotency key of a message to a chat service:
+
+```ts
+// src/events/announce-assignment.subscription.ts
+import { EventServiceInterface } from 'zibri';
+
+import { postToChat } from '../services/chat';
+
+export async function subscribeAnnounceAssignment(eventService: EventServiceInterface): Promise<void> {
+    await eventService.subscribe(
+        'taskAssigned',
+        async (event, signal, run) => {
+            await postToChat(event.data.taskId, event.data.userId, { idempotencyKey: run.runId, signal });
+        },
+        { subscriberId: 'announce-assignment', attempts: 3 }
+    );
+}
+```
+
+`delivery` chooses otherwise:
+
+| `delivery` | The hook | Use it when |
+|---|---|---|
+| `'atLeastOnce'` | Runs again after an instance stopped at the wrong moment. The default | Its work is safe to repeat, or carries `runId` to something that drops repeats |
+| `'transactional'` | Writes through `run.transaction`, which records its run too, so its writes happen once. A hook that throws has its writes rolled back | Its work is writes to the data source the events are kept in |
+| `'atMostOnce'` | Is recorded as failed before it runs, so it never runs twice, and is not retried. An instance stopping during it leaves it `FAILED` | A repeat is worse than a miss, such as a push notification |
+
+```ts
+// src/events/comment-assignment.subscription.ts
+import { EventServiceInterface, inject, Repository, repositoryTokenFor } from 'zibri';
+
+import { Comment } from '../entities/comment.entity';
+
+export async function subscribeCommentAssignment(eventService: EventServiceInterface): Promise<void> {
+    const comments: Repository<Comment> = inject(repositoryTokenFor(Comment));
+    await eventService.subscribe(
+        'taskAssigned',
+        async (event, _signal, run) => {
+            await comments.create({ taskId: event.data.taskId, text: 'Assigned' }, { transaction: run.transaction });
+        },
+        { subscriberId: 'comment-assignment', delivery: 'transactional' }
+    );
+}
+```
+
+## Running on every instance
+A subscriber with `runsOn: 'everyInstance'` runs on every instance that hosts it, such as one that clears what that instance keeps in memory:
+
+```ts
+// src/events/forget-workload.subscription.ts
+import { EventServiceInterface } from 'zibri';
+
+import { workloads } from '../services/workloads';
+
+export async function subscribeForgetWorkload(eventService: EventServiceInterface): Promise<void> {
+    await eventService.subscribe(
+        'taskAssigned',
+        event => workloads.forget(event.data.userId),
+        { subscriberId: 'forget-workload', runsOn: 'everyInstance' }
+    );
+}
+```
+
+It runs once on each instance, as the event is emitted: on the emitting instance at once, and on the others through the data source's messages. It owes the event no run, so the event is finished without it, and a hook that throws is logged and not run again.
+
+> [!NOTE]
+> A subscriber on every instance is best effort. An instance that is down when the event is emitted misses it, and with a data source that carries no messages between instances, only the emitting instance runs it.
+
 ## Configuration
 Add `Event`, `EventSubscriberRun` and `EventSubscriberRegistration` to a data source's `entities` array, like any other entity (see [data source](./data-source.md)), together with the `Lease` entity (see [leases](./leases.md)).
 
@@ -162,9 +285,9 @@ Raise the limit for hooks that spend their time waiting on something else. Lower
 ### Retry and timeout semantics
 Passed per subscription via `EventSubscribeOptions`:
 - `attempts`: how many times the hook runs in total before the subscriber gives up. Defaults to `1`, a single attempt.
-- `timeout`: milliseconds the hook has to finish, per attempt, before it is aborted and counted as a failure. Defaults to `30000` (30 seconds). The hook receives an `AbortSignal` as its second argument. It fires when the timeout elapses, and when the [claim](#running-more-than-one-instance) on the event is lost.
+- `timeoutInMs`: milliseconds the hook has to finish, per attempt, before it is aborted and counted as a failure. Defaults to `30000` (30 seconds). The hook receives an `AbortSignal` as its second argument. It fires when the timeout elapses, and when the [claim](#running-more-than-one-instance) on the event is lost.
 
-Each delivery runs one attempt. A hook that fails leaves its `EventSubscriberRun` at `PENDING_RETRY`, with a `nextRetryAt`, the attempts spent so far, and the failure as a `LoggedError` that keeps the message and the chain of causes. `EventDispatchCronJob` offers the event again once that time has passed. Until then the event's `nextDispatchAt` keeps it out of the poll, unless another subscriber owes it a run that is due.
+Each delivery runs one attempt. A hook that fails leaves its `EventSubscriberRun` at `PENDING_RETRY`, with a `nextAttemptAt`, the attempts spent so far, and the failure as a `LoggedError` that keeps the message and the chain of causes. `EventDispatchCronJob` offers the event again once that time has passed. Until then the event's `nextDispatchAt` keeps it out of the poll, unless another subscriber owes it a run that is due.
 
 The delay doubles from `ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS`, one minute by default: the second attempt waits a minute, the third two, the fourth four. A retry starts no sooner than `EVENT_EXECUTION_LEASE_IN_MS` after the failed attempt, because that attempt keeps its claim until then.
 
@@ -215,8 +338,11 @@ Your data source declares these entities:
 |---|---|
 | `Event`, `EventSubscriberRun`, `EventSubscriberRegistration` | Every application |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
-- [Replication](./replication.md) — how an event is handled exactly once across instances
+- [Replication](./replication.md) — how each subscriber handles an event once across instances
+- [Background work](./background-work.md) — choosing between events, thread jobs, cron jobs and the other tools
 - [Data source](./data-source.md) — registering the `Event`/`EventSubscriberRun` entities on a data source
 - [Cron](./cron.md) — how `EventCleanupCronJob` and other cron jobs work
 - [Logging](./logging.md) — where `EventProcessingError` ends up when a subscriber's hook keeps failing

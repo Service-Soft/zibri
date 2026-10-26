@@ -17,9 +17,10 @@ import { LoginTicket } from '../../auth/models/login-ticket.model';
 import { PasswordResetToken } from '../../auth/models/password-reset-token.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { CacheInvalidation } from '../../caching/cache-invalidation.model';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { Change } from '../../change-sets/models/change.model';
 import { CronJobEntity } from '../../cron/cron-job-entity.model';
+import { ChangeSet } from '../../data-source/change-sets/models/change-set.model';
+import { Change } from '../../data-source/change-sets/models/change.model';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
@@ -158,7 +159,9 @@ export function createTestDataSource({
     /** The repository classes of the data source. */
     repositories: RepositoryClass[],
     /** Who manages the schema. Named here so a class extending this one counts as concrete. */
-    schemaManagement: SchemaManagement
+    schemaManagement: SchemaManagement,
+    /** What stands between the data source and its server. Named here for the same reason. */
+    pooler: PostgresPooler
 }> {
 
     @DataSource({ allowOrphan })
@@ -182,6 +185,7 @@ export function createTestDataSource({
         // a suite that ships no migrations and needs tables synchronizes, which is the one
         // deployment shape that is actually right for. It used to be implicit, which is the finding
         schemaManagement: SchemaManagement = schemaManagement;
+        readonly pooler: PostgresPooler = 'none';
     }
 
     return DbDataSource;

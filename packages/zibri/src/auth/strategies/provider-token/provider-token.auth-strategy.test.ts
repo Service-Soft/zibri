@@ -4,11 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createFakeKeyPair, createInMemoryDataSource, FakeDpopKey, FakeKeyPair, FakeOAuthProvider, InMemoryDataSource, startFakeOAuthProvider } from 'zibri-testing';
 
 import { ProviderTokenAuthStrategy } from './provider-token.auth-strategy';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -45,12 +45,12 @@ const CLIENT_ID: string = 'zibri-test-client';
 const CLIENT_SECRET: string = 'zibri-test-secret';
 // the audience the api is known by at the providers
 const API_AUDIENCE: string = 'https://api.zibri.test';
-// the client a mobile app signs in at the provider as
+// the client a mobile app logs in at the provider as
 const MOBILE_CLIENT_ID: string = 'zibri-mobile-app';
 
 let strictProvider: FakeOAuthProvider;
 let lenientProvider: FakeOAuthProvider;
-let signInOnlyProvider: FakeOAuthProvider;
+let loginOnlyProvider: FakeOAuthProvider;
 let otherProvider: FakeOAuthProvider;
 let pairwiseProvider: FakeOAuthProvider;
 
@@ -98,10 +98,10 @@ class LenientProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser
 }
 
 /**
- * Signs users in, and takes none of its provider's tokens.
+ * Logs users in, and takes none of its provider's tokens.
  */
-class SignInOnlyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
-    readonly name: string = 'sign-in-only';
+class LoginOnlyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
+    readonly name: string = 'login-only';
 
     readonly clientId: string = CLIENT_ID;
 
@@ -110,7 +110,7 @@ class SignInOnlyProviderAuthenticator extends BaseOidcAuthenticator<string, JwtU
     readonly authenticationTime: OidcAuthenticationTime = 'auth_time';
 
     get issuer(): string {
-        return signInOnlyProvider.issuer;
+        return loginOnlyProvider.issuer;
     }
 }
 
@@ -156,7 +156,7 @@ class NoAudienceProviderAuthenticator extends BaseOidcAuthenticator<string, JwtU
 }
 
 /**
- * Another client at the provider StrictProviderAuthenticator signs in at, taking its tokens as well.
+ * Another client at the provider StrictProviderAuthenticator logs in at, taking its tokens as well.
  */
 class SecondStrictProviderAuthenticator extends StrictProviderAuthenticator {
     override readonly name: string = 'strict-second';
@@ -215,7 +215,7 @@ class ApiController {
 const ALL_STRATEGIES: AuthStrategies = [JwtAuthStrategy, ClientAccessTokenAuthStrategy, ProviderTokenAuthStrategy, LocalProxyClientCertificateAuthStrategy];
 
 /**
- * The auth routes of an application signing in through the given providers, which the providers send
+ * The auth routes of an application logging in through the given providers, which the providers send
  * the browser back to.
  * @param authenticators - The providers' authenticators.
  * @returns The controller.
@@ -263,7 +263,7 @@ async function startApp(
                 useValue: {
                     allowedRedirects: ['https://app.example.com'],
                     registrationUrl: 'https://app.example.com/register',
-                    errorUrl: 'https://app.example.com/sign-in-failed',
+                    errorUrl: 'https://app.example.com/login-failed',
                     maxAuthenticationAgeInMs: 3600000
                 }
             })
@@ -293,7 +293,7 @@ beforeAll(async () => {
     authority = await createFakeKeyPair('CN=Client test authority', { authority: true });
     strictProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
     lenientProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, algorithm: 'RS256' });
-    signInOnlyProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
+    loginOnlyProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
     otherProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
     pairwiseProvider = await startFakeOAuthProvider({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
 });
@@ -301,7 +301,7 @@ beforeAll(async () => {
 afterAll(async () => {
     await strictProvider?.stop();
     await lenientProvider?.stop();
-    await signInOnlyProvider?.stop();
+    await loginOnlyProvider?.stop();
     await otherProvider?.stop();
     await pairwiseProvider?.stop();
 });
@@ -309,7 +309,7 @@ afterAll(async () => {
 // first, so no application is running yet when they start one
 describe('ProviderTokenAuthStrategy — starting', () => {
     it('refuses to start when no authenticator of the application takes its provider\'s tokens', async () => {
-        await expect(startThenShutDown([SignInOnlyProviderAuthenticator]))
+        await expect(startThenShutDown([LoginOnlyProviderAuthenticator]))
             .rejects.toThrow(/ProviderTokenAuthStrategy[\S\s]*no authenticator of the application takes/);
     }, TestTimeouts.inMemory.start);
 
@@ -332,7 +332,7 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         [server, baseUrl] = await startApp([
             StrictProviderAuthenticator,
             LenientProviderAuthenticator,
-            SignInOnlyProviderAuthenticator,
+            LoginOnlyProviderAuthenticator,
             PairwiseProviderAuthenticator
         ]);
     }, TestTimeouts.inMemory.start);
@@ -344,14 +344,14 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
     /**
      * Creates a user, and links an identity at a provider to them.
      * @param at - The provider.
-     * @param signIn - Whether the identity signs in, rather than being linked for the provider's apis only.
+     * @param forLogin - Whether the identity logs in, rather than being linked for the provider's apis only.
      * @returns The user, whom the provider signs its tokens for from now.
      */
-    async function createLinkedUser(at: FakeOAuthProvider, signIn: boolean = true): Promise<JwtUser> {
+    async function createLinkedUser(at: FakeOAuthProvider, forLogin: boolean = true): Promise<JwtUser> {
         const subject: string = `subject-${randomBytes(6).toString('hex')}`;
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${subject}@example.com`, roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: at.issuer, subject, userId: user.id, signIn, grantedScopes: [] });
+            .create({ issuer: at.issuer, subject, userId: user.id, forLogin, grantedScopes: [] });
         at.identity = { subject, email: user.email };
         return user;
     }
@@ -467,9 +467,9 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
     });
 
     it('refuses the tokens of a provider whose authenticator takes none of them', async () => {
-        await createLinkedUser(signInOnlyProvider);
+        await createLinkedUser(loginOnlyProvider);
 
-        const token: string = signInOnlyProvider.createJwtAccessToken({ audience: API_AUDIENCE });
+        const token: string = loginOnlyProvider.createJwtAccessToken({ audience: API_AUDIENCE });
 
         expect((await callWith('/me', token)).status).toBe(401);
     });
@@ -478,9 +478,9 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         const oid: string = `oid-${randomBytes(6).toString('hex')}`;
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${oid}@example.com`, roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: pairwiseProvider.issuer, subject: oid, userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: pairwiseProvider.issuer, subject: oid, userId: user.id, forLogin: true, grantedScopes: [] });
 
-        // the sub an access token for the api carries, which no sign-in ever linked
+        // the sub an access token for the api carries, which no login ever linked
         pairwiseProvider.identity = { subject: 'pairwise-mobile', claims: { oid } };
         expect(await readUserId(await callWith('/me', pairwiseProvider.createJwtAccessToken({ audience: API_AUDIENCE })))).toBe(user.id);
 
@@ -530,7 +530,7 @@ describe('ProviderTokenAuthStrategy — reading a provider\'s tokens', () => {
         expect((await callWith('/mfa', withFactor({}))).status).toBe(401);
     });
 
-    it('takes when the user signed in at the provider as the time of the login', async () => {
+    it('takes when the user logged in at the provider as the time of the login', async () => {
         await createLinkedUser(strictProvider);
         const now: number = Math.floor(Date.now() / Ms.SECOND);
 

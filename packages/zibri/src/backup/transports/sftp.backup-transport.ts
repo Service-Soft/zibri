@@ -190,7 +190,7 @@ export abstract class BaseSftpBackupTransport implements BackupTransportInterfac
             port: this.options.port ?? DEFAULT_PORT,
             username: this.options.username,
             ...this.options.authentication,
-            readyTimeout: this.options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
+            readyTimeout: this.options.connectTimeoutInMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
             keepaliveInterval: KEEPALIVE_INTERVAL_MS,
             keepaliveCountMax: KEEPALIVE_COUNT_MAX,
             hostVerifier: (key: Buffer): boolean => {

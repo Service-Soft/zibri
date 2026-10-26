@@ -16,30 +16,31 @@ export type Where<T extends Object> = WhereFilter<T> | WhereFilter<T>[];
  * A single where filter.
  */
 export type WhereFilter<T extends Object> = {
-    [P in keyof T]?: WhereFilterProperty<T[P]> | WhereFilterProperty<T[P]>[]
+    [P in keyof T]?: WhereFilterProperty<T[P], T[P], T> | WhereFilterProperty<T[P], T[P], T>[]
 };
 
 /**
  * The definition for a single where filter property.
  *
  * Distributes over the members of `T`, while `Whole` keeps all of them: a value of several shapes is
- * a union of one member per shape, and its filter is built from every shape at once.
+ * a union of one member per shape, and its filter is built from every shape at once. `Of` is the
+ * entity the property is on, whose other properties a comparison can name.
  */
-export type WhereFilterProperty<T, Whole = T> = T extends NamedShapeValue
+export type WhereFilterProperty<T, Whole = T, Of extends object = object> = T extends NamedShapeValue
     ? IsOneOf<Whole> extends true
         ? OneOfWhereFilter<Extract<NonNullable<Whole>, NamedShapeValue>> | null
         : ObjectWhereFilter<T>
-    : SingleShapeWhereFilterProperty<T>;
+    : SingleShapeWhereFilterProperty<T, Of>;
 
 /**
  * The definition for a single where filter property that is not a value of several shapes.
  */
-type SingleShapeWhereFilterProperty<T> = T extends bigint
-    ? NumberWhereFilter<bigint>
+type SingleShapeWhereFilterProperty<T, Of extends object> = T extends bigint
+    ? NumberWhereFilter<bigint, Of>
     : T extends string
         ? StringWhereFilter
         : T extends number
-            ? NumberWhereFilter<number>
+            ? NumberWhereFilter<number, Of>
             : T extends boolean
                 ? BooleanWhereFilter
                 : T extends (infer ItemType)[]
@@ -51,11 +52,11 @@ type SingleShapeWhereFilterProperty<T> = T extends bigint
                                 ? ObjectArrayWhereFilter<ItemType>
                                 : ArrayWhereFilter<ItemType>
                     : T extends Date
-                        ? DateWhereFilter
+                        ? DateWhereFilter<Of>
                         // before the object branch, which a BigNumber would otherwise fall into and
                         // be filtered by the fields it happens to be built out of
                         : T extends BigNumber
-                            ? NumberWhereFilter<AnyNumber>
+                            ? NumberWhereFilter<AnyNumber, Of>
                             : T extends object
                                 ? ObjectWhereFilter<T>
                                 : never;

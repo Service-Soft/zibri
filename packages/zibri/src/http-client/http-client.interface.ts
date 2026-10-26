@@ -35,7 +35,7 @@ export type HttpClientRequestBody<RequestBodyType extends HttpClientRequestBodyM
 /**
  * Options for sending a http request with the client.
  */
-type HttpOptions<
+export type HttpOptions<
     T extends object,
     QueryParamsObject extends Record<string, unknown>,
     HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
@@ -55,7 +55,7 @@ type HttpOptions<
     /**
      * The timeout for the request in ms.
      */
-    timeoutMs: number,
+    timeoutInMs: number,
     /**
      * The amount of times that the request should be attempted before finally failing.
      * Defaults to 1.

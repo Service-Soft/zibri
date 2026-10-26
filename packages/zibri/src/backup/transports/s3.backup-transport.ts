@@ -136,7 +136,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         return (await this.httpClient.get(request.url, {
             headers: request.headers,
             responseBody: { type: MimeType.OCTET_STREAM, maxSize: `${resource.size}b` },
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
             attempts: ATTEMPTS
         })).body;
     }
@@ -155,7 +155,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         const request: S3Request = await this.resolveRequest(HttpMethod.DELETE, key, {}, '');
         await this.httpClient.delete(request.url, {
             headers: request.headers,
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
             attempts: ATTEMPTS
         });
     }
@@ -217,7 +217,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
                     allowAdditionalProperties: true,
                     maxSize: MAX_LISTING_PAGE_SIZE
                 },
-                timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+                timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
                 attempts: ATTEMPTS
             })).body;
             keys.push(...(page.contents ?? []).map(o => o.key));
@@ -232,7 +232,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         const data: Readable = (await this.httpClient.get(request.url, {
             headers: request.headers,
             responseBody: { type: MimeType.OCTET_STREAM, maxSize: MAX_METADATA_SIZE },
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
             attempts: ATTEMPTS
         })).body;
         return await text(data);
@@ -246,7 +246,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         await this.httpClient.put(request.url, new Blob([new Uint8Array(body)]), {
             headers: request.headers,
             requestBodyType: MimeType.OCTET_STREAM,
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
             attempts: ATTEMPTS
         });
     }
@@ -258,7 +258,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         return (await this.httpClient.post(request.url, undefined, {
             headers: { ...request.headers, [KnownHeader.CONTENT_TYPE]: MimeType.OCTET_STREAM },
             responseBody: { type: MimeType.XML, modelClass: S3InitiateMultipartUploadResult, allowAdditionalProperties: true },
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS
         })).body.uploadId;
     }
 
@@ -280,7 +280,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             headers: request.headers,
             requestBodyType: MimeType.OCTET_STREAM,
             responseHeaders: { etag: { type: 'string' } },
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
             attempts: ATTEMPTS
         });
         return { partNumber, eTag: headers.etag };
@@ -295,7 +295,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
             headers: request.headers,
             requestBodyType: MimeType.XML,
             responseBody: { type: MimeType.XML, modelClass: S3CompleteMultipartUploadResult, allowAdditionalProperties: true },
-            timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+            timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS
         });
     }
 
@@ -304,7 +304,7 @@ export abstract class BaseS3BackupTransport implements BackupTransportInterface 
         try {
             await this.httpClient.delete(request.url, {
                 headers: request.headers,
-                timeoutMs: this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+                timeoutInMs: this.options.timeoutInMs ?? DEFAULT_TIMEOUT_MS,
                 attempts: ATTEMPTS
             });
         }

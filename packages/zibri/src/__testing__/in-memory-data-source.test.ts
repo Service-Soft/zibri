@@ -7,6 +7,7 @@ import { InMemoryDataSource, resetInMemoryStore } from 'zibri-testing';
 import { ZibriApplication } from '../application/application';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { FindAllPaginatedOptions } from '../data-source/models/options/find-all-paginated-options.model';
+import { KeysetPage, PaginationResult } from '../data-source/models/pagination-result.model';
 import { Repository } from '../data-source/repository/repository';
 import { RepositoryClass } from '../data-source/repository/repository-class.type';
 import { Transaction } from '../data-source/transaction/transaction.model';
@@ -18,7 +19,6 @@ import { EntityOrder } from '../entity/models/entity-order.model';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { EventSubscriberRegistration } from '../event/event-subscriber-registration.model';
-import { KeysetPage, PaginationResult } from '../open-api/pagination-result.model';
 import { Newable } from '../types/newable.type';
 import { Company } from './mocks/entities/company.entity';
 import { Profile } from './mocks/entities/profile.entity';
@@ -95,6 +95,7 @@ async function bootApp(): Promise<StartedInMemoryApp> {
     const app: ZibriApplication = new ZibriApplication({
         name: 'test',
         version: '1.0.0',
+        environment: 'development',
         baseUrl: 'http://localhost:3000',
         controllers: [],
         websocketControllers: [],
@@ -200,10 +201,10 @@ describe('InMemoryDataSource', () => {
         const overForty: User[] = await users.findAll({ where: { age: { greaterThan: 40 } }, order: { name: 'ASC' } });
         expect(overForty.map(u => u.name)).toEqual(['Alan', 'Grace']);
 
-        const firstTwo: User[] = await users.findAll({ order: { name: 'ASC' }, take: 2 });
+        const firstTwo: User[] = await users.findAll({ order: { name: 'ASC' }, limit: 2 });
         expect(firstTwo.map(u => u.name)).toEqual(['Ada', 'Alan']);
 
-        const afterTheFirst: User[] = await users.findAll({ order: { name: 'ASC' }, skip: 1, take: 'all' });
+        const afterTheFirst: User[] = await users.findAll({ order: { name: 'ASC' }, offset: 1, limit: 'all' });
         expect(afterTheFirst.map(u => u.name)).toEqual(['Alan', 'Grace']);
 
         expect(await users.findAll({ where: { name: { iLike: '%ra%' } } })).toHaveLength(1);
@@ -553,7 +554,7 @@ describe('InMemoryDataSource', () => {
         // a container-backed harness takes a new container, so this takes a new store
         started = await startInMemoryTestApp();
 
-        expect(await started.dataSource.getRepository(User).findAll({ take: 'all' })).toHaveLength(0);
+        expect(await started.dataSource.getRepository(User).findAll({ limit: 'all' })).toHaveLength(0);
     });
 
     it('restores a backup over whatever the store holds', async () => {

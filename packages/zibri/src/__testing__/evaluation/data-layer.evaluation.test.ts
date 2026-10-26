@@ -1,13 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 import { QueryRunner, Table, TableColumn, Logger as TypeOrmLogger } from 'typeorm';
 
-import { ChangeSetType } from '../../change-sets/models/change-set-type.enum';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { ChangeSetType } from '../../data-source/change-sets/models/change-set-type.enum';
+import { ChangeSet } from '../../data-source/change-sets/models/change-set.model';
+import { SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
 import { IsolationLevel } from '../../data-source/data-sources/data-source.interface';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
+import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { whereFor } from '../../data-source/models/where/where-for.function';
@@ -25,7 +27,6 @@ import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
@@ -188,6 +189,8 @@ class EvalDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 const dataSourceClass: Newable<PostgresDataSource> = EvalDataSource;
@@ -397,7 +400,7 @@ describe('evaluation/01-data-layer', () => {
             // says how much it wants has already made the claim the bound exists to check. Asserted
             // here rather than in a test of its own, because seeding this many rows twice costs more
             // than the two assertions are worth apart
-            expect(await orderRepo.findAll({ take: overTheLimit })).toHaveLength(overTheLimit);
+            expect(await orderRepo.findAll({ limit: overTheLimit })).toHaveLength(overTheLimit);
 
             // and this is what the bound costs without M14's count: how large a table is stops being
             // answerable through it at exactly the point the answer starts to matter. Asserted on

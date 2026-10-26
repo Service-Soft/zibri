@@ -56,7 +56,7 @@ const BINDINGS: Record<'redirect' | 'post', string> = {
 };
 
 /**
- * How the user signed in, as an answer says unless the identity names something else: with a password
+ * How the user logged in, as an answer says unless the identity names something else: with a password
  * over a protected connection.
  */
 const PASSWORD_AUTHN_CONTEXT: string = 'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport';
@@ -75,13 +75,13 @@ const ASSERTION_LIFETIME_IN_MS: number = 300000;
  * A SAML 2.0 identity provider running inside a test, reached over plain http on the loopback
  * interface.
  *
- * It signs in whoever `identity` says without asking anything, answers with a page that posts the
- * signed response to the service provider, and keeps what it was asked, so a test can drive a sign-in
+ * It logs in whoever `identity` says without asking anything, answers with a page that posts the
+ * signed response to the service provider, and keeps what it was asked, so a test can drive a login
  * end to end and see what the application sent.
  */
 export class FakeSamlProvider {
     /**
-     * Who the next sign-in signs in as.
+     * Who the next login logs in as.
      */
     identity: FakeSamlIdentity = {
         nameId: 'fake-name-id',
@@ -89,13 +89,13 @@ export class FakeSamlProvider {
     };
 
     /**
-     * When the next sign-in says the user signed in at the provider. Now, when undefined, or after a
-     * request asking the user to sign in again.
+     * When the next login says the user logged in at the provider. Now, when undefined, or after a
+     * request asking the user to log in again.
      */
     authenticatedAt: Date | undefined;
 
     /**
-     * Every request the provider was sent to sign a user in, in order.
+     * Every request the provider was sent to log a user in, in order.
      */
     readonly requests: FakeSamlRequest[] = [];
 
@@ -158,10 +158,10 @@ export class FakeSamlProvider {
     }
 
     /**
-     * The url the provider signs users in at.
+     * The url the provider logs users in at.
      * @returns The url.
      */
-    get signInUrl(): string {
+    get loginUrl(): string {
         return `${this.entityId}/sso`;
     }
 
@@ -213,7 +213,7 @@ export class FakeSamlProvider {
     }
 
     /**
-     * Answers the next sign-in with the given second level status rather than signing the user in, as
+     * Answers the next login with the given second level status rather than logging the user in, as
      * a provider does when the user is refused.
      * @param status - The status, eg. `urn:oasis:names:tc:SAML:2.0:status:RequestDenied`.
      */
@@ -244,7 +244,7 @@ export class FakeSamlProvider {
 
     /**
      * The form a user logging out at the provider has their browser post: the logout route of the
-     * service provider, with a logout request signed inside, as the HTTP-POST binding sends it.
+     * service provider, with a logout request logged inside, as the HTTP-POST binding sends it.
      * @param options - Who to log out, and what to get wrong.
      * @returns The form.
      * @throws When the provider was started without the logout url of the service provider.
@@ -309,7 +309,7 @@ export class FakeSamlProvider {
                 return;
             }
             case '/sso': {
-                await this.signIn(req.url ?? '', url.searchParams, res);
+                await this.logIn(req.url ?? '', url.searchParams, res);
                 return;
             }
             case '/slo': {
@@ -327,7 +327,7 @@ export class FakeSamlProvider {
         }
     }
 
-    private async signIn(rawUrl: string, query: URLSearchParams, res: ServerResponse): Promise<void> {
+    private async logIn(rawUrl: string, query: URLSearchParams, res: ServerResponse): Promise<void> {
         const encoded: string | null = query.get('SAMLRequest');
         if (encoded == undefined) {
             this.sendError(res, 'The request has no SAMLRequest.');
@@ -611,7 +611,7 @@ export class FakeSamlProvider {
         const now: Date = new Date();
         const notOnOrAfter: string = (changes.notOnOrAfter ?? new Date(now.getTime() + ASSERTION_LIFETIME_IN_MS)).toISOString();
         const inResponseTo: string | undefined = changes.unsolicited === true ? undefined : request.id;
-        // a request asking for a new sign-in gets one, which is now
+        // a request asking for a new login gets one, which is now
         const authenticatedAt: Date = request.forceAuthn ? now : this.authenticatedAt ?? now;
         const nameIdFormat: string = this.identity.nameIdFormat ?? request.nameIdFormat ?? UNSPECIFIED_NAME_ID_FORMAT;
         const authnContextClassRef: string = this.escape(this.identity.authnContextClassRef ?? PASSWORD_AUTHN_CONTEXT);
@@ -743,8 +743,8 @@ export class FakeSamlProvider {
             ...(this.options.logoutBindings ?? ['redirect'])
                 .map(binding => `<md:SingleLogoutService Binding="${BINDINGS[binding]}" Location="${this.logoutUrl}"/>`),
             '<md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>',
-            `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${this.signInUrl}"/>`,
-            `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${this.signInUrl}"/>`,
+            `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${this.loginUrl}"/>`,
+            `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${this.loginUrl}"/>`,
             '</md:IDPSSODescriptor>',
             // what metadata carries beyond what a service provider reads
             '<md:Organization>',

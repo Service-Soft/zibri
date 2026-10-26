@@ -4,6 +4,7 @@ import { describe, expect, it } from '@jest/globals';
 import { clusterModulePaths } from 'zibri-testing';
 
 import { ZibriApplication } from './application';
+import { initDiContainer } from '../di/init-di-container.function';
 
 /**
  * Which copy of the framework a cluster instance gets.
@@ -33,6 +34,21 @@ describe('the module paths handed to a cluster instance', () => {
         // two classes, and being the same class is the whole question.
         const loaded: { ZibriApplication: unknown } = require(resolved) as { ZibriApplication: unknown };
         expect(loaded.ZibriApplication).toBe(ZibriApplication);
+    });
+
+    it('names the internal entry point of the copy of the framework this process loaded', () => {
+        // the harness imports from `zibri/internal` too, and an instance resolving that through
+        // `node_modules` loaded the built package beside the copy `zibri` was pointed at
+        const paths: Record<string, string> = clusterModulePaths();
+
+        const resolved: string | undefined = paths['zibri/internal'];
+        expect(resolved).toBeDefined();
+        if (resolved == undefined) {
+            throw new Error('nothing was resolved for zibri/internal');
+        }
+
+        const loaded: { initDiContainer: unknown } = require(resolved) as { initDiContainer: unknown };
+        expect(loaded.initDiContainer).toBe(initDiContainer);
     });
 
     it('names the copy of the harness this process loaded', () => {

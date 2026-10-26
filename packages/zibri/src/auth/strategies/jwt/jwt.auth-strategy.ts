@@ -1,5 +1,5 @@
 import { type AccessTokenRevocation } from './access-token-revocation.type';
-import { EncodedJwt } from './encoded-jwt-access-token.model';
+import { EncodedJwt } from './encoded-jwt.model';
 import { isJwtAccessTokenPayload, JwtAccessTokenPayload } from './jwt-access-token-payload.model';
 import { JwtAuthData } from './jwt-auth-data.model';
 import { type JwtAuthOptions } from './jwt-auth-options.model';
@@ -33,8 +33,6 @@ import { OmitStrict } from '../../../types/omit-strict.type';
 import { Ms } from '../../../utilities/ms';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../../utilities/validate-entities-registered.function';
-import { type BaseWebsocketConnection } from '../../../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../../../websocket/services/websocket-service.interface';
 import { FederatedSessionColumns } from '../../authenticators/federated/federated-session-columns.model';
 import { FederatedSessionMatch } from '../../authenticators/federated/federated-session-match.model';
 import { FederatedSessionUtilities } from '../../authenticators/federated/federated-session.utilities';
@@ -52,6 +50,7 @@ import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerStrategyInterface } from '../auth-controller-strategy.interface';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { AuthorizationToken } from '../authorization-token.model';
+import { CredentialEntity } from '../credential-entity.model';
 import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
 
 /**
@@ -107,6 +106,11 @@ implements AuthControllerStrategyInterface<
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'jwt';
 
+    // the family an access token belongs to, which it is checked against unless it works until it
+    // expires
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialEntities: CredentialEntity[] = [{ entityClass: JwtRefreshToken, endedBy: 'remove' }];
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly authDataModel: Newable<JwtAuthData<RoleType>> = JwtAuthData;
 
@@ -143,12 +147,6 @@ implements AuthControllerStrategyInterface<
         return inject(repositoryTokenFor(JwtRefreshToken));
     }
 
-    // read when used, since the websocket service is built with the auth service, which builds this.
-    // Every place below that ends a login tells it, so a socket that connected with an access token
-    // of the login is closed once the token is refused
-    private get websocketService(): WebsocketServiceInterface<BaseWebsocketConnection> {
-        return inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
-    }
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS)
@@ -208,6 +206,11 @@ implements AuthControllerStrategyInterface<
             'Every entry across accessTokenKey, previousAccessTokenKeys, refreshTokenSecret',
             'and previousRefreshTokenSecrets has to be a different value.'
         ]);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.refreshTokenRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -282,11 +285,7 @@ implements AuthControllerStrategyInterface<
     async endFederatedLogins(session: FederatedSessionMatch, transaction: Transaction | undefined): Promise<void> {
         // every token of a family carries the session, so this ends whole families. The access tokens
         // stay valid as with endLogins
-        const ended: JwtRefreshToken[] = await this.refreshTokenRepository.deleteAll(
-            FederatedSessionUtilities.toWhere(session),
-            { transaction, returnDeleted: true }
-        );
-        await this.websocketService.disconnectEndedLogins([...new Set(ended.map(token => token.userId))], transaction);
+        await this.refreshTokenRepository.deleteAll(FederatedSessionUtilities.toWhere(session), { transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -302,7 +301,6 @@ implements AuthControllerStrategyInterface<
         // not caught: a store that fails here leaves the login live, which is for the caller to
         // record rather than for this to hide behind the answer of a login that was ended
         await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
-        await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
         return { userId: refreshToken.userId, federatedSession: FederatedSessionUtilities.fromColumns(refreshToken) };
     }
 
@@ -386,7 +384,6 @@ implements AuthControllerStrategyInterface<
             // outside the request's transaction: the refusal below rolls it back, and a family ended
             // inside it came back with the rollback - reuse was detected and ended nothing
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
-            await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
             throw new CredentialReusedError($ts`Invalid refresh token.`);
         }
         if (new Date(refreshToken.expirationDate).getTime() <= Date.now()) {
@@ -398,10 +395,11 @@ implements AuthControllerStrategyInterface<
         await this.validateRefreshProof(refreshToken);
         // before it is spent as well, so a refresh an authenticator refuses - a directory that cannot be
         // reached, say - leaves the token working
-        const user: UserType = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveRefreshUser<RoleType, UserType>(
-            await this.userService.findById<RoleType, UserType>(refreshToken.userId),
-            transaction
-        );
+        const found: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(refreshToken.userId, { required: false });
+        if (found == undefined) {
+            throw new UnauthorizedError($ts`Invalid refresh token.`);
+        }
+        const user: UserType = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveRefreshUser<RoleType, UserType>(found, transaction);
 
         // claimed before anything is minted, and only while it is still usable. The read above takes
         // no lock, so two requests carrying the same token both get this far - the condition on the
@@ -594,14 +592,12 @@ implements AuthControllerStrategyInterface<
             }
             // the login the token belongs to, which is what it is checked against
             await this.refreshTokenRepository.deleteAll({ familyId: accessToken.payload.sid });
-            await this.websocketService.disconnectEndedLogins([accessToken.payload.id], undefined);
             return;
         }
         const refreshToken: JwtRefreshToken | undefined = await this.findRefreshToken(token);
         if (refreshToken != undefined) {
             // ends the login, as a logout does
             await this.refreshTokenRepository.deleteAll({ familyId: refreshToken.familyId });
-            await this.websocketService.disconnectEndedLogins([refreshToken.userId], undefined);
         }
     }
 

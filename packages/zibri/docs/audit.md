@@ -8,6 +8,7 @@ The audit trail records what happens around security: logins, refused routes, pa
 | `AuditService` | class | The default implementation |
 | `ZIBRI_DI_TOKENS.AUDIT_SERVICE` | DI token | Injects `AuditServiceInterface` |
 | `AuditEntry` | entity | One entry of the trail |
+| `RetentionInMs` | type | How long something is kept, in milliseconds, or `'forever'`. The type of `AUDIT_RETENTION_IN_MS` and the other retention tokens |
 | `AuditCollapse` | enum | How an entry stands for refusals past the budget |
 | `AuditEvent` | type | What `record` takes: an action, an outcome, and who it was about |
 | `AuditAction`, `AuditOutcome`, `AuditReason` | enum | The closed sets an `AuditEvent` is built from |
@@ -98,6 +99,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `AuditEntry` | Every application |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Auth](./auth.md#what-gets-recorded) — the events the framework records

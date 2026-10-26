@@ -55,7 +55,7 @@ describe('MultithreadingService, bounding a job', () => {
             priority: false,
             progress: 40,
             attempts,
-            timeout: Ms.HOUR,
+            timeoutInMs: Ms.HOUR,
             workerData: computing
         });
     }
@@ -83,8 +83,8 @@ describe('MultithreadingService, bounding a job', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 0,
-                        defaultTimeoutMs: Ms.MINUTE,
-                        defaultTimeoutPriorityMs: Ms.MINUTE,
+                        defaultTimeoutInMs: Ms.MINUTE,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: MAX_ATTEMPTS,
                         workerResourceLimits: { maxOldGenerationSizeMb: 64 },

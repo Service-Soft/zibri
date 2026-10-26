@@ -16,15 +16,15 @@ export interface ProviderAccessAuthenticatorInterface {
     resolveAccessToken: (userId: string, identityId: string, scopes: string[]) => Promise<string>,
     /**
      * Stops keeping the tokens of an identity of a user, and hands them back to the provider. An
-     * identity that does not sign in is unlinked. Throws a NotFoundError when the user has no identity
+     * identity that does not log in is unlinked. Throws a NotFoundError when the user has no identity
      * of that id.
      */
     revokeAccess: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
-     * Stops an identity of a user from signing in as them, and keeps the tokens of its apis. An identity
+     * Stops an identity of a user from logging in as them, and keeps the tokens of its apis. An identity
      * without api access is unlinked. Throws a NotFoundError when the user has no identity of that id.
      */
-    revokeSignIn: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>
+    revokeLogin: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>
 }
 
 /**
@@ -33,5 +33,5 @@ export interface ProviderAccessAuthenticatorInterface {
  * @returns True if it has every key ProviderAccessAuthenticatorInterface has.
  */
 export function isProviderAccessAuthenticator<T extends object>(value: T): value is T & ProviderAccessAuthenticatorInterface {
-    return 'resolveAccessToken' in value && 'revokeAccess' in value && 'revokeSignIn' in value;
+    return 'resolveAccessToken' in value && 'revokeAccess' in value && 'revokeLogin' in value;
 }

@@ -1,4 +1,4 @@
-import { BaseDecryptOptions, BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
+import { type BaseDecryptOptions, type BaseEncryptOptions } from '../../auth/encryption/strategies/encryption-strategy.interface';
 import { type NamedShapeValue } from '../../data-source/models/where/one-of-where-filter.model';
 import { OneOfWhereFilterUtilities } from '../../data-source/models/where/one-of-where-filter.utilities';
 import { InternalError } from '../../error-handling/internal-error.model';
@@ -11,7 +11,7 @@ import { ReflectUtilities } from '../../utilities/reflect.utilities';
 import { RegexUtilities } from '../../utilities/regex.utilities';
 import { AnyObject } from '../any-object.model';
 import type { BaseEntity } from '../base-entity.model';
-import { ArrayPropertyMetadata, ArrayPropertyMetadataInput, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
+import { ArrayPropertyMetadata, ArrayPropertyItemMetadataInput, ArrayPropertyItemMetadata } from '../models/array-property-metadata.model';
 import { BasePropertyMetadata } from '../models/base-property-metadata.model';
 import { BelongsToOnePropertyMetadata, BelongsToOnePropertyMetadataInput } from '../models/belongs-to-one-property-metadata.model';
 import { BooleanPropertyMetadata, BooleanPropertyMetadataInput } from '../models/boolean-property-metadata.model';
@@ -54,19 +54,6 @@ export type RelationMetadata<T extends BaseEntity> = ManyToOnePropertyMetadata<T
     | HasOnePropertyMetadata<T>
     | BelongsToOnePropertyMetadata<T>
     | ManyToManyPropertyMetadata<T>;
-
-/**
- * The metadata input to define a property.
- */
-export type PropertyMetadataInput = StringPropertyMetadataInput
-    | NumberPropertyMetadataInput
-    | ObjectPropertyMetadataInput
-    | ArrayPropertyMetadataInput
-    | DatePropertyMetadataInput
-    | FilePropertyMetadataInput
-    | BooleanPropertyMetadataInput
-    | UnknownPropertyMetadataInput
-    | OneOfPropertyMetadataInput;
 
 // /**
 //  * The metadata input to define a relation property.
@@ -336,6 +323,7 @@ export namespace Property {
             required: true,
             type: Relation.ONE_TO_MANY,
             cascade: ['remove', 'insert', 'update'],
+            deletedRows: 'refuse',
             description: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,
@@ -353,6 +341,7 @@ export namespace Property {
             required: true,
             type: Relation.HAS_ONE,
             cascade: ['remove', 'insert', 'update'],
+            deletedRows: 'refuse',
             description: undefined,
             exclude: false,
             excludeFromChangeSets: typeof metadata?.exclude === 'boolean' ? metadata.exclude : false,

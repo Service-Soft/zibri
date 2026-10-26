@@ -2,12 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { BaseUserRepository } from './base-user-repository.model';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtTestAuthController } from '../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { RepositoryFor } from '../../data-source/repository/repository-for.decorator';

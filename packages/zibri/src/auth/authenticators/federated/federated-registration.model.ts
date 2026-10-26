@@ -1,9 +1,9 @@
 /**
- * Who signed in at a provider, for creating the user they become.
+ * Who logged in at a provider, for creating the user they become.
  */
 export type FederatedRegistration = {
     /**
-     * The name of the authenticator the sign-in went through.
+     * The name of the authenticator the login went through.
      */
     provider: string,
     /**
@@ -12,7 +12,7 @@ export type FederatedRegistration = {
      */
     issuer: string,
     /**
-     * Who signed in at the provider, as the provider names them.
+     * Who logged in at the provider, as the provider names them.
      */
     subject: string,
     /**
@@ -20,7 +20,7 @@ export type FederatedRegistration = {
      */
     email: string | undefined,
     /**
-     * Whether the provider has verified that email. Only a verified email belongs to whoever signed in.
+     * Whether the provider has verified that email. Only a verified email belongs to whoever logged in.
      */
     emailVerified: boolean | undefined,
     /**
@@ -41,7 +41,7 @@ export type FederatedRegistration = {
      */
     claims: Record<string, unknown>,
     /**
-     * Where the sign-in was to go once it was done, one of the allowed redirects.
+     * Where the login was to go once it was done, one of the allowed redirects.
      */
     redirectTo: string
 };

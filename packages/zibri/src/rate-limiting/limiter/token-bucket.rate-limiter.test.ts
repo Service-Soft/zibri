@@ -35,7 +35,7 @@ class TestRateLimiter extends TokenBucketRateLimiter {
         intervalInMs: number = Ms.SECOND,
         store: InMemoryRateLimiterStore<TokenBucketState> = new InMemoryRateLimiterStore<TokenBucketState>()
     ) {
-        super(intervalInMs, { store, capacity: MAX, name: 'TestRateLimiter', maxReservationWaitMs: Ms.SECOND * 5 });
+        super(intervalInMs, { store, capacity: MAX, name: 'TestRateLimiter', maxReservationWaitInMs: Ms.SECOND * 5 });
     }
 }
 
@@ -641,7 +641,7 @@ describe('TokenBucketRateLimiter', () => {
                         name: 'strict',
                         capacity: MAX,
                         store,
-                        maxReservationWaitMs: undefined,
+                        maxReservationWaitInMs: undefined,
                         maxReservationCount: 2
                     });
                 }
@@ -705,8 +705,8 @@ describe('TokenBucketRateLimiter', () => {
             expect(res.reservation.readyAtMs).toBe(NOW + 200); // 100ms already passed + 100ms more
         });
 
-        it('reserve with maxReservationWaitMs rejects if wait too long', async () => {
-        // maxReservationWaitMs = 5 seconds for TestRateLimiter
+        it('reserve with maxReservationWaitInMs rejects if wait too long', async () => {
+        // maxReservationWaitInMs = 5 seconds for TestRateLimiter
         // Drain all tokens and request 10 (full bucket). Need 10 tokens,
         // which takes 1000ms, well within 5s, so not rejected.
             await drain(limiter, 'k', MAX);
@@ -725,7 +725,7 @@ describe('TokenBucketRateLimiter', () => {
                         name: 'strict-wait',
                         capacity: MAX,
                         store,
-                        maxReservationWaitMs: 100, // only 100ms wait allowed
+                        maxReservationWaitInMs: 100, // only 100ms wait allowed
                         maxReservationCount: MAX
                     });
                 }
@@ -737,7 +737,7 @@ describe('TokenBucketRateLimiter', () => {
             expect(res2.allowed).toBe(false);
             assert(!res2.allowed);
             expect(res2.reason).toBe(RateLimitReservationRejectionReason.QUEUE_TOO_LONG);
-            expect(res2.estimatedWaitMs).toBeGreaterThan(0);
+            expect(res2.estimatedWaitInMs).toBeGreaterThan(0);
         });
 
         it('second reservation ready time accounts for earlier ones', async () => {
@@ -878,7 +878,7 @@ describe('TokenBucketRateLimiter', () => {
         it('throws TooManyRequestsError when reserveIfUnavailable is true but reservation is rejected (e.g., capacity exceeded)', async () => {
             // exhaust capacity
             await drain(limiter, 'global', MAX);
-            // Set a tiny maxReservationWaitMs so reservation gets rejected quickly
+            // Set a tiny maxReservationWaitInMs so reservation gets rejected quickly
             const strictStore: InMemoryRateLimiterStore<TokenBucketState> = new InMemoryRateLimiterStore();
             // eslint-disable-next-line typescript/typedef
             const strictLimiter = new class extends TokenBucketRateLimiter {
@@ -887,7 +887,7 @@ describe('TokenBucketRateLimiter', () => {
                         name: 'strict',
                         capacity: MAX,
                         store: strictStore,
-                        maxReservationWaitMs: 50 // very short horizon
+                        maxReservationWaitInMs: 50 // very short horizon
                     });
                 }
             }();

@@ -8,13 +8,24 @@ For string templates, [Handlebars](#rendering-a-handlebars-template) is availabl
 | Export | Kind | Purpose |
 |---|---|---|
 | `TsxUtilities` | class | Renders a tsx page (`renderPage`) or email (`renderEmail`) to html |
+| `MaskUtilities` | class | Masks sensitive text for display: `mask` keeps the first character and the last two |
 | `HtmlResponse` | class | Wraps rendered html to be returned from a controller |
 | `TsxComponent` | type | Type of a page component rendered by `TsxUtilities.renderPage` |
 | `TsxEmailComponent` | type | Type of an email component rendered by `TsxUtilities.renderEmail` |
+| `TsxElement`, `TsxChildren` | type, type | What a JSX expression renders to, and anything that can be placed inside an element |
 | `Mjml`, `MjHead`, `MjTitle`, `MjPreview`, `MjStyle`, `MjAttributes`, `MjBody` | function | The document of an email and its head (see [rendering an email](#rendering-an-email)) |
 | `MjWrapper`, `MjSection`, `MjColumn`, `MjGroup` | function | The layout of an email |
 | `MjText`, `MjButton`, `MjImage`, `MjDivider`, `MjSpacer`, `MjRaw` | function | The content of an email |
+| `MjmlProps`, `MjBodyProps`, `MjSectionProps`, `MjColumnProps`, `MjGroupProps`, `MjWrapperProps`, `MjTextProps`, `MjButtonProps`, `MjImageProps`, `MjDividerProps`, `MjSpacerProps`, `MjAttributesProps` | type, type, type, type, type, type, type, type, type, type, type, type | The props of the email components |
+| `EmailLayoutContext`, `EmailLayout` | constant, type | The width and inherited typography of the section or column an email component is in |
 | `onClient`, `onServer`, `$t`, `$ts`, `$f` | function | The template hooks (see [running code in the browser](#running-code-in-the-browser)) |
+| `createContext`, `provideContext`, `useContext` | function, function, function | Create a context, give it a value for the components below, and read it (see [passing a value to nested components](#passing-a-value-to-nested-components)) |
+| `RenderContext` | type | A context `createContext` returns, with the value read when nothing provides one |
+| `$raw` | function | Writes trusted html as it is, unescaped |
+| `HandlebarUtilities` | class | Renders a Handlebars template file (`renderTemplate`) or string (`renderTemplateString`), and parses one (`parse`) |
+| `HandlebarOptions` | type | The Handlebars instance and the folder of the components a template uses, via `ZIBRI_DI_TOKENS.HANDLEBAR_OPTIONS` |
+| `generateHandlebarTypeFiles`, `generateHandlebarType` | function, function | Write a type definition for each `.hbs` template, and resolve the lines of one from a parsed template |
+| `AstProgram`, `AstStatement`, `AstBlockStatement`, `AstCommentStatement`, `AstContentStatement`, `AstPartialStatement`, `AstMustacheStatement`, `AstPartialBlockStatement`, `AstExpression`, `AstPathExpression`, `AstBlockPathExpression`, `AstSubExpression`, `AstStringLiteral`, `AstNumberLiteral`, `AstBooleanLiteral`, `AstUndefinedLiteral`, `AstNullLiteral`, `AstHash`, `AstHashPair` | type, type, type, type, type, type, type, type, type, type, type, type, type, type, type, type, type, type, type | The nodes of the syntax tree `HandlebarUtilities.parse` returns |
 
 ## Rendering a page
 A page is a `TsxComponent`. Render it from a controller with `TsxUtilities.renderPage`:
@@ -175,6 +186,44 @@ opaque wrapper: its use site is fine, and its own contents are checked in its ow
 An email is static html, without a script. Client code in an email template (an `onClient` block, an
 event handler, or a `?client` import) is a compile error (`ZTSX005`). For behavior in the browser, use
 a [page](#rendering-a-page).
+
+## Passing a value to nested components
+A context hands a value to every component a component renders, however deep, without passing it
+through the props of each one. Create it once with `createContext`, give it a value with
+`provideContext`, and read it with `useContext`:
+
+```tsx
+// src/templates/pages/project.tsx
+import { createContext, provideContext, RenderContext, TsxComponent, useContext } from 'zibri';
+
+type ProjectPageProps = {
+    accentClass: string,
+    taskTitles: string[]
+};
+
+type TaskHeadingProps = {
+    title: string
+};
+
+const AccentClass: RenderContext<string> = createContext('text-slate-900');
+
+const TaskHeading: TsxComponent<TaskHeadingProps> = ({ title }) => {
+    const accentClass: string = useContext(AccentClass);
+    return <h2 className={accentClass}>{title}</h2>;
+};
+
+export const ProjectPage: TsxComponent<ProjectPageProps> = ({ accentClass, taskTitles }) => {
+    provideContext(AccentClass, accentClass);
+    return <main>{taskTitles.map(title => <TaskHeading title={title} />)}</main>;
+};
+```
+
+`useContext` reads the value of the nearest component above that provided one, or the default given to
+`createContext` when none did. A context exists while the html renders on the server, so code in the
+browser cannot read it.
+
+The email components hand their width down the same way. An email component of your own reads the width
+of the section or column it is in with `useContext(EmailLayoutContext)`.
 
 ## Running code in the browser
 A page can run code in the browser. The server rendered html carries script tags with that code.

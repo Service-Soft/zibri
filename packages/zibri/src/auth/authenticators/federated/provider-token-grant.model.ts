@@ -1,5 +1,5 @@
 /**
- * The tokens a provider issued for calling its apis, as a sign-in that asked for them hands them on.
+ * The tokens a provider issued for calling its apis, as a login that asked for them hands them on.
  */
 export type ProviderTokenGrant = {
     /**

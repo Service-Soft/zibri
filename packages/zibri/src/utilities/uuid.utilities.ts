@@ -20,6 +20,11 @@ const uuidShape: RegExp = /^[\dA-Fa-f]{8}(?:-[\dA-Fa-f]{4}){3}-[\dA-Fa-f]{12}$/;
  */
 export abstract class UUIDUtilities {
     /**
+     * The shape a uuid is validated against: a version from 1 to 5 and the rfc variant.
+     */
+    static readonly STRICT_SHAPE: RegExp = /^[\dA-Fa-f]{8}-[\dA-Fa-f]{4}-[1-5][\dA-Fa-f]{3}-[89ABab][\dA-Fa-f]{3}-[\dA-Fa-f]{12}$/;
+
+    /**
      * Generate a new uuid.
      * @returns A v4 uuid string.
      */

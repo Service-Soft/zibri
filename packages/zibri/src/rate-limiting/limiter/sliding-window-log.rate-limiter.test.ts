@@ -19,8 +19,8 @@ class TestSlidingWindowLimiter extends SlidingWindowLogRateLimiter {
             name: 'test-sliding',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<SlidingWindowLogState>(),
-            maxReservationWaitMs: Ms.SECOND * 5,
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            maxReservationWaitInMs: Ms.SECOND * 5,
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY
         });
     }

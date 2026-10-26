@@ -6,8 +6,18 @@
 |---|---|---|
 | `ZibriInvoicingPlugin` | class | The plugin for invoice numbering, tax calculation and PDF rendering |
 | `ZIBRI_INVOICING_PLUGIN_DI_TOKENS` | DI token | The tokens of the plugin, see [configuring the plugin](#configuring-the-plugin) |
-| `CompanyInfoServiceInterface`, `CompanyInfo` | interface, type | What the service under `COMPANY_INFO_SERVICE` answers: the company a tenant issues its invoices as |
+| `CompanyInfoServiceInterface`, `CompanyInfo` | interface, type | What the service under `COMPANY_INFO_SERVICE` answers: the company a [tenant](./glossary.md#tenant) issues its invoices as |
+| `InvoicingOptionsInput`, `InvoicingOptions` | type, type | The labels, font sizes and numbering format of the invoices, via `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT`. Defaults to English labels and four digit numbers |
+| `InvoiceNumberServiceInterface`, `InvoiceNumberService` | interface, class | Gives each invoice a unique, consecutive number. Replaceable through `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_NUMBER_SERVICE` |
+| `InvoiceCalcServiceInterface`, `InvoiceCalcService` | interface, class | Calculates the amounts of an invoice. Replaceable through `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE` |
+| `InvoicePdfServiceInterface`, `InvoicePdfService` | interface, class | Renders the pdf of an invoice. Replaceable through `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_PDF_SERVICE` |
+| `InvoiceConformanceServiceInterface`, `InvoiceConformance` | interface, type | Writes an invoice pdf as an electronic invoice of one standard, named such as `'x-rechnung'`, `'peppol'` or a name of your own. Replaceable through `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES` |
+| `XRechnungConformanceService`, `PeppolConformanceService` | class, class | Write XRechnung and Peppol invoices. Registered for you |
+| `EN16931ConformanceService`, `EN16931DocumentContextId` | class, type | Base class for a standard built on EN 16931, and the document context ids it states |
 | `Invoice`, `NumberInvoices`, `InvoiceRecipientAbbreviation` | entity | An invoice, how many invoices a recipient got in a year, and the name abbreviation a recipient's invoice numbers carry. Stored by `ZibriInvoicingPlugin` |
+| `InvoiceAddress`, `ElectronicAddress` | class, class | The address an invoice goes to, of a private customer or a company, and the address a party receives electronic invoices at, such as its Peppol participant id |
+| `InvoiceItem`, `AmountUnit` | class, class | An item of an invoice, and the unit of its amount, with a display name such as "Hours" and a code such as `HUR` |
+| `Vat`, `VatCategoryCode` | class, type | The tax of an item: its rate in percent and its category code, such as `S` for the standard rate or `AE` for reverse charge |
 
 ## Setting it up
 Add `new ZibriInvoicingPlugin()` to the `plugins` of your application, see [registering a plugin](./plugin.md#registering-a-plugin), and `Invoice`, `NumberInvoices` and `InvoiceRecipientAbbreviation` to the `entities` of your data source.
@@ -67,6 +77,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `Invoice`, `NumberInvoices`, `InvoiceRecipientAbbreviation` | The plugin is registered |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Plugins](./plugin.md) — registering a plugin, and writing your own

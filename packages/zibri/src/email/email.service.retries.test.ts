@@ -7,9 +7,9 @@ import { EmailConfigInput } from './models/email-config.model';
 import { EmailStatus } from './models/email-status.enum';
 import { Email } from './models/email.model';
 import { EmailSendResult, EmailTransportInterface } from './transports/email-transport.interface';
+import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Repository } from '../data-source/repository/repository';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
@@ -104,7 +104,7 @@ describe('EmailService, given a mail whose send throws', () => {
      * @param subject - Its subject.
      */
     async function makeDue(subject: string): Promise<void> {
-        await emails.updateById((await rowOf(subject)).id, { retryAt: new Date(Date.now() - 1) }, { acrossTenants: true });
+        await emails.updateById((await rowOf(subject)).id, { nextAttemptAt: new Date(Date.now() - 1) }, { acrossTenants: true });
     }
 
     it('sends the rest of its batch, and passes over it until it is due again', async () => {
@@ -119,8 +119,10 @@ describe('EmailService, given a mail whose send throws', () => {
         const broken: Email = await rowOf('broken');
         expect(broken.status).toBe(EmailStatus.QUEUED);
         expect(broken.attempts).toBe(1);
-        expect(broken.retryAt?.getTime()).toBeGreaterThanOrEqual(before + Ms.MINUTE);
-        expect(broken.retryAt?.getTime()).toBeLessThanOrEqual(Date.now() + Ms.MINUTE);
+        expect(broken.nextAttemptAt?.getTime()).toBeGreaterThanOrEqual(before + Ms.MINUTE);
+        expect(broken.nextAttemptAt?.getTime()).toBeLessThanOrEqual(Date.now() + Ms.MINUTE);
+        // 09 §Q5: a mail kept no record of why its send threw
+        expect(broken.error?.paragraphs.join('\n')).toContain('could not reach the mail server for "broken"');
 
         // not due yet, so the next pass finds nothing to send
         sent.length = 0;
@@ -139,8 +141,8 @@ describe('EmailService, given a mail whose send throws', () => {
 
         const broken: Email = await rowOf('broken');
         expect(broken.attempts).toBe(2);
-        expect(broken.retryAt?.getTime()).toBeGreaterThanOrEqual(before + (2 * Ms.MINUTE));
-        expect(broken.retryAt?.getTime()).toBeLessThanOrEqual(Date.now() + (2 * Ms.MINUTE));
+        expect(broken.nextAttemptAt?.getTime()).toBeGreaterThanOrEqual(before + (2 * Ms.MINUTE));
+        expect(broken.nextAttemptAt?.getTime()).toBeLessThanOrEqual(Date.now() + (2 * Ms.MINUTE));
     });
 
     it('sends it once its server can be reached again', async () => {
@@ -167,6 +169,7 @@ describe('EmailService, given a mail whose send throws', () => {
         const hopeless: Email = await rowOf('hopeless');
         expect(hopeless.status).toBe(EmailStatus.FAILED);
         expect(hopeless.attempts).toBe(3);
+        expect(hopeless.error?.paragraphs.join('\n')).toContain('could not reach the mail server for "hopeless"');
 
         sent.length = 0;
         await expect(emailService.sendQueuedEmails()).resolves.toBe(false);

@@ -1,6 +1,6 @@
 # Testing
 You test a Zibri application by starting it and driving it over HTTP. `zibri-testing` starts it with
-the router, the auth strategies, the lifecycle, the data source and the error handling production
+the router, the [auth strategies](./glossary.md#auth-strategy), the lifecycle, the data source and the error handling production
 runs, so the application under test is the one that ships.
 
 ```bash
@@ -17,21 +17,22 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `StartedTestServer` | class | The running server: `start`, `reInit`, `shutdown`, and `scratchPath`, where its application writes what it records at runtime |
 | `StartTestServerOptions` | type | The application to build on, and what to change about it |
 | `resolveApplicationOptions` | function | The merge itself, for a harness of your own |
+| `createJestConfig`, `JestConfigOptions` | function, type | Builds the jest configuration of your tests, with the packages of your own that ship as ES modules only. Also from `zibri-testing/jest-config` |
 | `createInMemoryDataSource` | function | Builds a data source class that keeps everything in this process |
 | `InMemoryDataSource` | class | The data source those classes extend |
 | `RoundTripCounter`, `RoundTrip` | class, type | Records each call a data source makes on its store, and the repository calls it came from |
 | `createPostgresTestDataSource` | function | Builds a postgres data source class for a container the harness starts |
-| `zibriFrameworkEntities` | constant | The entities a test data source declares for you: those every application needs, and those of password and JWT sign-in, one-time passwords, migrations, change sets, caches and websockets |
+| `zibriFrameworkEntities` | constant | The entities a test data source declares for you: those every application needs, and those of password and JWT login, one-time passwords, migrations, [change sets](./glossary.md#change-set), caches and websockets |
 | `defaultTestProviders` | constant | The providers that make a deployment's defaults workable in a test |
-| `testMasterKey` | constant | The encryption master key those providers register |
+| `testMasterKey` | constant | The encryption [master key](./glossary.md#master-key) those providers register |
 | `UnconfiguredEmailTransport` | class | A mail transport that refuses to send |
 | `RecordingEmailTransport` | class | A mail transport that sends nothing and keeps what it was given, in `sends` |
 | `RecordingSmsService` | class | A text message sender that sends nothing and keeps what it was given, in `sent` |
-| `startFakeOAuthProvider` | function | Starts a provider inside the test, speaking OpenID Connect or plain OAuth2 |
-| `FakeOAuthProvider` | class | The running provider: who signs in, and what it was asked |
-| `startFakeSamlProvider` | function | Starts a SAML 2.0 identity provider inside the test |
-| `FakeSamlProvider` | class | The running identity provider: who signs in, what it was asked, and the logout requests it sends |
-| `FakeSamlProviderOptions`, `FakeSamlIdentity`, `FakeSamlAnswerChanges`, `FakeSamlLogoutOptions` | type | How it answers, who signs in, what the next answer gets wrong, and who a logout request logs out |
+| `startFakeOAuthProvider` | function | Starts a provider inside the test, speaking [OpenID Connect](./glossary.md#openid-connect) or plain OAuth2 |
+| `FakeOAuthProvider` | class | The running provider: who logs in, and what it was asked |
+| `startFakeSamlProvider` | function | Starts a [SAML](./glossary.md#saml) 2.0 identity provider inside the test |
+| `FakeSamlProvider` | class | The running identity provider: who logs in, what it was asked, and the logout requests it sends |
+| `FakeSamlProviderOptions`, `FakeSamlIdentity`, `FakeSamlAnswerChanges`, `FakeSamlLogoutOptions` | type | How it answers, who logs in, what the next answer gets wrong, and who a logout request logs out |
 | `FakeSamlRequest`, `FakeSamlAnswer`, `FakeSamlLogoutRequest` | type | What it was asked, and what it answered |
 | `createFakeKeyPair`, `FakeKeyPair` | function, type | A key and its certificate: your application's SAML signing and decryption keys, or a TLS server's |
 | `FakeKeyPairOptions` | type | The hosts a certificate is valid for, whether it is an authority, the authority that signs it, when it is valid, and its key usages and extended key usages |
@@ -42,7 +43,7 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `TestBrowser` | class | Plays the browser: keeps cookies, follows no redirect on its own |
 | `FakePasskeyDevice` | class | Plays a device with its browser: creates and uses passkeys |
 | `FakePasskeyDeviceOptions`, `FakePasskey`, `FakePasskeyAttestation` | type | What kind of device it is, the passkeys it holds, and how it proves its model |
-| `FakeDpopKey`, `FakeDpopProofOptions` | class, type | A client's key pair, signing DPoP proofs, see [signing DPoP proofs](#signing-dpop-proofs) |
+| `FakeDpopKey`, `FakeDpopProofOptions` | class, type | A client's key pair, signing [DPoP](./glossary.md#dpop) proofs, see [signing DPoP proofs](#signing-dpop-proofs) |
 | `startFakeFidoMetadataService` | function | Starts a FIDO Metadata Service inside the test |
 | `FakeFidoMetadataService` | class | The running service: the models it lists, and the attestations of their devices |
 | `startDataSourceContainers` | function | Starts one container per data source that needs a server of its own |
@@ -57,6 +58,8 @@ It peer depends on `zibri`, so the framework under test is the copy your applica
 | `defaultClusterDataSources` | constant | The postgres data source a cluster boots on |
 | `defaultClusterProviders` | constant | What a cluster instance boots with |
 | `JsonUtilities` | class | `parse`, and `stringify`, which writes a `bigint` as a string |
+| `UUIDUtilities` | class | `generate` for a v4 uuid, and `isUuid` to check one |
+| `ObjectUtilities` | class | `keys`, `values` and `entries` typed after the object, and `copyDeep` |
 
 ## Optional packages
 Install these only for what needs them. Anything else in the harness works without them.
@@ -66,17 +69,49 @@ Install these only for what needs them. Anything else in the harness works witho
 | `testcontainers` | A Postgres or ValKey data source, which the harness starts a container for |
 | `@testcontainers/postgresql` | A Postgres data source |
 | `ts-node` | `startTestCluster` |
-| `ts-jest` | The jest preset |
+| `ts-jest` | The jest configuration |
 | `@peculiar/x509` | `createFakeKeyPair`, `startFakeSamlProvider`, `startFakeLdapDirectory` and `startFakeFidoMetadataService` |
 | `ldapts` | `startFakeLdapDirectory` |
 | `xml-crypto` | `startFakeSamlProvider` |
 | `xml-encryption` | `startFakeSamlProvider` with `encryptsTo` |
 
 ## Starting your application in a test
-A test and a deployment share the application's options, so they live in a module of their own, not
-inline in `index.ts`. `zi new` writes three: the base, with everything the application is, the
-options a deployment starts, which add where it keeps its data, and the same application as a test
-starts it:
+`startTestServer` boots your application, with its data source and its lifecycle, and `start` hands
+back the URL it answers at. `zi new` writes a first test:
+
+```ts
+// src/__testing__/app.test.ts
+import { afterAll, beforeAll, expect, it } from '@jest/globals';
+import { StartedTestServer, startTestServer } from 'zibri-testing';
+
+import { testApplicationOptions } from './test-application-options';
+
+let server: StartedTestServer;
+let baseUrl: string;
+
+beforeAll(async () => {
+    server = await startTestServer({ application: testApplicationOptions });
+    baseUrl = await server.start();
+}, 30000);
+
+afterAll(async () => {
+    await server.shutdown();
+}, 30000);
+
+it('serves the home page', async () => {
+    const response: Response = await fetch(baseUrl);
+
+    expect(response.status).toBe(200);
+});
+```
+
+Starting the application runs its migrations and starts every provider, which takes longer than the
+five seconds jest gives a hook, so both hooks are given 30 seconds.
+
+`testApplicationOptions` is your application as a test starts it. A test and a deployment share the
+application's options, so they live in modules of their own, not inline in `index.ts`. `zi new` writes
+three: the base, with everything the application is, the options a deployment starts, which add where
+it keeps its data, and the same application as a test starts it:
 
 ```ts
 // src/application-options.base.ts
@@ -94,6 +129,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     websocketControllers: [],
     cronJobs: [],
     version,
+    environment: 'development',
     defaultAuth: 'public',
     twoFactorAtLogin: 'ifEnrolled',
     providers
@@ -129,33 +165,7 @@ export const testApplicationOptions: ZibriApplicationOptions = {
 };
 ```
 
-`index.ts` then does `new ZibriApplication(applicationOptions)` and a test does this:
-
-```ts
-// src/__testing__/app.test.ts
-import { afterAll, beforeAll, expect, it } from '@jest/globals';
-import { StartedTestServer, startTestServer } from 'zibri-testing';
-
-import { testApplicationOptions } from './test-application-options';
-
-let server: StartedTestServer;
-let baseUrl: string;
-
-beforeAll(async () => {
-    server = await startTestServer({ application: testApplicationOptions });
-    baseUrl = await server.start();
-}, 30000);
-
-afterAll(async () => {
-    await server.shutdown();
-}, 30000);
-
-it('serves the home page', async () => {
-    const response: Response = await fetch(baseUrl);
-
-    expect(response.status).toBe(200);
-});
-```
+`index.ts` starts `new ZibriApplication(applicationOptions)`.
 
 The base holds everything a test and a deployment share. Each of the two modules beside it adds the
 data source it uses. Keep the production data source out of the base: importing a data source
@@ -165,20 +175,30 @@ The test options can live anywhere `index.ts` does not reach, which keeps them o
 `zi new` puts them in `src/__testing__/`, beside the first test.
 
 ## Configuring jest
-`zibri-testing` ships a jest preset. `zi new` writes this `jest.config.mjs`:
+`zi new` writes this `jest.config.mjs`:
 
 ```js
-const config = {
-    preset: 'zibri-testing',
-    rootDir: 'src'
-};
+// jest.config.mjs
+import { createJestConfig } from 'zibri-testing/jest-config';
 
-export default config;
+export default createJestConfig({ rootDir: 'src' });
 ```
 
-The preset compiles your code with `ts-jest` and your templates with `zibri-tsx/jest`, so a test
-renders the same templates the build does. A package imported with `?client` is the package itself in
-a test, as it is in the server build. Anything you add to the config beside `preset` is added to it.
+`createJestConfig` compiles your code with `ts-jest` and your templates with `zibri-tsx/jest`, so a
+test renders the same templates the build does. A package imported with `?client` is the package
+itself in a test, as it is in the server build. Every jest option you pass is kept.
+
+Jest cannot load a package that ships as ES modules only. Name such a package of yours in
+`esmPackages`, and it is compiled like your code:
+
+```js
+// jest.config.mjs
+import { createJestConfig } from 'zibri-testing/jest-config';
+
+export default createJestConfig({ rootDir: 'src', esmPackages: ['nanoid'] });
+```
+
+The same configuration without options is a preset, which a config names with `preset: 'zibri-testing'`.
 
 ## Overriding what the application sets
 `startTestServer` takes the application to build on and whatever the test changes about it. Each key
@@ -246,7 +266,7 @@ The framework's own entities are added for you, so `entities` is the list your r
 declares beside them, and `repositories` the [repositories of your own](./data-source.md#writing-a-repository-of-your-own)
 it lists. `zi new` puts both lists in modules of their own, which both data sources read.
 The in-process data source implements the whole [`DataSourceInterface`](./data-source.md): filters,
-relations, unique declarations, transactions, migrations, change sets, soft deletes and backups all
+relations, unique declarations, transactions, migrations, change sets, [soft deletes](./glossary.md#soft-delete) and backups all
 behave as they do anywhere else. A message published on it reaches every subscriber in this process.
 
 Run a suite that tests storage itself on the database it will run against, for real DDL, connection
@@ -412,10 +432,10 @@ list. `defaultClusterProviders` is that list, filtered that way.
 A test that swaps the master encryption strategy hands `testMasterKey` back in as an old key, so the
 key rows already stored stay readable.
 
-## Signing in through a provider
+## Logging in through a provider
 `startFakeOAuthProvider` starts an OpenID Connect provider inside the test, reached over HTTP on
-`127.0.0.1`. It signs in whoever its `identity` says, without asking anything. Point your
-authenticator's `issuer` at it, and drive the sign-in with a `TestBrowser`, which keeps the cookies
+`127.0.0.1`. It logs in whoever its `identity` says, without asking anything. Point your
+[authenticator](./glossary.md#authenticator)'s `issuer` at it, and drive the login with a `TestBrowser`, which keeps the cookies
 each site sets and follows no redirect on its own:
 
 ```ts
@@ -429,11 +449,11 @@ beforeAll(async () => {
     provider = await startFakeOAuthProvider({ clientId: 'task-tracker', clientSecret: 'secret' });
 });
 
-it('signs a user in', async () => {
+it('logs a user in', async () => {
     provider.identity = { subject: 'ada', email: 'ada@example.com', emailVerified: true };
     const browser: TestBrowser = new TestBrowser(baseUrl, 'https://api.example.com');
 
-    const atProvider: string = await browser.follow('https://api.example.com/auth/federated/authorize?authenticator=company&redirectTo=https://app.example.com');
+    const atProvider: string = await browser.follow('https://api.example.com/auth/federated/login/request?authenticator=company&redirectTo=https://app.example.com');
     const callback: string = await browser.follow(atProvider);
     expect(await browser.follow(callback)).toBe('https://app.example.com');
 });
@@ -444,8 +464,8 @@ goes there to the test server, so the callback URL your provider knows works in 
 
 | Member | What it does |
 |---|---|
-| `identity`, `authenticatedAt` | Who the next sign-in is, and when they signed in at the provider. `identity.claims` puts claims on top into every token for them, such as `groups` or `oid` |
-| `denyNext(error)` | Answers the next sign-in with an error, such as `access_denied` |
+| `identity`, `authenticatedAt` | Who logs in next, and when they logged in at the provider. `identity.claims` puts claims on top into every token for them, such as `groups` or `oid` |
+| `denyNext(error)` | Answers the next login with an error, such as `access_denied` |
 | `addToNextAnswer(fields)` | Sends the next answer with more fields next to the code, the way Apple sends the user's name |
 | `rewriteNextIdToken(rewrite)` | Changes the claims of the next ID token before it is signed |
 | `authorizationRequests` | What your application asked the provider for |
@@ -455,12 +475,12 @@ goes there to the test server, so the callback URL your provider knows works in 
 | `revokedTokens` | The tokens your application handed back at the revocation endpoint |
 | `revokeGrantsOf(subject)` | Withdraws what a user allowed your client, the way removing an app at the provider does |
 | `createJwtAccessToken(options)` | Signs an access token for an API as a JWT for `identity`, the way a mobile app or a service holds one, see [accepting a provider's tokens](./provider-tokens.md). Takes the `audience`, the `typ` (`at+jwt` by default) and claims on top, such as a `cnf` |
-| `createIdToken(audience, claims)` | Signs an ID token for `identity`, issued to the client `audience`, the way a mobile app holds one once the user signed in there |
+| `createIdToken(audience, claims)` | Signs an ID token for `identity`, issued to the client `audience`, the way a mobile app holds one once the user logged in there |
 | `formPost` | An option: the provider answers with a page posting the code, like `response_mode=form_post` |
 | `clientSecret` | An option: the secret of your client, or a function checking the one it sends, for a secret your application signs |
 | `issuesIdToken` | An option: `false` makes it a provider that speaks plain OAuth2, issuing an access token and no ID token |
 | `resources` | An option: what its API answers, by path, to a request with an access token it issued, made from who that token is for |
-| `supportedPrompts` | An option: the `prompt` values it takes. A sign-in asking for another one gets an error page, the way Google answers `prompt=login` |
+| `supportedPrompts` | An option: the `prompt` values it takes. A login asking for another one gets an error page, the way Google answers `prompt=login` |
 | `accessTokenExpiresInSeconds` | An option: how long an access token it issues is valid. 300 by default |
 | `rotatesRefreshTokens` | An option: a refresh gives out a new refresh token and refuses the old one from then on |
 
@@ -505,11 +525,11 @@ beforeAll(async () => {
     });
 });
 
-it('signs a user in, and logs them out when they log out at the identity provider', async () => {
+it('logs a user in, and logs them out when they log out at the identity provider', async () => {
     idp.identity = { nameId: 'ada', attributes: { email: 'ada@example.com' } };
     const browser: TestBrowser = new TestBrowser(baseUrl, 'https://api.example.com');
 
-    await browser.open(await browser.follow('https://api.example.com/auth/federated/authorize?authenticator=company-saml&redirectTo=https://app.example.com'));
+    await browser.open(await browser.follow('https://api.example.com/auth/federated/login/request?authenticator=company-saml&redirectTo=https://app.example.com'));
     const answer: FakeSamlAnswer | undefined = idp.answers.at(-1);
     expect(await browser.follow(answer?.url ?? '', {
         method: 'POST',
@@ -525,11 +545,11 @@ it('signs a user in, and logs them out when they log out at the identity provide
 
 | Member | What it does |
 |---|---|
-| `identity`, `authenticatedAt` | Who the next sign-in is, with the NameID and the attributes sent, how they signed in as `authnContextClassRef`, and when they signed in at the provider |
-| `denyNext(status)` | Answers the next sign-in with a second level status, such as `urn:oasis:names:tc:SAML:2.0:status:RequestDenied` |
+| `identity`, `authenticatedAt` | Who logs in next, with the NameID and the attributes sent, how they logged in as `authnContextClassRef`, and when they logged in at the provider |
+| `denyNext(status)` | Answers the next login with a second level status, such as `urn:oasis:names:tc:SAML:2.0:status:RequestDenied` |
 | `changeNextAnswer(changes)` | Gets the next answer wrong: another issuer or audience, unsolicited, expired, unsigned, signed by another key, or changed after it was signed |
 | `createLogoutRequestUrl(options)` | The URL a user logging out at the provider is sent to: your logout route with a signed logout request, or one that is not signed |
-| `createLogoutRequestForm(options)` | The same logout request as a form a page posts to your logout route, signed inside |
+| `createLogoutRequestForm(options)` | The same logout request as a form a page posts to your logout route, logged inside |
 | `sendBackChannelLogout(url, options)` | Sends the logout request to your SOAP logout route without a browser, and reads what it answered and whether the answer is signed |
 | `requests`, `answers` | What your application asked the provider for, the classes of authentication it asked for included, and what it answered, with the session it names |
 | `logoutRequests` | The logout requests your application sent the provider |
@@ -542,7 +562,7 @@ it('signs a user in, and logs them out when they log out at the identity provide
 | `logoutBindings` | An option: whether its metadata names its logout URL for redirects, posted forms or both. Redirects by default |
 | `answersLogoutWith` | An option: whether it answers your logout requests with a redirect or with a page posting the answer. A redirect by default |
 
-## Signing in with a passkey
+## Logging in with a passkey
 A `FakePasskeyDevice` does what a browser and a device do with [passkeys](./passkeys.md): hand it the options your routes answer with and the origin of the page, and it answers what the browser would:
 
 ```ts
@@ -551,9 +571,9 @@ import { expect, it } from '@jest/globals';
 import { JsonUtilities, PasskeyRequestOptions } from 'zibri';
 import { FakePasskeyDevice } from 'zibri-testing';
 
-it('signs a user in with a passkey', async () => {
+it('logs a user in with a passkey', async () => {
     const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-    const options: PasskeyRequestOptions = await (await fetch(`${baseUrl}/auth/sign-in-options`, { method: 'POST' })).json();
+    const options: PasskeyRequestOptions = await (await fetch(`${baseUrl}/auth/login-options`, { method: 'POST' })).json();
 
     const res: Response = await fetch(`${baseUrl}/auth/login?authenticator=passkey`, {
         method: 'POST',
@@ -567,13 +587,13 @@ it('signs a user in with a passkey', async () => {
 
 | Member | What it does |
 |---|---|
-| `create(options, origin)` | Creates a passkey, as `navigator.credentials.create` does |
+| `create(options, origin)` | Creates a [passkey](./glossary.md#passkey), as `navigator.credentials.create` does |
 | `get(options, origin, passkeyId)` | Uses one, as `navigator.credentials.get` does. The first one for the site unless you pick one |
 | `passkeys` | The passkeys it holds, with their signature counts |
 | `copy()` | A copy of the device with every passkey and count on it |
 | `verifiesUser` | Whether it verifies its user before the next passkey it creates or uses |
 | `synced` | An option: its passkeys are synced, like a phone's password manager keeps them, and count no signatures |
-| `storesPasskeys` | An option: whether it stores its passkeys, so it offers them at a sign-in that names none. `false` is an older security key, which refuses to create a passkey where a stored one is demanded |
+| `storesPasskeys` | An option: whether it stores its passkeys, so it offers them at a login that names none. `false` is an older security key, which refuses to create a passkey where a stored one is demanded |
 | `aaguid` | An option: the model it names |
 | `attestation` | An option: what it proves its model with, from a `FakeFidoMetadataService` |
 
@@ -654,8 +674,8 @@ it('binds a login to the key of its proof', async () => {
 | `thumbprint` | The RFC 7638 thumbprint of the key, which a bound token names as `cnf.jkt` |
 | `createProof(method, url, options)` | Signs a proof, with the `accessToken` it hashes, the `nonce`, the time it was `issuedAt` and its `jwtId` |
 
-## Signing in through a directory
-`startFakeLdapDirectory` starts a directory inside the test, for [sign-in through a directory](./sign-in-through-a-directory.md). It speaks LDAP over TLS with a certificate of its own: point your authenticator's `urls` at its `ldapsUrl`, or at its `ldapUrl` for StartTLS, and its `trustedCertificates` at its `certificate`:
+## Logging in through a directory
+`startFakeLdapDirectory` starts a directory inside the test, for [login through a directory](./login-through-a-directory.md). It speaks LDAP over TLS with a certificate of its own: point your authenticator's `urls` at its `ldapsUrl`, or at its `ldapUrl` for StartTLS, and its `trustedCertificates` at its `certificate`:
 
 ```ts
 // src/__testing__/app.test.ts

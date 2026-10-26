@@ -1,7 +1,7 @@
 import type { ConvertOutputOptions } from 'swagger2openapi';
 
 import { InternalError } from '../../../error-handling/internal-error.model';
-import { OpenApiDefinition } from '../../../open-api/open-api.model';
+import type { OpenApiDefinition } from '../../../open-api/open-api.model';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
 
 /**

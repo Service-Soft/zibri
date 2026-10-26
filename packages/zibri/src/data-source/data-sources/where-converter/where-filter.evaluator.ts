@@ -17,6 +17,7 @@ import { isAllOfWhereFilterKey, isWhereFilterKey, WhereFilterKeys } from '../../
 import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/where-filter.model';
 import { WhereValueUtilities } from '../../models/where/where-value.utilities';
 import { StoredValueTypeMismatchError } from '../../stored-value-type-mismatch.error';
+import { PropertyReferenceUtilities } from '../../where/property-reference.utilities';
 
 /**
  * Handler for a single where filter key.
@@ -184,13 +185,14 @@ export class WhereFilterEvaluator {
         path: string
     ): boolean {
         for (const key of ObjectUtilities.keys(filter)) {
-            const filterProperty: WhereFilterProperty<T[typeof key]> | WhereFilterProperty<T[typeof key]>[] | undefined = filter[key];
+            const filterProperty: WhereFilterProperty<T[typeof key], T[typeof key], T> | WhereFilterProperty<T[typeof key], T[typeof key], T>[] | undefined = filter[key];
             if (filterProperty === undefined) {
                 continue;
             }
             if (!this.matchesProperty(
                 (item as Record<string, unknown>)[key as string],
-                filterProperty,
+                // a comparison naming another property of the item compares with what the item holds there
+                PropertyReferenceUtilities.resolveAgainst(filterProperty, item),
                 properties[key as string],
                 `${path}.${key as string}`
             )) {

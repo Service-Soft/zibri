@@ -2,7 +2,9 @@ import { describe, expect, it } from '@jest/globals';
 
 import { Entity, EntityMetadata } from './entity.decorator';
 import { Property } from './property.decorator';
+import { propertyOf } from '../../data-source/models/where/property-of.function';
 import { whereFor } from '../../data-source/models/where/where-for.function';
+import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
 import { KeyGroups, keyGroupsOf } from '../../global/model-registry/key-descriptor';
 import { $t } from '../../localization/translate.function';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
@@ -252,12 +254,14 @@ describe('declaring the checks of an entity', () => {
             tenant: 'shared',
             allowOrphan: true,
             allowDuplicate: true,
-            checks: [{
-                // eslint-disable-next-line unicorn/no-null
-                where: whereFor<Ticket>([{ state: { oneOf: ['open', null] } }, { points: { lesserThan: 10 }, state: { not: 'closed' } }]),
-                code: 'closedTicketPoints',
-                message: $t`a closed ticket has fewer than 10 points`
-            }]
+            checks: [
+                {
+                    // eslint-disable-next-line unicorn/no-null
+                    where: whereFor<Ticket>([{ state: { oneOf: ['open', null] } }, { points: { lesserThan: 10 }, state: { not: 'closed' } }]),
+                    code: 'closedTicketPoints',
+                    message: $t`a closed ticket has fewer than 10 points`
+                }
+            ]
         })
         class Ticket extends BaseEntity {
             @Property.string({ required: false })
@@ -293,15 +297,58 @@ describe('declaring the checks of an entity', () => {
         }).toThrow(/Ticket\.state: The filter of a unique or check declaration can only compare a property/);
     });
 
-    it('refuses a check that compares a date', () => {
-        // a check compares against literals written into the schema, and a date is not one of them
+    // 01 §D19: a date was refused as the value of a check, and a check could not name another property
+    it('takes a check that compares a date with a date, or with another property of the row', () => {
+        @Entity({
+            tenant: 'shared',
+            allowOrphan: true,
+            allowDuplicate: true,
+            checks: [
+                whereFor<Ticket>({ dueAt: { afterOrOn: new Date('2000-01-01T00:00:00.000Z') } }),
+                whereFor<Ticket>({ dueAt: { after: propertyOf('openedAt') }, points: { lesserThanEquals: propertyOf('budget') } })
+            ]
+        })
+        class Ticket extends BaseEntity {
+            @Property.date()
+            openedAt!: Date;
+
+            @Property.date()
+            dueAt!: Date;
+
+            @Property.number()
+            points!: number;
+
+            @Property.number()
+            budget!: number;
+        }
+
+        const [onDate, onProperties] = MetadataUtilities.getEntityMetadata(Ticket)?.checks ?? [];
+        expect(keyWhereToSql(Ticket, onDate?.where ?? whereFor<Ticket>({}))).toBe('"dueAt" >= \'2000-01-01T00:00:00.000Z\'');
+        expect(keyWhereToSql(Ticket, onProperties?.where ?? whereFor<Ticket>({}))).toBe('("dueAt" > "openedAt" AND "points" <= "budget")');
+        expect(onProperties?.message.getValue('en')).toBe('breaks the check on "dueAt, openedAt, points, budget"');
+    });
+
+    it('refuses a check comparing with a property the entity does not declare, or one holding another kind of value', () => {
         expect(() => {
-            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, checks: [whereFor<Ticket>({ dueAt: { after: new Date(0) } })] })
+            // @ts-expect-error a property the entity does not declare
+            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, checks: [whereFor<Ticket>({ dueAt: { after: propertyOf('closedAt') } })] })
             class Ticket extends BaseEntity {
                 @Property.date()
                 dueAt!: Date;
             }
             return Ticket;
-        }).toThrow(/Ticket\.dueAt: The filter of a unique or check declaration can only compare a property/);
+        }).toThrow(/Ticket\.dueAt: The filter compares with "closedAt", which the entity does not declare/);
+        expect(() => {
+            // @ts-expect-error a date compared with a number
+            @Entity({ tenant: 'shared', allowOrphan: true, allowDuplicate: true, checks: [whereFor<Ticket>({ dueAt: { after: propertyOf('points') } })] })
+            class Ticket extends BaseEntity {
+                @Property.date()
+                dueAt!: Date;
+
+                @Property.number()
+                points!: number;
+            }
+            return Ticket;
+        }).toThrow(/Ticket\.dueAt: "after" compares a date with "points", which holds a number/);
     });
 });

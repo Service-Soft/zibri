@@ -4,19 +4,19 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource, InMemoryDataSource, TestBrowser } from 'zibri-testing';
 
 import type { FederatedAuthenticatorInterface } from './federated-authenticator.interface';
-import { FederatedConnectionStart } from './federated-connection-start.model';
 import { FederatedCredentials, FederatedHandoverCredentials } from './federated-credentials.model';
 import { FederatedIdentity } from './federated-identity.model';
+import { FederatedLinkIdentityStart } from './federated-link-identity-start.model';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
 import { FederatedRegistration } from './federated-registration.model';
 import type { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import type { FederatedRoute } from './federated-route.type';
 import { FederatedSessionMatch } from './federated-session-match.model';
-import { FederatedSignInFailure } from './federated-sign-in-failure.enum';
-import { FederatedSignInRequest } from './federated-sign-in-request.model';
-import { FederatedSignInResult } from './federated-sign-in-result.model';
-import { FederatedSignInError } from './federated-sign-in.error';
+import { FederatedLoginFailure } from './federated-login-failure.enum';
+import { FederatedLoginRequest } from './federated-login-request.model';
+import { FederatedLoginResult } from './federated-login-result.model';
+import { FederatedLoginError } from './federated-login.error';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
@@ -45,18 +45,18 @@ import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
 import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
 
 const PUBLIC_URL: string = 'http://zibri.test';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 
 /**
- * A sign-in that has been started, or answered.
+ * A login that has been started, or answered.
  */
-type DirectSignIn = {
+type DirectLogin = {
     redirectTo: string,
     codeChallenge: string | undefined
 };
 
 /**
- * A provider of the test's own, which signs in whoever `signsIn` names as soon as it is asked. It
+ * A provider of the test's own, which logs in whoever `logsInAs` names as soon as it is asked. It
  * implements the interface itself rather than extending `BaseFederatedAuthenticator`.
  */
 class DirectAuthenticator implements FederatedAuthenticatorInterface<string, JwtUser>, AuthControllerAuthenticatorInterface<string, JwtUser, FederatedCredentials> {
@@ -66,47 +66,47 @@ class DirectAuthenticator implements FederatedAuthenticatorInterface<string, Jwt
 
     readonly routes: FederatedRouteEndpoint[] = [{ route: 'callback', method: HttpMethod.GET }];
 
-    // who the next sign-in signs in as
-    signsIn: string | undefined;
+    // who the next login logs in as
+    logsInAs: string | undefined;
 
-    private readonly started: Map<string, DirectSignIn> = new Map();
+    private readonly started: Map<string, DirectLogin> = new Map();
 
-    private readonly answered: Map<string, DirectSignIn & { userId: string }> = new Map();
+    private readonly answered: Map<string, DirectLogin & { userId: string }> = new Map();
 
     resolveRouteUrl(route: FederatedRoute): string {
         return `${PUBLIC_URL}/auth/federated/${this.name}/${route}`;
     }
 
-    async startSignIn(request: FederatedSignInRequest): Promise<string> {
+    async requestProviderLogin(request: FederatedLoginRequest): Promise<string> {
         const state: string = randomBytes(16).toString('hex');
         this.started.set(state, { redirectTo: request.redirectTo, codeChallenge: request.codeChallenge });
         return Promise.resolve(`${this.resolveRouteUrl('callback')}?state=${state}`);
     }
 
-    async completeSignIn(answer: URLSearchParams): Promise<FederatedSignInResult> {
-        const signIn: DirectSignIn | undefined = this.started.get(answer.get('state') ?? '');
-        if (signIn == undefined || this.signsIn == undefined) {
-            return Promise.reject(new FederatedSignInError(FederatedSignInFailure.EXPIRED));
+    async confirmProviderLogin(answer: URLSearchParams): Promise<FederatedLoginResult> {
+        const login: DirectLogin | undefined = this.started.get(answer.get('state') ?? '');
+        if (login == undefined || this.logsInAs == undefined) {
+            return Promise.reject(new FederatedLoginError(FederatedLoginFailure.EXPIRED));
         }
         const code: string = randomBytes(16).toString('hex');
-        this.answered.set(code, { ...signIn, userId: this.signsIn });
-        return Promise.resolve({ type: 'handover', code, redirectTo: signIn.redirectTo, strategy: undefined });
+        this.answered.set(code, { ...login, userId: this.logsInAs });
+        return Promise.resolve({ type: 'handover', code, redirectTo: login.redirectTo, strategy: undefined });
     }
 
     async authenticate(credentials: FederatedCredentials): Promise<Authentication<JwtUser>> {
-        const signIn: (DirectSignIn & { userId: string }) | undefined = 'code' in credentials ? this.answered.get(credentials.code) : undefined;
+        const login: (DirectLogin & { userId: string }) | undefined = 'code' in credentials ? this.answered.get(credentials.code) : undefined;
         const challenge: string | undefined = credentials.codeVerifier == undefined
             ? undefined
             : createHash('sha256').update(credentials.codeVerifier)
                 .digest('base64url');
-        if (signIn == undefined || signIn.codeChallenge !== challenge) {
+        if (login == undefined || login.codeChallenge !== challenge) {
             throw new UnauthorizedError($ts`The code is invalid.`);
         }
-        const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).findById(signIn.userId);
+        const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).findById(login.userId);
         return { user, authenticatedAt: new Date() };
     }
 
-    async continueConnection(): Promise<string> {
+    async continueLinkIdentity(): Promise<string> {
         return Promise.reject(new NotFoundError($ts`Nothing can be connected.`));
     }
 
@@ -138,11 +138,11 @@ class DirectAuthenticator implements FederatedAuthenticatorInterface<string, Jwt
         return Promise.reject(new NotFoundError($ts`Nobody registers.`));
     }
 
-    async linkIdentity(): Promise<void> {
+    async linkTicketIdentity(): Promise<void> {
         return Promise.reject(new NotFoundError($ts`Nothing is linked.`));
     }
 
-    async startConnection(): Promise<FederatedConnectionStart> {
+    async requestLinkIdentity(): Promise<FederatedLinkIdentityStart> {
         return Promise.reject(new NotFoundError($ts`Nothing can be connected.`));
     }
 
@@ -176,8 +176,8 @@ class RedirectedSoapLogoutDirectAuthenticator extends DirectAuthenticator {
 }
 
 /**
- * The auth routes of an application signing in through the given provider. The provider connects
- * nothing to an account, so the route starting a connection is left out.
+ * The auth routes of an application logging in through the given provider. The provider connects
+ * nothing to an account, so the route requesting a link is left out.
  * @param authenticator - The provider's authenticator.
  * @returns The controller.
  */
@@ -186,13 +186,13 @@ function defineAuthController(authenticator: Newable<DirectAuthenticator>): Newa
     @Controller('/auth', { allowOrphan: true, versions: 'all' })
     class DirectAuthController extends OmitClass(
             AuthController({ strategies: [JwtAuthStrategy], authenticators: [authenticator], twoFactorMethods: [OtpTwoFactorMethod] }),
-            ['startConnection']
+            ['requestLinkIdentity']
         ) {}
     return DirectAuthController;
 }
 
 /**
- * Starts an application signing in through the given provider, at the routes of the auth controller.
+ * Starts an application logging in through the given provider, at the routes of the auth controller.
  * @param authenticator - The provider's authenticator.
  * @returns The server and the url it listens at.
  */
@@ -212,7 +212,7 @@ async function startApp(authenticator: Newable<DirectAuthenticator>): Promise<[S
                 useValue: {
                     allowedRedirects: ['https://app.example.com'],
                     registrationUrl: 'https://app.example.com/register',
-                    errorUrl: 'https://app.example.com/sign-in-failed',
+                    errorUrl: 'https://app.example.com/login-failed',
                     maxAuthenticationAgeInMs: 3600000
                 }
             })
@@ -250,17 +250,17 @@ describe('FederatedAuthenticatorInterface — an authenticator of the applicatio
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('signs in through the routes of the auth controller', async () => {
+    it('logs in through the routes of the auth controller', async () => {
         const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
             .create({ email: `${randomBytes(6).toString('hex')}@example.com`, roles: [Roles.USER] });
-        inject(DirectAuthenticator).signsIn = user.id;
+        inject(DirectAuthenticator).logsInAs = user.id;
         const verifier: string = randomBytes(32).toString('base64url');
         const codeChallenge: string = createHash('sha256').update(verifier)
             .digest('base64url');
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
         const landing: string = await browser.follow(await browser.follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
         ));
         const res: Response = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',

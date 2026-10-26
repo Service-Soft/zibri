@@ -8,7 +8,7 @@ import { createInMemoryDataSource,
     TestBrowser } from 'zibri-testing';
 
 import { PasskeyChallenge } from './passkey-challenge.model';
-import { PasskeyConnectionRequest } from './passkey-connection-request.model';
+import { PasskeyAdditionRequest } from './passkey-addition-request.model';
 import { PasskeyCreationOptions } from './passkey-creation-options.model';
 import { PasskeyTicketCredentials } from './passkey-credentials.model';
 import { PasskeyOptions } from './passkey-options.model';
@@ -79,11 +79,11 @@ class JwtPasskeyAuthController extends AuthController({
     }) {}
 
 @Controller('/users', { allowOrphan: true })
-class CookieSignUpController {
+class CookieRegistrationController {
     // what an application writes: create the user and add the passkey in one transaction, so neither
     // exists without the other, and log in once that is committed
-    @Post('/sign-up')
-    async signUp(
+    @Post('/register')
+    async register(
         @Body(PasskeyTicketCredentials)
         credentials: PasskeyTicketCredentials
     ): Promise<CookieAuthData<string>> {
@@ -93,7 +93,7 @@ class CookieSignUpController {
         try {
             const registration: PasskeyRegistration = await authService.resolveRegistration(PasskeyAuthenticator, credentials, transaction);
             const user: JwtUser = await users.create({ email: registration.name, roles: [Roles.USER] }, { transaction });
-            await authService.linkIdentity(PasskeyAuthenticator, credentials, user.id, transaction);
+            await authService.linkTicketIdentity(PasskeyAuthenticator, credentials, user.id, transaction);
             await transaction.commit();
         }
         catch (error) {
@@ -106,14 +106,14 @@ class CookieSignUpController {
 
 @Controller('/account', { allowOrphan: true })
 class AccountController {
-    // what an application writes: a route of its own that starts adding a passkey to the user
+    // what an application writes: a route of its own that requests adding a passkey to the user
     @Auth.isLoggedIn()
     @Post('/passkeys')
     async addPasskey(
-        @Body(PasskeyConnectionRequest)
-        request: PasskeyConnectionRequest
+        @Body(PasskeyAdditionRequest)
+        request: PasskeyAdditionRequest
     ): Promise<PasskeyCreationOptions> {
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).startConnection(PasskeyAuthenticator, request);
+        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(PasskeyAuthenticator, request);
     }
 
     @Auth.require2fa()
@@ -148,9 +148,9 @@ type LoggedIn = {
 };
 
 /**
- * What a sign-in with a passkey answered, and the browser it went through.
+ * What a login with a passkey answered, and the browser it went through.
  */
-type SignedIn = {
+type LoginAnswer = {
     /**
      * The answer of the login route.
      */
@@ -164,7 +164,7 @@ type SignedIn = {
 let baseUrl: string;
 
 /**
- * Starts an application signing in with passkeys to cookies.
+ * Starts an application logging in with passkeys to cookies.
  * @param passkeyOptions - The passkey options, if any.
  * @param entities - The entities the passkeys are kept in.
  * @returns The server and where it listens.
@@ -183,7 +183,7 @@ async function startApp(
         authStrategies: [CookieAuthStrategy],
         authenticators: [PasswordAuthenticator, PasskeyAuthenticator],
         twoFactorMethods: [PasskeyTwoFactorMethod],
-        controllers: [CookiePasskeyAuthController, CookieSignUpController, AccountController],
+        controllers: [CookiePasskeyAuthController, CookieRegistrationController, AccountController],
         providers: [
             ...defaultTestServerProviders,
             defineProvider({ token: ZIBRI_DI_TOKENS.COOKIE_SIGN_SECRET, useFactory: () => 'test-cookie-secret' }),
@@ -221,30 +221,30 @@ async function read<T>(res: Response): Promise<T> {
 }
 
 /**
- * Signs a new user up with a passkey of the given device, which logs them in.
+ * Registers a new user with a passkey of the given device, which logs them in.
  * @param device - The device.
  * @param email - The name the device lists the account under, and the user's email.
  * @returns The user, logged in.
  */
-async function signUp(device: FakePasskeyDevice, email: string = `${crypto.randomUUID()}@example.com`): Promise<LoggedIn> {
+async function register(device: FakePasskeyDevice, email: string = `${crypto.randomUUID()}@example.com`): Promise<LoggedIn> {
     const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-    const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: email }));
-    const { ticket }: PasskeyTicketCredentials = await read(await post(browser, '/auth/register', { response: device.create(options, ORIGIN) }));
-    const res: Response = await post(browser, '/users/sign-up', { ticket });
+    const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: email }));
+    const { ticket }: PasskeyTicketCredentials = await read(await post(browser, '/auth/registration/confirm', { response: device.create(options, ORIGIN) }));
+    const res: Response = await post(browser, '/users/register', { ticket });
     expect(res.status).toBe(200);
     const { csrfToken, userId }: CookieAuthData<string> = await read(res);
     return { browser, csrfToken, userId };
 }
 
 /**
- * Signs in with a passkey of the given device, in a new browser.
+ * Logs in with a passkey of the given device, in a new browser.
  * @param device - The device.
  * @param origin - The origin of the page the browser is on.
  * @returns What the login answered.
  */
-async function signIn(device: FakePasskeyDevice, origin: string = ORIGIN): Promise<SignedIn> {
+async function logIn(device: FakePasskeyDevice, origin: string = ORIGIN): Promise<LoginAnswer> {
     const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-    const options: PasskeyRequestOptions = await read(await post(browser, '/auth/sign-in-options', {}));
+    const options: PasskeyRequestOptions = await read(await post(browser, '/auth/login-options', {}));
     return { res: await post(browser, '/auth/login?authenticator=passkey', { response: device.get(options, origin) }), browser };
 }
 
@@ -266,7 +266,7 @@ async function auditEvents(): Promise<unknown[]> {
 async function secondFactorHeaders(loggedIn: LoggedIn, device: FakePasskeyDevice): Promise<Record<string, string>> {
     const options: PasskeyRequestOptions = await read(await post(
         loggedIn.browser,
-        '/auth/2fa/start?method=passkey',
+        '/auth/2fa/request?method=passkey',
         {},
         { 'x-csrf-token': loggedIn.csrfToken }
     ));
@@ -291,7 +291,7 @@ describe('PasskeyAuthenticator — starting', () => {
         await expect(startApp(undefined)).rejects.toThrow(/passkey_options/);
     }, TestTimeouts.inMemory.start);
 
-    it('starts with passkeys as a second factor only, without the table of a sign-up', async () => {
+    it('starts with passkeys as a second factor only, without the table of a registration', async () => {
         const dataSourceClass: Newable<InMemoryDataSource> = createInMemoryDataSource({
             entities: [...defaultTestServerEntities, Passkey, PasskeyChallenge],
             repositories: defaultTestServerRepositories,
@@ -308,7 +308,7 @@ describe('PasskeyAuthenticator — starting', () => {
     }, TestTimeouts.inMemory.start);
 });
 
-describe('PasskeyAuthenticator — signing in to cookies', () => {
+describe('PasskeyAuthenticator — logging in to cookies', () => {
     let server: StartedTestServer;
 
     beforeAll(async () => {
@@ -319,20 +319,20 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('signs a user up with a passkey, which logs them in, and signs them in with it again', async () => {
+    it('registers a user with a passkey, which logs them in, and logs them in with it again', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        const signedUp: LoggedIn = await signUp(device, 'signed-up@example.com');
+        const registered: LoggedIn = await register(device, 'registered@example.com');
 
-        const { res } = await signIn(device);
+        const { res } = await logIn(device);
 
         expect(res.status).toBe(200);
-        expect((await read<CookieAuthData<string>>(res)).userId).toBe(signedUp.userId);
+        expect((await read<CookieAuthData<string>>(res)).userId).toBe(registered.userId);
     });
 
-    it('counts a sign-in with a passkey as a recent login', async () => {
+    it('counts a login with a passkey as a recent login', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device);
-        const { res, browser } = await signIn(device);
+        await register(device);
+        const { res, browser } = await logIn(device);
         const { csrfToken }: CookieAuthData<string> = await read(res);
 
         const updated: Response = await post(browser, '/account/email', {}, { 'x-csrf-token': csrfToken });
@@ -340,33 +340,33 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
         expect(updated.status).toBe(200);
     });
 
-    it('logs in with the ticket of a sign-up only once', async () => {
+    it('logs in with the ticket of a registration only once', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'once@example.com' }));
-        const { ticket }: PasskeyTicketCredentials = await read(await post(browser, '/auth/register', {
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'once@example.com' }));
+        const { ticket }: PasskeyTicketCredentials = await read(await post(browser, '/auth/registration/confirm', {
             response: new FakePasskeyDevice().create(options, ORIGIN)
         }));
-        expect((await post(browser, '/users/sign-up', { ticket })).status).toBe(200);
+        expect((await post(browser, '/users/register', { ticket })).status).toBe(200);
 
-        expect((await post(browser, '/users/sign-up', { ticket })).status).toBe(401);
+        expect((await post(browser, '/users/register', { ticket })).status).toBe(401);
     });
 
     it('logs nobody in with a ticket whose passkey the application added to nobody', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'nobody@example.com' }));
-        const { ticket }: PasskeyTicketCredentials = await read(await post(browser, '/auth/register', {
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'nobody@example.com' }));
+        const { ticket }: PasskeyTicketCredentials = await read(await post(browser, '/auth/registration/confirm', {
             response: new FakePasskeyDevice().create(options, ORIGIN)
         }));
 
         await expect(inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).login(PasskeyAuthenticator, CookieAuthStrategy, { ticket }, undefined))
-            .rejects.toThrow('No user is linked to this sign-in.');
+            .rejects.toThrow('No user is linked to this login.');
     });
 
     it('takes one answer to each challenge, and records one given again as reuse', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device);
+        await register(device);
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyRequestOptions = await read(await post(browser, '/auth/sign-in-options', {}));
+        const options: PasskeyRequestOptions = await read(await post(browser, '/auth/login-options', {}));
         const response: unknown = device.get(options, ORIGIN);
         expect((await post(browser, '/auth/login?authenticator=passkey', { response })).status).toBe(200);
 
@@ -380,12 +380,12 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
         }));
     });
 
-    it('refuses a sign-in that answers a challenge issued for a second factor', async () => {
+    it('refuses a login that answers a challenge issued for a second factor', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        const loggedIn: LoggedIn = await signUp(device);
+        const loggedIn: LoggedIn = await register(device);
         const options: PasskeyRequestOptions = await read(await post(
             loggedIn.browser,
-            '/auth/2fa/start?method=passkey',
+            '/auth/2fa/request?method=passkey',
             {},
             { 'x-csrf-token': loggedIn.csrfToken }
         ));
@@ -397,9 +397,9 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
 
     it('refuses an answer to a challenge that expired', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device);
+        await register(device);
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyRequestOptions = await read(await post(browser, '/auth/sign-in-options', {}));
+        const options: PasskeyRequestOptions = await read(await post(browser, '/auth/login-options', {}));
         const challenges: Repository<PasskeyChallenge> = inject(repositoryTokenFor(PasskeyChallenge));
         for (const challenge of await challenges.findAll({ where: { spent: false } })) {
             await challenges.updateById(challenge.id, { expirationDate: new Date(Date.now() - 1000) });
@@ -412,9 +412,9 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
 
     it('refuses an answer from a page on an origin it does not know, though it is under the site', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device);
+        await register(device);
 
-        const { res } = await signIn(device, 'https://evil.example.com');
+        const { res } = await logIn(device, 'https://evil.example.com');
 
         expect(res.status).toBe(401);
     });
@@ -422,26 +422,26 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
     it('refuses a device that does not verify its user, when it creates a passkey and when it uses one', async () => {
         const careless: FakePasskeyDevice = new FakePasskeyDevice({ verifiesUser: false });
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'careless@example.com' }));
-        const created: Response = await post(browser, '/auth/register', { response: careless.create(options, ORIGIN) });
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'careless@example.com' }));
+        const created: Response = await post(browser, '/auth/registration/confirm', { response: careless.create(options, ORIGIN) });
         expect(created.status).toBe(400);
 
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device);
+        await register(device);
         device.verifiesUser = false;
-        const { res } = await signIn(device);
+        const { res } = await logIn(device);
         expect(res.status).toBe(401);
     });
 
     it('refuses a copy of a security key whose count fell behind, records it, and keeps the passkey', async () => {
         const securityKey: FakePasskeyDevice = new FakePasskeyDevice();
-        await signUp(securityKey);
-        expect((await signIn(securityKey)).res.status).toBe(200);
+        await register(securityKey);
+        expect((await logIn(securityKey)).res.status).toBe(200);
         const copy: FakePasskeyDevice = securityKey.copy();
-        expect((await signIn(securityKey)).res.status).toBe(200);
+        expect((await logIn(securityKey)).res.status).toBe(200);
 
         // the copy counts on from where it was copied, which the original has passed already
-        const { res } = await signIn(copy);
+        const { res } = await logIn(copy);
 
         expect(res.status).toBe(401);
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
@@ -449,15 +449,15 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
             outcome: AuditOutcome.FAILURE,
             reason: AuditReason.CREDENTIAL_CLONED
         }));
-        expect((await signIn(securityKey)).res.status).toBe(200);
+        expect((await logIn(securityKey)).res.status).toBe(200);
     });
 
-    it('signs a synced passkey in again and again, though it counts no signatures', async () => {
+    it('logs in with a synced passkey again and again, though it counts no signatures', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device);
+        await register(device);
 
-        expect((await signIn(device)).res.status).toBe(200);
-        expect((await signIn(device)).res.status).toBe(200);
+        expect((await logIn(device)).res.status).toBe(200);
+        expect((await logIn(device)).res.status).toBe(200);
     });
 
     it('adds a passkey to a user logged in with a password, lists it with their identities, and removes it', async () => {
@@ -472,23 +472,23 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
         const options: PasskeyCreationOptions = await read(await post(browser, '/account/passkeys', { name: email }, { 'x-csrf-token': csrfToken }));
         const connected: Response = await post(
             browser,
-            '/auth/connect/complete',
+            '/auth/link-identity/confirm',
             { response: device.create(options, ORIGIN) },
             { 'x-csrf-token': csrfToken }
         );
         expect(connected.status).toBe(204);
 
-        const { res } = await signIn(device);
+        const { res } = await logIn(device);
         expect((await read<CookieAuthData<string>>(res)).userId).toBe(user.id);
         const linked: LinkedIdentity<Passkey>[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findIdentities(user.id, undefined, [PasskeyAuthenticator]);
         expect(linked.map(l => l.authenticator)).toEqual(['passkey']);
         expect(linked[0]?.identity.discoverable).toBe(true);
 
         await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).unlinkIdentity(user.id, linked[0]?.identity.id ?? '', undefined);
-        expect((await signIn(device)).res.status).toBe(401);
+        expect((await logIn(device)).res.status).toBe(401);
     });
 
-    it('adds a security key that cannot store a passkey to a user logged in with a password, as a second factor it cannot sign in with', async () => {
+    it('adds a security key that cannot store a passkey to a user logged in with a password, as a second factor it cannot log in with', async () => {
         const email: string = 'older-key@example.com';
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
         await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
@@ -500,7 +500,7 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
         const options: PasskeyCreationOptions = await read(await post(browser, '/account/passkeys', { name: email }, { 'x-csrf-token': csrfToken }));
         const connected: Response = await post(
             browser,
-            '/auth/connect/complete',
+            '/auth/link-identity/confirm',
             { response: olderKey.create(options, ORIGIN) },
             { 'x-csrf-token': csrfToken }
         );
@@ -510,20 +510,20 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
 
         const factor: Record<string, string> = await secondFactorHeaders({ browser, csrfToken, userId: user.id }, olderKey);
         expect((await post(browser, '/account/payment-details', {}, factor)).status).toBe(200);
-        // a sign-in names no passkey, so the key has none to offer
-        await expect(signIn(olderKey)).rejects.toThrow(/holds no passkey/);
+        // a login names no passkey, so the key has none to offer
+        await expect(logIn(olderKey)).rejects.toThrow(/holds no passkey/);
     });
 
-    it('signs nobody up with a security key that cannot store a passkey, which the browser refuses', async () => {
+    it('registers nobody with a security key that cannot store a passkey, which the browser refuses', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'older-key-only@example.com' }));
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'older-key-only@example.com' }));
 
         expect(() => new FakePasskeyDevice({ storesPasskeys: false }).create(options, ORIGIN)).toThrow(/cannot store a passkey/);
     });
 
     it('finishes adding a passkey only for the user it was started for', async () => {
-        const starter: LoggedIn = await signUp(new FakePasskeyDevice({ synced: true }));
-        const other: LoggedIn = await signUp(new FakePasskeyDevice({ synced: true }));
+        const starter: LoggedIn = await register(new FakePasskeyDevice({ synced: true }));
+        const other: LoggedIn = await register(new FakePasskeyDevice({ synced: true }));
         const options: PasskeyCreationOptions = await read(await post(
             starter.browser,
             '/account/passkeys',
@@ -533,7 +533,7 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
 
         const res: Response = await post(
             other.browser,
-            '/auth/connect/complete',
+            '/auth/link-identity/confirm',
             { response: new FakePasskeyDevice().create(options, ORIGIN) },
             { 'x-csrf-token': other.csrfToken }
         );
@@ -543,9 +543,9 @@ describe('PasskeyAuthenticator — signing in to cookies', () => {
 
     it('takes a passkey as the second factor of an operation, of the user it belongs to only, and once', async () => {
         const ownerDevice: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        const owner: LoggedIn = await signUp(ownerDevice);
+        const owner: LoggedIn = await register(ownerDevice);
         const otherDevice: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        const other: LoggedIn = await signUp(otherDevice);
+        const other: LoggedIn = await register(otherDevice);
 
         expect((await post(owner.browser, '/account/payment-details', {}, { 'x-csrf-token': owner.csrfToken })).status).toBe(401);
 
@@ -577,8 +577,8 @@ describe('PasskeyAuthenticator — models of devices', () => {
      */
     async function create(device: FakePasskeyDevice): Promise<number> {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'device@example.com' }));
-        return (await post(browser, '/auth/register', { response: device.create(options, ORIGIN) })).status;
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'device@example.com' }));
+        return (await post(browser, '/auth/registration/confirm', { response: device.create(options, ORIGIN) })).status;
     }
 
     beforeAll(async () => {
@@ -691,9 +691,9 @@ describe('PasskeyAuthenticator — metadata it cannot trust', () => {
 
     it('creates no passkey with metadata not signed under the root it is configured with, and answers that as a fault', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, undefined);
-        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration-options', { name: 'device@example.com' }));
+        const options: PasskeyCreationOptions = await read(await post(browser, '/auth/registration/request', { name: 'device@example.com' }));
 
-        const res: Response = await post(browser, '/auth/register', { response: new FakePasskeyDevice({ attestation: allowed }).create(options, ORIGIN) });
+        const res: Response = await post(browser, '/auth/registration/confirm', { response: new FakePasskeyDevice({ attestation: allowed }).create(options, ORIGIN) });
 
         expect(res.status).toBe(500);
     });

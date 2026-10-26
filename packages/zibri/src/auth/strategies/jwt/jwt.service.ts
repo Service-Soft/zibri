@@ -1,5 +1,5 @@
 import { type AccessTokenRevocation } from './access-token-revocation.type';
-import { EncodedJwt } from './encoded-jwt-access-token.model';
+import { EncodedJwt } from './encoded-jwt.model';
 import { JwtAsymmetricKey } from './jwt-asymmetric-key.model';
 import { type JwtAuthOptions } from './jwt-auth-options.model';
 import { JwtKey } from './jwt-key.model';

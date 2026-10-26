@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { Entity } from './entity.decorator';
 import { Property } from './property.decorator';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
 import { whereFor } from '../../data-source/models/where/where-for.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { keyGroupsOf } from '../../global/model-registry/key-descriptor';

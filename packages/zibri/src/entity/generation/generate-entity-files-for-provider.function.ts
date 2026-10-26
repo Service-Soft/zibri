@@ -4,7 +4,7 @@ import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { warn } from '../../logging/logger.helpers';
-import { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
+import type { OpenApiDefinition, OpenApiSchemas, OpenApiOperation, OpenApiResponseObject, OpenApiReferenceObject, OpenApiSchemaObject } from '../../open-api/open-api.model';
 import { FsUtilities, FsPath } from '../../utilities/fs.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';

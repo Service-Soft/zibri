@@ -191,7 +191,7 @@ describe('EncryptionService', () => {
 
             // through the driver, because the tampered row is precisely one the repository refuses to
             // read - and reading is what deleting through it starts with
-            await raw.remove(await raw.findIds({}), undefined);
+            await raw.remove(await raw.findIds({}), undefined, undefined);
         });
 
         test('writes a distinct value per row when a bound property is updated in bulk', async () => {
@@ -210,7 +210,7 @@ describe('EncryptionService', () => {
             await expect(otpRepository.findById(first.id)).resolves.toMatchObject({ secret: 'rotated' });
             await expect(otpRepository.findById(second.id)).resolves.toMatchObject({ secret: 'rotated' });
 
-            await raw.remove(await raw.findIds({}), undefined);
+            await raw.remove(await raw.findIds({}), undefined, undefined);
         });
     });
 

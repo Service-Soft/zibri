@@ -11,7 +11,7 @@ import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
- * The name Apple posts next to the code, on the first sign-in only.
+ * The name Apple posts next to the code, on the first login only.
  */
 type ApplePostedName = {
     /**
@@ -30,11 +30,11 @@ type ApplePostedName = {
 const CLIENT_SECRET_LIFETIME_IN_SECONDS: number = 300;
 
 /**
- * Authenticates a user by a sign-in with their Apple account.
+ * Authenticates a user by a login with their Apple account.
  *
  * Extend it with the services id as the client id, the team id, and the id and private key of the key
  * created for Sign in with Apple. Apple answers with a form post, and sends the user's name next to the
- * code on their first sign-in only.
+ * code on their first login only.
  */
 export abstract class BaseAppleAuthenticator<
     RoleType extends string,

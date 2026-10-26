@@ -5,8 +5,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { BaseUser } from '../models/base-user.model';
 
 /**
- * Interface for an authenticator that signs users in with an identity they have somewhere else, such
- * as an account at a provider. An identity signs in as the user it is linked to.
+ * Interface for an authenticator that logs users in with an identity they have somewhere else, such
+ * as an account at a provider. An identity logs in as the user it is linked to.
  *
  * An application reaches what it adds through `AuthServiceInterface`.
  */
@@ -17,25 +17,25 @@ export interface IdentityLinkingAuthenticatorInterface<
     TicketType,
     RegistrationType,
     IdentityType extends Pick<BaseEntity, 'id'>,
-    ConnectionRequestType,
-    ConnectionStartType
+    LinkIdentityRequestType,
+    LinkIdentityStartType
 > extends AuthenticatorInterface<RoleType, UserType, CredentialsType> {
     /**
-     * Reads who signed in, for creating the user they become, from the ticket a first sign-in
+     * Reads who logged in, for creating the user they become, from the ticket a first login
      * continues with. Does not spend the ticket.
      */
     resolveRegistration: (ticket: TicketType, transaction: Transaction | undefined) => Promise<RegistrationType>,
     /**
-     * Links the identity a ticket names to a user, so the ticket logs them in and every later sign-in
+     * Links the identity a ticket names to a user, so the ticket logs them in and every later login
      * with the identity finds them. Does not spend the ticket.
      */
-    linkIdentity: (ticket: TicketType, userId: string, transaction: Transaction | undefined) => Promise<void>,
+    linkTicketIdentity: (ticket: TicketType, userId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
-     * Starts connecting an identity to a user who exists already, as the request says. Answers with
+     * Requests linking an identity to a user who exists already, as the request says. Answers with
      * what the browser needs to go on with it, such as the url of a provider, and links the identity
      * once the user has proven they hold it.
      */
-    startConnection: (userId: string, request: ConnectionRequestType) => Promise<ConnectionStartType>,
+    requestLinkIdentity: (userId: string, request: LinkIdentityRequestType) => Promise<LinkIdentityStartType>,
     /**
      * Finds the identities linked to a user.
      */
@@ -55,6 +55,6 @@ export function isIdentityLinkingAuthenticator(value: unknown): value is Instanc
     if (!isAuthenticator(value)) {
         return false;
     }
-    const keys: string[] = ['resolveRegistration', 'linkIdentity', 'startConnection', 'findIdentities', 'unlinkIdentity'];
+    const keys: string[] = ['resolveRegistration', 'linkTicketIdentity', 'requestLinkIdentity', 'findIdentities', 'unlinkIdentity'];
     return keys.every(key => key in value);
 }

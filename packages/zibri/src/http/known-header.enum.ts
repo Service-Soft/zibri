@@ -1,5 +1,3 @@
-import { ObjectUtilities } from '../utilities/object.utilities';
-
 /**
  * Known http headers.
  */
@@ -53,19 +51,10 @@ export enum KnownHeader {
     IF_NONE_MATCH = 'if-none-match',
     IF_MATCH = 'if-match',
     ETAG = 'etag',
-    IIF_MODIFIED_SINCE = 'if-modified-since',
+    IF_MODIFIED_SINCE = 'if-modified-since',
     CONNECTION = 'connection',
     DNT = 'dnt',
     SEC_FETCH_MODE = 'sec-fetch-mode',
     SEC_FETCH_SITE = 'sec-fetch-site',
     TE = 'te'
-}
-
-/**
- * Checks if the given value is a known header.
- * @param value - The value to check.
- * @returns True when the KnownHeader enum values include the given value, false otherwise.
- */
-export function isKnownHeader(value: string): value is KnownHeader {
-    return ObjectUtilities.values(KnownHeader).includes(value.toLowerCase() as KnownHeader);
 }

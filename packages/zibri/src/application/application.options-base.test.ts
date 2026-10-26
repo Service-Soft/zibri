@@ -5,8 +5,12 @@ import { createInMemoryDataSource,
     StartedTestServer,
     startTestServer } from 'zibri-testing';
 
-import { TestTimeouts } from '../__testing__/constants';
 import { ZibriApplicationOptions } from './application-options.model';
+import { TestTimeouts } from '../__testing__/constants';
+import { Authenticators } from '../auth/authenticators/authenticators.model';
+import { AuthStrategies } from '../auth/strategies/auth-strategies.model';
+import { CronJob } from '../cron/cron-job.model';
+import { Newable } from '../types/newable.type';
 import { Controller } from '../routing/decorators/controller.decorator';
 import { Get } from '../routing/decorators/get.decorator';
 
@@ -52,6 +56,7 @@ const applicationOptions: ZibriApplicationOptions = {
     name: 'shipped-application',
     baseUrl: 'http://localhost:3000',
     version: '1.0.0',
+    environment: 'development',
     controllers: [ShippedController],
     websocketControllers: [],
     defaultAuth: 'public',
@@ -99,13 +104,25 @@ describe('a test server built from an application\'s own options', () => {
         expect(shipped.status).toBe(404);
     }, TestTimeouts.inMemory.start);
 
+    it('leaves the lists it was built from as they were', async () => {
+        // the application adds to its lists while it starts - the default auth strategy and
+        // authenticator, the cron jobs a feature registers - and added them to the caller's own
+        // arrays, so a second application built from the same options started with the first one's
+        const cronJobs: Newable<CronJob>[] = [];
+        const authenticators: Authenticators = [];
+        const authStrategies: AuthStrategies = [];
+        server = await startTestServer({ application: { ...applicationOptions, cronJobs, authenticators, authStrategies } });
+
+        expect({ cronJobs, authenticators, authStrategies }).toEqual({ cronJobs: [], authenticators: [], authStrategies: [] });
+    }, TestTimeouts.inMemory.start);
+
     it('inherits the auth posture the application chose', async () => {
         // the key worth covering over http rather than against the merge: a test that silently got
-        // 'public' where the application says 'requireLogin' would pass while exercising an
+        // 'public' where the application says 'isLoggedIn' would pass while exercising an
         // application nobody deploys - and every endpoint it touches would answer for the wrong
         // reason.
         server = await startTestServer({
-            application: { ...applicationOptions, defaultAuth: 'requireLogin' }
+            application: { ...applicationOptions, defaultAuth: 'isLoggedIn' }
         });
         const baseUrl: string = await server.start();
 

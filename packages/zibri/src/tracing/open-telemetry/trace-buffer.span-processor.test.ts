@@ -84,8 +84,8 @@ describe('TraceBufferSpanProcessor', () => {
         // reading either half as the whole would be off by a factor of a thousand or by decades
         expect(recorded?.startedAt.getTime()).toBeGreaterThanOrEqual(before - 1);
         expect(recorded?.startedAt.getTime()).toBeLessThanOrEqual(Date.now() + 1);
-        expect(recorded?.durationMs).toBeGreaterThanOrEqual(0);
-        expect(recorded?.durationMs).toBeLessThan(1000);
+        expect(recorded?.durationInMs).toBeGreaterThanOrEqual(0);
+        expect(recorded?.durationInMs).toBeLessThan(1000);
     });
 
     it('keeps the spans of one trace joined to each other', () => {

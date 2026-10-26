@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { RepositoryClass } from '../../data-source/repository/repository-class.type';

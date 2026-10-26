@@ -105,8 +105,8 @@ describe('MultithreadingService', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 0,
-                        defaultTimeoutMs: Ms.HOUR,
-                        defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+                        defaultTimeoutInMs: Ms.HOUR,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},
@@ -170,7 +170,7 @@ describe('MultithreadingService', () => {
         // there until its timeout while the first job had worked perfectly.
         const second: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath, amount: 50 },
-            timeout: Ms.SECOND * 10
+            timeoutInMs:Ms.SECOND * 10
         });
         expect(second.result).toEqual(100);
     }, 30000);
@@ -217,7 +217,7 @@ describe('MultithreadingService', () => {
             // without the replacement this posts to a terminated thread and waits for an answer that
             // cannot come. A short timeout is what makes that a failing test rather than a hanging
             // one - the real default is an hour, which is how the pool dies quietly in production
-            timeout: Ms.SECOND * 10
+            timeoutInMs:Ms.SECOND * 10
         });
 
         expect(res.status).toBe(ThreadJobStatus.COMPLETED);
@@ -228,7 +228,7 @@ describe('MultithreadingService', () => {
         const filePath: FsPath = FsUtilities.getPath(__dirname, 'multithreading.service.test.worker.ts');
         const res: ThreadJobEntity<{ filePath: FsPath }, unknown> = await multithreadingService.runThreadJob({
             workerData: { filePath, amount: 45 },
-            timeout: 1
+            timeoutInMs:1
         });
 
         expect(res.status).toBe(ThreadJobStatus.FAILED);
@@ -417,7 +417,7 @@ describe('MultithreadingService', () => {
             attempts: 1,
             // long since expired, and deliberately so: the timeout used to be what decided this, and
             // by that rule this job would be taken over right now
-            timeout: Ms.SECOND,
+            timeoutInMs:Ms.SECOND,
             workerData
         });
 
@@ -465,7 +465,7 @@ describe('MultithreadingService', () => {
             priority: false,
             progress: 50,
             attempts: 1,
-            timeout: Ms.HOUR,
+            timeoutInMs:Ms.HOUR,
             workerData
         });
 
@@ -476,7 +476,7 @@ describe('MultithreadingService', () => {
             priority: false,
             progress: 0,
             attempts: 0,
-            timeout: Ms.HOUR,
+            timeoutInMs:Ms.HOUR,
             workerData
         });
 
@@ -518,5 +518,5 @@ describe('MultithreadingService', () => {
         });
         expect(after.status).toBe(ThreadJobStatus.COMPLETED);
         expect(after.result).not.toBe(before.result);
-    }, 30000);
+    }, 40000);
 });

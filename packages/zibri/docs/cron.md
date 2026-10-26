@@ -6,10 +6,17 @@ A cron job runs a piece of work on a schedule. The schedule is a cron expression
 |---|---|---|
 | `CronJob` | class | Base class to extend when defining a cron job |
 | `InitialCronConfig` | interface | Config shape (`name`, `cron`, `active`, `syncToDataSource`, ...) required by `CronJob.initialConfig` |
+| `CronConfig` | type | The configuration of a job with every option of `InitialCronConfig` filled in |
 | `CronFailurePolicy` | type | What a job does when its ticks throw, see [when a tick throws](#when-a-tick-throws) |
-| `CronRetryOptions` | type | How a job runs a failed slot again |
+| `CronRetryOptions` | type | How a job runs a failed [slot](./glossary.md#slot) again |
 | `CronBackOffOptions` | type | How a job that keeps failing skips slots |
+| `RunsOn` | type | On how many instances a job runs each scheduled execution: `'oneInstance'` or `'everyInstance'`. An [event subscriber](./events.md#running-on-every-instance) takes it too |
 | `CronExpression` | class | Builder for cron expression strings (such as `CronExpression.every(1, 'seconds').build()`) |
+| `CronExpressionString` | type | A cron expression, as `CronExpression.build` and `CronExpression.fromString` return it |
+| `CronUnit`, `DayOfWeek`, `MonthName` | type, type, type | What `CronExpression` counts in, from `'seconds'` to `'months'`, and the days and months `on` and `in` take |
+| `CronServiceInterface` | interface | Schedules the jobs and changes them while the app runs: `schedule`, `enable`, `disable`, `changeCron`, `update` |
+| `CronUpdateData` | type | What `update` changes about a job |
+| `CronService` | class | Default implementation of `CronServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.CRON_SERVICE |
 | `RunExecution` | type | The election contract a cron service provides: runs an execution on the instance that holds its claim |
 | `CronJobEntity` | entity | The stored state of a cron job |
 | `CronJobState` | enum | `ACTIVE`, `INACTIVE` or `STOPPED_ON_ERROR`: whether a job is on the schedule, and why not, see [what a job is doing](#what-a-job-is-doing) |
@@ -72,6 +79,7 @@ const app: ZibriApplication = new ZibriApplication({
     ],
     cronJobs: [StatusCronJob],
     version,
+    environment: 'development',
     defaultAuth: 'public',
     twoFactorAtLogin: 'never',
     providers
@@ -88,7 +96,7 @@ The job starts with its initial config. Here that means:
 
 At its first start, the job is saved as a cron job entity in a data source. From then on you change its configuration through the cron service, for example to put it on the schedule or to change its cron expression.
 
-The schedule and whether the job is on it can change in two places: in the class, and through the cron service while the app runs. The newer change wins. A start whose class declares a different `cron` or `active` than at the last start takes the value of the class and logs the change. Otherwise the row keeps what the cron service set, across every restart. The class wins for `runOnInit`, `timezone`, `catchUpWithinMs` and `onFailure`: every start brings the row back in line with what the class declares, and `onFailure` is read from the class alone. Set `syncToDataSource: false` to keep the whole configuration in the class. The job then has no row to record `lastRun` and the last error.
+The schedule and whether the job is on it can change in two places: in the class, and through the cron service while the app runs. The newer change wins. A start whose class declares a different `cron` or `active` than at the last start takes the value of the class and logs the change. Otherwise the row keeps what the cron service set, across every restart. The class wins for `runOnInit`, `timezone`, `catchUpWithinInMs` and `onFailure`: every start brings the row back in line with what the class declares, and `onFailure` is read from the class alone. Set `syncToDataSource: false` to keep the whole configuration in the class. The job then has no row to record `lastRun` and the last error.
 
 ### Changing a job while the app runs
 
@@ -154,13 +162,13 @@ export class NightlyInvoicesCronJob extends CronJob {
 
 `runOnInit` is off by default. Turn it on and the job runs once when the app starts, in addition to its schedule.
 
-For a `distributed` job, one instance runs that startup run ahead of each upcoming slot. A deployment of ten pods runs it once. A pod that becomes ready later in the same rolling deploy finds it taken, even an hour later. The scheduled run of that slot still happens. A pod that starts after the slot has passed runs it again.
+For a job with `runsOn: 'oneInstance'`, one instance runs that startup run ahead of each upcoming slot. A deployment of ten pods runs it once. A pod that becomes ready later in the same rolling deploy finds it taken, even an hour later. The scheduled run of that slot still happens. A pod that starts after the slot has passed runs it again.
 
-For a job with `distributed: false` it runs on every instance.
+For a job with `runsOn: 'everyInstance'` it runs on every instance.
 
 ## Catching up a run that was missed
 
-A slot that passes while no instance is running is skipped: a deployment down from 02:00 to 04:00 skips its 03:00 job, and the next run is tomorrow. Set `catchUpWithinMs` on a job whose work is still worth doing later:
+A slot that passes while no instance is running is skipped: a deployment down from 02:00 to 04:00 skips its 03:00 job, and the next run is tomorrow. Set `catchUpWithinInMs` on a job whose work is still worth doing later:
 
 ```ts
 // src/cron/catching-up.cron-job.ts
@@ -171,7 +179,7 @@ export class CatchingUpCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'Nightly invoices',
         cron: CronExpression.daily().at(3, 'hours').build(),
-        catchUpWithinMs: Ms.DAY
+        catchUpWithinInMs: Ms.DAY
     };
 
     async onTick(): Promise<void> {}
@@ -180,9 +188,9 @@ export class CatchingUpCronJob extends CronJob {
 
 The invoice run is still worth doing at 06:00 when the outage clears, up to a day after its slot.
 
-On start, the job runs once for the most recent slot it missed. A week of downtime owes one invoice run, not seven. `catchUpWithinMs` is also how far back it looks: an older slot stays missed.
+On start, the job runs once for the most recent slot it missed. A week of downtime owes one invoice run, not seven. `catchUpWithinInMs` is also how far back it looks: an older slot stays missed.
 
-The same limit covers a slot a running process reaches late, for example while a long synchronous computation blocks it. A slot no later than `catchUpWithinMs` still runs, and of several such slots only the most recent one.
+The same limit covers a slot a running process reaches late, for example while a long synchronous computation blocks it. A slot no later than `catchUpWithinInMs` still runs, and of several such slots only the most recent one.
 
 Left unset, a missed slot stays missed, and so does a slot reached more than a second late. The app logger warns about each slot left out this way. Leave it unset for work that only matters at its moment, such as collecting this minute's metrics.
 
@@ -209,7 +217,7 @@ export class CarefulInvoicesCronJob extends CronJob {
             retry: { attempts: 3, delayInMs: 30 * Ms.SECOND },
             backOff: { maxSkippedSlots: 15 },
             stopAfterFailures: 5,
-            restartAfterMs: Ms.HOUR
+            restartAfterInMs: Ms.HOUR
         }
     };
 
@@ -224,7 +232,7 @@ This job runs a failed slot again after 30, 60 and 120 seconds. While it keeps f
 | `retry` | Runs a slot whose tick threw again, waiting `delayInMs` before the first attempt and twice as long before each one after it. No attempt starts once the next slot is due, and none after the app began shutting down. Only for work that is safe to run twice |
 | `backOff` | After n failures in a row the job skips the next 2^n - 1 slots, at most `maxSkippedSlots` |
 | `stopAfterFailures` | After this many failures in a row the job moves to `STOPPED_ON_ERROR`, and comes back at the next start, as above |
-| `restartAfterMs` | Puts a job `stopAfterFailures` stopped back on the schedule this long after its last run. Its failures are still counted, so a failure of its next tick stops it again |
+| `restartAfterInMs` | Puts a job `stopAfterFailures` stopped back on the schedule this long after its last run. Its failures are still counted, so a failure of its next tick stops it again |
 
 Failures are counted in a row across every instance, as `consecutiveFailures` on the job's row, and a slot whose retries all failed counts once. A tick that succeeds sets the count back to 0 and ends a back off.
 
@@ -247,7 +255,7 @@ To elect through something else, such as a lock your infrastructure provides, re
 
 ### Jobs that must run everywhere
 
-Some jobs act on state that belongs to one instance, which no other instance can see. Those set `distributed: false` and run on every instance:
+Some jobs act on state that belongs to one instance, which no other instance can see. Those set `runsOn: 'everyInstance'`:
 
 ```ts
 // src/cron/clear-local-cache.cron-job.ts
@@ -258,17 +266,17 @@ export class ClearLocalCacheCronJob extends CronJob {
     readonly initialConfig: InitialCronConfig = {
         name: 'Clear local cache',
         cron: CronExpression.every(5, 'minutes').build(),
-        distributed: false
+        runsOn: 'everyInstance'
     };
 
     async onTick(): Promise<void> {}
 }
 ```
 
-| `distributed` | When the job touches |
+| `runsOn` | When the job touches |
 |---|---|
-| `true` | Shared state: a shared data source, a payment provider, an outbound mail queue. With `false`, three replicas do the work three times |
-| `false` | State of the instance: this process's memory, this container's filesystem. With `true`, two of three replicas are never cleaned up |
+| `'oneInstance'` | Shared state: a shared data source, a payment provider, an outbound mail queue. With `'everyInstance'`, three replicas do the work three times |
+| `'everyInstance'` | State of the instance: this process's memory, this container's filesystem. With `'oneInstance'`, two of three replicas are never cleaned up |
 
 The framework's own jobs follow the same rule. These run on every instance:
 
@@ -284,11 +292,11 @@ The framework's own jobs follow the same rule. These run on every instance:
 | `RunQueuedThreadJobsCronJob` | Work for its own instance |
 | `CronSyncCronJob` | The jobs of its own instance |
 
-All of them except `FormDataBodyParserCleanupCronJob`, `BackupStagingCleanupCronJob` and `CacheExpiryCleanupCronJob` also set `syncToDataSource: false`. Every job that cleans up rows in a data source is distributed.
+All of them except `FormDataBodyParserCleanupCronJob`, `BackupStagingCleanupCronJob` and `CacheExpiryCleanupCronJob` also set `syncToDataSource: false`. Every job that cleans up rows in a data source runs on one instance.
 
 ### Runs that outlast their interval
 
-`distributed: true` elects one instance per scheduled execution. The next slot is a separate claim, which another instance may win while this one is still working. A job whose `onTick` can outlast its interval overlaps itself, and the second run reads the same rows as the first, before the first updated them.
+`runsOn: 'oneInstance'` elects one instance per scheduled execution. The next slot is a separate claim, which another instance may win while this one is still working. A job whose `onTick` can outlast its interval overlaps itself, and the second run reads the same rows as the first, before the first updated them.
 
 For such a job, claim each work item it processes, see [leases](./leases.md). `SendQueuedEmailsCronJob` claims each mail before it sends it, since a slow SMTP server can make a send outlast the interval.
 
@@ -315,7 +323,7 @@ export class SendInvoicesCronJob extends PollingCronJob {
 
     protected async poll(): Promise<boolean> {
         const invoices: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
-        const due: Invoice[] = await invoices.findAll({ where: { status: InvoiceStatus.DUE }, take: 50 });
+        const due: Invoice[] = await invoices.findAll({ where: { status: InvoiceStatus.DUE }, limit: 50 });
         // send them, each under a claim of its own
         return due.length > 0;
     }
@@ -334,7 +342,7 @@ export async function markDue(invoice: Invoice): Promise<void> {
 Work nobody announces, such as work an instance that stopped existing left unfinished, is found at the pace of an idle poll, within about 30 seconds.
 
 ## Configuration
-Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `distributed`, `syncToDataSource`) is set on the job class itself, see [defining a cron job](#defining-a-cron-job).
+Each cron job's `initialConfig` (`name`, `cron` schedule, `active`, `runOnInit`, `onFailure`, `runsOn`, `syncToDataSource`) is set on the job class itself, see [defining a cron job](#defining-a-cron-job).
 
 Behavior across instances is configured through DI: `ZIBRI_DI_TOKENS.CRON_EXECUTION_LEASE_IN_MS` for how long a claim is held, `ZIBRI_DI_TOKENS.CRON_REGISTRATION_LEASE_IN_MS` for how long one instance may take to register its jobs at boot, or `ZIBRI_DI_TOKENS.CRON_SERVICE` to replace election entirely.
 
@@ -355,9 +363,12 @@ Your data source declares these entities:
 |---|---|
 | `CronJobEntity` | Every application |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
 - [Replication](./replication.md) — running more than one instance, and what else changes when you do
 - [Leases](./leases.md) — claiming individual work items, for jobs that outlive their own interval
 - [Data sources](./data-source.md) — cron jobs are persisted as entities in a data source
 - [Application lifecycle](./application-lifecycle.md) — registering cron jobs on the `ZibriApplication`
 - [Logging](./logging.md) — the logger injected via `ZIBRI_DI_TOKENS.LOGGER`
+- [Background work](./background-work.md) — choosing between cron jobs, events, thread jobs and the other tools

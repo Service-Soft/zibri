@@ -50,8 +50,8 @@ beforeAll(async () => {
                 useValue: {
                     maxThreads: 1,
                     maxPriorityThreads: 0,
-                    defaultTimeoutMs: Ms.MINUTE,
-                    defaultTimeoutPriorityMs: Ms.MINUTE,
+                    defaultTimeoutInMs: Ms.MINUTE,
+                    defaultPriorityTimeoutInMs: Ms.MINUTE,
                     jobClaimInMs: Ms.SECOND * 30,
                     maxAttempts: 3,
                     workerResourceLimits: {},
@@ -80,7 +80,7 @@ describe('what waiting for a thread job costs', () => {
             progress: 0,
             attempts: 1,
             priority: false,
-            timeout: Ms.MINUTE,
+            timeoutInMs: Ms.MINUTE,
             status: ThreadJobStatus.IN_PROGRESS,
             workerData: { filePath: FsUtilities.getPath('elsewhere.js') }
         });

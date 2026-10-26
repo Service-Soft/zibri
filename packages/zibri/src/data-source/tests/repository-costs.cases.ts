@@ -104,6 +104,11 @@ const CALLS: Record<string, (m: Measured) => Promise<unknown>> = {
             expect(item.batch).toBe(m.batch);
         }
     },
+    '`stream` in an order': async m => {
+        for await (const item of m.items.stream({ where: { batch: m.batch }, order: { name: 'ASC' } })) {
+            expect(item.batch).toBe(m.batch);
+        }
+    },
     '`count`': async m => await m.items.count({ where: { batch: m.batch } }),
     '`exists`': async m => await m.items.exists({ where: { batch: m.batch } }),
     '`sum`, `average`, `minimum`, `maximum`': async m => await m.items.sum('count', { where: { batch: m.batch } }),
@@ -130,6 +135,7 @@ const CALLS: Record<string, (m: Measured) => Promise<unknown>> = {
         m.rows.map(r => ({ create: { name: r.name, count: 0, batch: m.batch }, onConflict: { count: { increment: 1 } } }))
     ),
     '`deleteById`': async m => await m.items.deleteById(first(m).id),
+    '`deleteById` with a condition': async m => await m.items.deleteById(first(m).id, { where: { count: 0 } }),
     '`deleteAll`': async m => await m.items.deleteAll({ batch: m.batch }),
     '`deleteAll` returning the rows': async m => await m.items.deleteAll({ batch: m.batch }, { returnDeleted: true })
 };

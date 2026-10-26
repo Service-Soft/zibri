@@ -1,7 +1,7 @@
 
 import { getEntityFileName } from './get-entity-file-name.function';
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
-import { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model';
+import type { OpenApiReferenceObject, OpenApiSchemaObject, OpenApiSchemas } from '../../open-api/open-api.model';
 import { addImportStatement } from '../../utilities/add-import-statement.function';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';

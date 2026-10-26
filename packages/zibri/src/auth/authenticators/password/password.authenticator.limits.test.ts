@@ -81,7 +81,7 @@ describe('PasswordAuthenticator - what bounds the guessing', () => {
             dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, PasswordFailureStreak], repositories: defaultTestServerRepositories })],
             authStrategies: [JwtAuthStrategy],
             controllers: [JwtTestAuthController],
-            passwordFailureLimit: { maxFailures: MAX_FAILURES, lockForMs: LOCK_FOR_MS },
+            passwordFailureLimit: { maxFailures: MAX_FAILURES, lockForInMs: LOCK_FOR_MS },
             providers: [
                 ...defaultTestServerProviders.filter(p => p.token !== ZIBRI_DI_TOKENS.AUTH_RATE_LIMIT_OPTIONS),
                 defineProvider({

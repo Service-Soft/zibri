@@ -5,8 +5,18 @@ Models are plain classes with their properties decorated by `@Property`. The sam
 | Export | Kind | Purpose |
 |---|---|---|
 | `Property` | decorator | Decorators for defining model properties |
+| `AnyObject` | class | An object with any properties, keyed by string |
+| `StringPropertyMetadataInput`, `IncomingStringPropertyMetadataInput` | type, type | What `@Property.string` takes, and what a string of a request or a response takes, with no `encryption` and no `hash` |
+| `StringFormat` | type | What `format` of a string checks: `'uuid'`, `'email'` or `'phone'` |
 | `NumberPropertyMetadataInput` | type | What `@Property.number` takes |
+| `NumberFormat` | type | What kind of number a `@Property.number` holds: `'number'`, `'integer'`, `'bigint'` or `'bignumber'` |
+| `BooleanPropertyMetadataInput`, `DatePropertyMetadataInput`, `ObjectPropertyMetadataInput`, `FilePropertyMetadataInput`, `UnknownPropertyMetadataInput` | type, type, type, type, type | What `@Property.boolean`, `@Property.date`, `@Property.object`, `@Property.file` and `@Property.unknown` take |
+| `FileSize`, `fileSizeToBytes` | type, function | A file size such as `'5mb'`, in `b`, `kb`, `mb` or `gb`, and the bytes it stands for |
 | `ArrayPropertyMetadataInput` | type | What `@Property.array` takes |
+| `DefaultArrayPropertyMetadataInput`, `FileArrayPropertyMetadataInput`, `ArrayPropertyItemMetadataInput` | type, type, type | The two forms `@Property.array` takes, of values and of files with a `totalMaxSize`, and what its `items` take |
+| `OneOfPropertyMetadataInput`, `OneOfShapesMetadataInput`, `OneOfShapeMetadataInput` | type, type, type | What `@Property.oneOf` takes, its `shapes` by name, and one of those shapes |
+| `ManyToOnePropertyMetadataInput`, `OneToManyPropertyMetadataInput`, `BelongsToOnePropertyMetadataInput`, `HasOnePropertyMetadataInput`, `ManyToManyPropertyMetadataInput` | type, type, type, type, type | What `@Property.manyToOne`, `@Property.oneToMany`, `@Property.belongsToOne`, `@Property.hasOne` and `@Property.manyToMany` take |
+| `AnyEnum` | type | An enum, or an object of string or number values, as `enum` takes it |
 | `timezoneEnum` | constant | Every IANA time zone as an enum, for `@Property.string({ enum: timezoneEnum })` |
 | `BigNumber` | class | An exact decimal of any size, which a `@Property.number({ format: 'bignumber' })` holds |
 | `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes: `number`, `bigint`, `BigNumber` |
@@ -15,7 +25,12 @@ Models are plain classes with their properties decorated by `@Property`. The sam
 | `PartialClass` | function | Creates a class where every property of a base class is optional |
 | `IntersectionClass` | function | Combines multiple classes into one |
 | `OmitStrict` | type | A type without the given keys, which have to be keys of it |
+| `ExcludeStrict` | type | A union without the given members, which have to be members of it |
+| `IntRange`, `Percentage` | type, type | The whole numbers from a lower bound up to an upper one, the upper one left out, and the whole numbers from 0 to 100 |
 | `OneOf` | type | A value of one of several named shapes, `{ shape, value }` |
+| `OpenApiFileProvider`, `OpenApiFileProviderOptions` | class, type | Generates model classes from an OpenAPI document on disk, and the options it takes |
+| `OpenApiUrlProvider`, `OpenApiUrlProviderOptions` | class, type | Generates model classes from an OpenAPI document at a URL, and the options it takes |
+| `EntityGenerationProvider` | interface | What a source of generated model classes implements: the OpenAPI document, the `prefix` of the class names, and whether they are marked as entities |
 
 ## Defining a model
 
@@ -271,7 +286,7 @@ again:
 // src/models/user.model.ts
 import { Property } from 'zibri';
 
-export class UserSignUpDTO extends UserCreateDTO {
+export class UserRegistrationDTO extends UserCreateDTO {
     @Property.string({ required: false })
     override name: string = '';
 }

@@ -9,6 +9,7 @@ import { CreateTwoFactorFailureStreakData, TwoFactorFailureStreak } from '../../
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../../auth/authenticators/password/password-credentials.model';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { AuthStrategyInterface } from '../../auth/strategies/auth-strategy.interface';
+import { CredentialEntity } from '../../auth/strategies/credential-entity.model';
 import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -137,6 +138,8 @@ const API_KEY_HEADER: string = 'x-evaluation-api-key';
 class ApiKeyAuthStrategy implements AuthStrategyInterface<string, JwtUser> {
 
     readonly name: string = 'api-key';
+
+    readonly credentialEntities: CredentialEntity[] = [];
 
     readonly securityScheme: OpenApiSecuritySchemeObject = { type: 'apiKey', in: 'header', name: API_KEY_HEADER };
 
@@ -409,7 +412,7 @@ describe('evaluation/03-auth-and-security C2 / C3 - a second factor must be sing
     });
 
     it('rejects a code from an enrollment that was never confirmed', async () => {
-        // requestRegisterForUser writes the row and confirmRegisterForUser sets confirmed on it,
+        // requestRegistration writes the row and confirmRegistration sets confirmed on it,
         // but validate never reads the flag - so an enrollment somebody started and abandoned is a
         // working second factor forever, and starting one is not an authenticated action
         await otpRepository.create({ secret: OTP_SECRET, userId: user.id });

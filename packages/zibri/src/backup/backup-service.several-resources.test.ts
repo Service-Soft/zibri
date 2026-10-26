@@ -119,7 +119,8 @@ describe('BackupService — a backup of several resources', () => {
         server = await startTestServer({ dataSources: [NotesDataSource] });
         await getNoteRepository().create({ text: 'backed up' });
         inject(SettingsStore).value = 'backed up';
-        await getBackupService().createBackup({ name: 'several' });
+        const backupService: BackupServiceInterface = getBackupService();
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'several' }));
         const [created]: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({
             where: { name: 'several' },
             relations: ['resources']
@@ -199,7 +200,8 @@ describe('BackupService — a backup of several resources', () => {
         const migrations: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity));
         // what a newer release leaves behind, as the backup it took holds it
         const newer: MigrationEntity = await migrations.create({ name: 'FromANewerRelease', version: '99.0.0', ranAt: new Date() });
-        await getBackupService().createBackup({ name: 'newer' });
+        const backupService: BackupServiceInterface = getBackupService();
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'newer' }));
         const [taken]: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({
             where: { name: 'newer' },
             relations: ['resources']

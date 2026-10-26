@@ -1,10 +1,6 @@
+import { USER_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { BaseUser } from '../models/base-user.model';
-
-/**
- * Marks the repository users are read from and written to. `BaseUserRepository()` sets it.
- */
-export const USER_REPOSITORY: unique symbol = Symbol('zibri.user-repository');
 
 // methods rather than properties holding functions, so that a class extending one implementing it,
 // such as one extending BaseUserRepository(), can override them: a property of the interface would

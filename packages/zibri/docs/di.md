@@ -5,11 +5,27 @@ Dependency injection hands a class the services and values it needs. A container
 | Export | Kind | Purpose |
 |---|---|---|
 | `Injectable` | decorator | Registers a class for dependency injection |
+| `InjectableOptions` | type | What `@Injectable` takes: the `token` to register under, when to `register`, the `scope` and the `variant` |
 | `inject` | function | Resolves an injectable/token outside of a constructor |
 | `Inject` | decorator | Resolves a token for a constructor parameter |
 | `InjectionToken` | class | Creates a typed token for injecting non-class values |
+| `DiToken` | type | What a value is registered and injected under: a class or an `InjectionToken` |
 | `DiProvider` | type | Entry type for the providers array |
+| `ClassDiProvider`, `FactoryDiProvider`, `AsyncFactoryDiProvider`, `ValueDiProvider` | type, type, type, type | The four shapes of a `DiProvider`: `useClass`, `useFactory`, `useAsyncFactory` and `useValue` |
+| `DiProviderWithoutToken` | type | A `DiProvider` without its `token` |
+| `DiScope` | type | How long an injected value lives: `'application'`, `'request'` or `'transient'`. Defaults to `'application'` |
+| `DiVariant`, `DiVariants` | class, constant | Marks an injectable as one of a kind, such as a cache or a controller, and the kinds the framework looks for |
 | `defineProvider` | function | Defines a `DiProvider` entry (such as `useFactory`) |
+| `TokenRecord`, `DiTokenProviderRecord`, `providersFromTokenRecord` | type, type, function | A record of DI tokens, a provider for each of its tokens, and the `DiProvider` entries the two make together |
+| `NoProviderError`, `NoProviderErrorOptions` | error, type | Thrown when nothing is registered under the token being injected, and whether the container is empty altogether |
+| `CircularDependencyError` | error | Thrown when a value is asked for while it is still being constructed |
+| `ProviderCollisionError` | error | Thrown at startup when two plugins provide the same token and nothing says which one to use |
+| `InvalidProviderError` | error | Thrown when a provider names no valid token |
+| `InvalidClassMarkedWithInjectableError`, `InvalidClassReason` | error, type | Thrown at startup when `@Injectable` is on a cron job, plugin, two factor method or [auth strategy](./glossary.md#auth-strategy), which are declared through their own options instead |
+| `UninjectableParameterError` | error | Thrown when a constructor parameter has no token to resolve it with, such as an interface without `@Inject` |
+| `OutsideRequestScopeError`, `CapturedRequestScopeError` | error, error | Thrown when a request scoped value is asked for outside a request, or while building something that outlives one |
+| `UnresolvedAsyncProviderError`, `InjectInsideAsyncFactoryError` | error, error | Thrown when an asynchronous provider is injected before it was awaited, or inside the factory of another one |
+| `MissedLifecycleHooksError` | error | Thrown when a value with lifecycle hooks is first injected after the point its hooks were due |
 | `ZIBRI_DI_TOKENS` | constant | Built-in DI tokens for overriding framework services |
 | `GlobalErrorHandler` | type | Type of the built-in global error handler, overridable via `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER` |
 
@@ -370,6 +386,7 @@ const app: ZibriApplication = new ZibriApplication({
     name: 'invoices',
     baseUrl: 'http://localhost:3000',
     version: '1.0.0',
+    environment: 'development',
     defaultAuth: 'public',
     twoFactorAtLogin: 'never',
     controllers: [],

@@ -6,36 +6,36 @@ import { MimeType } from '../../../http/mime-type.enum';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { BaseUser } from '../../models/base-user.model';
 import { FederatedProviderIdentity } from '../federated/federated-provider-identity.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginError } from '../federated/federated-login.error';
 import { BaseOAuthAuthenticator } from '../oauth/base-oauth.authenticator';
 import { OAuthCodeExchange } from '../oauth/oauth-code-exchange.model';
-import { OAuthProviderSignIn } from '../oauth/oauth-provider-sign-in.model';
+import { OAuthProviderLogin } from '../oauth/oauth-provider-login.model';
 import { OpenIdClient } from '../oauth/open-id-client.type';
 
 /**
- * Who signed in at a provider that speaks plain OAuth2, as read from its api.
+ * Who logged in at a provider that speaks plain OAuth2, as read from its api.
  */
 export type OAuth2Identity = Pick<FederatedProviderIdentity, 'subject' | 'profile'> & Partial<Pick<FederatedProviderIdentity, 'claims'>>;
 
 /**
- * Authenticates a user by a sign-in at a provider that speaks plain OAuth2, without OpenID Connect,
+ * Authenticates a user by a login at a provider that speaks plain OAuth2, without OpenID Connect,
  * such as GitHub.
  *
- * Such a provider issues no ID token, so who signed in is read from its api with the access token of
- * the sign-in. Extend it once for every provider, naming the provider, its endpoints and the client
- * registered there, and reading the user in `resolveIdentity`. The sign-in itself runs through the
+ * Such a provider issues no ID token, so who logged in is read from its api with the access token of
+ * the login. Extend it once for every provider, naming the provider, its endpoints and the client
+ * registered there, and reading the user in `resolveIdentity`. The login itself runs through the
  * routes of `AuthController`.
  *
- * A sign-in through such a provider never counts as a recent login: the provider does not say when
- * the user signed in there.
+ * A login through such a provider never counts as a recent login: the provider does not say when
+ * the user logged in there.
  */
 export abstract class BaseOAuth2Authenticator<
     RoleType extends string,
     UserType extends BaseUser<RoleType> = BaseUser<RoleType>
 > extends BaseOAuthAuthenticator<RoleType, UserType> {
     /**
-     * Where the browser is sent to sign in at the provider.
+     * Where the browser is sent to log in at the provider.
      */
     abstract readonly authorizationEndpoint: string;
 
@@ -51,16 +51,16 @@ export abstract class BaseOAuth2Authenticator<
     readonly revocationEndpoint: string | undefined = undefined;
 
     /**
-     * Reads who signed in from the provider's api, with the access token of the sign-in.
+     * Reads who logged in from the provider's api, with the access token of the login.
      * @param accessToken - The access token.
-     * @returns Who signed in, as the provider names them, what it reports about them, and everything
-     * else its api answered about them as `claims`, for the registration and the later sign-ins to
+     * @returns Who logged in, as the provider names them, what it reports about them, and everything
+     * else its api answered about them as `claims`, for the registration and the later logins to
      * read. Nothing, when left out.
      */
     protected abstract resolveIdentity(accessToken: string): Promise<OAuth2Identity>;
 
     /**
-     * Reads json from the provider's api, with the access token of the sign-in.
+     * Reads json from the provider's api, with the access token of the login.
      *
      * Goes through the application's http client, as every other request to the provider does.
      * @param url - Where to read from.
@@ -114,13 +114,13 @@ export abstract class BaseOAuth2Authenticator<
     }
 
     /**
-     * Exchanges the code for an access token, and reads who signed in from the provider's api with it.
+     * Exchanges the code for an access token, and reads who logged in from the provider's api with it.
      * @param answer - Everything the provider sent the browser back with.
      * @param exchange - What the answer is checked and exchanged with.
-     * @returns Who signed in, and the tokens.
-     * @throws FederatedSignInError when the provider cannot be reached, or does not say who signed in.
+     * @returns Who logged in, and the tokens.
+     * @throws FederatedLoginError when the provider cannot be reached, or does not say who logged in.
      */
-    protected override async resolveSignIn(answer: URLSearchParams, exchange: OAuthCodeExchange): Promise<OAuthProviderSignIn> {
+    protected override async resolveLogin(answer: URLSearchParams, exchange: OAuthCodeExchange): Promise<OAuthProviderLogin> {
         const tokens: TokenEndpointResponse & TokenEndpointResponseHelpers = await this.exchangeCode(answer, exchange, {
             idTokenExpected: false
         });
@@ -133,20 +133,20 @@ export abstract class BaseOAuth2Authenticator<
             if (ErrorUtilities.isRefusal(error)) {
                 throw error;
             }
-            throw new FederatedSignInError(FederatedSignInFailure.PROVIDER_ERROR, { cause: error, action: exchange.action });
+            throw new FederatedLoginError(FederatedLoginFailure.PROVIDER_ERROR, { cause: error, action: exchange.action });
         }
         return {
             identity: {
                 issuer: this.issuer,
                 subject: identity.subject,
-                // the provider does not say when the user signed in there, and may have reused its own
-                // session without asking them. So the sign-in never counts as a recent login, rather than
+                // the provider does not say when the user logged in there, and may have reused its own
+                // session without asking them. So the login never counts as a recent login, rather than
                 // passing a provider session as a fresh login to a route that would take one for a second
                 // factor
                 authenticatedAt: new Date(0),
                 profile: identity.profile,
                 claims: identity.claims ?? {},
-                // nor how they signed in there, for the same reason
+                // nor how they logged in there, for the same reason
                 providerAuthentication: undefined
             },
             tokens

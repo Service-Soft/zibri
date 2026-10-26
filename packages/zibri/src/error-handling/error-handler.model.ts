@@ -8,7 +8,7 @@ import { HttpError } from './errors/http.error';
 /**
  * Properties of an error page component.
  */
-type ErrorPageTemplateProps = {
+export type ErrorPageTemplateProps = {
     /**
      * The http error that was thrown.
      */

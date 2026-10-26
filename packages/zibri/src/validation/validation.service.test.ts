@@ -4,9 +4,10 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { ValidateCustom } from './decorators/validate-custom.decorator';
 import { ValidationService } from './validation.service';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
+import { propertyOf } from '../data-source/models/where/property-of.function';
 import { whereFor } from '../data-source/models/where/where-for.function';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';
@@ -15,8 +16,8 @@ import { Property } from '../entity/decorators/property.decorator';
 import { OmitClass } from '../entity/omit-class.model';
 import { PartialClass } from '../entity/partial-class.model';
 import { ValidationError } from '../error-handling/errors/validation.error';
-import { $t, $ts } from '../localization/translate.function';
 import { MimeType } from '../http/mime-type.enum';
+import { $t, $ts } from '../localization/translate.function';
 import { BodyMetadata, FormDataBodyMetadataInput, JsonBodyMetadataInput } from '../routing/decorators/body-metadata.model';
 import { HeaderParamMetadata, PathParamMetadata, QueryParamMetadata } from '../routing/decorators/param.decorator';
 import { createHeaderParamMetadata, createPathParamMetadata, createQueryParamMetadata } from '../routing/param-metdata.helpers';
@@ -70,7 +71,12 @@ class Booking {
             code: 'completedAtRequired',
             message: $t`a done chore has a completion date`
         },
-        whereFor<CheckedChore>({ estimate: { greaterThanEquals: 1 } })
+        whereFor<CheckedChore>({ estimate: { greaterThanEquals: 1 } }),
+        {
+            where: whereFor<CheckedChore>([{ endsAt: null }, { endsAt: { after: propertyOf('startsAt') } }]),
+            code: 'endsBeforeStart',
+            message: $t`a chore ends after it starts`
+        }
     ]
 })
 class CheckedChore extends BaseEntity {
@@ -82,6 +88,12 @@ class CheckedChore extends BaseEntity {
 
     @Property.number()
     estimate!: number;
+
+    @Property.date({ required: false })
+    startsAt?: Date | null;
+
+    @Property.date({ required: false })
+    endsAt?: Date | null;
 }
 
 class ChoreCreateData extends OmitClass(CheckedChore, ['id']) {}
@@ -317,6 +329,26 @@ describe('ValidationService', () => {
                 )).resolves.toBeUndefined();
             });
 
+            // 01 §D19: a check comparing two properties of the body
+            it('answers a body whose one property breaks a comparison with another, and leaves an update lacking either to the data source', async () => {
+                const startsAt: Date = new Date('2026-05-01T08:00:00.000Z');
+                await expect(validationService.validateBody(
+                    { status: 'open', estimate: 2, startsAt, endsAt: startsAt },
+                    bodyMeta({ modelClass: ChoreCreateData })
+                )).rejects.toThrow(expect.objectContaining({
+                    problems: [{ key: 'body', code: 'endsBeforeStart', message: 'a chore ends after it starts' }]
+                }));
+                await expect(validationService.validateBody(
+                    { status: 'open', estimate: 2, startsAt, endsAt: new Date('2026-05-01T09:00:00.000Z') },
+                    bodyMeta({ modelClass: ChoreCreateData })
+                )).resolves.toBeUndefined();
+                // the start it is compared with is stored, which only the data source knows
+                await expect(validationService.validateBody(
+                    { endsAt: startsAt },
+                    bodyMeta({ modelClass: ChoreUpdateData })
+                )).resolves.toBeUndefined();
+            });
+
             it('answers a check declared as its filter alone with the code check', async () => {
                 await expect(validationService.validateBody(
                     { status: 'open', estimate: 0 },
@@ -434,7 +466,7 @@ describe('ValidationService', () => {
                 await expect(
                     validationService.validateBody(
                         { value: { name: 'Alice' }, tempFolder: '/tmp/upload' },
-                        bodyMeta({ type: MimeType.FORM_DATA, cleanupAfterMs: 1000 })
+                        bodyMeta({ type: MimeType.FORM_DATA, cleanupAfterInMs: 1000 })
                     )
                 ).resolves.toBeUndefined();
             });
@@ -443,7 +475,7 @@ describe('ValidationService', () => {
                 await expect(
                     validationService.validateBody(
                         { value: { name: 'Alice' } },
-                        bodyMeta({ type: MimeType.FORM_DATA, cleanupAfterMs: 1000 })
+                        bodyMeta({ type: MimeType.FORM_DATA, cleanupAfterInMs: 1000 })
                     )
                 ).rejects.toThrow(ValidationError);
             });

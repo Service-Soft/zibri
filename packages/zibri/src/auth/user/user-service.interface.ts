@@ -56,6 +56,11 @@ export interface UserServiceInterface {
      */
     isUserEntity: (entityClass: Newable<BaseEntity>) => boolean,
     /**
+     * Gets the entities the users of every user repository built on the data layer are stored as, so
+     * that what follows users can observe their writes. Known once the application has initialized.
+     */
+    getUserEntityClasses: () => Newable<BaseUser<string>>[],
+    /**
      * Finds the roles stored users hold other than the given ones, eg. To refuse starting an
      * application whose users hold a role that does not exist.
      *
@@ -82,6 +87,7 @@ export function isUserService(value: unknown): value is UserServiceInterface {
         'updateDeactivatedAt',
         'updateRoles',
         'isUserEntity',
+        'getUserEntityClasses',
         'findUnknownRoles',
         'isRoleHeld',
         'userRepositories'

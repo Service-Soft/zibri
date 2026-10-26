@@ -4,7 +4,7 @@ import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
- * Authenticates a user by a sign-in with their account in a Microsoft Entra ID tenant.
+ * Authenticates a user by a login with their account in a Microsoft Entra ID tenant.
  *
  * Extend it with the tenant id, the client id and credentials of the app registered in it, and whether
  * that registration adds `auth_time` to the optional claims of its ID tokens.
@@ -17,7 +17,7 @@ export abstract class BaseMicrosoftAuthenticator<
     readonly name: string = 'microsoft';
 
     /**
-     * The id of the tenant whose accounts sign in.
+     * The id of the tenant whose accounts log in.
      */
     abstract readonly tenantId: string;
 

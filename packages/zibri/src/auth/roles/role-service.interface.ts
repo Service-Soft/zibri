@@ -6,8 +6,6 @@ import { RoleIdentity } from './role-identity.model';
 import { RoleUpdateData } from './role-update-data.model';
 import { WrittenRole } from './written-role.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseEntity } from '../../entity/base-entity.model';
-import { Newable } from '../../types/newable.type';
 import { type CurrentUser } from '../decorators/current-user.decorator';
 
 /**
@@ -73,11 +71,6 @@ export interface RoleServiceInterface {
      * @throws A BadRequestError naming the first role still held.
      */
     validateRolesNotHeld: (roles: RoleIdentity[]) => Promise<void>,
-    /**
-     * Whether the rows of an entity are the roles of the application. Every write to them is reported
-     * to `handleRolesChanged`.
-     */
-    isRoleEntity: (entityClass: Newable<BaseEntity>) => boolean,
     /**
      * Reads the roles again, and tells the other instances to, once a write to them is committed.
      * @param tenantIds - The tenants whose own roles were written, null for the roles every tenant

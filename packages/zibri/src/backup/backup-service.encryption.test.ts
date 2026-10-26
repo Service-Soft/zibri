@@ -100,7 +100,8 @@ function getBackupService(): BackupServiceInterface {
  * @returns The record, holding its one resource.
  */
 async function createBackup(name: string): Promise<BackupEntity> {
-    await getBackupService().createBackup({ name });
+    const backupService: BackupServiceInterface = getBackupService();
+    await backupService.waitForBackup(await backupService.queueBackup({ name }));
     const [backup]: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({
         where: { name },
         relations: ['resources']

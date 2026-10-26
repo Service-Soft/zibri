@@ -45,7 +45,7 @@ import { SamlIdentityProvider } from '../../saml/saml-identity-provider.model';
 import { OidcBearerTokens } from '../oidc-bearer-tokens.model';
 
 /**
- * The Keycloak the sign-in is tested against, run in development mode, which serves plain http.
+ * The Keycloak the login is tested against, run in development mode, which serves plain http.
  *
  * Pinned rather than `latest`, so a suite that passes today passes tomorrow for the same reason.
  */
@@ -61,11 +61,11 @@ const SAML_CLIENT_ID: string = 'zibri-test-saml-client';
 // where the application is reached from the outside, as its baseUrl, which a browser here resolves to
 // wherever the server ended up listening. Keycloak only compares it, and never calls it
 const PUBLIC_URL: string = 'http://zibri.test';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
-const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
-const SIGNED_OUT_URL: string = 'https://app.example.com/signed-out';
-// the client a mobile app signs in as, whose access tokens are for the api
+const ERROR_URL: string = 'https://app.example.com/login-failed';
+const LOGGED_OUT_URL: string = 'https://app.example.com/logged-out';
+// the client a mobile app logs in as, whose access tokens are for the api
 const MOBILE_CLIENT_ID: string = 'zibri-test-mobile-app';
 // the audience the api is known by in the realm
 const API_AUDIENCE: string = 'https://api.zibri.test';
@@ -79,7 +79,7 @@ type KeycloakUser = {
      */
     id: string,
     /**
-     * What they sign in with.
+     * What they log in with.
      */
     username: string,
     /**
@@ -100,7 +100,7 @@ const GRACE: KeycloakUser = {
     email: 'grace@example.com'
 };
 
-// linked to nobody, so her sign-in goes to the registration
+// linked to nobody, so her login goes to the registration
 const ADA: KeycloakUser = {
     id: '0b7d4e8a-5f2c-4c61-8e3d-9a6f1b2c7d40',
     username: 'ada',
@@ -108,7 +108,7 @@ const ADA: KeycloakUser = {
     email: 'ada@example.com'
 };
 
-// signs in through SAML only, so the persistent NameID Keycloak makes for the application is linked to nobody
+// logs in through SAML only, so the persistent NameID Keycloak makes for the application is linked to nobody
 const KATHERINE: KeycloakUser = {
     id: '3a9e5c1d-7b24-4f80-b6a2-8c0d4e1f5a93',
     username: 'katherine',
@@ -201,7 +201,7 @@ class SamlRegistrationController {
         try {
             const registration: FederatedRegistration = await authService.resolveRegistration(KeycloakSamlAuthenticator, credentials, transaction);
             const user: JwtUser = await users.create({ email: registration.email ?? '', roles: [Roles.USER] }, { transaction });
-            await authService.linkIdentity(KeycloakSamlAuthenticator, credentials, user.id, transaction);
+            await authService.linkTicketIdentity(KeycloakSamlAuthenticator, credentials, user.id, transaction);
             await transaction.commit();
         }
         catch (error) {
@@ -226,7 +226,7 @@ class RegistrationController {
         try {
             const registration: FederatedRegistration = await authService.resolveRegistration(KeycloakAuthenticator, credentials, transaction);
             const user: JwtUser = await users.create({ email: registration.email ?? '', roles: [Roles.USER] }, { transaction });
-            await authService.linkIdentity(KeycloakAuthenticator, credentials, user.id, transaction);
+            await authService.linkTicketIdentity(KeycloakAuthenticator, credentials, user.id, transaction);
             await transaction.commit();
         }
         catch (error) {
@@ -238,9 +238,9 @@ class RegistrationController {
 }
 
 /**
- * The realm Keycloak starts with: a client signing in with a secret, one signing in with a key, a SAML
+ * The realm Keycloak starts with: a client logging in with a secret, one logging in with a key, a SAML
  * client, the client of a mobile app, and three users.
- * @param publicKey - The public half of the key the second client signs in with.
+ * @param publicKey - The public half of the key the second client logs in with.
  * @returns The realm, as Keycloak imports it.
  */
 async function resolveRealm(publicKey: CryptoKey): Promise<object> {
@@ -334,9 +334,9 @@ function toMobileRealmClient(): object {
 }
 
 /**
- * A client of the realm, which only takes a sign-in with PKCE.
+ * A client of the realm, which only takes a login with PKCE.
  * @param clientId - The client id.
- * @param name - The name of the authenticator signing in with it, which its callback url is under.
+ * @param name - The name of the authenticator logging in with it, which its callback url is under.
  * @param attributes - Any attributes on top.
  * @returns The client, as Keycloak imports it.
  */
@@ -354,7 +354,7 @@ function toRealmClient(clientId: string, name: string, attributes: Record<string
 }
 
 /**
- * A user of the realm, with a verified email and nothing left to do before signing in.
+ * A user of the realm, with a verified email and nothing left to do before logging in.
  * @param user - The user.
  * @param firstName - Their first name.
  * @param lastName - Their last name.
@@ -374,15 +374,15 @@ function toRealmUser(user: KeycloakUser, firstName: string, lastName: string): o
 }
 
 /**
- * Signs in on Keycloak's login page, the way a user does: opens it, and posts the form with the
+ * Logs in on Keycloak's login page, the way a user does: opens it, and posts the form with the
  * username and the password.
  * @param browser - The browser.
  * @param atProvider - Where the application sent the browser.
- * @param user - Who signs in.
+ * @param user - Who logs in.
  * @returns Where Keycloak sends the browser back to, the callback with the code.
  * @throws When Keycloak answers without its login form.
  */
-async function signInAtKeycloak(browser: TestBrowser, atProvider: string, user: KeycloakUser): Promise<string> {
+async function logInAtKeycloak(browser: TestBrowser, atProvider: string, user: KeycloakUser): Promise<string> {
     const page: Response = await browser.open(atProvider);
     const html: string = await page.text();
     const action: string | undefined = /action="([^"]*\/login-actions\/authenticate[^"]*)"/.exec(html)?.[1];
@@ -397,15 +397,15 @@ async function signInAtKeycloak(browser: TestBrowser, atProvider: string, user: 
 }
 
 /**
- * Signs in on Keycloak's login page for the SAML client, and posts the answer the way the page Keycloak
+ * Logs in on Keycloak's login page for the SAML client, and posts the answer the way the page Keycloak
  * answers with does.
  * @param browser - The browser.
  * @param atProvider - Where the application sent the browser.
- * @param user - Who signs in.
+ * @param user - Who logs in.
  * @returns Where the callback sends the browser.
  * @throws When Keycloak answers without its login form, or without the form posting the answer.
  */
-async function signInAtKeycloakWithSaml(browser: TestBrowser, atProvider: string, user: KeycloakUser): Promise<string> {
+async function logInAtKeycloakWithSaml(browser: TestBrowser, atProvider: string, user: KeycloakUser): Promise<string> {
     const page: Response = await browser.open(atProvider);
     const html: string = await page.text();
     const action: string | undefined = /action="([^"]*\/login-actions\/authenticate[^"]*)"/.exec(html)?.[1];
@@ -487,7 +487,7 @@ describe('BaseKeycloakAuthenticator', () => {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: REGISTRATION_URL,
                         errorUrl: ERROR_URL,
-                        signedOutUrl: SIGNED_OUT_URL,
+                        loggedOutUrl: LOGGED_OUT_URL,
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -497,7 +497,7 @@ describe('BaseKeycloakAuthenticator', () => {
 
         grace = await inject(repositoryTokenFor(JwtUser)).create({ email: GRACE.email, roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: `${keycloakUrl}/realms/${REALM}`, subject: GRACE.id, userId: grace.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: `${keycloakUrl}/realms/${REALM}`, subject: GRACE.id, userId: grace.id, forLogin: true, grantedScopes: [] });
     }, 180000);
 
     afterAll(async () => {
@@ -505,30 +505,30 @@ describe('BaseKeycloakAuthenticator', () => {
         await keycloak?.stop();
     }, 30000);
 
-    const authorizeUrl: (name: string, query?: Record<string, string>) => string = (name, query) => `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ authenticator: name, redirectTo: REDIRECT_TO, ...query }).toString()}`;
+    const authorizeUrl: (name: string, query?: Record<string, string>) => string = (name, query) => `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ authenticator: name, redirectTo: REDIRECT_TO, ...query }).toString()}`;
 
     it('signs a linked user in through the login page, and lands where the frontend asked with a session', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const callback: string = await signInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), GRACE);
+        const callback: string = await logInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), GRACE);
 
         expect(await browser.follow(callback)).toBe(REDIRECT_TO);
         expect((await browser.open(`${baseUrl}/auth/csrf-token`)).status).toBe(200);
     }, 30000);
 
-    it('signs in with a client that proves itself with a private key', async () => {
+    it('logs in with a client that proves itself with a private key', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const callback: string = await signInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak-key')), GRACE);
+        const callback: string = await logInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak-key')), GRACE);
 
         expect(await browser.follow(callback)).toBe(REDIRECT_TO);
     }, 30000);
 
-    it('reuses the session at Keycloak, keeping when the user signed in there as the login time', async () => {
+    it('reuses the session at Keycloak, keeping when the user logged in there as the login time', async () => {
         const sessions: Repository<CookieAuthRefreshSession> = inject(repositoryTokenFor(CookieAuthRefreshSession));
         const earlier: Set<string> = new Set((await sessions.findAll({ where: { userId: grace.id } })).map(s => s.id));
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
-        await browser.follow(await signInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), GRACE));
+        await browser.follow(await logInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), GRACE));
         // whole seconds apart, so a login time taken from the callback could not pass for Keycloak's
         await new Promise(resolve => setTimeout(resolve, 1100));
 
@@ -545,9 +545,9 @@ describe('BaseKeycloakAuthenticator', () => {
 
     it('asks for the password again when the frontend reauthenticates', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
-        await browser.follow(await signInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), GRACE));
+        await browser.follow(await logInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), GRACE));
 
-        const callback: string = await signInAtKeycloak(
+        const callback: string = await logInAtKeycloak(
             browser,
             await browser.follow(authorizeUrl('keycloak', { reauthenticate: 'true' })),
             GRACE
@@ -559,7 +559,7 @@ describe('BaseKeycloakAuthenticator', () => {
     it('sends a user nobody is linked to to the registration, with the profile Keycloak reports', async () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const landing: string = await browser.follow(await signInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), ADA));
+        const landing: string = await browser.follow(await logInAtKeycloak(browser, await browser.follow(authorizeUrl('keycloak')), ADA));
         expect(landing.startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
         const registered: Response = await browser.open(`${baseUrl}/register`, {
             method: 'POST',
@@ -593,7 +593,7 @@ describe('BaseKeycloakAuthenticator', () => {
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
         // read from Keycloak's metadata, verified against its signature, and linked to nobody yet
-        const landing: string = await signInAtKeycloakWithSaml(browser, await browser.follow(authorizeUrl('keycloak-saml')), KATHERINE);
+        const landing: string = await logInAtKeycloakWithSaml(browser, await browser.follow(authorizeUrl('keycloak-saml')), KATHERINE);
         expect(landing.startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
         const registered: Response = await browser.open(`${baseUrl}/register-saml`, {
             method: 'POST',
@@ -618,8 +618,8 @@ describe('BaseKeycloakAuthenticator', () => {
         // Keycloak ends its session, and answers to the logout route of the application
         const back: string = await browser.follow(providerLogoutUrl ?? '');
         expect(back.startsWith(`${PUBLIC_URL}/auth/federated/keycloak-saml/logout?`)).toBe(true);
-        expect(await browser.follow(back)).toBe(SIGNED_OUT_URL);
-        // with no session left there, the next sign-in shows the login page again
+        expect(await browser.follow(back)).toBe(LOGGED_OUT_URL);
+        // with no session left there, the next login shows the login page again
         const page: Response = await browser.open(await browser.follow(authorizeUrl('keycloak-saml')));
         expect(await page.text()).toContain('login-actions/authenticate');
     }, 30000);

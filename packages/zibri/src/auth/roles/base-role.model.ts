@@ -1,6 +1,7 @@
 import type { Permission } from './permission.type';
 import type { PlatformPermission } from './platform-permission.type';
 import type { RoleLevel } from './role-level.type';
+import { ROLE_ENTITY } from '../../data-source/repository/repository-kind.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Property } from '../../entity/decorators/property.decorator';
 
@@ -8,12 +9,6 @@ import { Property } from '../../entity/decorators/property.decorator';
  * The levels a role can be held at, as the enum of its column.
  */
 const ROLE_LEVELS: Readonly<Record<string, RoleLevel>> = { tenant: 'tenant', platform: 'platform' };
-
-/**
- * Marks an entity whose rows are the roles of the application, as a static member of its class.
- * `BaseRoleEntity` sets it.
- */
-export const ROLE_ENTITY: unique symbol = Symbol('zibri.role-entity');
 
 /**
  * Common properties shared by all roles: a name users and memberships hold, and the permissions it

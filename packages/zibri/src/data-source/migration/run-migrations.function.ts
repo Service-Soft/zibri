@@ -6,7 +6,7 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
 import { LoggerInterface } from '../../logging/logger.interface';
 import { Newable } from '../../types/newable.type';
-import { SemVerUtilities, SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerUtilities, SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { Repository } from '../repository/repository';
 

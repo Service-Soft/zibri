@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
@@ -46,6 +47,8 @@ describe('evaluation/01-data-layer C1 - schema management must be stated, not as
             readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
             schemaManagement: SchemaManagement = 'migrations';
+
+            readonly pooler: PostgresPooler = 'none';
         }
 
         // nothing would ever create a table, so the first query would be where anybody found out.

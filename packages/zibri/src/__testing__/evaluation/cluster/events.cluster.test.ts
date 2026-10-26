@@ -36,6 +36,26 @@ afterAll(async () => {
 
 describe('evaluation/04-infrastructure-subsystems - the event system across replicas', () => {
 
+    // 09 §Q5: an event reached a subscriber once across the deployment, and nothing ran on every
+    // replica. First, while every replica is up
+    it('runs a subscriber on every instance once for an event emitted on one of them', async () => {
+        if (!cluster) {
+            throw new Error('the cluster did not start');
+        }
+        const running: StartedTestCluster = cluster;
+        await running.clearMarks();
+
+        const res: Response = await fetch(`${running.instanceAt(0).baseUrl}/cluster-events/broadcast`, { method: 'POST' });
+        expect(res.status).toBe(204);
+
+        const heard: ClusterMarkRow[] = await running.waitFor(
+            async () => await running.marks('broadcast-heard'),
+            rows => new Set(rows.map(r => r.instanceId)).size === running.instances.length
+        );
+        // and once each, the emitting instance included
+        expect(heard.map(r => r.instanceId).sort()).toEqual(running.instances.map(i => i.id).sort());
+    }, 30000);
+
     it('finishes an event whose emitting replica died while handling it', async () => {
         if (!cluster) {
             throw new Error('the cluster did not start');

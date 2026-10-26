@@ -3,9 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { CronJob } from '../../cron/cron-job.model';
@@ -91,7 +91,7 @@ function sequenceRepository(): Repository<WebsocketMessageSequence, WebsocketMes
  * @returns The seq, or 0 when nothing is stored.
  */
 async function resolveNewestSeq(): Promise<number> {
-    const [newest] = await messageRepository().findAll({ order: { seq: 'DESC' }, take: 1, acrossTenants: true });
+    const [newest] = await messageRepository().findAll({ order: { seq: 'DESC' }, limit: 1, acrossTenants: true });
     return newest?.seq ?? 0;
 }
 

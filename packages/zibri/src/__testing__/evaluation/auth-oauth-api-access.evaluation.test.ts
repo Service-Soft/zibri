@@ -4,9 +4,9 @@ import { createInMemoryDataSource, FakeOAuthProvider, InMemoryDataSource, startF
 import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth/auth-controller/auth-controller.model';
 import { FederatedConnectionCode } from '../../auth/authenticators/federated/federated-connection-code.model';
-import { FederatedConnectionStart } from '../../auth/authenticators/federated/federated-connection-start.model';
 import { FederatedHandoverCode } from '../../auth/authenticators/federated/federated-handover-code.model';
 import { FederatedIdentity } from '../../auth/authenticators/federated/federated-identity.model';
+import { FederatedLinkIdentityStart } from '../../auth/authenticators/federated/federated-link-identity-start.model';
 import { FederatedLoginAttempt } from '../../auth/authenticators/federated/federated-login-attempt.model';
 import { FederatedRegistrationTicket } from '../../auth/authenticators/federated/federated-registration-ticket.model';
 import { LinkedIdentity } from '../../auth/authenticators/linked-identity.model';
@@ -32,18 +32,18 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-api-client';
 const CLIENT_SECRET: string = 'zibri-api-secret';
 const CONNECTED_URL: string = 'https://app.example.com/account';
-const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
+const ERROR_URL: string = 'https://app.example.com/login-failed';
 const CALENDAR_SCOPE: string = 'calendar.read';
 
 let provider: FakeOAuthProvider;
@@ -74,13 +74,13 @@ class EvaluationAuthController extends AuthController({
 @Controller('/account', { allowOrphan: true })
 class AccountController {
     // what an application writes: a route of its own that connects the provider for its calendar,
-    // without making it a way to sign in
+    // without making it a way to log in
     @Auth.isLoggedIn()
     @Post('/connect-calendar')
-    async connectCalendar(): Promise<FederatedConnectionStart> {
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).startConnection(
+    async connectCalendar(): Promise<FederatedLinkIdentityStart> {
+        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
             ProviderAuthenticator,
-            { redirectTo: CONNECTED_URL, signIn: false, scopes: [CALENDAR_SCOPE] }
+            { redirectTo: CONNECTED_URL, forLogin: false, scopes: [CALENDAR_SCOPE] }
         );
     }
 
@@ -157,7 +157,7 @@ describe('evaluation/03-auth-and-security H18 - connecting a provider for access
         await provider?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('keeps the provider\'s tokens for the scopes an application asks for, refreshes them, and signs nobody in with them', async () => {
+    it('keeps the provider\'s tokens for the scopes an application asks for, refreshes them, and logs nobody in with them', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'calendar@example.com', roles: [Roles.USER] });
         await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
             .create({ password: 'secure123', userId: user.id });
@@ -192,8 +192,8 @@ describe('evaluation/03-auth-and-security H18 - connecting a provider for access
         // the connection was for the calendar only, so it is no way into the account
         const elsewhere: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
         const landing: string = await elsewhere.follow(await elsewhere.follow(await elsewhere.follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'company', redirectTo: 'https://app.example.com/home' }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'company', redirectTo: 'https://app.example.com/home' }).toString()}`
         )));
-        expect(landing).toBe(`${ERROR_URL}?error=not_for_sign_in`);
+        expect(landing).toBe(`${ERROR_URL}?error=not_for_login`);
     });
 });

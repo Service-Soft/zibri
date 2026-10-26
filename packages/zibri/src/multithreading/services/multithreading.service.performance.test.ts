@@ -58,8 +58,8 @@ describe('MultithreadingService - performance vs main event loop', () => {
                     useValue: {
                         maxThreads: maxThreads,
                         maxPriorityThreads: maxPriorityThreads,
-                        defaultTimeoutMs: Ms.HOUR,
-                        defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+                        defaultTimeoutInMs: Ms.HOUR,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},

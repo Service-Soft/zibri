@@ -57,7 +57,7 @@ import { FsUtilities, FsPath } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
-import { SemVerUtilities } from '../versioning/sem-ver.utilities';
+import { SemVerUtilities } from '../utilities/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version, VersionFile } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
@@ -956,7 +956,7 @@ export class OpenApiService implements OpenApiServiceInterface, AfterAppInit, On
         const res: OpenApiSecurityRequirementObject[] = [];
 
         // asked of the auth service rather than derived from the decorators here: a route requires a
-        // login under `defaultAuth: 'requireLogin'` without carrying a single one of them, and
+        // login under `defaultAuth: 'isLoggedIn'` without carrying a single one of them, and
         // reading the decorators alone documented every such route as public - the spec is what
         // consumers read instead of the code, so it said the opposite of what the route does.
         if (!await this.authService.requiresAuthentication(controllerClass, controllerMethod)) {

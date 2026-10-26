@@ -52,6 +52,23 @@ export function requireBooleanEnv(key: string): boolean {
 }
 
 /**
+ * Reads a variable the application cannot run without, which holds one of a few values.
+ * @param key - The name of the variable.
+ * @param values - The values it may hold.
+ * @returns Its value.
+ * @throws When it is unset, empty or none of the values, naming the variable and the values. A
+ * typo stops here, rather than reading as a value nobody chose.
+ */
+export function requireOneOfEnv<T extends string>(key: string, values: readonly T[]): T {
+    const value: string = requireEnv(key);
+    const known: T | undefined = values.find(candidate => candidate === value);
+    if (known == undefined) {
+        throw new Error(`The environment variable "${key}" has to be one of ${values.join(', ')}, got "${value}".`);
+    }
+    return known;
+}
+
+/**
  * Reads a variable the application runs without.
  * @param key - The name of the variable.
  * @returns Its value, or an empty string when it is unset.

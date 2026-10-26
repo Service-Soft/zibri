@@ -3,14 +3,14 @@ import { Weekday } from '../localization/models/weekday.enum';
 import { IntRange } from '../types/percentage.type';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type CronUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months';
+export type CronUnit = 'seconds' | 'minutes' | 'hours' | 'days' | 'months';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday'
+export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday'
     | 'Thursday' | 'Friday' | 'Saturday';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type MonthName = | 'January' | 'February' | 'March' | 'April'
+export type MonthName = | 'January' | 'February' | 'March' | 'April'
     | 'May' | 'June' | 'July' | 'August'
     | 'September' | 'October' | 'November' | 'December';
 

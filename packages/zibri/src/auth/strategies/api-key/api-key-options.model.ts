@@ -6,10 +6,10 @@ export type ApiKeyOptions = {
      * How long after the last use that was written down the next one is. 0 writes down every use.
      * @default 3600000
      */
-    recordUseAfterMs?: number,
+    recordUseAfterInMs?: number,
     /**
      * How long after it expired a key is deleted. Until then it is listed, as expired.
      * @default 2592000000
      */
-    deleteExpiredAfterMs?: number
+    deleteExpiredAfterInMs?: number
 };

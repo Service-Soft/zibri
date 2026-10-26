@@ -1,7 +1,7 @@
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { type SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { type SemVerVersion } from '../../utilities/sem-ver.utilities';
 
 /**
  * The migration entity that is stored in the db.

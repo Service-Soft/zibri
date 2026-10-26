@@ -68,8 +68,8 @@ describe('MultithreadingService tracing', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 1,
-                        defaultTimeoutMs: Ms.MINUTE,
-                        defaultTimeoutPriorityMs: Ms.MINUTE,
+                        defaultTimeoutInMs: Ms.MINUTE,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},
@@ -115,7 +115,7 @@ describe('MultithreadingService tracing', () => {
             progress: 0,
             attempts: 0,
             workerData: { filePath: traceContextWorkerFile },
-            timeout: Ms.MINUTE,
+            timeoutInMs: Ms.MINUTE,
             traceparent: TraceContextUtilities.resolveTraceparent(queuedIn)
         });
 

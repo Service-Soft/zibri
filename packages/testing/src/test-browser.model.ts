@@ -38,7 +38,7 @@ type StoredCookie = {
  * to that site, and follows no redirect on its own, so each hop of a flow can be looked at.
  */
 export class TestBrowser {
-    // by origin, then by name: a provider's sign-in page keeps a session in cookies of its own, which
+    // by origin, then by name: a provider's login page keeps a session in cookies of its own, which
     // a browser sends back to the provider and never to the application
     private readonly cookies: Map<string, Map<string, StoredCookie>> = new Map();
 

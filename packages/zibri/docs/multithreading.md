@@ -15,7 +15,11 @@ Multithreading runs work on worker threads, so it does not hold up the requests 
 |---|---|---|
 | `MultithreadingServiceInterface` | interface | Queue, wait for and run thread jobs |
 | `ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE` | DI token | Injects `MultithreadingServiceInterface` |
+| `MultithreadingService` | class | Default implementation of `MultithreadingServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE |
+| `ThreadJobData`, `ThreadJobDataFunctions` | type, type | What queuing or running a thread job takes: its `workerData`, `priority` and `timeoutInMs`, and the `onMessage`, `onComplete`, `onCancel` and `onError` callbacks, which stay in this process |
 | `BaseThreadJobWorkerData` | type | Base shape of the data passed to a worker file |
+| `ThreadJobFunction`, `BaseFunctionThreadJobWorkerData` | type, type | A function `run` executes on a worker thread, and the worker data it is sent there in |
+| `ThreadJobStatus` | enum | Where a thread job stands: `IN_QUEUE`, `IN_PROGRESS`, `INTERRUPTED`, `COMPLETED`, `FAILED` or `CANCELLED` |
 | `reportCompletion` | function | Reports a thread job as completed, called from within a worker file |
 | `reportError` | function | Reports a thread job as failed, called from within a worker file |
 | `reportProgress` | function | Reports the progress (0-100) of a running thread job |
@@ -27,6 +31,7 @@ Multithreading runs work on worker threads, so it does not hold up the requests 
 | `ThreadJobCleanupCronJob` | cron job | Deletes the jobs that are over and older than the retention. Registered for you |
 | `ZIBRI_DI_TOKENS.THREAD_JOB_RETENTION_IN_MS` | DI token | How long a job that is over is kept, counted from when it was queued, or `'forever'`. Required |
 | `ThreadJobAttemptsExhaustedError` | error | What a job is failed with once it was started `maxAttempts` times |
+| `PersistedFunctionJobError` | error | Thrown when a queued job is handed a function, which a job that is stored cannot carry |
 
 ## Queueing and running a thread job
 Queue a thread job for work that runs longer, or that reports its progress while it runs. `MultithreadingServiceInterface` has three methods for it:
@@ -225,8 +230,8 @@ export const providers: DiProvider<unknown>[] = [
         useFactory: () => ({
             maxThreads: 4,
             maxPriorityThreads: 2,
-            defaultTimeoutMs: Ms.HOUR,
-            defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+            defaultTimeoutInMs: Ms.HOUR,
+            defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
             jobClaimInMs: Ms.SECOND * 30,
             maxAttempts: 3,
             workerResourceLimits: { maxOldGenerationSizeMb: 512 },
@@ -239,8 +244,8 @@ export const providers: DiProvider<unknown>[] = [
 The options:
 - `maxThreads`: The number of threads for normal (non priority) jobs. Defaults to the available parallelism of the machine, minus the libuv thread pool (`UV_THREADPOOL_SIZE`, 4 by default), the main thread and one priority thread, and at least `1`.
 - `maxPriorityThreads`: The number of threads reserved for priority jobs, such as those started with `run`. Defaults to `1`, or `0` on a machine with no thread to spare for one.
-- `defaultTimeoutMs`: The timeout for a normal thread job queued without a `timeout` of its own. Defaults to 1 hour.
-- `defaultTimeoutPriorityMs`: The default timeout for a priority thread job. Defaults to 5 minutes.
+- `defaultTimeoutInMs`: The timeout for a normal thread job queued without a `timeoutInMs` of its own. Defaults to 1 hour.
+- `defaultPriorityTimeoutInMs`: The default timeout for a priority thread job. Defaults to 5 minutes.
 - `jobClaimInMs`: How long the claim on a running job lives before another instance may take that job over. It is renewed for as long as the job runs, so it does not limit how long a job takes. It sets how quickly work is taken back from an instance that stopped existing. Defaults to 30 seconds.
 - `maxAttempts`: How many times a job may be started, its first start and every takeover counted, before it is failed instead of taken over again. Defaults to 3.
 - `workerResourceLimits`: The memory a worker thread may take, as node's `Worker` takes its `resourceLimits`. Defaults to a `maxOldGenerationSizeMb` of an even share of the memory the process may use, split between the workers and the main thread. `{}` leaves node's own limits in place.
@@ -262,5 +267,8 @@ Your data source declares these entities:
 |---|---|
 | `ThreadJobEntity` | Every application |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
 - [Application lifecycle](./application-lifecycle.md) — hooks like `OnAppInit` for setting up providers such as `MULTITHREADING_OPTIONS` at startup
+- [Background work](./background-work.md) — choosing between thread jobs, events, cron jobs and the other tools

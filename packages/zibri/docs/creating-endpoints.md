@@ -5,6 +5,7 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | Export | Kind | Purpose |
 |---|---|---|
 | `Controller` | decorator | Marks a class as a controller and defines its base route |
+| `ControllerInputData` | type | The options of `@Controller`: the versions and deadline of its routes, whether it may exist without being registered, and the DI options of the class |
 | `Route` | type | A path, starting with `/` |
 | `ControllerUtilities` | class | Where the endpoints of a controller are |
 | `Get` | decorator | Defines a GET endpoint |
@@ -12,27 +13,63 @@ An endpoint is a method of a controller class. Its decorators give it a route, r
 | `Put` | decorator | Defines a PUT endpoint |
 | `Patch` | decorator | Defines a PATCH endpoint |
 | `Delete` | decorator | Defines a DELETE endpoint |
+| `BaseHttpDecoratorInput` | type | The options every endpoint decorator takes: the `versions` a route supports and its `timeoutInMs` |
+| `HandlerTimeout` | type | How long a handler has to produce a result: milliseconds, or `'none'` for no deadline |
 | `HttpMethod` | enum | The HTTP methods, such as `HttpMethod.GET` |
+| `Router`, `RouterInterface` | class, interface | Registers controllers and routes with `registerRoute`, and answers the requests. Replaceable through `ZIBRI_DI_TOKENS.ROUTER` |
+| `RouteConfigurationInput`, `RouteConfiguration`, `RouteHandler` | type, type, type | A route for `registerRoute` as you write it, the route as the router keeps it, and the function that handles its requests |
+| `OpenApiRouteConfiguration` | type | Whether a route given to `registerRoute` appears in the OpenAPI document, with its responses and tags |
 | `Property` | decorator | Decorators for defining model properties |
 | `Body` | decorator | Injects and validates the request body, `Body.oneOf` for a body of several shapes |
+| `BodyMetadataInput`, `JsonBodyMetadataInput`, `XmlBodyMetadataInput`, `FormDataBodyMetadataInput`, `FormUrlEncodedBodyMetadataInput`, `StreamBodyMetadataInput` | type, type, type, type, type, type | The options of `@Body` and `Body.stream`, such as `maxSize`, one type per content type |
+| `OneOfBodyMetadataInput`, `JsonBodyOneOfMetadataInput`, `XmlBodyOneOfMetadataInput`, `FormDataBodyOneOfMetadataInput`, `FormUrlEncodedBodyOneOfMetadataInput`, `StreamBodyOneOfMetadataInput` | type, type, type, type, type, type | What `Body.oneOf` takes: the options of the body and the `shapes` it can be, one type per content type |
+| `JsonBodyShapeMetadataInput`, `FormDataBodyShapeMetadataInput` | type, type | A shape a JSON or XML body can be, and a shape a form body can be, which is always a class |
+| `DeclaredBodyInput`, `DeclaredJsonBodyInput`, `DeclaredXmlBodyInput`, `DeclaredFormDataBodyInput`, `DeclaredFormUrlEncodedBodyInput`, `DeclaredStreamBodyInput` | type, type, type, type, type, type | The `bodyMetadata` of a route given to `registerRoute`: a body of one `modelClass` per content type, or a body of several shapes |
+| `BodyMetadata` | type | A request body as the route declares it, with every option resolved. What the parser and a body parser receive |
 | `Param` | decorator | Decorators for path, query and header parameters |
+| `PathParamMetadataInput`, `QueryParamMetadataInput`, `HeaderParamMetadataInput` | type, type, type | The options of `Param.path`, `Param.query` and `Param.header`: one of the per-type options below |
+| `StringParamMetadataInput`, `NumberParamMetadataInput`, `BooleanParamMetadataInput`, `DateParamMetadataInput`, `ObjectParamMetadataInput`, `ArrayParamMetadataInput`, `ArrayParamItemMetadataInput` | type, type, type, type, type, type, type | The options of a parameter for each `type`, and of the items of an array parameter |
+| `OneOfPathParamMetadataInput`, `OneOfQueryParamMetadataInput`, `PathParamShapeMetadataInput`, `QueryParamShapeMetadataInput` | type, type, type, type | A parameter of several shapes, `type: 'oneOf'`, and the shapes it can be. A path parameter is text, a number, a boolean or a date; a query or header parameter can also be an object or an array |
+| `PathParamMetadata`, `QueryParamMetadata`, `HeaderParamMetadata` | type, type, type | A parameter as the route declares it, with every option resolved. What the parser receives |
+| `Header` | type | The name of a header: a `KnownHeader`, or any custom one |
 | `CurrentUser` | decorator, type | Injects the currently logged in user, and is the type of what it injects |
+| `CurrentUserOptions` | type | Whether `@CurrentUser` requires a user, and which [auth strategies](./glossary.md#auth-strategy) may resolve them |
 | `Auth` | decorator | Decorators for securing endpoints |
 | `Response` | decorator | Decorators for documenting OpenAPI responses |
+| `ResponseDecorator` | type | A `Response` decorator, which compiles only on a method that can return what it declares |
+| `OpenApiResponse`, `JsonOpenApiResponse`, `EmptyOpenApiResponse`, `ErrorOpenApiResponse`, `FileOpenApiResponse`, `HtmlOpenApiResponse`, `RedirectOpenApiResponse` | type, type, type, type, type, type, type | One response a route documents, by its `type`. The `Response` decorators take it without the `type` |
 | `FileResponse` | class | Response type for returning files |
+| `PathFileResponseData`, `StreamFileResponseData` | type, type | What a `FileResponse` is made from: the path of a file, or a stream and its file name |
 | `HtmlResponse` | class | Response type for returning HTML |
+| `HtmlResponseOptions` | type | The content security policy of an `HtmlResponse`: `true` for the default policy, `false` for none, or the directives you set |
 | `RedirectResponse` | class | Response type for sending the caller to another URL |
+| `RedirectHttpStatus` | type | The statuses a redirect answers with: 302, 303 or 307 |
 | `JsonResponse` | class | Response type for answering with headers beside a JSON body |
+| `JsonResponseOptions` | type | The headers a `JsonResponse` answers with beside its body |
+| `isFileResponse`, `isHtmlResponse`, `isRedirectResponse`, `isJsonResponse` | function, function, function, function | Whether a value is one of these responses, also after it has been through JSON and back, such as from a shared cache |
 | `File` | class | Represents an uploaded file |
 | `FormData` | class | Typed wrapper for a form-data request body |
+| `FormDataLimits` | type | How many files, parts and fields a multipart body may have, via `ZIBRI_DI_TOKENS.FORM_DATA_LIMITS`. Defaults to 20, 1000 and 500 |
+| `Parser`, `ParserInterface` | class, interface | Parses request bodies and path, query and header parameters. Replaceable through `ZIBRI_DI_TOKENS.PARSER` |
+| `BodyParser` | decorator | Marks a class as a body parser, which you list in the `bodyParsers` option |
+| `BodyParserInterface`, `AnyBodyParser`, `BodyParserMetadata` | interface, type, type | What a body parser implements for its `contentType`, a body parser of any one content type, and the body metadata it receives |
+| `isBodyParser` | function | Whether a value has every member of `BodyParserInterface` |
+| `JsonBodyParser`, `XmlBodyParser`, `FormDataBodyParser`, `FormUrlEncodedBodyParser`, `StreamBodyParser` | class, class, class, class, class | The built-in parsers of JSON, XML, form-data, URL-encoded and streamed bodies. Registered for you. Setting `bodyParsers` replaces them |
 | `MimeType` | enum | Mime type constants (such as for allowed file uploads) |
+| `FileMimeType`, `LooseFileMimeType` | type, type | The mime types a file can have, and the same with any custom mime type string |
+| `FileExtension`, `mimeTypeToExtensions` | type, constant | The file extensions of every mime type that has them |
+| `resolveMimeType`, `resolveFileExtension` | function, function | The mime type of a file path, `MimeType.OCTET_STREAM` for an unknown extension, and the file extension of a mime type |
+| `isMimeType`, `isJsonMimeType`, `isXmlMimeType` | function, function, function | Whether a string is a known mime type, a JSON media type such as `application/scim+json`, or `application/xml` or `text/xml` |
 | `OmitClass` | function | Creates a class that omits given properties from a base class |
 | `PickClass` | function | Creates a class that picks given properties from a base class |
 | `IntersectionClass` | function | Combines multiple classes into one |
 | `CrudController` | function | Base controller providing generic CRUD endpoints |
+| `CrudControllerOptions` | type | The options of `CrudController`: `maxLimit`, the largest page `findAll` reads. Defaults to 100 |
+| `CrudControllerInterface` | interface | The endpoints of a `CrudController`: `create`, `findAll`, `findById`, `updateById` and `deleteById` |
 | `HttpStatus` | enum | HTTP status code constants |
 | `PaginationResult` | type | Shape of a paginated response |
 | `CompressionOptions` | type | Whether responses are compressed, and from what size on, via `ZIBRI_DI_TOKENS.COMPRESSION_OPTIONS`. Defaults to on, from one kilobyte |
+| `isCompressibleMimeType` | function | Whether a body of a content type is compressed on the way out. A type it does not know is sent as it is |
 
 ## Defining a controller
 `@Controller` makes a class a controller:
@@ -348,7 +385,7 @@ export class CurrentUserController {
 
 The user is a `CurrentUser`: your user without their roles, with the `permissions` and `platformPermissions` the request may use, see [roles and permissions](./roles-and-permissions.md#in-your-own-code). `CurrentUser<User>` types it as your own user entity.
 
-To make the user optional, leave out the `@Auth` decorator and pass `false` to `@CurrentUser`:
+To make the user optional, leave out the `@Auth` decorator and pass `required: false` to `@CurrentUser`:
 
 ```ts
 // src/controllers/article.controller.ts
@@ -359,7 +396,7 @@ export class ArticleController {
 
     @Get()
     async getArticles(
-        @CurrentUser(false)
+        @CurrentUser({ required: false })
         user?: CurrentUser
     ): Promise<void> {
         if (user) {
@@ -373,9 +410,11 @@ export class ArticleController {
 }
 ```
 
+`required: false` says what the handler is given, not who may call it. Under `defaultAuth: 'isLoggedIn'`, the route also needs `@Auth.skip()`, or an anonymous caller is answered with a `401`, see [what an undecorated route requires](./auth.md#what-an-undecorated-route-requires).
+
 A bare `@CurrentUser()` requires a user on its own. A request it resolves no user for is answered with a `401`, whether or not the route carries an `@Auth` decorator, so a handler declaring `user: CurrentUser` always gets one.
 
-A second argument names the auth strategies that may identify the user. The route below is reached only by a caller the cookie strategy resolved, even where the application accepts bearer tokens:
+`authStrategies` names the auth strategies that may identify the user. The route below is reached only by a caller the cookie strategy resolved, even where the application accepts bearer tokens:
 
 ```ts
 // src/controllers/user.controller.ts
@@ -385,7 +424,7 @@ import { Controller, CookieAuthStrategy, CurrentUser, Get } from 'zibri';
 export class SessionOnlyController {
     @Get('/session-only')
     async sessionOnly(
-        @CurrentUser(true, [CookieAuthStrategy])
+        @CurrentUser({ authStrategies: [CookieAuthStrategy] })
         user: CurrentUser
     ): Promise<void> {
         // your logic
@@ -482,7 +521,7 @@ The decorators of the `@Auth` namespace secure endpoints. Put one on a controlle
 
 Every decorator has a `skip` property. On one endpoint of a secured controller, `@Auth.skip()` skips every rule, and a decorator's own `skip`, such as `@Auth.isLoggedIn.skip()`, skips that one.
 
-An endpoint with none of these decorators gets the application's `defaultAuth`, a required option. If it is `'requireLogin'`, mark an endpoint that is public with `@Auth.skip()`. See [what an undecorated route requires](./auth.md#what-an-undecorated-route-requires).
+An endpoint with none of these decorators gets the application's `defaultAuth`, a required option. If it is `'isLoggedIn'`, mark an endpoint that is public with `@Auth.skip()`. See [what an undecorated route requires](./auth.md#what-an-undecorated-route-requires).
 
 ### Requiring a logged in user
 `@Auth.isLoggedIn()` checks that there is a logged in user. Here `/private-stuff` requires one through the controller, and `/public-stuff` skips the rule:
@@ -530,7 +569,7 @@ export class LoginAuthController {
 ```
 
 ### Requiring a permission
-`@Auth.hasPermission()` checks that a role of the user's membership in the request's [tenant](./tenancy.md#members-and-their-roles) carries the permission, here `invoices.export`. See [roles and permissions](./roles-and-permissions.md):
+`@Auth.hasPermission()` checks that a role of the user's [membership](./glossary.md#membership) in the request's [tenant](./tenancy.md#members-and-their-roles) carries the permission, here `invoices.export`. See [roles and permissions](./roles-and-permissions.md):
 
 ```ts
 // src/controllers/invoice.controller.ts
@@ -595,7 +634,11 @@ export class DocumentedUserController {
 }
 ```
 
+Each decorator compiles only on a method that can return what it declares, once awaited: `@Response.object(User)` on a method returning `Promise<Task>` does not compile. A method returning a union takes one decorator per member, as above. A `JsonResponse` counts as the body it wraps.
+
 A JSON response is written as `application/json`, or as another JSON type it names among its `mimeTypes`, such as `mimeTypes: [MimeType.JSON_SCIM, MimeType.JSON]`: the request's `Accept` picks one, and the first is taken when it accepts several or names none.
+
+A JSON response is written with the properties its class declares, nested models included. A handler returning a stored row under a class that names fewer of its columns sends only those. A nested object that allows additional properties keeps them, and a property of type `unknown` keeps whatever it holds. A response declaring no class is written as returned.
 
 Several `@Response.object` with the same status are one of their classes, which the OpenAPI document describes as `oneOf`. `@Response.object` also takes a function answering the class, such as `@Response.object(() => User)`, for a class that is only known once the application has started.
 
@@ -722,7 +765,7 @@ export class DocumentController {
 A `GET` answered with an `etag` answers a request whose `If-None-Match` names that etag with `304 Not Modified` and no body.
 
 ## Deadlines
-A handler has a limited time to produce a result. `handlerInMs` of `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` sets it for the application, 30 seconds by default. A controller sets it for all of its routes, and a route sets its own:
+A handler has a limited time to produce a result. `handlerTimeoutInMs` of `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` sets it for the application, 30 seconds by default. A controller sets it for all of its routes, and a route sets its own:
 
 ```ts
 // src/controllers/export.controller.ts
@@ -761,8 +804,8 @@ The handler keeps running after its deadline. What it waits on through the frame
 
 | Waits on | What the deadline does to it |
 |---|---|
-| `HttpClient` | Ends the call and lets the connection go. Whichever of the call's own `timeoutMs` and the route's deadline comes first ends it, and a retry that was backing off stops |
-| `LeaseService` in `'wait'` mode | Stops queueing for the lease instead of waiting out its `acquireTimeoutInMs` |
+| `HttpClient` | Ends the call and lets the connection go. Whichever of the call's own `timeoutInMs` and the route's deadline comes first ends it, and a retry that was backing off stops |
+| `LeaseService` in `'wait'` mode | Stops queueing for the [lease](./glossary.md#lease) instead of waiting out its `acquireTimeoutInMs` |
 | `MultithreadingService.waitForThreadJob` | Stops waiting for the job. The job keeps running and records what it did |
 | A repository | Refuses its next operation. A statement already running is stopped, where the data source supports that |
 
@@ -790,7 +833,7 @@ export class SearchController {
 }
 ```
 
-The deadline is separate from `requestInMs`, which limits how long the request takes to arrive. A slow upload does not shorten the deadline of the handler it reaches.
+The deadline is separate from `requestTimeoutInMs`, which limits how long the request takes to arrive. A slow upload does not shorten the deadline of the handler it reaches.
 
 ## How a response is sent
 Whatever an endpoint returns is serialized once and written. On the way out it is compressed and gets an ETag, both decided per request.

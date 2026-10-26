@@ -21,7 +21,7 @@ import { Newable } from '../types/newable.type';
  * normally arrives on. It is the path work arrives on when the instance that queued it had nothing
  * free, and when the instance that was running it is gone.
  *
- * Deliberately `distributed: false`. Every instance has its own workers to keep busy, so every one
+ * Deliberately `runsOn: 'everyInstance'`. Every instance has its own workers to keep busy, so every one
  * of them has to look; electing a single instance would have it poll on behalf of a pool it cannot
  * reach. Keeps no row for the same reason.
  */
@@ -31,7 +31,7 @@ export class RunQueuedThreadJobsCronJob extends PollingCronJob {
         name: 'run queued thread jobs',
         cron: CronExpression.every(2, 'seconds').build(),
         runOnInit: false,
-        distributed: false,
+        runsOn: 'everyInstance',
         syncToDataSource: false
     };
 

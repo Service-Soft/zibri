@@ -1,6 +1,7 @@
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import type { ExecResult, StartedTestContainer } from 'testcontainers';
-import { DataSourceInterface, DiContainer, inject, Newable, OmitStrict, optionalPeer, PostgresDataSource, PostgresOptions, ValKeyDataSource, ValKeyOptions } from 'zibri';
+import type { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import type { ExecResult, StartedNetwork, StartedTestContainer } from 'testcontainers';
+import { DataSourceInterface, inject, Newable, OmitStrict, optionalPeer, PostgresDataSource, PostgresOptions, PostgresPooler, PostgresTransactionPooler, ValKeyDataSource, ValKeyOptions } from 'zibri';
+import { DiContainer } from 'zibri/internal';
 
 import { settleAfterFailure } from './settle-after-failure.function';
 
@@ -28,6 +29,27 @@ export const VALKEY_TEST_IMAGE: string = 'valkey/valkey:8-alpine';
 export const VALKEY_PORT: number = 6379;
 
 /**
+ * The image PgBouncer runs in, in front of the postgres container of a data source behind a
+ * transaction pooler: alpine, with the distribution's own package installed as the container starts.
+ */
+export const PGBOUNCER_TEST_IMAGE: string = 'alpine:3.22';
+
+/**
+ * The port PgBouncer listens on inside its container.
+ */
+const PGBOUNCER_PORT: number = 6432;
+
+/**
+ * The name the postgres container has on the network it shares with PgBouncer.
+ */
+const POSTGRES_NETWORK_ALIAS: string = 'postgres';
+
+/**
+ * Where PgBouncer's configuration is copied to, apart from where its package puts its own.
+ */
+const PGBOUNCER_CONFIG_DIRECTORY: string = '/etc/zibri-pgbouncer';
+
+/**
  * The label naming the process that started a container, by its pid.
  *
  * The session label testcontainers sets is shared by every process of a run, so it cannot say which
@@ -46,6 +68,34 @@ const CONTAINERS_FEATURE: string = 'Starting a container for a data source';
 export type TestDataSource = PostgresDataSource | ValKeyDataSource;
 
 /**
+ * The host ports a data source is pointed at once its containers run.
+ */
+export type DataSourcePorts = {
+    /**
+     * Where the data source's `options` point: its server, or the pooler in front of it.
+     */
+    port: number,
+    /**
+     * Where the server itself is, for a data source behind a transaction pooler.
+     */
+    directPort: number | undefined
+};
+
+/**
+ * The pooler started in front of the server of a data source, and the network the two share.
+ */
+export type StartedPooler = {
+    /**
+     * The running pooler.
+     */
+    container: StartedTestContainer,
+    /**
+     * The network the pooler reaches the server on.
+     */
+    network: StartedNetwork
+};
+
+/**
  * A container that was started for one data source class.
  */
 export type StartedDataSourceContainer = {
@@ -54,14 +104,28 @@ export type StartedDataSourceContainer = {
      */
     dataSourceClass: Newable<DataSourceInterface>,
     /**
-     * The running container.
+     * The running container of its server.
      */
     container: StartedTestContainer,
     /**
-     * The host port that the container's data source port got mapped to.
+     * The host ports the data source is pointed at.
      */
-    port: number
+    ports: DataSourcePorts,
+    /**
+     * The pooler in front of the server, for a data source behind a transaction pooler.
+     */
+    pooler: StartedPooler | undefined
 };
+
+/**
+ * Stops what was started for one data source: its pooler, its server and the network between them.
+ * @param started - What was started.
+ */
+export async function stopDataSourceContainer(started: StartedDataSourceContainer): Promise<void> {
+    await started.pooler?.container.stop();
+    await started.container.stop();
+    await started.pooler?.network.stop();
+}
 
 /**
  * Whether the given data source needs a server of its own to talk to.
@@ -90,11 +154,12 @@ export async function buildDataSources(dataSourceClasses: Newable<DataSourceInte
 }
 
 /**
- * Applies the port that the container of the given data source got mapped to.
- * @param dataSource - The data source to apply the port to.
- * @param port - The mapped port of its container.
+ * Applies the ports that the containers of the given data source got mapped to.
+ * @param dataSource - The data source to apply the ports to.
+ * @param ports - The mapped ports of its containers.
  */
-export function applyContainerPort(dataSource: TestDataSource, port: number): void {
+export function applyContainerPorts(dataSource: TestDataSource, ports: DataSourcePorts): void {
+    const port: number = ports.port;
     // the one place the harness writes past a `readonly`, on purpose. An application states its
     // connection when the class is built - from its environment, in the scaffold - and `readonly`
     // says exactly that. What a container adds is a port known only once it runs, which is after
@@ -108,6 +173,20 @@ export function applyContainerPort(dataSource: TestDataSource, port: number): vo
         return;
     }
     (dataSource.options as OmitStrict<PostgresOptions, 'type'>) = { ...dataSource.options, port };
+    // the server itself is a second address, known as late as the first
+    const pooler: PostgresTransactionPooler | undefined = findTransactionPooler(dataSource);
+    if (pooler != undefined && ports.directPort != undefined) {
+        (dataSource.pooler as PostgresPooler) = { ...pooler, direct: { ...pooler.direct, port: ports.directPort } };
+    }
+}
+
+/**
+ * The transaction pooler a postgres data source declares, if it declares one.
+ * @param dataSource - The data source.
+ * @returns The pooler, or undefined when every connection of it is a session of its own.
+ */
+function findTransactionPooler(dataSource: PostgresDataSource): PostgresTransactionPooler | undefined {
+    return typeof dataSource.pooler === 'object' ? dataSource.pooler : undefined;
 }
 
 /**
@@ -138,11 +217,58 @@ async function provisionApplicationRole(container: StartedPostgreSqlContainer, d
         `CREATE ROLE ${role} LOGIN PASSWORD ${password} NOSUPERUSER NOCREATEROLE NOCREATEDB`,
         // separate commands, because CREATE DATABASE refuses to run inside a transaction block
         '--command',
-        `CREATE DATABASE ${database} OWNER ${role}`
+        `CREATE DATABASE ${database} OWNER ${role}`,
+        // behind a transaction pooler a connection carries what its role carries, which is the
+        // operator's to set, the way the data source names it
+        ...findTransactionPooler(dataSource) == undefined ? [] : dataSource.resolveRoleSettingsSql().flatMap(statement => ['--command', statement])
     ]);
     if (result.exitCode !== 0) {
         throw new Error(`Could not provision the role of ${dataSource.constructor.name}:\n${result.output}`);
     }
+}
+
+/**
+ * Starts PgBouncer in transaction mode in front of the postgres container of a data source, on the
+ * network the two share.
+ *
+ * The distribution's own package rather than an image of somebody's: PgBouncer publishes none.
+ * @param network - The network the postgres container is on, as {@link POSTGRES_NETWORK_ALIAS}.
+ * @param dataSource - The data source whose credentials the pooler accepts and passes on.
+ * @returns The running pooler.
+ */
+async function startPgBouncer(network: StartedNetwork, dataSource: PostgresDataSource): Promise<StartedTestContainer> {
+    const { GenericContainer, Wait } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
+    const username: string = dataSource.options.username ?? 'postgres';
+    const password: string = dataSource.options.password?.toString() ?? 'password';
+    const config: string = [
+        '[databases]',
+        `* = host=${POSTGRES_NETWORK_ALIAS} port=5432`,
+        '[pgbouncer]',
+        'listen_addr = 0.0.0.0',
+        `listen_port = ${PGBOUNCER_PORT}`,
+        'auth_type = scram-sha-256',
+        `auth_file = ${PGBOUNCER_CONFIG_DIRECTORY}/userlist.txt`,
+        'pool_mode = transaction',
+        'max_client_conn = 500',
+        'default_pool_size = 20'
+    ].join('\n');
+    return await new GenericContainer(PGBOUNCER_TEST_IMAGE)
+        .withNetwork(network)
+        .withCopyContentToContainer([
+            { content: `${config}\n`, target: `${PGBOUNCER_CONFIG_DIRECTORY}/pgbouncer.ini`, mode: 0o644 },
+            { content: `"${username}" "${password}"\n`, target: `${PGBOUNCER_CONFIG_DIRECTORY}/userlist.txt`, mode: 0o644 }
+        ])
+        // PgBouncer refuses to run as root, and switches to the user it is told to
+        .withCommand([
+            'sh',
+            '-c',
+            'apk add --no-cache pgbouncer && (id pgbouncer || adduser -D -H pgbouncer)'
+            + ` && exec pgbouncer -u pgbouncer ${PGBOUNCER_CONFIG_DIRECTORY}/pgbouncer.ini`
+        ])
+        .withExposedPorts(PGBOUNCER_PORT)
+        .withWaitStrategy(Wait.forLogMessage(/process up/))
+        .withLabels(processLabels())
+        .start();
 }
 
 /**
@@ -222,30 +348,43 @@ export async function startDataSourceContainers(
                     .withExposedPorts(VALKEY_PORT)
                     .withLabels(processLabels())
                     .start();
-                const port: number = valKeyContainer.getMappedPort(VALKEY_PORT);
-                applyContainerPort(dataSource, port);
-                return { dataSourceClass, container: valKeyContainer, port };
+                const ports: DataSourcePorts = { port: valKeyContainer.getMappedPort(VALKEY_PORT), directPort: undefined };
+                applyContainerPorts(dataSource, ports);
+                return { dataSourceClass, container: valKeyContainer, ports, pooler: undefined };
             }
 
             const { PostgreSqlContainer } = optionalPeer<typeof import('@testcontainers/postgresql')>(
                 '@testcontainers/postgresql',
                 CONTAINERS_FEATURE
             );
-            const container: StartedPostgreSqlContainer = await new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
+            const { Network } = optionalPeer<typeof import('testcontainers')>('testcontainers', CONTAINERS_FEATURE);
+            // a network only for a data source behind a pooler, which reaches the server by its name on it
+            const network: StartedNetwork | undefined = findTransactionPooler(dataSource) == undefined
+                ? undefined
+                : await new Network().start();
+            const starting: PostgreSqlContainer = new PostgreSqlContainer(POSTGRES_TEST_IMAGE)
                 .withDatabase('postgres')
                 .withUsername(POSTGRES_PROVISIONING_USER)
-                .withLabels(processLabels())
-                .start();
+                .withLabels(processLabels());
+            const container: StartedPostgreSqlContainer = network == undefined
+                ? await starting.start()
+                : await starting.withNetwork(network).withNetworkAliases(POSTGRES_NETWORK_ALIAS).start();
+            let pooler: StartedPooler | undefined;
             try {
                 await provisionApplicationRole(container, dataSource);
+                if (network != undefined) {
+                    pooler = { container: await startPgBouncer(network, dataSource), network };
+                }
             }
             catch (error) {
-                await settleAfterFailure('stop a container', [container.stop()]);
+                await settleAfterFailure('stop a container', [container.stop(), ...network == undefined ? [] : [network.stop()]]);
                 throw error;
             }
-            const port: number = container.getMappedPort(5432);
-            applyContainerPort(dataSource, port);
-            return { dataSourceClass, container, port };
+            const ports: DataSourcePorts = pooler == undefined
+                ? { port: container.getMappedPort(5432), directPort: undefined }
+                : { port: pooler.container.getMappedPort(PGBOUNCER_PORT), directPort: container.getMappedPort(5432) };
+            applyContainerPorts(dataSource, ports);
+            return { dataSourceClass, container, ports, pooler };
         })
     );
 
@@ -253,7 +392,7 @@ export async function startDataSourceContainers(
         .flatMap(s => s.status === 'fulfilled' && s.value != undefined ? [s.value] : []);
     const failed: PromiseRejectedResult | undefined = settled.find(s => s.status === 'rejected');
     if (failed != undefined) {
-        await settleAfterFailure('stop a container', started.map(s => s.container.stop()));
+        await settleAfterFailure('stop a container', started.map(s => stopDataSourceContainer(s)));
         throw failed.reason;
     }
     return started;

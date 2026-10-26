@@ -1,10 +1,10 @@
 # API keys
-A script, a service or an integration calls your API with an API key: a secret it sends with every request, which acts as one of your users. A user holds as many keys as they like, each with a name, the permissions it may use and an expiry, and each one is revoked on its own. Your database keeps only a hash of a key.
+A script, a service or an integration calls your API with an [API key](./glossary.md#api-key): a secret it sends with every request, which acts as one of your users. A user holds as many keys as they like, each with a name, the permissions it may use and an expiry, and each one is revoked on its own. Your database keeps only a hash of a key.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `ApiKeyAuthStrategy` | class | The auth strategy reading the API key a request sends |
+| `ApiKeyAuthStrategy` | class | The [auth strategy](./glossary.md#auth-strategy) reading the API key a request sends |
 | `ApiKey` | entity | An API key of a user |
 | `ApiKeyCreateData` | type | What a new key is created with: its `name`, `permissions`, `tenantId`, `expiresAt`, `clientAuthentication` and `requireDpop` |
 | `CreatedApiKey` | type | A key that was just created, and the key itself |
@@ -13,8 +13,9 @@ A script, a service or an integration calls your API with an API key: a secret i
 | `ZIBRI_DI_TOKENS.API_KEY_HEADER` | DI token | Which header carries an API key. Defaults to `x-api-key` |
 | `ApiKeyOptions` | type | How often a key's last use is written down, and how long an expired key is kept |
 | `ZIBRI_DI_TOKENS.API_KEY_OPTIONS` | DI token | Configures the options above |
-| `ApiKeyCleanupCronJob` | cron job | Deletes the keys that expired longer ago than `deleteExpiredAfterMs`. Registered for you |
+| `ApiKeyCleanupCronJob` | cron job | Deletes the keys that expired longer ago than `deleteExpiredAfterInMs`. Registered for you |
 | `ZIBRI_DI_TOKENS.API_KEY_SERVICE`, `ApiKeyServiceInterface` | DI token, interface | The service keeping the keys, which `AuthService` and every reader of a key go through. Replaceable |
+| `ApiKeyService` | class | Keeps the API keys of the users. Replaceable through `ZIBRI_DI_TOKENS.API_KEY_SERVICE` |
 
 ## Setting it up
 Declare `ApiKey` in the data source your users live in, and register `ApiKeyAuthStrategy` next to the strategy your users log in with. Keys are created once something reads them: `ApiKeyAuthStrategy`, or the [authorization server](./authorization-server.md) for keys that are only exchanged for tokens.
@@ -106,9 +107,9 @@ export class ApiKeyController {
 }
 ```
 
-A key is a way into the account that outlives a password change, so guard the route that creates one the way you guard changing a password: `@Auth.require2fa({ reauth: true })` takes a second factor, or a [recent login](./two-factor.md#accepting-a-recent-login-instead).
+A key is a way into the account that outlives a password change, so guard the route that creates one the way you guard changing a password: `@Auth.require2fa({ reauth: true })` takes a [second factor](./glossary.md#second-factor), or a [recent login](./two-factor.md#accepting-a-recent-login-instead).
 
-`createApiKey` answers `400` when the name is empty, when a permission is not [declared](./roles-and-permissions.md#declaring-permissions), when no role of the user carries one of the permissions, or when `expiresAt` has passed. `tenantId` is required: `undefined` makes a key that acts in every [tenant](./tenancy.md) its user is a member of, and the id of a tenant binds the key to that one. Binding a key to a tenant its user is no member of answers `400`, and so does a permission carried neither by a role of the user's own nor by one of their membership there. `expiresAt` is required: `undefined` makes a key that works until it is revoked. `clientAuthentication` is required too: `undefined` makes a key that is a secret, see [clients without a secret](#clients-without-a-secret) for the others. `requireDpop: true` makes a key that is only ever exchanged for tokens [bound to a DPoP key](./dpop.md#tokens-of-clients), and never taken in the API key header.
+`createApiKey` answers `400` when the name is empty, when a permission is not [declared](./roles-and-permissions.md#declaring-permissions), when no role of the user carries one of the permissions, or when `expiresAt` has passed. `tenantId` is required: `undefined` makes a key that acts in every [tenant](./tenancy.md) its user is a member of, and the id of a tenant binds the key to that one. Binding a key to a tenant its user is no member of answers `400`, and so does a permission carried neither by a role of the user's own nor by one of their [membership](./glossary.md#membership) there. `expiresAt` is required: `undefined` makes a key that works until it is revoked. `clientAuthentication` is required too: `undefined` makes a key that is a secret, see [clients without a secret](#clients-without-a-secret) for the others. `requireDpop: true` makes a key that is only ever exchanged for tokens [bound to a DPoP key](./dpop.md#tokens-of-clients), and never taken in the API key header.
 
 ## Sending a key
 A request sends the key in the `x-api-key` header:
@@ -168,15 +169,15 @@ import { ApiKeyOptions, defineProvider, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({
     token: ZIBRI_DI_TOKENS.API_KEY_OPTIONS,
-    useFactory: (): ApiKeyOptions => ({ recordUseAfterMs: Ms.DAY, deleteExpiredAfterMs: Ms.DAY * 90 })
+    useFactory: (): ApiKeyOptions => ({ recordUseAfterInMs: Ms.DAY, deleteExpiredAfterInMs: Ms.DAY * 90 })
 })
 ```
 
-`recordUseAfterMs: 0` writes down every use, and `deleteExpiredAfterMs: 0` deletes a key as soon as it expired.
+`recordUseAfterInMs: 0` writes down every use, and `deleteExpiredAfterInMs: 0` deletes a key as soon as it expired.
 
 `revokeApiKey` revokes one key of the user, and answers `404` for an id that is not a key of theirs. `revokeApiKeys` revokes every key of the user. Ending the logins of a user, such as by a password reset, keeps their keys; [deactivating the user](./auth.md#deactivating-a-user) revokes them.
 
-A key of a deleted user stops working.
+The keys of a user are deleted with the user. A key of a soft deleted user stops working, and is kept until the user is restored or deleted for good.
 
 ## Service accounts
 A service that acts on its own, for no person, gets a user of its own: create a user without a password, with the roles the service needs, a membership in each tenant it works in, and a key for it listing the permissions it uses. Nobody can log in as that user, and its key names the service in your data and in the audit trail.
@@ -253,6 +254,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `ApiKey` | `ApiKeyAuthStrategy` or the authorization server is registered |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Authentication & authorization](./auth.md) — strategies, authenticators and `AuthService`

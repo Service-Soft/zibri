@@ -54,7 +54,7 @@ type BaseDiProvider<T> = {
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ClassDiProvider<T> = BaseDiProvider<T> & {
+export type ClassDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A class to register for the token.
      */
@@ -76,7 +76,7 @@ type ClassDiProvider<T> = BaseDiProvider<T> & {
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type FactoryDiProvider<T> = BaseDiProvider<T> & {
+export type FactoryDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A factory function that resolves the value to register for the token.
      *
@@ -102,7 +102,7 @@ type FactoryDiProvider<T> = BaseDiProvider<T> & {
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
+export type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A factory function that is awaited once, while the application initializes, to resolve the
      * value to register for the token.
@@ -141,7 +141,7 @@ type AsyncFactoryDiProvider<T> = BaseDiProvider<T> & {
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ValueDiProvider<T> = BaseDiProvider<T> & {
+export type ValueDiProvider<T> = BaseDiProvider<T> & {
     /**
      * A value to register for the token.
      */

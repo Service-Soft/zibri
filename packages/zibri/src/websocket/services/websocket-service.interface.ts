@@ -1,5 +1,4 @@
 import { Transaction } from '../../data-source/transaction/transaction.model';
-import { ChangedMembership } from '../../tenancy/membership/changed-membership.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { BaseWebsocketConnection } from '../models/connection/base-websocket-connection.model';
@@ -125,15 +124,12 @@ export interface WebsocketServiceInterface<Connection extends BaseWebsocketConne
      */
     sendToAll: <B extends boolean>(data: WebsocketSendToAllData<B>) => WebsocketSendToMultipleResult<B>,
     /**
-     * Brings which tenants' messages the connections of users receive in line with their memberships
-     * as they are stored, on every instance.
-     */
-    updateTenantRooms: (memberships: ChangedMembership[]) => Promise<void>,
-    /**
      * Closes the connections of the given users, on every instance, whose credential no longer
-     * resolves to their user. Called wherever logins end, once the transaction that ended them
-     * commits, so that a socket receives for as long as its credential would be accepted by a request
-     * and no longer.
+     * resolves to their user, once the transaction that ended their logins commits. So a socket
+     * receives for as long as its credential would be accepted by a request, and no longer.
+     *
+     * A write ending a row of the `credentialEntities` of an auth strategy does this by itself. Call
+     * it where logins end that are stored somewhere else.
      */
     disconnectEndedLogins: (userIds: string[], transaction: Transaction | undefined) => Promise<void>,
     /**

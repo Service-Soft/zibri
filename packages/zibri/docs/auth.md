@@ -1,42 +1,71 @@
 # Authentication and authorization
-Signing users in, and deciding what each request may do. An authenticator checks who someone is, such as by email and password. An auth strategy carries the login from one request to the next, such as in a bearer token. The `@Auth` decorators guard your routes with the user the strategy resolves.
+Logging users in, and deciding what each request may do. An [authenticator](./glossary.md#authenticator) checks who someone is, such as by email and password. An [auth strategy](./glossary.md#auth-strategy) carries the login from one request to the next, such as in a bearer token. The `@Auth` decorators guard your routes with the user the strategy resolves.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `BaseUserEntity`, `BaseUser` | function, type | The base class your user entity extends, and what every user has: an email, their platform roles and when they were deactivated |
+| `BaseUserEntity`, `BaseUser` | function, type | The base class your user entity extends, and what every user has: an email, their platform roles and when they were deactivated. Extends `BaseEntity`, or the `SoftDeleteEntity` or `ChangeSetEntity` it is given |
+| `SoftDeletingUserEntityOptions` | type | What `BaseUserEntity(SoftDeleteEntity, options)` asks: `deletedUserKeepsEmail`, whether a soft deleted user keeps their email taken. Required |
 | `BaseUserRepository`, `UserRepositoryInterface` | function, interface | The base class the repository of your user entity extends, and what the framework reads and writes users through |
+| `UserRepositoryClass`, `isUserRepository` | type, function | The class `BaseUserRepository` answers, and tells a user repository apart |
 | `USER_ENTITY`, `USER_REPOSITORY` | constant | Mark an entity and a repository as the ones of users. `BaseUserEntity` and `BaseUserRepository` set them |
+| `isBaseUser` | function | Tells a user apart: a value with an `id`, an `email` and `roles` |
+| `UserService`, `UserServiceInterface`, `isUserService` | class, interface, function | Finds users by id and by email, and changes their deactivation and roles. Replaceable through `ZIBRI_DI_TOKENS.USER_SERVICE` |
+| `FindUserOptions` | type | Whether looking a user up requires one to be found |
 | `UserAccount` | type | A user without their roles: what a stored user and the [`CurrentUser`](./roles-and-permissions.md#in-your-own-code) of a request have in common, and what the two factor methods take |
 | `AuthService`, `AuthServiceInterface` | class, interface | Manages the registered auth strategies and authenticators, logs users in and runs the auth checks. Replaceable through `ZIBRI_DI_TOKENS.AUTH_SERVICE` |
 | `AuthenticatorInterface` | interface | Contract for proving who someone is, such as by password |
-| `IdentityLinkingAuthenticatorInterface` | interface | Contract for an authenticator whose users sign in with an identity they have somewhere else, linked to them. See [connecting a provider](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account) |
+| `isAuthenticator`, `Authenticators` | function, type | Tells an authenticator apart, and a list of authenticator classes |
+| `IdentityLinkingAuthenticatorInterface` | interface | Contract for an authenticator whose users log in with an identity they have somewhere else, linked to them. See [connecting a provider](./login-through-a-provider.md#connecting-a-provider-to-an-account) |
 | `IdentityLinkingAuthenticators` | type | A list of such authenticator classes |
-| `FederatedAuthenticatorInterface` | interface | Contract for an authenticator that signs users in at a provider. See [routes of your own](./sign-in-through-a-provider.md#routes-of-your-own) |
+| `isIdentityLinkingAuthenticator` | function | Tells an authenticator linking identities to users apart |
+| `FederatedAuthenticatorInterface` | interface | Contract for an authenticator that logs users in at a provider. See [routes of your own](./login-through-a-provider.md#routes-of-your-own) |
 | `LinkedIdentity` | class | An identity linked to a user, with the name of the authenticator it is linked through |
-| `ProviderAccessAuthenticatorInterface` | interface | Contract for an authenticator that keeps a provider's tokens, so its apis can be called for a user. See [calling a provider's apis](./sign-in-through-a-provider.md#calling-a-providers-apis) |
-| `RefreshResolvingAuthenticatorInterface`, `isRefreshResolvingAuthenticator` | interface, function | Contract for an authenticator that has a say in every refresh of a login, such as a [directory](./sign-in-through-a-directory.md#a-disabled-entry), and tells one apart |
-| `AuthController` | function | Defines the routes a client logs in, refreshes, logs out, resets a password and enrolls a second factor with. See [the auth routes](./auth-routes.md) |
+| `ProviderAccessAuthenticatorInterface` | interface | Contract for an authenticator that keeps a provider's tokens, so its apis can be called for a user. See [calling a provider's apis](./login-through-a-provider.md#calling-a-providers-apis) |
+| `isProviderAccessAuthenticator` | function | Tells an authenticator keeping a provider's tokens apart |
+| `RefreshResolvingAuthenticatorInterface`, `isRefreshResolvingAuthenticator` | interface, function | Contract for an authenticator that has a say in every refresh of a login, such as a [directory](./login-through-a-directory.md#a-disabled-entry), and tells one apart |
+| `AuthController` | function | Defines the routes a client logs in, refreshes, logs out, resets a password and enrolls a [second factor](./glossary.md#second-factor) with. See [the auth routes](./auth-routes.md) |
 | `PasswordAuthenticator` | class | Builtin authenticator checking an email and password, used by default. Also resets a forgotten password |
-| `PasskeyAuthenticator` | class | Builtin authenticator signing users in with a passkey. See [passkeys](./passkeys.md) |
-| `BaseLdapAuthenticator`, `BaseActiveDirectoryAuthenticator` | class | Authenticators to extend, checking a password against a directory. See [sign-in through a directory](./sign-in-through-a-directory.md) |
+| `PasskeyAuthenticator` | class | Builtin authenticator logging users in with a [passkey](./glossary.md#passkey). See [passkeys](./passkeys.md) |
+| `BaseLdapAuthenticator`, `BaseActiveDirectoryAuthenticator` | class | Authenticators to extend, checking a password against a directory. See [login through a directory](./login-through-a-directory.md) |
 | `PasswordCredentials` | class | Entity storing the passwords `PasswordAuthenticator` checks |
 | `PasswordCredentialsCreateData` | class | What a password is stored with: the user's id and the password, hashed as it is stored |
 | `PasswordCredentialsDto` | class | What a login with a password takes: the email and the password |
 | `PasswordResetToken` | entity | A token confirming a password reset. Kept hashed |
+| `PasswordResetTokenCleanupCronJob` | cron job | Deletes the reset tokens that expired unused, every hour. Registered for you when `PasswordAuthenticator` is |
+| `RequestPasswordResetData` | type | What mailing a user a reset link takes: the user, overrides for the email, and the transaction |
+| `ConfirmPasswordResetData` | class | What confirming a reset takes: the token from the link, the new password, and the transaction |
+| `PasswordResetEmailTemplate`, `PasswordResetEmailTemplateProps` | type, type | The email a reset link is sent in, via `ZIBRI_DI_TOKENS.PASSWORD_RESET_EMAIL_TEMPLATE`, and what it renders: the link and the user |
+| `PasswordFailureLimit` | type | The `passwordFailureLimit` app option: how many wrong passwords in a row [lock an account](#locking-an-account-after-too-many-wrong-passwords), and for how long. Defaults to `false` |
+| `PasswordFailureStreak` | entity | A user's wrong passwords in a row, and until when they lock the account |
 | `Authentication` | type | Who an authenticator authenticated, and when |
 | `DefaultAuth` | type | What a route with no `@Auth` decorator requires. Set on the application options, no default |
+| `IsLoggedInFn`, `IsNotLoggedInFn` | interface, interface | The types of `@Auth.isLoggedIn` and `@Auth.isNotLoggedIn`, with their `skip` |
+| `IsLoggedInMetadata`, `IsNotLoggedInMetadata`, `SkipAuthMetadata` | type, type, type | What `@Auth.isLoggedIn`, `@Auth.isNotLoggedIn` and `@Auth.skip` declare: the strategies allowed, and whether a skip with nothing to skip is allowed |
+| `ResolvedAuthMetadata`, `ResolvedRouteAuth` | type, type | The checks the `@Auth` decorators of a route and its controller resolve to, and whether the route requires a login once `defaultAuth` applies |
+| `RouteAuthConfiguration` | type | The checks of a [manually registered route](#protecting-manually-registered-routes), with `skip` for one reachable without a login |
 | `AccountDeactivatedError` | class | What a login of a [deactivated user](#deactivating-a-user) is refused with |
 | `AuthStrategyInterface` | interface | Contract for saying who a request is from |
 | `LoginAuthStrategyInterface` | interface | Contract for an auth strategy that also starts, refreshes and ends logins |
+| `isAuthStrategy`, `isLoginAuthStrategy`, `AuthStrategies` | function, function, type | Tell an auth strategy and one carrying logins apart, and a list of auth strategy classes |
+| `EndedLogin` | type | A login a strategy ended: whose it was, and the session at a provider it started from |
+| `CredentialLimits` | type | What the credential of a request may do beyond being its user, such as an [api key](./api-keys.md): the permissions it may use and the [tenant](./glossary.md#tenant) it is bound to |
+| `CredentialEntity` | type | An entity the credentials of a strategy are checked against, and whether removing or inserting one of its rows ends a credential, see [writing a strategy of your own](#writing-a-strategy-of-your-own) |
 | `TokenIntrospectingAuthStrategyInterface`, `ClientAccessTokenIssuingAuthStrategyInterface`, `ClientCertificateAuthStrategyInterface` | interface | What a strategy can do besides saying who a request is from, see [what a strategy can do](#what-a-strategy-can-do) |
 | `JwtAuthStrategy` | class | Builtin auth strategy sending a Bearer token, used by default |
 | `JwtAuthData` | class | What a JWT login and its refresh answer: the access and refresh token, the user's id and their roles |
 | `JwtRefreshToken` | entity | A refresh token of a JWT login. Kept hashed |
+| `JwtRefreshTokenCleanupCronJob` | cron job | Deletes the refresh tokens that expired. Registered for you |
+| `JwtRefreshLoginData`, `JwtRefreshLoginDto` | class, class | What refreshing a JWT login takes: the refresh token and the transaction, and the body a refresh and a logout are sent with |
+| `Jwt` | class | A token and when it expires |
+| `JwtAccessTokenPayload`, `isJwtAccessTokenPayload` | type, function | What an access token says about its user, and tells a verified payload of that shape apart |
 | `CookieAuthStrategy` | class | Builtin auth strategy keeping a login in session cookies, with a [CSRF token](#sending-the-csrf-token) |
 | `CookieAuthData` | class | What a cookie login and its refresh answer: the user's id and roles, the CSRF token, and when the session and the refresh session expire |
+| `CookieAuthRefreshLoginData`, `CookieAuthRefreshLoginDto` | class, class | What refreshing a cookie login takes, the transaction, and the empty body a refresh is sent with, since the cookies carry the login |
+| `CookieAuthLogoutData`, `CookieAuthLogoutDto` | class, class | What ending a cookie login takes, whether to clear the cookies and the transaction, and the body a logout is sent with |
 | `CookieAuthSessionOptionsInput` | type | The name and the attributes of a session cookie, such as `sameSite` and `secure`, via `ZIBRI_DI_TOKENS.COOKIE_AUTH_SESSION_OPTIONS` and `ZIBRI_DI_TOKENS.COOKIE_AUTH_REFRESH_SESSION_OPTIONS` |
 | `CookieAuthSession`, `CookieAuthRefreshSession` | entity | A session and a refresh session of a cookie login. Kept hashed |
+| `CookieAuthSessionCleanupCronJob` | cron job | Deletes the sessions and refresh sessions that expired. Registered for you |
 | `ApiKeyAuthStrategy` | class | Builtin auth strategy reading an api key of a user. See [api keys](./api-keys.md) |
 | `BaseClientCertificateAuthStrategy` | class | Auth strategy reading the client certificate a proxy forwards. See [client certificates](./client-certificates.md) |
 | `ClientAccessTokenAuthStrategy` | class | Builtin auth strategy reading the access tokens the authorization server issues to clients. See [issuing tokens to services](./authorization-server.md) |
@@ -44,12 +73,19 @@ Signing users in, and deciding what each request may do. An authenticator checks
 | `AuthorizationServerController` | function | Defines the routes issuing, introspecting and revoking tokens. See [issuing tokens to services](./authorization-server.md) |
 | `ZIBRI_DI_TOKENS.ACCESS_TOKEN_REVOCATION` | DI token | When an access token stops working once its login has ended. Defaults to `'onExpiry'`, see [what a credential is worth](#what-a-credential-is-worth) |
 | `JwtAuthOptionsInput` | type | Keys, secrets, lifetimes and `requireDpop` for the jwt strategy, via `ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT` |
+| `JwtAuthOptions` | type | The options the jwt strategy runs with, as `ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS` holds them |
 | `ZIBRI_DI_TOKENS.JWT_SERVICE`, `JwtServiceInterface` | DI token, interface | The service signing and verifying access tokens with the access token key, replaceable |
+| `JwtService` | class | Signs and verifies access tokens. Replaceable through `ZIBRI_DI_TOKENS.JWT_SERVICE` |
+| `MissingJwtSecretError` | error | Thrown at startup when the access token key or the refresh token secret is not configured |
+| `JwtSignOptions`, `JwtVerifyOptions`, `VerifiedJwt` | type, type, type | What a token is signed with besides its payload and key, what it has to say to verify, and a verified token: its payload, when it was issued and expires, and its audience |
+| `JwtKey` | type | A key a token is signed or verified with, and the one algorithm a token checked against it may name |
 | `ZIBRI_DI_TOKENS.API_KEY_SERVICE`, `ApiKeyServiceInterface` | DI token, interface | The service keeping api keys, replaceable. See [api keys](./api-keys.md) |
-| `ZIBRI_DI_TOKENS.DPOP_NONCES` | DI token | Whether DPoP proofs carry a nonce your application issued. Defaults to `false`, see [binding tokens to a key](./dpop.md) |
+| `ZIBRI_DI_TOKENS.DPOP_NONCES` | DI token | Whether [DPoP](./glossary.md#dpop) proofs carry a nonce your application issued. Defaults to `false`, see [binding tokens to a key](./dpop.md) |
+| `JwtConfirmation`, `isJwtConfirmation` | type, function | What a token is bound to, a client certificate or a DPoP key, and tells one apart. See [binding tokens to a key](./dpop.md) |
 | `JwtAsymmetricKey` | type | A key pair to sign access tokens with, in place of a shared secret |
+| `JwtAsymmetricAlgorithm` | type | The algorithms a key pair signs with: `'ES256'`, `'ES384'`, `'ES512'`, `'EdDSA'` and `'RS256'` |
 | `JwksController`, `isJwksControllerClass` | class, function | Publishes the public keys access tokens are signed with at `/.well-known/jwks.json`, and tells it and the classes extending it apart |
-| `UserRepo` | decorator | Registers a class as the user repository |
+| `Jwks`, `Jwk` | class, class | What `/.well-known/jwks.json` answers: the public keys, each as a JSON Web Key |
 | `UserRepositoryInterface` | interface | Contract for finding a user by email and resolving their credentials |
 | `ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK` | DI token | Whether checks read the account or trust the credential. Defaults to reading |
 | `AuthRateLimiter` | class | What limits the builtin auth endpoints. Replaceable through `ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER` |
@@ -60,7 +96,7 @@ Signing users in, and deciding what each request may do. An authenticator checks
 ## Registering strategies and authenticators
 The auth system has two parts.
 
-An **authenticator** proves who someone is. `PasswordAuthenticator` checks an email and a password, and resets a forgotten password by email. A user can also [sign in through a provider](./sign-in-through-a-provider.md) such as Google or your company's Keycloak, [through a directory](./sign-in-through-a-directory.md) such as Active Directory, or [with a passkey](./passkeys.md).
+An **authenticator** proves who someone is. `PasswordAuthenticator` checks an email and a password, and resets a forgotten password by email. A user can also [log in through a provider](./login-through-a-provider.md) such as Google or your company's Keycloak, [through a directory](./login-through-a-directory.md) such as Active Directory, or [with a passkey](./passkeys.md).
 
 An **auth strategy** says who a request is from. `JwtAuthStrategy` and `CookieAuthStrategy` carry a login from one request to the next. They
 - resolve the user of a request
@@ -123,9 +159,12 @@ A strategy turns a request into a user. The auth service answers every check wit
 | `resolveUser` | The user of the request |
 | `resolveAuthenticatedAt` | When its user logged in, which a route accepting a [recent login](./two-factor.md#accepting-a-recent-login-instead) reads. `undefined` when the strategy cannot say |
 | `resolveExpiresAt` | When its credential stops being accepted, read when a [websocket connection](./websocket.md#logins) made with it is checked again. `undefined` for a credential that does not expire |
-| `resolveProviderAuthentication` | For logins from a sign-in at a provider: how the user proved who they are there, which a route [counting the provider's second factor](./two-factor.md#accepting-the-providers-second-factor) reads |
+| `resolveProviderAuthentication` | For logins at a provider: how the user proved who they are there, which a route [counting the provider's second factor](./two-factor.md#accepting-the-providers-second-factor) reads |
+| `credentialEntities` | The entities its credentials are checked against, such as the sessions of its logins, each with the write that ends a credential: `'remove'` for a row a login lives in, `'insert'` for a row revoking one. Each row has the `userId` of its user. `[]` for a strategy that stores nothing |
 
-A strategy that starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them. Where it ends a login itself, such as on a logout, it calls `disconnectEndedLogins` on the websocket service with the user and the transaction, so the connections of that login close. Before a refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction, and continues the login as the user it answers. An authenticator such as a [directory](./sign-in-through-a-directory.md#a-disabled-entry) may update the user there, or refuse the refresh.
+Once a write ending such a row commits, the [websocket connections](./websocket.md#logins) of its user are checked again, however the row was written. A strategy whose logins live outside a data source calls `disconnectEndedLogins` on the websocket service with the user and the transaction where it ends one.
+
+A strategy that starts logins implements `LoginAuthStrategyInterface`, which adds starting, refreshing and ending them. Before a refresh rotates anything, it hands the user to `AuthService.resolveRefreshUser` with the transaction, and continues the login as the user it answers. An authenticator such as a [directory](./login-through-a-directory.md#a-disabled-entry) may update the user there, or refuse the refresh.
 
 The user is resolved once per request, however many checks a route carries, and `@CurrentUser` shares that lookup. A `@CurrentUser` naming a narrower set of strategies than the checks is resolved on its own, so a credential it excludes never fills it.
 
@@ -140,13 +179,13 @@ import { applicationOptions } from './application-options';
 
 const app: ZibriApplication = new ZibriApplication({
     ...applicationOptions,
-    defaultAuth: 'requireLogin'
+    defaultAuth: 'isLoggedIn'
 });
 ```
 
-`'public'` lets such a route through unauthenticated. `'requireLogin'` refuses it to anyone who is not logged in, so a forgotten decorator answers `401` instead of opening the endpoint to everyone.
+`'public'` lets such a route through unauthenticated. `'isLoggedIn'` refuses it to anyone who is not logged in, so a forgotten decorator answers `401` instead of opening the endpoint to everyone.
 
-Under `'requireLogin'`, a public route says so with `@Auth.skip()`, on the route or on the whole controller:
+Under `'isLoggedIn'`, a public route says so with `@Auth.skip()`, on the route or on the whole controller:
 
 ```ts
 // src/controllers/status.controller.ts
@@ -197,7 +236,7 @@ A refused request gets a `401` when the caller could not be identified, and a `4
 
 | Check | Status | Meaning |
 |---|---|---|
-| `@Auth.isLoggedIn` / the `'requireLogin'` default | `401` | nobody was resolved, so a credential is missing |
+| `@Auth.isLoggedIn` / the `'isLoggedIn'` default | `401` | nobody was resolved, so a credential is missing |
 | a request for a [tenant](./tenancy.md#the-tenant-of-a-request) | `403` | the caller is known and is no member of the tenant |
 | `@Auth.hasPermission` / `@Auth.hasPlatformPermission` | `403` | the caller is known and none of their roles carries the [permission](./roles-and-permissions.md) |
 | `@Auth.isNotLoggedIn` | `403` | the caller is known, and that is the reason it is refused |
@@ -472,7 +511,7 @@ in a row were presented for it, from wherever they came:
 import { Ms, ZibriApplicationOptions } from 'zibri';
 
 export const lockingOptions: Pick<ZibriApplicationOptions, 'passwordFailureLimit'> = {
-    passwordFailureLimit: { maxFailures: 10, lockForMs: Ms.MINUTE * 30 }
+    passwordFailureLimit: { maxFailures: 10, lockForInMs: Ms.MINUTE * 30 }
 };
 ```
 
@@ -481,7 +520,7 @@ export const lockingOptions: Pick<ZibriApplicationOptions, 'passwordFailureLimit
 Declare `PasswordFailureStreak` in your data source.
 
 While the account is locked, the right password is refused like a wrong one, with `401` and the same
-message. The lock passes after `lockForMs`, and a [confirmed password reset](#asking-for-a-password-reset)
+message. The lock passes after `lockForInMs`, and a [confirmed password reset](#asking-for-a-password-reset)
 lifts it before then. A correct password ends the streak, so ten wrong ones spread over a year lock
 nothing. Every lock is recorded as `auth.password.locked`, and a login refused by one as
 `auth.login` with `reason: locked`.
@@ -511,7 +550,7 @@ export class RegisterData {
 
 With `ZIBRI_DI_TOKENS.REVALIDATE_USER_ON_AUTH_CHECK` set to `false`, an access token handed out before the deactivation works until it expires; it is not refreshed. [Provisioning through SCIM](./scim.md) deactivates the users a tenant's identity provider created and sets inactive.
 
-`AuthService.endAccess` ends a user's logins and revokes their api keys too, but leaves them able to log in again. A [directory](./sign-in-through-a-directory.md#a-disabled-entry) does this to a user whose entry was disabled.
+`AuthService.endAccess` ends a user's logins and revokes their api keys too, but leaves them able to log in again. A [directory](./login-through-a-directory.md#a-disabled-entry) does this to a user whose entry was disabled.
 
 ## What gets recorded
 Auth failures answer with an `ExternalError`, which the error handler does not log. The auth
@@ -519,18 +558,18 @@ subsystem records its own events in the [audit trail](./audit.md) instead:
 
 | `action` | `outcome` | Carries |
 |---|---|---|
-| `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./sign-in-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user), `reason: locked` for a [locked account](#locking-an-account-after-too-many-wrong-passwords) |
+| `auth.login` | success / failure | `subject` (the email, or the username of a [directory](./login-through-a-directory.md), as submitted), `userId` on success, `reason: credential-cloned` when a [passkey](./passkeys.md#what-gets-recorded) comes from a copied device, `reason: deactivated` for a [deactivated user](#deactivating-a-user), `reason: locked` for a [locked account](#locking-an-account-after-too-many-wrong-passwords) |
 | `auth.login.pending` | success | `subject`, `userId`, see [asking for a second factor at login](./two-factor.md#asking-for-a-second-factor-at-login) |
-| `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back, `reason: deactivated` when the user's [entry in a directory](./sign-in-through-a-directory.md#a-disabled-entry) was disabled |
+| `auth.refresh-login` | success / failure | `userId` on success, `reason: token-reused` when a spent credential comes back, `reason: deactivated` when the user's [entry in a directory](./login-through-a-directory.md#a-disabled-entry) was disabled |
 | `auth.logout` | success / failure | `userId` on success, `reason: refused` when what was presented names no login, `reason: error` when the login could not be ended and is still live |
 | `auth.password-reset.requested` | success / failure | `subject`, `userId` when a reset actually went out |
 | `auth.password-reset.confirmed` | success / failure | Nothing else |
 | `auth.password.locked` | success | `userId`, see [locking an account](#locking-an-account-after-too-many-wrong-passwords) |
 | `auth.2fa` | failure | `userId` |
-| `auth.identity.linked` | success / failure | `userId` on success, see [connecting a provider](./sign-in-through-a-provider.md#connecting-a-provider-to-an-account) |
+| `auth.identity.linked` | success / failure | `userId` on success, see [connecting a provider](./login-through-a-provider.md#connecting-a-provider-to-an-account) |
 | `auth.identity.unlinked` | success / failure | `userId` |
-| `auth.identity.sign-in-revoked` | success / failure | `userId`, see [signing in and api access apart](./sign-in-through-a-provider.md#signing-in-and-api-access-apart) |
-| `auth.provider-access.granted` | success | `userId`, and the `scopes` of the provider's apis, see [calling a provider's apis](./sign-in-through-a-provider.md#calling-a-providers-apis) |
+| `auth.identity.login-revoked` | success / failure | `userId`, see [logging in and api access apart](./login-through-a-provider.md#logging-in-and-api-access-apart) |
+| `auth.provider-access.granted` | success | `userId`, and the `scopes` of the provider's apis, see [calling a provider's apis](./login-through-a-provider.md#calling-a-providers-apis) |
 | `auth.provider-access.revoked` | success / failure | `userId`, and the `scopes` on success |
 | `auth.api-key.created` | success / failure | `userId`, see [api keys](./api-keys.md) |
 | `auth.api-key.revoked` | success / failure | `userId` |
@@ -563,7 +602,7 @@ The lifetimes, and where to set them:
 | Cookie refresh session | 30 days | `COOKIE_AUTH_REFRESH_SESSION_EXPIRES_IN_MS` |
 | Password reset token | 5 minutes | `PASSWORD_RESET_TOKEN_EXPIRES_IN_MS` |
 
-A refresh credential is a live login for its whole lifetime, so its length is how long a stolen one stays useful. 30 days is the usual "stay signed in" window. Shorten it for anything administrative:
+A refresh credential is a live login for its whole lifetime, so its length is how long a stolen one stays useful. 30 days is the usual "stay logged in" window. Shorten it for anything administrative:
 
 ```ts
 // src/providers.ts
@@ -596,7 +635,7 @@ For your UI:
 - While a reset token is still live, asking again sends nothing. Tokens last 5 minutes by default.
 
 ## Creating and registering user models
-A user holds at least an email and an array of roles: their own roles, whose permissions `@Auth.hasPlatformPermission` checks, each one [declared](./roles-and-permissions.md) as a platform role. The roles a user holds in a tenant live on their [membership](./tenancy.md#members-and-their-roles) in it. A password is optional, since a user who signs in through a provider has none.
+A user holds at least an email and an array of roles: their own roles, whose permissions `@Auth.hasPlatformPermission` checks, each one [declared](./roles-and-permissions.md) as a platform role. The roles a user holds in a tenant live on their [membership](./tenancy.md#members-and-their-roles) in it. A password is optional, since a user who logs in through a provider has none.
 
 Extend `BaseUserEntity`:
 
@@ -623,9 +662,24 @@ import { User } from '../models/user.model';
 export class UserRepository extends BaseUserRepository<User, UserCreateData>() {}
 ```
 
-`UserCreateData` is what a user is created with. `BaseUserRepository` implements `UserRepositoryInterface`: `findByEmail`, `updateDeactivatedAt`, which stores when a user was [deactivated](#deactivating-a-user), and `updateRoles`, which stores the [roles](./roles-and-permissions.md#managing-roles) a user is given or loses. Override one to read or write a user differently. A user entity that soft deletes passes the repository it extends, such as `BaseUserRepository<User>(SoftDeleteRepository)`.
+`UserCreateData` is what a user is created with. `BaseUserRepository` implements `UserRepositoryInterface`: `findByEmail`, `updateDeactivatedAt`, which stores when a user was [deactivated](#deactivating-a-user), and `updateRoles`, which stores the [roles](./roles-and-permissions.md#managing-roles) a user is given or loses. Override one to read or write a user differently.
 
-Deleting a user deletes their [memberships](./tenancy.md#members-and-their-roles) with them, and the roles written on a user are checked against the roles of the application.
+A user entity that [soft deletes](./glossary.md#soft-delete) passes the class it extends to both bases. `deletedUserKeepsEmail` says whether a soft deleted user keeps their email taken, see [unique among only some rows](./data-source.md#unique-among-only-some-rows):
+
+```ts
+// src/models/account.model.ts
+import { BaseUserEntity, BaseUserRepository, Entity, RepositoryFor, SoftDeleteEntity, SoftDeleteRepository } from 'zibri';
+
+@Entity({ tenant: 'shared' })
+export class Account extends BaseUserEntity(SoftDeleteEntity, { deletedUserKeepsEmail: false }) {}
+
+@RepositoryFor(Account)
+export class AccountRepository extends BaseUserRepository<Account>(SoftDeleteRepository) {}
+```
+
+Deleting a user deletes, in the same transaction, their [memberships](./tenancy.md#members-and-their-roles) and every row auth keeps for them: their password, second factors, passkeys, API keys, identities at providers and directories with the tokens kept for them, their logins and their reset token. A soft deleted user keeps them, and gets them back with a restore. The roles written on a user are checked against the roles of the application.
+
+An authenticator, auth strategy or two factor method of your own that keeps rows per user implements `deleteUserRows(userIds, transaction)`, and is called with every user deleted for good.
 
 `BaseUserEntity` and `BaseUserRepository` mark their classes as the ones of users, with `USER_ENTITY` and `USER_REPOSITORY`. A user entity or user repository of your own declares the mark itself: `static readonly [USER_ENTITY]: true = true` on the entity, and a getter `get [USER_REPOSITORY](): true` on the repository. An application with several user entities lists a user repository for each.
 
@@ -684,12 +738,14 @@ Your data source declares these entities:
 | `JwtRefreshToken` | `JwtAuthStrategy` is registered |
 | `CookieAuthSession`, `CookieAuthRefreshSession` | `CookieAuthStrategy` is registered |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
 - [The auth routes](./auth-routes.md) — logging in, refreshing, logging out, resetting a password and enrolling a second factor over http
-- [Sign-in through a provider](./sign-in-through-a-provider.md) — Google, Microsoft, Keycloak and other OpenID Connect providers, and GitHub and other plain OAuth2 providers
+- [Login through a provider](./login-through-a-provider.md) — Google, Microsoft, Keycloak and other OpenID Connect providers, and GitHub and other plain OAuth2 providers
 - [Accepting a provider's tokens](./provider-tokens.md) — mobile apps and services calling your api with a token of your identity provider
-- [Sign-in through a directory](./sign-in-through-a-directory.md) — Active Directory, OpenLDAP and other LDAP directories
-- [Passkeys](./passkeys.md) — signing in with a passkey, and a passkey as the second factor
+- [Login through a directory](./login-through-a-directory.md) — Active Directory, OpenLDAP and other LDAP directories
+- [Passkeys](./passkeys.md) — logging in with a passkey, and a passkey as the second factor
 - [Api keys](./api-keys.md) — scripts, services and integrations calling your api
 - [Client certificates](./client-certificates.md) — services calling your api with mutual TLS
 - [Issuing tokens to services](./authorization-server.md) — OAuth2 client credentials, introspection and revocation
@@ -699,3 +755,4 @@ Your data source declares these entities:
 - [Creating endpoints](./creating-endpoints.md#securing-endpoints) — securing endpoints with the `@Auth` decorators
 - [Data sources](./data-source.md) — repositories and entities used by the user model
 - [Error handling](./error-handling.md) — errors thrown by the auth system
+- [Glossary](./glossary.md) — what authenticator, strategy, credential, identity and login mean

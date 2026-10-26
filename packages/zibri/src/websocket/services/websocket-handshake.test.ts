@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 
-import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { defineProvider } from '../../di/models/di-provider.model';
@@ -90,7 +90,7 @@ describe('WebsocketService handshake', () => {
                     useFactory: () => ({
                         messageRetentionInMs: Ms.DAY,
                         timeoutInMs: Ms.SECOND * 5,
-                        handlerInMs: Ms.SECOND * 30,
+                        handlerTimeoutInMs: Ms.SECOND * 30,
                         isAllowedToConnect: () => {
                             switch (connectCheckMode) {
                                 case 'allow': {

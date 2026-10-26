@@ -600,7 +600,7 @@ describe('evaluation/02-http-runtime-core', () => {
             expect(request?.name).toBe('GET /eval-trace/echo');
             expect(request?.kind).toBe(TraceSpanKind.SERVER);
             expect(request?.attributes['http.response.status_code']).toBe(200);
-            expect(request?.durationMs).toBeGreaterThanOrEqual(0);
+            expect(request?.durationInMs).toBeGreaterThanOrEqual(0);
         });
 
         it('keeps a call it made under the request that made it', async () => {

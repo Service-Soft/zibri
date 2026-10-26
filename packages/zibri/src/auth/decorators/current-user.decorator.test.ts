@@ -25,7 +25,14 @@ class CurrentUserTestController {
     }
 
     @Get('/optional')
-    optionalUser(@CurrentUser(false) user: JwtUser | undefined): { id: string | undefined } {
+    optionalUser(@CurrentUser({ required: false }) user: JwtUser | undefined): { id: string | undefined } {
+        return { id: user?.id };
+    }
+
+    @Get('/positional')
+    // a bare boolean says nothing about what it turns off, so the options are named
+    // @ts-expect-error -- `required` is an option, not a positional argument
+    positionalUser(@CurrentUser(false) user: JwtUser | undefined): { id: string | undefined } {
         return { id: user?.id };
     }
 }
@@ -90,7 +97,7 @@ describe('CurrentUser decorator — real HTTP flow', () => {
         expect(res.status).toBe(401);
     });
 
-    it('resolves the user for an optional @CurrentUser(false) route when a token is present', async () => {
+    it('resolves the user for an optional @CurrentUser({ required: false }) route when a token is present', async () => {
         const accessToken: string = await login();
 
         const res: Response = await fetch(`${baseUrl}/current-user-test/optional`, {
@@ -103,7 +110,7 @@ describe('CurrentUser decorator — real HTTP flow', () => {
         expect(body.id).toBeTruthy();
     });
 
-    it('resolves undefined for an optional @CurrentUser(false) route when no token is present', async () => {
+    it('resolves undefined for an optional @CurrentUser({ required: false }) route when no token is present', async () => {
         const res: Response = await fetch(`${baseUrl}/current-user-test/optional`);
 
         expect(res.status).toBe(200);

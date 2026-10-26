@@ -125,9 +125,9 @@ describe('MultiTierCache basic integration', () => {
             {
                 perCache: {
                     // fast tier: 10‑second TTL
-                    Fast: { ttl: 10_000 },
+                    Fast: { ttlInMs: 10_000 },
                     // slow tier: 60‑second TTL
-                    Slow: { ttl: 60_000 }
+                    Slow: { ttlInMs: 60_000 }
                 }
             }
         );

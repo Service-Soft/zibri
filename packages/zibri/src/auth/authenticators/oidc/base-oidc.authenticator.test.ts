@@ -43,7 +43,7 @@ import { CookieAuthStrategy } from '../../strategies/cookie/cookie-auth.auth-str
 import { JwtAuthData } from '../../strategies/jwt/jwt-auth-data.model';
 import { JwtAuthStrategy } from '../../strategies/jwt/jwt.auth-strategy';
 import { FederatedConnectionCode } from '../federated/federated-connection-code.model';
-import { FederatedConnectionStart } from '../federated/federated-connection-start.model';
+import { FederatedLinkIdentityStart } from '../federated/federated-link-identity-start.model';
 import { FederatedTicketCredentials } from '../federated/federated-credentials.model';
 import { FederatedHandoverCode } from '../federated/federated-handover-code.model';
 import { FederatedIdentity, FederatedIdentityCreateData } from '../federated/federated-identity.model';
@@ -64,9 +64,9 @@ import { ProviderAccessError } from '../provider-access.error';
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';
 const CLIENT_SECRET: string = 'zibri-test-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
-const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
+const ERROR_URL: string = 'https://app.example.com/login-failed';
 const CONNECTED_URL: string = 'https://app.example.com/account';
 const READ_SCOPE: string = 'calendar.read';
 const WRITE_SCOPE: string = 'calendar.write';
@@ -146,9 +146,9 @@ function newBrowser(baseUrl: string): TestBrowser {
 }
 
 /**
- * The hops of one sign-in.
+ * The hops of one login.
  */
-type SignIn = {
+type ProviderLogin = {
     /**
      * Where the provider sends the browser back to, the callback with the code.
      */
@@ -160,13 +160,13 @@ type SignIn = {
 };
 
 /**
- * Signs in at the provider, the way a browser does: to the application's authorize route, on to the
+ * Logs in at the provider, the way a browser does: to the application's authorize route, on to the
  * provider, and back to the callback.
  * @param browser - The browser.
  * @param authorizeUrl - The application's authorize route, with its query.
  * @returns The hops.
  */
-async function signIn(browser: TestBrowser, authorizeUrl: string): Promise<SignIn> {
+async function logInAtProvider(browser: TestBrowser, authorizeUrl: string): Promise<ProviderLogin> {
     const atProvider: string = await browser.follow(authorizeUrl);
     const callback: string = await browser.follow(atProvider);
     return { callback, landing: await browser.follow(callback) };
@@ -186,8 +186,8 @@ function createFederationOptions(): FederationOptions {
 }
 
 /**
- * Starts an application signing in through the fake provider.
- * @param controllers - The controllers, which decide which strategy the sign-in logs in with.
+ * Starts an application logging in through the fake provider.
+ * @param controllers - The controllers, which decide which strategy the login logs in with.
  * @param strategy - That strategy.
  * @param oauthOptions - The options.
  * @returns The server and the url it listens at.
@@ -228,7 +228,7 @@ async function startApp(
 }
 
 /**
- * Creates a user, linked to the identity the provider signs in next when a subject is given.
+ * Creates a user, linked to the identity the provider logs in next when a subject is given.
  * @param email - The user's email.
  * @param subject - Who the user is at the provider, if they are linked.
  * @param at - The provider the user is linked at.
@@ -238,7 +238,7 @@ async function createUser(email: string, subject: string | undefined, at: FakeOA
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] });
     if (subject != undefined) {
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: at.issuer, subject, userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: at.issuer, subject, userId: user.id, forLogin:true, grantedScopes: [] });
     }
     return user;
 }
@@ -279,7 +279,7 @@ async function logIn(baseUrl: string): Promise<LoggedIn> {
     const user: JwtUser = await createUser(`${subject}@example.com`, subject);
     provider.identity = { subject };
     const browser: TestBrowser = newBrowser(baseUrl);
-    await signIn(browser, `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString()}`);
+    await logInAtProvider(browser, `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString()}`);
     // eslint-disable-next-line typescript/no-unsafe-assignment
     const { csrfToken }: { csrfToken: string } = await (await browser.open(`${baseUrl}/auth/csrf-token`)).json();
     return { browser, csrfToken, user };
@@ -288,7 +288,7 @@ async function logIn(baseUrl: string): Promise<LoggedIn> {
 @Auth.skip({ allowRedundant: true })
 @Controller('/register', { allowOrphan: true })
 class CookieRegistrationController {
-    // what an application writes: read who signed in, create the user and link the identity in one
+    // what an application writes: read who logged in, create the user and link the identity in one
     // transaction, so neither exists without the other - and log in once that is committed
     @Post('/')
     async register(
@@ -301,7 +301,7 @@ class CookieRegistrationController {
         try {
             const registration: FederatedRegistration = await authService.resolveRegistration(FakeProviderAuthenticator, credentials, transaction);
             const user: JwtUser = await users.create({ email: registration.email ?? '', roles: [Roles.USER] }, { transaction });
-            await authService.linkIdentity(FakeProviderAuthenticator, credentials, user.id, transaction);
+            await authService.linkTicketIdentity(FakeProviderAuthenticator, credentials, user.id, transaction);
             await transaction.commit();
         }
         catch (error) {
@@ -323,7 +323,7 @@ class JwtRegistrationController {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const registration: FederatedRegistration = await authService.resolveRegistration(FakeProviderAuthenticator, credentials, undefined);
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.email ?? '', roles: [Roles.USER] });
-        await authService.linkIdentity(FakeProviderAuthenticator, credentials, user.id, undefined);
+        await authService.linkTicketIdentity(FakeProviderAuthenticator, credentials, user.id, undefined);
         return await authService.login(FakeProviderAuthenticator, JwtAuthStrategy, credentials, undefined);
     }
 }
@@ -339,7 +339,7 @@ class ApiRegistrationController {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const registration: FederatedRegistration = await authService.resolveRegistration(ApiProviderAuthenticator, credentials, undefined);
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.email ?? '', roles: [Roles.USER] });
-        await authService.linkIdentity(ApiProviderAuthenticator, credentials, user.id, undefined);
+        await authService.linkTicketIdentity(ApiProviderAuthenticator, credentials, user.id, undefined);
         return { userId: user.id };
     }
 }
@@ -351,7 +351,7 @@ class ConnectionInput {
 
 class ApiConnectionInput {
     @Property.boolean()
-    signIn!: boolean;
+    forLogin!: boolean;
 
     @Property.array({ items: { type: 'string' } })
     scopes!: string[];
@@ -368,24 +368,24 @@ class ConnectionController {
         provider: string,
         @Body(ConnectionInput)
         input: ConnectionInput
-    ): Promise<FederatedConnectionStart> {
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).startConnection(
+    ): Promise<FederatedLinkIdentityStart> {
+        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
             FederatedRouteUtilities.resolveAuthenticator(provider),
-            { redirectTo: input.redirectTo, signIn: true }
+            { redirectTo: input.redirectTo, forLogin:true }
         );
     }
 
-    // the same without the guard, which shows that startConnection itself takes nobody but the user
+    // the same without the guard, which shows that requestLinkIdentity itself takes nobody but the user
     // logged in with the request
     @Auth.skip({ allowRedundant: true })
     @Post('/unguarded-connect')
     async unguardedConnect(
         @Body(ConnectionInput)
         input: ConnectionInput
-    ): Promise<FederatedConnectionStart> {
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).startConnection(
+    ): Promise<FederatedLinkIdentityStart> {
+        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
             FakeProviderAuthenticator,
-            { redirectTo: input.redirectTo, signIn: true }
+            { redirectTo: input.redirectTo, forLogin:true }
         );
     }
 
@@ -395,10 +395,10 @@ class ConnectionController {
     async connectApi(
         @Body(ApiConnectionInput)
         input: ApiConnectionInput
-    ): Promise<FederatedConnectionStart> {
-        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).startConnection(
+    ): Promise<FederatedLinkIdentityStart> {
+        return await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).requestLinkIdentity(
             ApiProviderAuthenticator,
-            { redirectTo: CONNECTED_URL, signIn: input.signIn, scopes: input.scopes }
+            { redirectTo: CONNECTED_URL, forLogin: input.forLogin, scopes: input.scopes }
         );
     }
 }
@@ -485,7 +485,7 @@ describe('BaseOidcAuthenticator — starting', () => {
     }, TestTimeouts.inMemory.start);
 });
 
-describe('BaseOidcAuthenticator — signing in to cookies', () => {
+describe('BaseOidcAuthenticator — logging in to cookies', () => {
     const oauthOptions: FederationOptions = createFederationOptions();
     let server: StartedTestServer;
     let baseUrl: string;
@@ -502,7 +502,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    const authorizeUrl: (query?: Record<string, string>) => string = query => `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, ...query }).toString()}`;
+    const authorizeUrl: (query?: Record<string, string>) => string = query => `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, ...query }).toString()}`;
 
     it('signs a linked user in, and lands where the frontend asked with a session', async () => {
         const subject: string = newSubject();
@@ -510,7 +510,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         provider.identity = { subject, email: `${subject}@example.com`, emailVerified: true };
         const browser: TestBrowser = newBrowser(baseUrl);
 
-        const { landing } = await signIn(browser, authorizeUrl());
+        const { landing } = await logInAtProvider(browser, authorizeUrl());
 
         expect(landing).toBe(REDIRECT_TO);
         // the frontend reads its csrf token once it is back, which only a session answers
@@ -518,7 +518,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         expect(csrf.status).toBe(200);
     });
 
-    it('ties the sign-in to the browser with an httpOnly cookie a top level navigation still sends', async () => {
+    it('ties the login to the browser with an httpOnly cookie a top level navigation still sends', async () => {
         const res: Response = await newBrowser(baseUrl).open(authorizeUrl());
 
         const cookie: string | undefined = res.headers.getSetCookie().find(c => c.startsWith('zibri-federated-'));
@@ -540,31 +540,31 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         expect(asked.has('prompt')).toBe(false);
     });
 
-    it('asks the provider for a fresh sign-in when the frontend reauthenticates', async () => {
+    it('asks the provider for a fresh login when the frontend reauthenticates', async () => {
         const atProvider: URL = new URL(await newBrowser(baseUrl).follow(authorizeUrl({ reauthenticate: 'true' })));
 
         expect(atProvider.searchParams.get('prompt')).toBe('login');
     });
 
-    it('keeps when the user signed in at the provider as the login time, not when the callback ran', async () => {
+    it('keeps when the user logged in at the provider as the login time, not when the callback ran', async () => {
         const subject: string = newSubject();
         const user: JwtUser = await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
-        const signedInAt: Date = new Date(Math.floor((Date.now() - 600000) / 1000) * 1000);
-        provider.authenticatedAt = signedInAt;
+        const loggedInAt: Date = new Date(Math.floor((Date.now() - 600000) / 1000) * 1000);
+        provider.authenticatedAt = loggedInAt;
 
         try {
-            await signIn(newBrowser(baseUrl), authorizeUrl());
+            await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
         }
         finally {
             provider.authenticatedAt = undefined;
         }
 
         const sessions: CookieAuthRefreshSession[] = await inject(repositoryTokenFor(CookieAuthRefreshSession)).findAll({ where: { userId: user.id } });
-        expect(sessions.map(s => new Date(s.authenticatedAt).getTime())).toStrictEqual([signedInAt.getTime()]);
+        expect(sessions.map(s => new Date(s.authenticatedAt).getTime())).toStrictEqual([loggedInAt.getTime()]);
     });
 
-    it('refuses the answer in another browser than the one the sign-in started in', async () => {
+    it('refuses the answer in another browser than the one the login started in', async () => {
         const subject: string = newSubject();
         await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
@@ -581,7 +581,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
         const browser: TestBrowser = newBrowser(baseUrl);
-        const { callback } = await signIn(browser, authorizeUrl());
+        const { callback } = await logInAtProvider(browser, authorizeUrl());
 
         expect(await browser.follow(callback)).toBe(`${ERROR_URL}?error=expired`);
     });
@@ -589,7 +589,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
     it('goes to the error url when the user declines at the provider', async () => {
         provider.denyNext('access_denied');
 
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl());
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         expect(landing).toBe(`${ERROR_URL}?error=cancelled`);
     });
@@ -597,7 +597,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
     it('refuses an ID token issued for another client', async () => {
         provider.rewriteNextIdToken(claims => ({ ...claims, aud: 'another-client' }));
 
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl());
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         expect(landing).toBe(`${ERROR_URL}?error=invalid`);
     });
@@ -605,12 +605,12 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
     it('refuses an ID token carrying another nonce', async () => {
         provider.rewriteNextIdToken(claims => ({ ...claims, nonce: 'not-the-one-sent' }));
 
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl());
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         expect(landing).toBe(`${ERROR_URL}?error=invalid`);
     });
 
-    it('sends a user whose sign-in at the provider is too old back there to sign in again, and lands them where they wanted', async () => {
+    it('sends a user whose login at the provider is too old back there to log in again, and lands them where they wanted', async () => {
         const subject: string = newSubject();
         await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
@@ -618,9 +618,9 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         const browser: TestBrowser = newBrowser(baseUrl);
 
         try {
-            const { landing } = await signIn(browser, authorizeUrl());
-            // straight back to the provider, asking for a new sign-in, where the user was refused
-            // as invalid before with nothing telling them to sign in at the provider again
+            const { landing } = await logInAtProvider(browser, authorizeUrl());
+            // straight back to the provider, asking for a new login, where the user was refused
+            // as invalid before with nothing telling them to log in at the provider again
             const atProvider: URL = new URL(landing);
             expect(atProvider.origin).toBe(provider.issuer);
             expect(atProvider.searchParams.get('prompt')).toBe('login');
@@ -632,7 +632,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         }
     });
 
-    it('refuses the sign-in when the provider ignores being asked to have the user sign in again', async () => {
+    it('refuses the login when the provider ignores being asked to have the user log in again', async () => {
         const subject: string = newSubject();
         await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
@@ -640,7 +640,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         const browser: TestBrowser = newBrowser(baseUrl);
 
         try {
-            const { landing } = await signIn(browser, authorizeUrl());
+            const { landing } = await logInAtProvider(browser, authorizeUrl());
             expect(await browser.follow(await browser.follow(landing))).toBe(`${ERROR_URL}?error=invalid`);
         }
         finally {
@@ -648,7 +648,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         }
     });
 
-    it('has to be told how the provider says when the user signed in', () => {
+    it('has to be told how the provider says when the user logged in', () => {
         // @ts-expect-error a provider that does not say and one that does are both common, so neither is assumed
         class SilentProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser> {
             readonly name: string = 'silent';
@@ -663,7 +663,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         expect(SilentProviderAuthenticator).toBeDefined();
     });
 
-    it('refuses to send the sign-in on to a page that is not one of the allowed redirects', async () => {
+    it('refuses to send the login on to a page that is not one of the allowed redirects', async () => {
         const res: Response = await newBrowser(baseUrl).open(authorizeUrl({ redirectTo: 'https://app.example.com.evil.example/steal' }));
 
         expect(res.status).toBe(400);
@@ -675,7 +675,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         provider.identity = { subject, email: `${subject}@example.com`, emailVerified: true };
         const browser: TestBrowser = newBrowser(baseUrl);
 
-        const { landing } = await signIn(browser, authorizeUrl());
+        const { landing } = await logInAtProvider(browser, authorizeUrl());
         const ticket: string | null = new URL(landing).searchParams.get('ticket');
         expect(landing.startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
 
@@ -686,13 +686,13 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         });
         expect(registered.status).toBe(200);
 
-        // linked from now on: the next sign-in logs straight in
-        expect((await signIn(newBrowser(baseUrl), authorizeUrl())).landing).toBe(REDIRECT_TO);
+        // linked from now on: the next login logs straight in
+        expect((await logInAtProvider(newBrowser(baseUrl), authorizeUrl())).landing).toBe(REDIRECT_TO);
     });
 
-    it('refuses a registration ticket from another browser than the one the sign-in started in', async () => {
+    it('refuses a registration ticket from another browser than the one the login started in', async () => {
         provider.identity = { subject: newSubject() };
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl());
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         const res: Response = await newBrowser(baseUrl).open(`${baseUrl}/register`, {
             method: 'POST',
@@ -703,7 +703,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         expect(res.status).toBe(401);
     });
 
-    it('asks a provider that answers with a form post for one, and ties the sign-in with a cookie its post carries', async () => {
+    it('asks a provider that answers with a form post for one, and ties the login with a cookie its post carries', async () => {
         const res: Response = await newBrowser(baseUrl).open(authorizeUrl().replace('authenticator=fake&', 'authenticator=fake-form-post&'));
 
         const asked: URLSearchParams = new URL(res.headers.get(KnownHeader.LOCATION) ?? '').searchParams;
@@ -714,7 +714,7 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         expect(cookie).toMatch(/HttpOnly/);
     });
 
-    it('signs a linked user in when the provider posts its answer from its sign-in page', async () => {
+    it('signs a linked user in when the provider posts its answer from its login page', async () => {
         const subject: string = newSubject();
         await createUser(`${subject}@example.com`, subject, formPostProvider);
         formPostProvider.identity = { subject };
@@ -775,13 +775,13 @@ describe('BaseOidcAuthenticator — signing in to cookies', () => {
         await createUser(`${subject}@example.com`, undefined);
         provider.identity = { subject, email: `${subject}@example.com`, emailVerified: true };
 
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl());
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl());
 
         expect(landing.startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
     });
 });
 
-describe('BaseOidcAuthenticator — signing in to jwt', () => {
+describe('BaseOidcAuthenticator — logging in to jwt', () => {
     const oauthOptions: FederationOptions = createFederationOptions();
     let server: StartedTestServer;
     let baseUrl: string;
@@ -795,18 +795,18 @@ describe('BaseOidcAuthenticator — signing in to jwt', () => {
     }, TestTimeouts.inMemory.shutdown);
 
     /**
-     * Starts a sign-in the way a frontend does, with a PKCE verifier it keeps.
+     * Starts a login the way a frontend does, with a PKCE verifier it keeps.
      * @param verifier - The verifier.
      * @returns The authorize url.
      */
     function authorizeUrl(verifier: string): string {
         const codeChallenge: string = createHash('sha256').update(verifier)
             .digest('base64url');
-        return `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, codeChallenge }).toString()}`;
+        return `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, codeChallenge }).toString()}`;
     }
 
     /**
-     * Exchanges the code a sign-in landed with.
+     * Exchanges the code a login landed with.
      * @param code - The code.
      * @param codeVerifier - The verifier sent with it.
      * @returns The response.
@@ -825,7 +825,7 @@ describe('BaseOidcAuthenticator — signing in to jwt', () => {
         provider.identity = { subject };
         const verifier: string = randomBytes(32).toString('base64url');
 
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl(verifier));
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl(verifier));
         expect(landing.startsWith(`${REDIRECT_TO}?code=`)).toBe(true);
         const res: Response = await exchange(new URL(landing).searchParams.get('code'), verifier);
 
@@ -857,12 +857,12 @@ describe('BaseOidcAuthenticator — signing in to jwt', () => {
         expect(body.userId).toBe(user.id);
     });
 
-    it('refuses the code with another verifier than the one the sign-in started with', async () => {
+    it('refuses the code with another verifier than the one the login started with', async () => {
         const subject: string = newSubject();
         await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
         const verifier: string = randomBytes(32).toString('base64url');
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl(verifier));
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl(verifier));
 
         const res: Response = await exchange(new URL(landing).searchParams.get('code'), randomBytes(32).toString('base64url'));
 
@@ -874,16 +874,16 @@ describe('BaseOidcAuthenticator — signing in to jwt', () => {
         await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
         const verifier: string = randomBytes(32).toString('base64url');
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl(verifier));
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl(verifier));
         const code: string | null = new URL(landing).searchParams.get('code');
 
         expect((await exchange(code, verifier)).status).toBe(200);
         expect((await exchange(code, verifier)).status).toBe(401);
     });
 
-    it('refuses to start a sign-in without the challenge of a verifier', async () => {
+    it('refuses to start a login without the challenge of a verifier', async () => {
         const res: Response = await fetch(
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString()}`,
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString()}`,
             { redirect: 'manual' }
         );
 
@@ -896,7 +896,7 @@ describe('BaseOidcAuthenticator — signing in to jwt', () => {
         const subject: string = newSubject();
         provider.identity = { subject, email: `${subject}@example.com`, emailVerified: true };
         const verifier: string = randomBytes(32).toString('base64url');
-        const { landing } = await signIn(newBrowser(baseUrl), authorizeUrl(verifier));
+        const { landing } = await logInAtProvider(newBrowser(baseUrl), authorizeUrl(verifier));
         const ticket: string | null = new URL(landing).searchParams.get('ticket');
         const register: (codeVerifier: string | undefined) => Promise<Response> = async codeVerifier => await fetch(`${baseUrl}/register`, {
             method: 'POST',
@@ -948,18 +948,18 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
     async function connect(loggedIn: LoggedIn): Promise<string> {
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { url }: { url: string } = await (await askToConnect(loggedIn, 'fake')).json();
-        return (await signIn(loggedIn.browser, url)).landing;
+        return (await logInAtProvider(loggedIn.browser, url)).landing;
     }
 
     /**
-     * Signs in through the provider that redirects, in a new browser.
+     * Logs in through the provider that redirects, in a new browser.
      * @returns Where the browser lands: the redirect for a linked identity, the registration otherwise.
      */
-    async function signInElsewhere(): Promise<string> {
-        return (await signIn(newBrowser(baseUrl), `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString()}`)).landing;
+    async function logInElsewhere(): Promise<string> {
+        return (await logInAtProvider(newBrowser(baseUrl), `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString()}`)).landing;
     }
 
-    it('links the identity to the logged in user, so a sign-in through it logs in as them', async () => {
+    it('links the identity to the logged in user, so a login through it logs in as them', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
         formPostProvider.identity = { subject };
@@ -976,13 +976,13 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
             outcome: AuditOutcome.SUCCESS,
             userId: loggedIn.user.id
         });
-        // a sign-in through it in another browser logs straight in rather than going to the registration
+        // a login through it in another browser logs straight in rather than going to the registration
         const elsewhere: TestBrowser = newBrowser(baseUrl);
-        await elsewhere.open(await elsewhere.follow(`${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-form-post', redirectTo: REDIRECT_TO }).toString()}`));
+        await elsewhere.open(await elsewhere.follow(`${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-form-post', redirectTo: REDIRECT_TO }).toString()}`));
         expect((await postAnswer(elsewhere, new URL(formPostProvider.issuer).origin)).headers.get(KnownHeader.LOCATION)).toBe(REDIRECT_TO);
     });
 
-    it('has the user sign in at the provider, rather than it reusing a session it has', async () => {
+    it('has the user log in at the provider, rather than it reusing a session it has', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
 
         // eslint-disable-next-line typescript/no-unsafe-assignment
@@ -1032,14 +1032,14 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
     it('takes an identity linked to the same user again', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
 
-        // the provider still signs in the identity the user logged in with
+        // the provider still logs in the identity the user logged in with
         expect(await connect(loggedIn)).toBe(CONNECTED_URL);
         expect(await findSubjects(FakeProviderAuthenticator, loggedIn.user.id)).toHaveLength(1);
     });
 
     it('refuses the answer in another browser than the one the connection started in', async () => {
         // the attacker connects, and sends the victim the link to the provider. Taken there, the
-        // victim's identity would be linked to the attacker's account, and the victim's next sign-in
+        // victim's identity would be linked to the attacker's account, and the victim's next login
         // would log them into it
         const attacker: LoggedIn = await logIn(baseUrl);
         // eslint-disable-next-line typescript/no-unsafe-assignment
@@ -1067,15 +1067,15 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const headers: Record<string, string> = { [KnownHeader.CONTENT_TYPE]: 'application/json', 'x-csrf-token': loggedIn.csrfToken };
 
-        const started: Response = await loggedIn.browser.open(`${baseUrl}/auth/connect?authenticator=fake`, {
+        const started: Response = await loggedIn.browser.open(`${baseUrl}/auth/link-identity/request?authenticator=fake`, {
             method: 'POST',
             headers,
-            body: JsonUtilities.stringify({ redirectTo: CONNECTED_URL, signIn: true })
+            body: JsonUtilities.stringify({ redirectTo: CONNECTED_URL, forLogin:true })
         });
         expect(started.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { url }: { url: string } = await started.json();
-        expect((await signIn(loggedIn.browser, url)).landing).toBe(CONNECTED_URL);
+        expect((await logInAtProvider(loggedIn.browser, url)).landing).toBe(CONNECTED_URL);
 
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const listed: LinkedIdentity[] = await (await loggedIn.browser.open(`${baseUrl}/auth/identities`)).json();
@@ -1087,12 +1087,12 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
         expect(left).toStrictEqual([]);
     });
 
-    it('finds the identities a user has at every provider, each with the provider it signs in through', async () => {
+    it('finds the identities a user has at every provider, each with the provider it logs in through', async () => {
         const subject: string = newSubject();
         const user: JwtUser = await createUser(`${subject}@example.com`, subject);
         const elsewhere: string = newSubject();
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: formPostProvider.issuer, subject: elsewhere, userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: formPostProvider.issuer, subject: elsewhere, userId: user.id, forLogin:true, grantedScopes: [] });
 
         const linked: LinkedIdentity[] = await authService().findIdentities(user.id, undefined);
 
@@ -1103,7 +1103,7 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
         expect(await findSubjects(FormPostProviderAuthenticator, user.id)).toStrictEqual([elsewhere]);
     });
 
-    it('unlinks an identity by its id, after which a sign-in through it goes to the registration', async () => {
+    it('unlinks an identity by its id, after which a login through it goes to the registration', async () => {
         const subject: string = newSubject();
         const user: JwtUser = await createUser(`${subject}@example.com`, subject);
         provider.identity = { subject };
@@ -1111,7 +1111,7 @@ describe('BaseOidcAuthenticator — connecting a provider to an account', () => 
 
         await authService().unlinkIdentity(user.id, linked?.identity.id ?? '', undefined);
 
-        expect((await signInElsewhere()).startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
+        expect((await logInElsewhere()).startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
         expect(await auditEvents()).toContainEqual({
             action: AuditAction.IDENTITY_UNLINKED,
             outcome: AuditOutcome.SUCCESS,
@@ -1163,9 +1163,9 @@ describe('BaseOidcAuthenticator — connecting a provider to a jwt account', () 
         const verifier: string = randomBytes(32).toString('base64url');
         const codeChallenge: string = createHash('sha256').update(verifier)
             .digest('base64url');
-        const { landing } = await signIn(
+        const { landing } = await logInAtProvider(
             newBrowser(baseUrl),
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
         );
         const tokens: Response = await fetch(`${baseUrl}/auth/login?authenticator=fake`, {
             method: 'POST',
@@ -1187,7 +1187,7 @@ describe('BaseOidcAuthenticator — connecting a provider to a jwt account', () 
         const connected: string = newSubject();
         provider.identity = { subject: connected };
 
-        expect((await signIn(newBrowser(baseUrl), url)).landing).toBe(CONNECTED_URL);
+        expect((await logInAtProvider(newBrowser(baseUrl), url)).landing).toBe(CONNECTED_URL);
         expect((await findSubjects(FakeProviderAuthenticator, user.id)).sort()).toStrictEqual([subject, connected].sort());
     });
 });
@@ -1223,7 +1223,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
             headers: { [KnownHeader.CONTENT_TYPE]: 'application/json', 'x-csrf-token': loggedIn.csrfToken },
             body: JsonUtilities.stringify(connection)
         })).json();
-        return (await signIn(loggedIn.browser, url)).landing;
+        return (await logInAtProvider(loggedIn.browser, url)).landing;
     }
 
     /**
@@ -1258,12 +1258,12 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         }
     }
 
-    it('asks for the scopes and a refresh token only when a sign-in asks for apis', async () => {
+    it('asks for the scopes and a refresh token only when a login asks for apis', async () => {
         const asking: URL = new URL(await newBrowser(baseUrl).follow(
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO, scopes: READ_SCOPE }).toString()}`
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO, scopes: READ_SCOPE }).toString()}`
         ));
         const plain: URL = new URL(await newBrowser(baseUrl).follow(
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
         ));
 
         expect(asking.searchParams.get('scope')).toBe(`openid email profile ${READ_SCOPE} offline_access`);
@@ -1272,57 +1272,57 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         expect(plain.searchParams.has('prompt')).toBe(false);
     });
 
-    it('refuses a sign-in asking for a scope the authenticator does not allow', async () => {
+    it('refuses a login asking for a scope the authenticator does not allow', async () => {
         const res: Response = await newBrowser(baseUrl).open(
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO, scopes: 'drive' }).toString()}`
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO, scopes: 'drive' }).toString()}`
         );
 
         expect(res.status).toBe(400);
     });
 
-    it('refuses a connection for neither signing in nor any scope, and one asking for a scope it does not allow', async () => {
+    it('refuses a connection for neither logging in nor any scope, and one asking for a scope it does not allow', async () => {
         const authenticator: ApiProviderAuthenticator = inject(ApiProviderAuthenticator);
 
         // refused as a bad request: the connect route of AuthController takes what a client sends
-        await expect(authenticator.startConnection(randomUUID(), { redirectTo: CONNECTED_URL, signIn: false })).rejects.toThrow(BadRequestError);
-        await expect(authenticator.startConnection(randomUUID(), { redirectTo: CONNECTED_URL, signIn: true, scopes: ['drive'] }))
+        await expect(authenticator.requestLinkIdentity(randomUUID(), { redirectTo: CONNECTED_URL, forLogin:false })).rejects.toThrow(BadRequestError);
+        await expect(authenticator.requestLinkIdentity(randomUUID(), { redirectTo: CONNECTED_URL, forLogin:true, scopes: ['drive'] }))
             .rejects.toThrow(BadRequestError);
     });
 
-    it('keeps the tokens of a connection for apis only, which signs nobody in', async () => {
+    it('keeps the tokens of a connection for apis only, which logs nobody in', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
 
-        expect(await connectApi(loggedIn, subject, { signIn: false, scopes: [READ_SCOPE] })).toBe(CONNECTED_URL);
+        expect(await connectApi(loggedIn, subject, { forLogin:false, scopes: [READ_SCOPE] })).toBe(CONNECTED_URL);
 
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ subject, signIn: false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ subject, forLogin:false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
         expect(await auditEvents()).toContainEqual({
             action: AuditAction.PROVIDER_ACCESS_GRANTED,
             outcome: AuditOutcome.SUCCESS,
             userId: loggedIn.user.id,
             scopes: expect.arrayContaining([READ_SCOPE])
         });
-        expect((await signIn(
+        expect((await logInAtProvider(
             newBrowser(baseUrl),
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
-        )).landing).toBe(`${ERROR_URL}?error=not_for_sign_in`);
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
+        )).landing).toBe(`${ERROR_URL}?error=not_for_login`);
     });
 
-    it('turns signing in on when the identity is connected again to sign in, and keeps its tokens', async () => {
+    it('turns logging in on when the identity is connected again to log in, and keeps its tokens', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
-        await connectApi(loggedIn, subject, { signIn: false, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, subject, { forLogin:false, scopes: [READ_SCOPE] });
 
-        await connectApi(loggedIn, subject, { signIn: true, scopes: [] });
+        await connectApi(loggedIn, subject, { forLogin:true, scopes: [] });
 
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ signIn: true, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:true, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
     });
 
     it('keeps only the scopes the user granted', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         apiProvider.declinedScopes = [WRITE_SCOPE];
         try {
-            await connectApi(loggedIn, newSubject(), { signIn: false, scopes: [READ_SCOPE, WRITE_SCOPE] });
+            await connectApi(loggedIn, newSubject(), { forLogin:false, scopes: [READ_SCOPE, WRITE_SCOPE] });
         }
         finally {
             apiProvider.declinedScopes = [];
@@ -1337,7 +1337,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('refreshes once for two requests at the same time, from a provider that rotates its refresh tokens', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: false, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin:false, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         const before: number = countRefreshes();
 
@@ -1356,7 +1356,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
     it('removes the tokens once the provider refuses the refresh', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
         const subject: string = newSubject();
-        await connectApi(loggedIn, subject, { signIn: true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, subject, { forLogin:true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         // the user removes the application from their account at the provider
         apiProvider.revokeGrantsOf(subject);
@@ -1365,7 +1365,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
             .toBe(ProviderAccessFailure.REVOKED);
         expect(await findFailure(authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])))
             .toBe(ProviderAccessFailure.NOT_CONNECTED);
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ signIn: true, grantedScopes: [] });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:true, grantedScopes: [] });
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
             action: AuditAction.PROVIDER_ACCESS_REVOKED,
             outcome: AuditOutcome.SUCCESS,
@@ -1373,23 +1373,23 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         }));
     });
 
-    it('hands the tokens back when the access is revoked, and keeps an identity that signs in', async () => {
+    it('hands the tokens back when the access is revoked, and keeps an identity that logs in', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         const revokedBefore: number = apiProvider.revokedTokens.length;
 
         await authService().revokeProviderAccess(loggedIn.user.id, identityId, undefined);
 
         expect(apiProvider.revokedTokens).toHaveLength(revokedBefore + 1);
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ signIn: true, grantedScopes: [] });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:true, grantedScopes: [] });
         expect(await findFailure(authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])))
             .toBe(ProviderAccessFailure.NOT_CONNECTED);
     });
 
     it('unlinks an identity connected for apis only when its access is revoked', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: false, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin:false, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
         await authService().revokeProviderAccess(loggedIn.user.id, identityId, undefined);
@@ -1402,32 +1402,32 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         }));
     });
 
-    it('stops an identity signing in when its sign-in is revoked, and keeps its tokens', async () => {
+    it('stops an identity logging in when its login is revoked, and keeps its tokens', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
-        await authService().revokeProviderSignIn(loggedIn.user.id, identityId, undefined);
+        await authService().revokeProviderLogin(loggedIn.user.id, identityId, undefined);
 
-        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ signIn: false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
+        expect(await findApiIdentity(loggedIn.user.id)).toMatchObject({ forLogin:false, grantedScopes: expect.arrayContaining([READ_SCOPE]) });
         expect(await authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])).toBeTruthy();
-        expect((await signIn(
+        expect((await logInAtProvider(
             newBrowser(baseUrl),
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
-        )).landing).toBe(`${ERROR_URL}?error=not_for_sign_in`);
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO }).toString()}`
+        )).landing).toBe(`${ERROR_URL}?error=not_for_login`);
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
-            action: AuditAction.IDENTITY_SIGN_IN_REVOKED,
+            action: AuditAction.IDENTITY_LOGIN_REVOKED,
             outcome: AuditOutcome.SUCCESS,
             userId: loggedIn.user.id
         }));
     });
 
-    it('unlinks an identity linked to sign in only when its sign-in is revoked', async () => {
+    it('unlinks an identity linked to log in only when its login is revoked', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [] });
+        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
-        await authService().revokeProviderSignIn(loggedIn.user.id, identityId, undefined);
+        await authService().revokeProviderLogin(loggedIn.user.id, identityId, undefined);
 
         expect(await findApiIdentity(loggedIn.user.id)).toBeUndefined();
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
@@ -1439,7 +1439,7 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
 
     it('hands the tokens back when the identity is unlinked', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [READ_SCOPE] });
+        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [READ_SCOPE] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
         const revokedBefore: number = apiProvider.revokedTokens.length;
 
@@ -1448,21 +1448,21 @@ describe('BaseOidcAuthenticator — keeping a provider\'s tokens', () => {
         expect(apiProvider.revokedTokens).toHaveLength(revokedBefore + 1);
     });
 
-    it('has no access token for an identity linked to sign in only', async () => {
+    it('has no access token for an identity linked to log in only', async () => {
         const loggedIn: LoggedIn = await logIn(baseUrl);
-        await connectApi(loggedIn, newSubject(), { signIn: true, scopes: [] });
+        await connectApi(loggedIn, newSubject(), { forLogin:true, scopes: [] });
         const identityId: string = (await findApiIdentity(loggedIn.user.id))?.id ?? '';
 
         expect(await findFailure(authService().resolveProviderAccessToken(loggedIn.user.id, identityId, [READ_SCOPE])))
             .toBe(ProviderAccessFailure.NOT_CONNECTED);
     });
 
-    it('keeps the tokens a first sign-in asked for, once the registration links the identity', async () => {
+    it('keeps the tokens a first login asked for, once the registration links the identity', async () => {
         apiProvider.identity = { subject: newSubject(), email: 'first@example.com' };
         const browser: TestBrowser = newBrowser(baseUrl);
-        const { landing } = await signIn(
+        const { landing } = await logInAtProvider(
             browser,
-            `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO, scopes: READ_SCOPE }).toString()}`
+            `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'fake-api', redirectTo: REDIRECT_TO, scopes: READ_SCOPE }).toString()}`
         );
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId }: { userId: string } = await (await browser.open(`${baseUrl}/register-api`, {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 
+import { PostgresPooler } from './postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -44,6 +45,8 @@ class CharacterTypeDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 describe('a database that counts only ascii as a letter', () => {

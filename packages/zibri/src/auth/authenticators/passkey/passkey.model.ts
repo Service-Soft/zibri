@@ -5,7 +5,7 @@ import { OmitClass } from '../../../entity/omit-class.model';
 
 /**
  * A passkey of a user: the public half of a key their device holds, which is a second factor, and
- * signs them in when the device stores it.
+ * logs them in when the device stores it.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class Passkey extends BaseEntity {
@@ -60,7 +60,7 @@ export class Passkey extends BaseEntity {
     synced!: boolean;
 
     /**
-     * Whether the device stores the passkey, so it can offer it at a sign-in. One it does not store,
+     * Whether the device stores the passkey, so it can offer it at a login. One it does not store,
      * such as on an older security key, is only a second factor. Unknown when the browser did not say.
      */
     @Property.boolean({ required: false })

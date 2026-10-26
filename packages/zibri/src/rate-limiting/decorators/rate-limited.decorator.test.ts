@@ -17,7 +17,7 @@ class GenerousDecoratorTestLimiter extends TokenBucketRateLimiter {
             name: 'generous-decorator-test-limiter',
             capacity: 1000,
             store: new InMemoryRateLimiterStore<TokenBucketState>(),
-            maxReservationWaitMs: undefined
+            maxReservationWaitInMs: undefined
         });
     }
 }
@@ -29,7 +29,7 @@ class StrictDecoratorTestLimiter extends TokenBucketRateLimiter {
             name: 'strict-decorator-test-limiter',
             capacity: 1,
             store: new InMemoryRateLimiterStore<TokenBucketState>(),
-            maxReservationWaitMs: undefined
+            maxReservationWaitInMs: undefined
         });
     }
 }

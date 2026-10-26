@@ -27,6 +27,7 @@ const config = {
     // boot), and no build to go stale between a change and the test that covers it.
     moduleNameMapper: {
         '^zibri$': '<rootDir>/index.ts',
+        '^zibri/internal$': '<rootDir>/internal.ts',
         '^zibri-testing$': '<rootDir>/../../testing/src/index.ts'
     },
     globalSetup: '<rootDir>/jest.global-setup.ts',

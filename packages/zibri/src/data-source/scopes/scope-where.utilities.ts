@@ -8,6 +8,7 @@ import { OneOfWhereFilterUtilities } from '../models/where/one-of-where-filter.u
 import { isWhereFilterKey, WhereFilterKeys } from '../models/where/where-filter-keys.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { WhereValueUtilities } from '../models/where/where-value.utilities';
+import { PropertyReferenceUtilities } from '../where/property-reference.utilities';
 
 /**
  * A caller's where filter with the entity's scopes applied to it.
@@ -601,6 +602,11 @@ export abstract class ScopeWhereUtilities {
         context: MergeContext
     ): unknown {
         if (WhereValueUtilities.equals(left, right, context.metadata)) {
+            return left;
+        }
+        // the same other property of the row is the same bound. Any other pair involving one has no
+        // order known before the row is, and is refused below like any bounds that cannot be compared
+        if (PropertyReferenceUtilities.isReference(left) && PropertyReferenceUtilities.isReference(right) && left.property === right.property) {
             return left;
         }
         // text included: the application orders text, and the data source is held to that order, so

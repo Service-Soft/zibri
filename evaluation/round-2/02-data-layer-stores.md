@@ -141,6 +141,36 @@ both booting a migration), but the cheap proof is a unit of `fullOptions` plus a
 `extra.options` stripped by a wrapper, asserting the data source warns that `statement_timeout` is not what it
 asked for. Today it warns about the trigram threshold only.
 
+> **Closed 2026-10-26 (user: support transaction pooling; the operator sets the role's settings and the boot
+> checks them; a heavy suite through a real PgBouncer).** `PostgresDataSource` declares a required `pooler`:
+> `'none'`, `'session'`, or `{ mode: 'transaction', direct }` with where the server itself is
+> (`PostgresPooler`, `PostgresTransactionPooler`, `PostgresDirectConnection`). Behind a transaction pooler:
+> no startup settings are sent; a limited statement outside a transaction runs in a transaction of its own
+> with `SET LOCAL` (two more round trips); the schema lock, `reconcileKeys` (concurrent index builds), the
+> LISTEN connection and the backup client tools open a session of their own on `direct`
+> (`openSessionSource`/`onSession`/`directOptions`). In every mode: `validateConnectionSettings` replaced
+> `warnAboutAnotherSimilarityThreshold` and refuses to boot when `statement_timeout` or the trigram threshold
+> is not what the data source asks for, naming `resolveRoleSettingsSql()`'s statements behind a pooler (a new
+> public method, which the harness also runs); a statement is cancelled with the wire protocol's cancel
+> request (`sendPostgresCancelRequest`, what libpq sends), which a pooler passes on to the right server
+> connection, where `pg_cancel_backend` named the pooler's made-up pid. zibri-testing: a data source
+> declaring a transaction pooler gets PgBouncer (alpine + the distribution's package, `pool_mode =
+> transaction`) in front of its postgres on a shared network, its role's settings, and both ports
+> (`applyContainerPorts`, `DataSourcePorts`, `stopDataSourceContainer`; the cluster env carries both).
+> `data-source.md` "Connecting through a pooler", `replication.md`, `upgrading-to-3.md`; scaffold and
+> sandbox declare `pooler: 'none'`. Tests: `postgres-transaction-pooler.heavy.test.ts` (it connects and has
+> the role's timeout, a call's `timeoutInMs` holds, sixty concurrent calls never hand a limit to another
+> caller's statement, a request past its deadline stops its statement, a published message reaches a
+> subscriber, and boot refuses an unset role naming the statements),
+> `postgres-connection-settings.test.ts` (a session-mode data source whose startup settings are dropped
+> refuses to start) and `evaluation/cluster/transaction-pooler.cluster.test.ts` (three instances booting
+> simultaneously behind the pooler all start, and the migration is applied once). All red by the code
+> before: PgBouncer refuses the `options` startup parameter, so nothing booted behind it; nothing checked
+> the statement timeout. None of them can run here. The first heavy run found a harness gap:
+> `StartedTestServer.runAsSuperuser` injected the data source, which a `reInit` that failed leaves
+> nothing to inject from, so a test could not undo what made it fail; it keeps the data sources it
+> booted with now.
+
 ### S4. Unique and mistyped-value detection parse the server's English messages — MAJOR
 *Filed 2026-10-21.*
 
@@ -535,6 +565,25 @@ typeorm's two statements.
 
 **Verify:** `RoundTripCounter.describe()` around a `startTransaction({ isolationLevel: REPEATABLE_READ })` plus
 one `findAll` inside a request; four statements precede the read.
+
+### S20. The migration table is created under the statement timeout, not the migration timeout — MINOR
+*Filed 2026-10-25, found by `postgres-statement-timeout.test.ts` failing its boot once.*
+
+`TypeOrmBaseDataSource.init` runs the schema setup under `migrationTimeoutInMs` rather than the statement
+timeout (`typeorm-base-data-source.model.ts:631-641`). The migrations, `synchronize` (its transaction, through
+`STATEMENT_TIMEOUT_SUBSCRIBER`) and the key reconciliation pick that limit up. `createMigrationTableIfNotExists`
+did not: it creates the table on a pooled connection outside a transaction, so the `CREATE TABLE` ran under the
+connection's own `statement_timeout`. The suite's data source gives a statement 200 ms, and a cold container took
+longer once, so the boot failed.
+
+**Verify:** an event trigger that sleeps on the migration table's `CREATE TABLE`, the table dropped, `reInit`.
+
+> **Closed 2026-10-25.** `createMigrationTableIfNotExists` gives its connection the current operation limit
+> through `limitStatementsOn` when the data source has one, and puts the old limit back afterwards, as
+> `reconcileKeys` does. Test: a case in `postgres-statement-timeout.test.ts`. As superuser it adds an event
+> trigger that sleeps 0.5 s on the migration table's `CREATE TABLE` and drops the table; `reInit` then boots, and
+> the migration is recorded again. The boot failed with the statement timeout before the fix. **Not run here
+> (postgres).**
 
 ## Code quality and architecture
 

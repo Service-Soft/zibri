@@ -3,8 +3,8 @@ import { InMemoryDataSource } from 'zibri-testing';
 
 import { CorsOrigin } from './cors.middleware';
 import { KnownHeader } from './known-header.enum';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
@@ -56,7 +56,7 @@ class CrossOriginCookieTestController {
 const providerOrigin: CorsOrigin = 'https://provider.example.com';
 
 /**
- * Routes another site's page posts to on purpose, the way an identity provider answers a sign-in.
+ * Routes another site's page posts to on purpose, the way an identity provider answers a login.
  */
 @Controller('/cross-site-posts-test')
 class CrossSitePostsTestController {

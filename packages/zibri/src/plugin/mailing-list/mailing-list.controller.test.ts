@@ -222,10 +222,8 @@ describe('MailingListController', () => {
             expect(res.status).toBe(200);
             expect(await res.text()).toContain('id="unsubscribed"');
 
-            const updated: MailingListSubscriber = await inTenant(
-                async () => await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] })
-            );
-            expect(updated.mailingLists.map(l => l.id)).not.toContain(mailingList.id);
+            // it was their only list, so nothing of the subscriber is kept
+            expect(await inTenant(async () => await subscriberRepository.findAll({ where: { id: subscriber.id } }))).toEqual([]);
         });
 
         it('POST /:id/unsubscribe answers the one-click unsubscribe a mailbox provider sends (RFC 8058)', async () => {
@@ -244,10 +242,7 @@ describe('MailingListController', () => {
             );
             expect(res.status).toBe(200);
 
-            const updated: MailingListSubscriber = await inTenant(
-                async () => await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] })
-            );
-            expect(updated.mailingLists.map(l => l.id)).not.toContain(mailingList.id);
+            expect(await inTenant(async () => await subscriberRepository.findAll({ where: { id: subscriber.id } }))).toEqual([]);
         });
 
         it('refuses every link of a subscriber that carries their id without their secret', async () => {

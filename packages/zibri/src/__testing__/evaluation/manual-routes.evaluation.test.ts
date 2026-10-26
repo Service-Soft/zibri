@@ -28,9 +28,9 @@ import { StartedTestServer, startTestServer } from '../test-server/start-test-se
  * authorization at all: `checkAccess` was called from the controller handler and from nowhere else,
  * so a manually registered route had no metadata to read and no check run against it. The framework's
  * own OpenAPI surface is registered this way, which is why an application declaring
- * `defaultAuth: 'requireLogin'` still served its spec to anyone.
+ * `defaultAuth: 'isLoggedIn'` still served its spec to anyone.
  *
- * The server here declares `requireLogin`, because that is the posture the hole is visible against: a
+ * The server here declares `isLoggedIn`, because that is the posture the hole is visible against: a
  * `'public'` application is not lied to by a route that answers everybody.
  */
 
@@ -83,7 +83,7 @@ beforeAll(async () => {
         // the real login endpoint, because the point is what a *logged in* caller gets - a file that
         // only ever sends anonymous requests cannot tell a closed route from a broken one
         controllers: [JwtTestAuthController],
-        defaultAuth: 'requireLogin'
+        defaultAuth: 'isLoggedIn'
     });
     baseUrl = await server.start();
 
@@ -132,7 +132,7 @@ describe('evaluation/02-http-runtime-core M13 - a manually registered route is s
     describe('the application default reaches it', () => {
         it('refuses an anonymous caller on a route that states nothing', async () => {
             // the finding: checkAccess was reached from the controller handler and from nowhere
-            // else, so this route ran its handler for anybody. `defaultAuth: 'requireLogin'` is the
+            // else, so this route ran its handler for anybody. `defaultAuth: 'isLoggedIn'` is the
             // application saying nothing is reachable without a login, and it has to mean that for
             // every route rather than for the ones that happen to be on a class.
             expect(await call('/manual/inherits')).toBe(401);

@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { beforeAll, describe, expect, it } from '@jest/globals';
 
+import { EntryPointUtilities, TESTING_ENTRY_POINT } from '../__testing__/entry-point.utilities';
 import { GlobalRegistry } from '../global/global-registry';
 // the barrel, for the entities it declares on GlobalRegistry as it loads
 // eslint-disable-next-line eslintImport/no-unassigned-import
@@ -35,10 +36,33 @@ const REQUIREMENT_PACKAGE_HEADER: string = '| Package | Used for |';
 const REQUIREMENT_ENTITY_HEADER: string = '| Entity | Needed when |';
 
 /**
+ * The page that says of every framework table how large it grows and what deletes its rows.
+ */
+const FRAMEWORK_TABLES_PAGE: string = 'framework-tables.md';
+
+/**
+ * The header of the table on that page.
+ */
+const FRAMEWORK_TABLES_HEADER: string = '| Entity | Grows with | Rows end |';
+
+/**
  * Entities the framework declares for the reader to extend, whose own subclass is what goes into a
  * data source.
  */
 const ENTITIES_EXTENDED_BY_THE_READER: string[] = ['BaseRoleEntity'];
+
+/**
+ * The page that defines the terms the other pages share, one `##` heading per term.
+ */
+const GLOSSARY_PAGE: string = 'glossary.md';
+
+/**
+ * Terms the glossary defines that the pages also use in their everyday sense, such as a DI provider
+ * beside an identity provider, a JWT claim beside the claim on a slot, or the credentials of a mail
+ * server beside the credential of a request. A link on their first use would as often point at the
+ * wrong meaning as the right one.
+ */
+const UNCHECKED_TERMS: string[] = ['Login', 'Session', 'Provider', 'Claim', 'Grant', 'Identity', 'Credential', 'Scope'];
 
 /**
  * What the Requirements test reads of `package.json`.
@@ -254,6 +278,19 @@ function resolveAnchor(heading: string): string {
 }
 
 /**
+ * The words a page uses a glossary term with: the term and its plural, as a whole word. An acronym
+ * (`SAML`, `DPoP`) is matched in its casing, anything else in any.
+ * @param term - The term, as its glossary heading names it.
+ * @returns The pattern.
+ */
+function resolveTermPattern(term: string): RegExp {
+    const escaped: string = term.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+    const plural: string = escaped.endsWith('y') ? `${escaped.slice(0, -1)}(?:y|ies)` : `${escaped}(?:s|es)?`;
+    const isAcronym: boolean = /[A-Z]/.test(term.slice(1));
+    return new RegExp(String.raw`\b${plural}\b`, isAcronym ? '' : 'i');
+}
+
+/**
  * Reads one page into the lines the rules read and the anchors its headings give.
  * @param name - The page's file name.
  * @returns The page.
@@ -336,6 +373,29 @@ type RequirementRow = {
 };
 
 /**
+ * Reads the rows of every table the given header opens, wherever on the page it stands.
+ * @param lines - The lines of the page.
+ * @param header - The header row of the table.
+ * @returns The rows below the header, without the separator.
+ */
+function findTableRows(lines: PageLine[], header: string): RequirementRow[] {
+    const rows: RequirementRow[] = [];
+    let inTable: boolean = false;
+    for (const line of lines.filter(entry => !entry.inCode)) {
+        if (!line.raw.startsWith('|')) {
+            inTable = false;
+        }
+        else if (line.raw === header) {
+            inTable = true;
+        }
+        else if (inTable && !line.raw.startsWith('|---')) {
+            rows.push({ line: line.line, cells: line.raw.split(' | ').map(cell => cell.replaceAll(/^\| ?| ?\|$/g, '').trim()) });
+        }
+    }
+    return rows;
+}
+
+/**
  * Reads the rows of the table under `## Requirements` that the given header opens.
  * @param page - The page.
  * @param header - The header row of the table.
@@ -363,6 +423,25 @@ function findRequirementRows(page: Page, header: string): RequirementRow[] {
         }
     }
     return rows;
+}
+
+/**
+ * The names one cell of a `## Key exports` table lists, each as the identifier its code span opens
+ * with, so that `` `CronExpression.every()` `` lists `CronExpression`.
+ * @param cell - The first cell of a row.
+ * @returns The listed names.
+ */
+function resolveCellNames(cell: string): string[] {
+    return [...cell.matchAll(/`([$A-Z_a-z][\w$]*)/g)].map(match => match[1] ?? '');
+}
+
+/**
+ * The names the `## Key exports` tables list.
+ * @param pages - The pages.
+ * @returns The listed names.
+ */
+function resolveKeyExportNames(pages: Page[]): Set<string> {
+    return new Set(pages.flatMap(page => [...page.keyExports.values()]).flatMap(cell => resolveCellNames(cell)));
 }
 
 /**
@@ -446,9 +525,7 @@ describe('the pages in docs/', () => {
     it('lists every name an example imports from zibri in the Key exports of some page', () => {
         // one page is enough: the owner lists it, and a page using `inject` in passing does not
         // repeat it. What this catches is a name no table has, typically one added without a row
-        const listed: Set<string> = new Set(pages
-            .flatMap(page => [...page.keyExports.values()])
-            .flatMap(cell => [...cell.matchAll(/`([^`]+)`/g)].map(match => match[1] ?? '')));
+        const listed: Set<string> = resolveKeyExportNames(pages);
         const missing: Set<string> = new Set();
         for (const page of pages) {
             for (const block of page.blocks) {
@@ -468,6 +545,32 @@ describe('the pages in docs/', () => {
         }
         expect([...missing]).toEqual([]);
     });
+
+    it('lists every name the zibri entry point exports in the Key exports of some page', () => {
+        // the entry point is the public api releases.md promises to keep, so a name on it without a
+        // row is a promise nobody wrote down. What is there for the sibling packages or for a driver
+        // goes to `zibri/internal`, which promises nothing
+        const listed: Set<string> = resolveKeyExportNames(pages);
+
+        const unlisted: string[] = EntryPointUtilities.resolveNames('index.ts')
+            .filter(exported => !listed.has(exported.name))
+            .map(exported => `${exported.name} (${exported.file})`);
+
+        expect(unlisted).toEqual([]);
+    }, 120_000);
+
+    it('lists only names that zibri or zibri-testing export in the Key exports', () => {
+        // the other way round: a row outliving its export sends a reader to an import that fails
+        const exported: Set<string> = new Set([...EntryPointUtilities.resolveNames('index.ts'), ...EntryPointUtilities.resolveNames(TESTING_ENTRY_POINT)]
+            .map(entry => entry.name));
+
+        const stale: string[] = pages.flatMap(page => [...page.keyExports.entries()]
+            .flatMap(([line, cell]) => resolveCellNames(cell)
+                .filter(name => !exported.has(name))
+                .map(name => `${name}, listed on ${page.name}:${line}`)));
+
+        expect(stale).toEqual([]);
+    }, 120_000);
 
     it('names its file on the first line of every code example', () => {
         const unnamed: string[] = [];
@@ -544,5 +647,80 @@ describe('the pages in docs/', () => {
             }
         }
         expect(wrong).toEqual([]);
+    });
+
+    // 08 §X27: whoever approves the schema asks of each table how large it grows and what deletes its
+    // rows, which the feature pages answered for some tables and not for others
+    it('says of every entity the framework stores rows in how its table grows and what ends its rows', () => {
+        const entities: Set<string> = new Set(GlobalRegistry.entityClasses
+            .map(entity => entity.name)
+            .filter(name => !ENTITIES_EXTENDED_BY_THE_READER.includes(name)));
+        const page: Page | undefined = pages.find(entry => entry.name === FRAMEWORK_TABLES_PAGE);
+        expect(page).toBeDefined();
+
+        const wrong: string[] = [];
+        const listed: Map<string, number> = new Map();
+        for (const { line, cells } of findTableRows(page?.lines ?? [], FRAMEWORK_TABLES_HEADER)) {
+            if (cells.slice(1).some(cell => cell === '')) {
+                wrong.push(`${FRAMEWORK_TABLES_PAGE}:${line} leaves a cell empty`);
+            }
+            for (const name of [...(cells[0] ?? '').matchAll(/`([^`]+)`/g)].map(match => match[1] ?? '')) {
+                listed.set(name, (listed.get(name) ?? 0) + 1);
+                if (!entities.has(name)) {
+                    wrong.push(`${FRAMEWORK_TABLES_PAGE}:${line} ${name} is no entity of the framework`);
+                }
+            }
+        }
+        for (const name of entities) {
+            if (listed.get(name) !== 1) {
+                wrong.push(`${name} is listed ${listed.get(name) ?? 0} times`);
+            }
+        }
+        expect(wrong).toEqual([]);
+    });
+
+    // 08 §X7: a reader entering on any one page meets the terms of the others, so DOCS_STYLE has a
+    // page link a term to the glossary where it first uses it
+    it('links each term of the glossary the first time a page uses it', () => {
+        const glossary: Page | undefined = pages.find(page => page.name === GLOSSARY_PAGE);
+        expect(glossary).toBeDefined();
+        const terms: string[] = (glossary?.sections ?? []).filter(section => section !== 'See also' && !UNCHECKED_TERMS.includes(section));
+        // not vacuous: the auth, data and coordination pages share well over a dozen terms
+        expect(terms.length).toBeGreaterThan(15);
+
+        // the pages each entry sends its reader on to, which define the term in full
+        const owners: Map<string, Set<string>> = new Map();
+        let entry: string | undefined = undefined;
+        for (const line of glossary?.lines ?? []) {
+            entry = /^## (.*)$/.exec(line.raw)?.[1] ?? entry;
+            for (const link of line.raw.matchAll(/]\(\.\/([\w-]+\.md)/g)) {
+                owners.set(entry ?? '', (owners.get(entry ?? '') ?? new Set()).add(link[1] ?? ''));
+            }
+        }
+
+        const unlinked: string[] = [];
+        for (const page of pages.filter(other => other.name !== GLOSSARY_PAGE)) {
+            const seeAlso: number = page.lines.find(line => line.raw === '## See also')?.line ?? Number.POSITIVE_INFINITY;
+            for (const term of terms) {
+                const pattern: RegExp = resolveTermPattern(term);
+                // a heading keeps its anchor free of links, and See also names pages rather than terms
+                const first: PageLine | undefined = page.lines.find(line => !line.inCode
+                    && line.line < seeAlso
+                    && !/^#+ /.test(line.raw)
+                    && pattern.test(line.prose));
+                if (first == undefined) {
+                    continue;
+                }
+                const target: string = `${GLOSSARY_PAGE}#${resolveAnchor(term)})`;
+                const toGlossary: boolean = page.lines.some(line => line.line <= first.line && line.raw.includes(target));
+                // a first use that already links to the page the entry sends its reader to keeps that link
+                const toOwner: boolean = [...first.raw.matchAll(/\[([^\]]*)]\(\.\/([\w-]+\.md)[^)]*\)/g)]
+                    .some(link => pattern.test(link[1] ?? '') && owners.get(term)?.has(link[2] ?? '') === true);
+                if (!toGlossary && !toOwner) {
+                    unlinked.push(`${page.name}:${first.line} "${term}"`);
+                }
+            }
+        }
+        expect(unlinked).toEqual([]);
     });
 });

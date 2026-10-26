@@ -23,9 +23,17 @@ export const WAKE_UP_TOPICS: {
      */
     CRON_JOBS: string,
     /**
+     * A backup was queued, or a resource of one handed back or due again.
+     */
+    BACKUPS: string,
+    /**
      * The given thread job ended.
      */
     threadJobEnded: (jobId: string) => string,
+    /**
+     * The given backup completed or failed.
+     */
+    backupEnded: (backupId: string) => string,
     /**
      * The grant on the given key was handed back.
      */
@@ -36,6 +44,8 @@ export const WAKE_UP_TOPICS: {
     EMAILS: 'emails',
     CACHE_INVALIDATIONS: 'cache-invalidations',
     CRON_JOBS: 'cron-jobs',
+    BACKUPS: 'backups',
     threadJobEnded: jobId => `thread-job:${jobId}`,
+    backupEnded: backupId => `backup:${backupId}`,
     leaseReleased: key => `lease:${key}`
 };

@@ -18,7 +18,7 @@ export class FormDataBodyParserCleanupCronJob extends CronJob {
         runOnInit: false,
         // the temp folder is on this instance's own filesystem and no other instance can see it,
         // so electing one would leave every other instance's uploads to fill its disk
-        distributed: false
+        runsOn: 'everyInstance'
     };
 
     constructor(

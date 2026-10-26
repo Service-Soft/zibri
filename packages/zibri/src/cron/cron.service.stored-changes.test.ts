@@ -136,7 +136,7 @@ describe('CronService, after another instance changed a job', () => {
         const sync: CronJob | undefined = cronService.cronJobs.find(j => j instanceof CronSyncCronJob);
 
         expect(sync).toBeDefined();
-        expect(sync?.distributed).toBe(false);
+        expect(sync?.runsOn).toBe('everyInstance');
     });
 
     it('refuses to update a job declared in code', async () => {

@@ -5,12 +5,12 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { EqualOperator, FindOptionsWhere, FindOperator, ObjectLiteral, FindOptionsWhere as ToFindOptionsWhere } from 'typeorm';
 
 import { Where, WhereFilter } from './where-filter.model';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { Address } from '../../../__testing__/mocks/entities/address.model';
 import { Company } from '../../../__testing__/mocks/entities/company.entity';
 import { Profile } from '../../../__testing__/mocks/entities/profile.entity';
 import { Role } from '../../../__testing__/mocks/entities/role.entity';
 import { User } from '../../../__testing__/mocks/entities/user.entity';
-import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';

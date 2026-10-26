@@ -2,6 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { TOTP } from 'otpauth';
 import { createInMemoryDataSource, RecordingEmailTransport } from 'zibri-testing';
 
+import { TestTimeouts } from '../__testing__/constants';
+import { Log } from '../logging/log.model';
+import { JsonUtilities } from '../utilities/json.utilities';
 import { EmailTwoFactorMethod } from './2fa/methods/code/email.two-factor-method';
 import { TwoFactorCodeCredentials, TwoFactorCodeCredentialsCreateData } from './2fa/methods/code/two-factor-code-credentials.model';
 import { TwoFactorCode } from './2fa/methods/code/two-factor-code.model';
@@ -13,7 +16,6 @@ import { PasswordAuthenticator } from './authenticators/password/password.authen
 import { LoginTicket, LoginTicketCreateData } from './models/login-ticket.model';
 import { JwtRefreshToken } from './strategies/jwt/jwt-refresh-token.model';
 import { JwtAuthStrategy } from './strategies/jwt/jwt.auth-strategy';
-import { TestTimeouts } from '../__testing__/constants';
 import { JwtUser } from '../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
@@ -26,11 +28,9 @@ import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { EmailConfigInput } from '../email/models/email-config.model';
 import { AuditAction, AuditEvent, AuditOutcome } from '../logging/audit-event.model';
-import { Log } from '../logging/log.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { RateLimitStateEntity } from '../rate-limiting/stores/rate-limit-state-entity.model';
 import { Controller } from '../routing/decorators/controller.decorator';
-import { JsonUtilities } from '../utilities/json.utilities';
 import { Ms } from '../utilities/ms';
 
 const PASSWORD: string = 'correct horse battery staple';
@@ -257,7 +257,7 @@ describe('AuthService - a second factor at login', () => {
             await enrollOtp(user);
             const { ticket }: PendingLoginBody = await pendingLoginOf(user);
 
-            const res: Response = await continueWith('/complete', ticket, { [otpHeader]: otpCode() });
+            const res: Response = await continueWith('/confirm', ticket, { [otpHeader]: otpCode() });
 
             expect(res.status).toBe(200);
             expect((await res.json() as TokenBody).refreshToken.value).toEqual(expect.any(String));
@@ -265,7 +265,7 @@ describe('AuthService - a second factor at login', () => {
             expect(await eventsOf(AuditAction.LOGIN)).toEqual([expect.objectContaining({ outcome: AuditOutcome.SUCCESS, userId: user.id })]);
 
             // refused on the ticket, before any code is looked at
-            const again: Response = await continueWith('/complete', ticket, { [otpHeader]: otpCode(1) });
+            const again: Response = await continueWith('/confirm', ticket, { [otpHeader]: otpCode(1) });
             expect(again.status).toBe(401);
             expect((await again.json() as PendingLoginBody).message).toContain('ticket');
         });
@@ -275,14 +275,14 @@ describe('AuthService - a second factor at login', () => {
             await enrollOtp(user);
             const { ticket }: PendingLoginBody = await pendingLoginOf(user);
 
-            const wrong: Response = await continueWith('/complete', ticket, { [otpHeader]: '000000' });
+            const wrong: Response = await continueWith('/confirm', ticket, { [otpHeader]: '000000' });
             expect(wrong.status).toBe(401);
             expect((await wrong.json() as PendingLoginBody).name).toBe('InvalidTwoFactorCodeError');
             expect(await loginsOf(user)).toBe(0);
 
             // after the wait the first wrong code costs
             await new Promise(resolve => setTimeout(resolve, 20));
-            expect((await continueWith('/complete', ticket, { [otpHeader]: otpCode() })).status).toBe(200);
+            expect((await continueWith('/confirm', ticket, { [otpHeader]: otpCode() })).status).toBe(200);
         });
 
         it('sends a code for the ticket, and completes the login with it', async () => {
@@ -291,8 +291,8 @@ describe('AuthService - a second factor at login', () => {
             const { ticket, methods }: PendingLoginBody = await pendingLoginOf(user);
             expect(methods).toEqual(['email']);
 
-            expect((await continueWith('/start?method=email', ticket)).status).toBe(204);
-            const res: Response = await continueWith('/complete', ticket, { [emailCodeHeader]: await mailedCode() });
+            expect((await continueWith('/request?method=email', ticket)).status).toBe(204);
+            const res: Response = await continueWith('/confirm', ticket, { [emailCodeHeader]: await mailedCode() });
 
             expect(res.status).toBe(200);
             expect(await loginsOf(user)).toBe(1);
@@ -307,7 +307,7 @@ describe('AuthService - a second factor at login', () => {
             expect(row).toBeDefined();
             await tickets.updateById(row?.id ?? '', { expirationDate: new Date(Date.now() - Ms.SECOND) });
 
-            expect((await continueWith('/complete', ticket, { [otpHeader]: otpCode() })).status).toBe(401);
+            expect((await continueWith('/confirm', ticket, { [otpHeader]: otpCode() })).status).toBe(401);
             expect(await loginsOf(user)).toBe(0);
         });
 
@@ -316,8 +316,8 @@ describe('AuthService - a second factor at login', () => {
             await enrollOtp(user);
             const { ticket }: PendingLoginBody = await pendingLoginOf(user);
 
-            expect((await continueWith('/register?method=email', ticket)).status).toBe(403);
-            expect((await continueWith('/confirm?method=email', ticket, {}, { code: '123456' })).status).toBe(403);
+            expect((await continueWith('/registration/request?method=email', ticket)).status).toBe(403);
+            expect((await continueWith('/registration/confirm?method=email', ticket, {}, { code: '123456' })).status).toBe(403);
         });
     });
 
@@ -333,14 +333,14 @@ describe('AuthService - a second factor at login', () => {
             const { ticket, methods }: PendingLoginBody = await pendingLoginOf(user);
             expect(methods).toEqual([]);
 
-            const registered: Response = await continueWith('/register?method=otp', ticket);
+            const registered: Response = await continueWith('/registration/request?method=otp', ticket);
             expect(registered.status).toBe(200);
             const { secret }: { secret: string } = await registered.json() as { secret: string };
             // the code one step back, so that the one the login completes with is still unspent
             const earlier: string = new TOTP({ secret }).generate({ timestamp: Date.now() - (30 * Ms.SECOND) });
-            expect((await continueWith('/confirm?method=otp', ticket, {}, { token: earlier })).status).toBe(204);
+            expect((await continueWith('/registration/confirm?method=otp', ticket, {}, { token: earlier })).status).toBe(204);
 
-            const res: Response = await continueWith('/complete', ticket, { [otpHeader]: new TOTP({ secret }).generate() });
+            const res: Response = await continueWith('/confirm', ticket, { [otpHeader]: new TOTP({ secret }).generate() });
 
             expect(res.status).toBe(200);
             expect(await loginsOf(user)).toBe(1);
@@ -350,7 +350,7 @@ describe('AuthService - a second factor at login', () => {
             const user: JwtUser = await createUser('nothing-enrolled');
             const { ticket }: PendingLoginBody = await pendingLoginOf(user);
 
-            expect((await continueWith('/complete', ticket, { [otpHeader]: otpCode() })).status).toBe(403);
+            expect((await continueWith('/confirm', ticket, { [otpHeader]: otpCode() })).status).toBe(403);
             expect(await loginsOf(user)).toBe(0);
         });
 
@@ -361,7 +361,7 @@ describe('AuthService - a second factor at login', () => {
             const { ticket, methods }: PendingLoginBody = await pendingLoginOf(user);
 
             expect(methods).toEqual(['otp']);
-            expect((await continueWith('/complete', ticket, { [otpHeader]: otpCode() })).status).toBe(200);
+            expect((await continueWith('/confirm', ticket, { [otpHeader]: otpCode() })).status).toBe(200);
         });
     });
 

@@ -2,18 +2,18 @@ import { describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { ZIBRI_DI_TOKENS } from './zibri-di-tokens.default';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { startAndStopTestServerWithout } from '../../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { EmailServiceInterface } from '../../email/email-service.interface';
 import { Email } from '../../email/models/email.model';
-import { Event } from '../../event/event.model';
-import { EventService } from '../../event/event.service';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { EventSubscriberRegistration } from '../../event/event-subscriber-registration.model';
 import { EventSubscriberRun } from '../../event/event-subscriber-run.model';
-import { InternalError } from '../../error-handling/internal-error.model';
+import { Event } from '../../event/event.model';
+import { EventService } from '../../event/event.service';
 import { ThreadJobEntity } from '../../multithreading/models/thread-job-entity.model';
 import { MultithreadingService } from '../../multithreading/services/multithreading.service';
 import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
@@ -29,19 +29,19 @@ import { DiToken } from '../models/di-token.model';
 /**
  * An email service for an application that sends no mail.
  */
+// eslint-disable-next-line cspell/spellchecker
 class MaillessEmailService implements EmailServiceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc, class-methods-use-this
-    queue(): Promise<void> {
+
+    // eslint-disable-next-line typescript/require-await
+    async queue(): Promise<void> {
         throw new InternalError('This application sends no mail.');
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, class-methods-use-this
-    sendQueuedEmails(): Promise<boolean> {
+    async sendQueuedEmails(): Promise<boolean> {
         return Promise.resolve(false);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc, class-methods-use-this
-    deleteExpiredFailedEmails(): Promise<number> {
+    async deleteExpiredFailedEmails(): Promise<number> {
         return Promise.resolve(0);
     }
 }
@@ -49,17 +49,19 @@ class MaillessEmailService implements EmailServiceInterface {
 /**
  * The event service, setting nothing up at boot.
  */
+// eslint-disable-next-line cspell/spellchecker
 class EventlessEventService extends EventService {
-    // eslint-disable-next-line jsdoc/require-jsdoc, class-methods-use-this
+
     override onAppInit(): void {}
 }
 
 /**
  * The multithreading service, setting nothing up at boot.
  */
+// eslint-disable-next-line cspell/spellchecker
 class ThreadlessMultithreadingService extends MultithreadingService {
-    // eslint-disable-next-line jsdoc/require-jsdoc, class-methods-use-this
-    override onAppInit(): Promise<void> {
+
+    override async onAppInit(): Promise<void> {
         return Promise.resolve();
     }
 }
@@ -76,7 +78,11 @@ describe('the default providers', () => {
     it('start an application without email, events and thread jobs once their services are replaced', async () => {
         const providers: DiProvider<unknown>[] = [
             ...defaultTestServerProviders.filter(provider => !leftOut.includes(provider.token)),
-            defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_SERVICE, useClass: MaillessEmailService }),            defineProvider({ token: ZIBRI_DI_TOKENS.EVENT_SERVICE, useClass: EventlessEventService }),
+            // eslint-disable-next-line cspell/spellchecker
+            defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_SERVICE, useClass: MaillessEmailService }),
+            // eslint-disable-next-line cspell/spellchecker
+            defineProvider({ token: ZIBRI_DI_TOKENS.EVENT_SERVICE, useClass: EventlessEventService }),
+            // eslint-disable-next-line cspell/spellchecker
             defineProvider({ token: ZIBRI_DI_TOKENS.MULTITHREADING_SERVICE, useClass: ThreadlessMultithreadingService })
         ];
 

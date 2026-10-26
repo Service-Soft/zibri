@@ -6,12 +6,12 @@ import { $ts } from '../../../../localization/translate.function';
 import { Newable } from '../../../../types/newable.type';
 import { Ms } from '../../../../utilities/ms';
 import { UserAccount } from '../../../models/user-account.model';
-import { NoRegisterData } from '../no-register-data.model';
+import { NoRegistrationRequestData } from '../no-registration-request-data.model';
 
 /**
  * A code sent to the email address of the user as the second factor.
  *
- * The `2fa/start` route of `AuthController` asks for it with `startSecondFactor`, and the user sends it
+ * The `2fa/request` route of `AuthController` asks for it with `requestSecondFactor`, and the user sends it
  * back in the `x-authorization-email-code` header of the guarded request. To change what the email
  * says, extend this class and override `deliver`.
  *
@@ -24,7 +24,7 @@ export class EmailTwoFactorMethod extends CodeTwoFactorMethod<void> {
     protected readonly channel: string = 'email';
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly requestRegisterModel: Newable<void> = NoRegisterData;
+    readonly registrationRequestModel: Newable<void> = NoRegistrationRequestData;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected async deliver(user: UserAccount, _destination: string | undefined, code: string): Promise<void> {

@@ -39,7 +39,7 @@ export type EmailLoggerTransportConfigInput = OmitStrict<BaseLoggerTransportConf
          * counted and reported by the next email rather than dropped silently.
          * Defaults to one minute.
          */
-        minIntervalMs?: number
+        minIntervalInMs?: number
     };
 
 /**
@@ -72,10 +72,10 @@ export function createLogToEmail(): LoggerTransportSend<EmailLoggerTransportConf
         // one mail per batch, and at most one per interval: a mail per entry turns a log storm into
         // a mail storm. A dependency failing at ten thousand errors a minute would queue ten thousand
         // mails, and every ordinary mail would wait behind them long after the incident is over
-        const minIntervalMs: number = config.minIntervalMs ?? Ms.MINUTE;
+        const minIntervalInMs: number = config.minIntervalInMs ?? Ms.MINUTE;
         const now: number = Date.now();
 
-        if (lastSentAt != undefined && now - lastSentAt < minIntervalMs) {
+        if (lastSentAt != undefined && now - lastSentAt < minIntervalInMs) {
             suppressed += logs.length;
             return;
         }

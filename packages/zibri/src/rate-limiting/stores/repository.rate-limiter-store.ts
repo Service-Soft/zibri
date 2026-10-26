@@ -175,11 +175,11 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
         const rows: RateLimitStateEntity[] = await this.repository.findAll({
             // every key with something expired on it - the ones left out would keep their expired
             // reservations until some later pass happened to include them
-            take: 'all',
+            limit: 'all',
             where: {
                 namespace: this.namespace,
                 expiresAtMs: { greaterThan: now },
-                nextReservationExpiryMs: { lesserThanEquals: now }
+                nextReservationExpiresAtMs: { lesserThanEquals: now }
             }
         });
         return rows.map(r => r.key);
@@ -237,7 +237,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
                 { namespace: this.namespace, key, version: existing.version },
                 {
                     expiresAtMs: next.expiresAtMs,
-                    nextReservationExpiryMs: this.nextReservationExpiryMs(next),
+                    nextReservationExpiresAtMs: this.nextReservationExpiresAtMs(next),
                     version: existing.version + 1,
                     state: next
                 }
@@ -252,7 +252,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
                 namespace: this.namespace,
                 key,
                 expiresAtMs: next.expiresAtMs,
-                nextReservationExpiryMs: this.nextReservationExpiryMs(next),
+                nextReservationExpiresAtMs: this.nextReservationExpiresAtMs(next),
                 version: 0,
                 state: next
             });
@@ -310,7 +310,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
      * @param state - The state about to be written.
      * @returns The timestamp, or undefined while the state holds no reservations.
      */
-    private nextReservationExpiryMs(state: TState): number | undefined {
+    private nextReservationExpiresAtMs(state: TState): number | undefined {
         if (!state.reservations.length) {
             return undefined;
         }
@@ -320,7 +320,7 @@ export class RepositoryRateLimiterStore<TState extends BaseRateLimitState> imple
     private async readUnexpired(): Promise<RateLimitStateEntity[]> {
         // one row per limited key, and the answer is about all of them
         return await this.repository.findAll({
-            take: 'all',
+            limit: 'all',
             where: { namespace: this.namespace, expiresAtMs: { greaterThan: Date.now() } }
         });
     }

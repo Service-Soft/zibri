@@ -12,6 +12,7 @@ import { Ms } from '../../../utilities/ms';
 import { IntrospectionResponse } from '../../authorization-server/introspection-response.model';
 import { BaseUser } from '../../models/base-user.model';
 import { type UserServiceInterface } from '../../user/user-service.interface';
+import { CredentialEntity } from '../credential-entity.model';
 import { CredentialLimits } from '../credential-limits.model';
 import { TokenIntrospectingAuthStrategyInterface } from '../token-introspecting-auth-strategy.interface';
 
@@ -28,6 +29,9 @@ export class ApiKeyAuthStrategy<
 > implements TokenIntrospectingAuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'api-key';
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialEntities: CredentialEntity[] = [{ entityClass: ApiKey, endedBy: 'remove' }];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject;

@@ -31,7 +31,7 @@ import { OAuthProviderTokens } from '../../oauth/oauth-provider-tokens.model';
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';
 const CLIENT_SECRET: string = 'zibri-test-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const CALENDAR_SCOPE: string = 'calendar.readonly';
 
 let google: FakeOAuthProvider;
@@ -60,7 +60,7 @@ describe('BaseGoogleAuthenticator', () => {
 
     beforeAll(async () => {
         // the prompts Google documents, and the only ones it takes; and no word on when the user
-        // signed in, since Google puts no auth_time into its ID tokens and takes no max_age
+        // logged in, since Google puts no auth_time into its ID tokens and takes no max_age
         google = await startFakeOAuthProvider({
             clientId: CLIENT_ID,
             clientSecret: CLIENT_SECRET,
@@ -96,7 +96,7 @@ describe('BaseGoogleAuthenticator', () => {
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: 'https://app.example.com/register',
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -110,18 +110,18 @@ describe('BaseGoogleAuthenticator', () => {
         await google?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('signs a linked user in although Google says nothing about when they signed in, which never counts as a recent login', async () => {
+    it('signs a linked user in although Google says nothing about when they logged in, which never counts as a recent login', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'ada@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: google.issuer, subject: 'google-ada', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: google.issuer, subject: 'google-ada', userId: user.id, forLogin: true, grantedScopes: [] });
         google.identity = { subject: 'google-ada' };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const atGoogle: string = await browser.follow(`${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`);
+        const atGoogle: string = await browser.follow(`${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`);
         const landing: string = await browser.follow(await browser.follow(atGoogle));
 
-        // every sign-in through Google was refused as invalid, since the ID token was required to say
-        // when the user signed in, which Google's never does
+        // every login through Google was refused as invalid, since the ID token was required to say
+        // when the user logged in, which Google's never does
         expect(landing).toBe(REDIRECT_TO);
         // and Google was asked for max_age, which it does not know
         expect(new URL(atGoogle).searchParams.has('max_age')).toBe(false);
@@ -132,12 +132,12 @@ describe('BaseGoogleAuthenticator', () => {
     it('signs a user in again with a prompt Google takes, which a connection always does', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'grace@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: google.issuer, subject: 'google-grace', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: google.issuer, subject: 'google-grace', userId: user.id, forLogin: true, grantedScopes: [] });
         google.identity = { subject: 'google-grace' };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
         const atGoogle: string = await browser.follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, reauthenticate: 'true' }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, reauthenticate: 'true' }).toString()}`
         );
         const callback: string = await browser.follow(atGoogle);
 
@@ -147,7 +147,7 @@ describe('BaseGoogleAuthenticator', () => {
 
     it('asks Google for a refresh token its own way, adding to what was granted before', async () => {
         const asked: URLSearchParams = new URL(await new TestBrowser(baseUrl, PUBLIC_URL).follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, reauthenticate: 'true', scopes: CALENDAR_SCOPE }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, reauthenticate: 'true', scopes: CALENDAR_SCOPE }).toString()}`
         )).searchParams;
 
         expect(asked.get('scope')).toBe(`openid email profile ${CALENDAR_SCOPE}`);

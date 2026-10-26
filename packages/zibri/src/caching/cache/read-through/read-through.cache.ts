@@ -72,7 +72,7 @@ export abstract class ReadThroughCache<
                     try {
                         const [tags, ttl] = await Promise.all([
                             this.resolveResultTags(options?.tags, value, args),
-                            this.resolveResultTtl(options?.ttl, value, args)
+                            this.resolveResultTtl(options?.ttlInMs, value, args)
                         ]);
 
                         const storeStart: number = performance.now();

@@ -4,13 +4,16 @@ import { EventCleanupCronJob } from './event-cleanup.cron-job';
 import { EventDispatchCronJob } from './event-dispatch.cron-job';
 import { EventProcessingError } from './event-processing.error';
 import { type EventReplayOptions } from './event-replay-options.model';
-import { EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
+import { EventHook, EventServiceInterface, EventSubscribeOptions, EventSubscriptionInterface, ZibriEventMap } from './event-service.interface';
 import { ALL_EVENTS_TYPE, EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
 import { EventSubscriberRun, EventSubscriberRunCreateData, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event, EventCreateData, EventStatus } from './event.model';
 import { ZibriApplication } from '../application/application';
+import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
+import { DataSourceSubscription, isPubSubDataSource } from '../data-source/data-sources/pub-sub-data-source.interface';
 import { WhereFilter } from '../data-source/models/where/where-filter.model';
 import { Repository } from '../data-source/repository/repository';
+import { Transaction } from '../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Inject } from '../di/decorators/inject.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
@@ -19,33 +22,55 @@ import { inject } from '../di/inject.function';
 import { InternalError } from '../error-handling/internal-error.model';
 import { AfterAppShutdown } from '../global/after-app-shutdown.interface';
 import { OnAppInit } from '../global/on-app-init.interface';
-import { type LeaseServiceInterface } from '../leases/lease-service.interface';
-import { errorToLoggedError } from '../logging/error-to-logged-error.function';
-import { LoggedError } from '../logging/logged-error.model';
 import { type LoggerInterface } from '../logging/logger.interface';
 import { type GaugeInterface } from '../metrics/gauge.interface';
 import { DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS } from '../metrics/metrics-collector.model';
 import { type MetricsServiceInterface } from '../metrics/metrics-service.interface';
 import { type WakeUpServiceInterface } from '../polling/wake-up-service.interface';
 import { WAKE_UP_TOPICS } from '../polling/wake-up-topics';
+import { QueueDefinition } from '../queue/queue-definition.model';
+import { QueueUtilities } from '../queue/queue.utilities';
+import { QueuedWorkOutcome } from '../queue/queued-work-outcome.model';
 import { type TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { Newable } from '../types/newable.type';
+import { RunsOn } from '../types/runs-on.type';
 import { Ms } from '../utilities/ms';
 import { PromiseUtilities } from '../utilities/promise.utilities';
+import { UUIDUtilities } from '../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 
 /**
- * Names the grant on one subscriber's work on one event.
- *
- * Per subscriber rather than per event, because every subscriber owes its own run - and prefixed,
- * since the lease key space is shared with everything else that takes a grant.
- * @param eventId - The event being handled.
- * @param subscriberId - The subscriber that would run.
- * @returns The lease key.
+ * The channel an emitted event is announced on to the subscribers on every instance.
  */
-function claimKeyFor(eventId: string, subscriberId: string): string {
-    return `event:${eventId}:${subscriberId}`;
-}
+const EVERY_INSTANCE_CHANNEL: string = 'zibri.event-emitted';
+
+/**
+ * How long a hook may take, unless its subscriber says otherwise.
+ */
+const DEFAULT_HOOK_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
+
+/**
+ * Where a run stands once an attempt ended so.
+ */
+const RUN_STATUS_OF: Record<QueuedWorkOutcome['kind'], EventSubscriberRunStatus> = {
+    succeeded: EventSubscriberRunStatus.SUCCEEDED,
+    retrying: EventSubscriberRunStatus.PENDING_RETRY,
+    failed: EventSubscriberRunStatus.FAILED
+};
+
+/**
+ * One subscriber's work on one event, as the queue of runs hands it to an attempt.
+ */
+type EventRunItem<T> = {
+    /**
+     * The event.
+     */
+    event: Event<T>,
+    /**
+     * How many attempts the subscriber spent on it.
+     */
+    attempts: number
+};
 
 /**
  * The result for subscribing to an event.
@@ -54,7 +79,8 @@ export class EventSubscription implements EventSubscriptionInterface {
     constructor(
         readonly id: string,
         readonly rxSub: Subscription,
-        readonly unsubscribe: () => void
+        readonly unsubscribe: () => void,
+        readonly runsOn: RunsOn = 'oneInstance'
     ) {}
 }
 
@@ -67,6 +93,13 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * The rxjs subject of the event.
      */
     protected readonly eventSubject: Subject<Event<ZibriEventMap[keyof ZibriEventMap]>> = new Subject();
+    /**
+     * The events emitted anywhere in the deployment, for the subscribers every instance runs.
+     *
+     * Apart from `eventSubject`, which the dispatch poll hands unfinished events to again: a
+     * subscriber every instance runs owes no run, so a polled event is one it already had.
+     */
+    protected readonly everyInstanceSubject: Subject<Event<ZibriEventMap[keyof ZibriEventMap]>> = new Subject();
     /**
      * The subscribers for each event type, under the type's name.
      *
@@ -88,12 +121,19 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * now is a row that still owes a run, and the dispatch poll offers it again.
      */
     protected runningHooks: number = 0;
+    /**
+     * Tells the announcements of this instance's own emits apart from those of the others.
+     */
+    private readonly instanceId: string = UUIDUtilities.generate();
+    /**
+     * The subscription to the announcements of emitted events, taken once a subscriber every
+     * instance runs is subscribed.
+     */
+    private everyInstanceListening: Promise<DataSourceSubscription | undefined> | undefined;
 
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER)
-        protected readonly logger: LoggerInterface,
-        @Inject(ZIBRI_DI_TOKENS.LEASE_SERVICE)
-        protected readonly leaseService: LeaseServiceInterface
+        protected readonly logger: LoggerInterface
     ) { }
 
     // the three below are read when used rather than injected, so that an application without the
@@ -185,7 +225,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         const [created, failed, [oldest], pendingRetry, failedRuns] = await Promise.all([
             this.eventRepository.count({ where: { status: EventStatus.CREATED }, acrossTenants: true }),
             this.eventRepository.count({ where: { status: EventStatus.FAILED }, acrossTenants: true }),
-            this.eventRepository.findAll({ where: { status: EventStatus.CREATED }, take: 1, acrossTenants: true }),
+            this.eventRepository.findAll({ where: { status: EventStatus.CREATED }, limit: 1, acrossTenants: true }),
             this.eventSubscriberRunRepository.count({ where: { status: EventSubscriberRunStatus.PENDING_RETRY }, acrossTenants: true }),
             this.eventSubscriberRunRepository.count({ where: { status: EventSubscriberRunStatus.FAILED }, acrossTenants: true })
         ]);
@@ -200,7 +240,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    afterAppShutdown(): void {
+    async afterAppShutdown(): Promise<void> {
         // We unsubscribe on the internal rxjs subscription here
         // => emit calls happening now will create the correct events
         for (const subscriber of this.subscriptionsForAll) {
@@ -209,27 +249,37 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         for (const subscriber of [...this.subscriptionForEvent.values()].flatMap(s => [...s])) {
             subscriber.rxSub.unsubscribe();
         }
+        await (await this.everyInstanceListening)?.unsubscribe();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async emit<K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterMs: number = Ms.DAY): Promise<void> {
+    async emit<K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterInMs: number = Ms.DAY): Promise<void> {
+        const registrations: EventSubscriberRegistration[] = await this.findLiveRegistrations([String(type)]);
         const event: Event<ZibriEventMap[keyof ZibriEventMap]> = await this.eventRepository.create({
             type: String(type),
             // every subscriber in the deployment, not the ones this process happens to host. A
             // snapshot of the local set would silently exclude a subscriber that lives on other
             // replicas, and nothing downstream could tell the difference between "did not subscribe"
             // and "was not visible from here"
-            subscriberIds: await this.liveSubscriberIdsFor(String(type)),
-            cleanupAt: new Date(Date.now() + cleanupAfterMs),
+            subscriberIds: this.liveSubscriberIdsIn(registrations, String(type)),
+            cleanupAt: new Date(Date.now() + cleanupAfterInMs),
             data
         });
         this.eventSubject.next({ ...event, eventSubscriberRuns: [] });
+        this.everyInstanceSubject.next({ ...event, eventSubscriberRuns: [] });
+
+        // only when a subscriber every instance runs exists somewhere, so an application without one
+        // pays nothing for them on every emit
+        const dataSource: DataSourceInterface = this.eventRepository.dataSource;
+        if (isPubSubDataSource(dataSource) && registrations.some(r => r.runsOn === 'everyInstance')) {
+            await dataSource.publish(EVERY_INSTANCE_CHANNEL, `${this.instanceId} ${event.id}`);
+        }
 
         // the subscribers hosted here have it now. One hosted only elsewhere hears of it from the
         // poll there, which is told to look now rather than at its next pass
         const hostedHere: Set<string> = this.findHostedSubscriberIds(event.type);
         if (event.subscriberIds.some(id => !hostedHere.has(id))) {
-            await this.wakeUpService.wake(this.eventRepository.dataSource, WAKE_UP_TOPICS.EVENTS);
+            await this.wakeUpService.wake(dataSource, WAKE_UP_TOPICS.EVENTS);
         }
     }
 
@@ -246,7 +296,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     // eslint-disable-next-line jsdoc/require-jsdoc
     async subscribe<K extends keyof ZibriEventMap>(
         type: K,
-        hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[K]>,
         options: EventSubscribeOptions
     ): Promise<EventSubscription> {
         const existingAllEventSubscription: EventSubscription | undefined = this.findSubscriptionById(options.subscriberId);
@@ -267,35 +317,44 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             return existingEventSubscription;
         }
 
-        const rxSub: Subscription = this.eventSubject
-            .pipe(
-                // finished, not merely present: a run row is written after every attempt, a
-                // PENDING_RETRY one included, so skipping on its existence would mean a failed
-                // attempt is never retried by anyone
-                filter(e => e.type === typeName && this.owesRun(e, options.subscriberId))
-            )
-            .subscribe(e => this.runHookSafely(hook, e as Event<ZibriEventMap[K]>, options));
+        const runsOn: RunsOn = options.runsOn ?? 'oneInstance';
+        const rxSub: Subscription = runsOn === 'everyInstance'
+            ? this.everyInstanceSubject
+                .pipe(filter(e => e.type === typeName))
+                .subscribe(e => this.runEveryInstanceHookSafely(hook, e as Event<ZibriEventMap[K]>, options))
+            : this.eventSubject
+                .pipe(
+                    // finished, not merely present: a run row is written after every attempt, a
+                    // PENDING_RETRY one included, so skipping on its existence would mean a failed
+                    // attempt is never retried by anyone
+                    filter(e => e.type === typeName && this.owesRun(e, options.subscriberId))
+                )
+                .subscribe(e => this.runHookSafely(hook, e as Event<ZibriEventMap[K]>, options));
         const subscriber: EventSubscription = new EventSubscription(
             options.subscriberId,
             rxSub,
             () => {
                 this.subscriptionForEvent.get(typeName)?.delete(subscriber);
                 rxSub.unsubscribe();
-            }
+            },
+            runsOn
         );
 
         const subscribers: Set<EventSubscription> = this.subscriptionForEvent.get(typeName) ?? new Set();
         subscribers.add(subscriber);
         this.subscriptionForEvent.set(typeName, subscribers);
+        if (runsOn === 'everyInstance') {
+            await this.listenForEventsEmittedElsewhere();
+        }
         // written before returning rather than on the next heartbeat, so an emit that happens
         // immediately after this resolves already counts the subscriber
-        await this.registerSubscriber(options.subscriberId, typeName);
+        await this.registerSubscriber(options.subscriberId, typeName, runsOn);
         return subscriber;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async subscribeAll(
-        hook: (value: Event<ZibriEventMap[keyof ZibriEventMap]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[keyof ZibriEventMap]>,
         options: EventSubscribeOptions
     ): Promise<EventSubscription> {
         const existingEventSubscriptionTypes: string[] = [];
@@ -321,20 +380,58 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             return existingAllEventSubscription;
         }
 
-        const rxSub: Subscription = this.eventSubject
-            .pipe(filter(e => this.owesRun(e, options.subscriberId)))
-            .subscribe(e => this.runHookSafely(hook, e, options));
+        const runsOn: RunsOn = options.runsOn ?? 'oneInstance';
+        const rxSub: Subscription = runsOn === 'everyInstance'
+            ? this.everyInstanceSubject.subscribe(e => this.runEveryInstanceHookSafely(hook, e, options))
+            : this.eventSubject
+                .pipe(filter(e => this.owesRun(e, options.subscriberId)))
+                .subscribe(e => this.runHookSafely(hook, e, options));
         const subscription: EventSubscription = new EventSubscription(
             options.subscriberId,
             rxSub,
             () => {
                 this.subscriptionsForAll.delete(subscription);
                 rxSub.unsubscribe();
-            }
+            },
+            runsOn
         );
         this.subscriptionsForAll.add(subscription);
-        await this.registerSubscriber(options.subscriberId, ALL_EVENTS_TYPE);
+        if (runsOn === 'everyInstance') {
+            await this.listenForEventsEmittedElsewhere();
+        }
+        await this.registerSubscriber(options.subscriberId, ALL_EVENTS_TYPE, runsOn);
         return subscription;
+    }
+
+    /**
+     * Hands the events other instances emit to the subscribers every instance runs, once.
+     *
+     * Through the data source's messages rather than the dispatch poll: such a subscriber owes the
+     * event no run, so a poll offering unfinished events would never offer it one that finished
+     * before it looked. Without messages between instances, each instance hears of its own emits only.
+     */
+    private async listenForEventsEmittedElsewhere(): Promise<void> {
+        const dataSource: DataSourceInterface = this.eventRepository.dataSource;
+        if (!isPubSubDataSource(dataSource)) {
+            return;
+        }
+        this.everyInstanceListening ??= dataSource.subscribe(EVERY_INSTANCE_CHANNEL, message => {
+            const [instanceId, eventId] = message.split(' ');
+            if (instanceId === this.instanceId || eventId == undefined) {
+                return;
+            }
+            // eslint-disable-next-line promise/prefer-await-to-then
+            void this.eventRepository.findById(eventId, { acrossTenants: true, required: false }).then(
+                event => {
+                    if (event != undefined) {
+                        this.everyInstanceSubject.next({ ...event, eventSubscriberRuns: [] });
+                    }
+                },
+                // eslint-disable-next-line promise/prefer-await-to-callbacks
+                error => this.logger.error(new InternalError(`Could not read event ${eventId} another instance emitted`, { cause: error }))
+            );
+        });
+        await this.everyInstanceListening;
     }
 
     /**
@@ -345,13 +442,14 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * subscriber, not the process, so it survives any one of them going away.
      * @param subscriberId - The subscriber to record.
      * @param eventType - The type it takes, or ALL_EVENTS_TYPE when it takes every event.
+     * @param runsOn - Whether every instance hosting it runs it.
      */
-    protected async registerSubscriber(subscriberId: string, eventType: string): Promise<void> {
+    protected async registerSubscriber(subscriberId: string, eventType: string, runsOn: RunsOn): Promise<void> {
         const expiresAt: Date = new Date(Date.now() + inject(ZIBRI_DI_TOKENS.EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS));
         await this.eventSubscriberRegistrationRepository.upsert(
             { subscriberId, eventType },
-            { subscriberId, eventType, expiresAt },
-            { expiresAt: { set: expiresAt } }
+            { subscriberId, eventType, runsOn, expiresAt },
+            { expiresAt: { set: expiresAt }, runsOn: { set: runsOn } }
         );
     }
 
@@ -366,10 +464,10 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * down keeps its events unfinished, which is what lets them be picked up when it returns.
      */
     async refreshSubscriberRegistrations(): Promise<void> {
-        const local: [string, string][] = [
+        const local: [EventSubscription, string][] = [
             ...[...this.subscriptionForEvent.entries()]
-                .flatMap(([type, subs]) => [...subs].map((s): [string, string] => [s.id, type])),
-            ...[...this.subscriptionsForAll].map((s): [string, string] => [s.id, ALL_EVENTS_TYPE])
+                .flatMap(([type, subs]) => [...subs].map((s): [EventSubscription, string] => [s, type])),
+            ...[...this.subscriptionsForAll].map((s): [EventSubscription, string] => [s, ALL_EVENTS_TYPE])
         ];
 
         // one write for every subscriber this instance hosts, rather than a round trip each on every
@@ -378,8 +476,8 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         const expiresAt: Date = new Date(Date.now() + inject(ZIBRI_DI_TOKENS.EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS));
         await this.eventSubscriberRegistrationRepository.upsertAll(
             ['subscriberId', 'eventType'],
-            local.map(([subscriberId, eventType]) => ({
-                create: { subscriberId, eventType, expiresAt },
+            local.map(([subscription, eventType]) => ({
+                create: { subscriberId: subscription.id, eventType, runsOn: subscription.runsOn, expiresAt },
                 onConflict: { expiresAt: { set: expiresAt } }
             }))
         );
@@ -414,11 +512,11 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * The subscribers that owe an event of this type a run, out of registrations already read.
      * @param registrations - Live registrations, including the type's.
      * @param type - The event type.
-     * @returns The subscriber ids, deduplicated.
+     * @returns The subscriber ids, deduplicated. A subscriber every instance runs owes no run.
      */
     private liveSubscriberIdsIn(registrations: EventSubscriberRegistration[], type: string): string[] {
         const subscriberIds: string[] = registrations
-            .filter(r => r.eventType === type || r.eventType === ALL_EVENTS_TYPE)
+            .filter(r => (r.eventType === type || r.eventType === ALL_EVENTS_TYPE) && r.runsOn !== 'everyInstance')
             .map(r => r.subscriberId);
         return [...new Set(subscriberIds)];
     }
@@ -435,7 +533,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * @param options - Additional options like the subscriberId, attempts etc.
      */
     protected runHookSafely<K extends keyof ZibriEventMap>(
-        hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[K]>,
         event: Event<ZibriEventMap[K]>,
         options: EventSubscribeOptions
     ): void {
@@ -472,7 +570,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * @param options - Additional options like the subscriberId, attempts etc.
      */
     private async runHookCounted<K extends keyof ZibriEventMap>(
-        hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[K]>,
         event: Event<ZibriEventMap[K]>,
         options: EventSubscribeOptions
     ): Promise<void> {
@@ -493,6 +591,45 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     }
 
     /**
+     * Runs the hook of a subscriber every instance runs, once, without a claim or a run: what it
+     * fails with is logged, and nothing is tried again.
+     * @param hook - The hook to run.
+     * @param event - The event to run the hook on.
+     * @param options - The options of the subscriber.
+     */
+    private runEveryInstanceHookSafely<K extends keyof ZibriEventMap>(
+        hook: EventHook<ZibriEventMap[K]>,
+        event: Event<ZibriEventMap[K]>,
+        options: EventSubscribeOptions
+    ): void {
+        const run: () => Promise<void> = async () => {
+            this.runningHooks++;
+            try {
+                await this.runInTenantOf(event, async () => await PromiseUtilities.withTimeout(
+                    async signal => await hook(event, signal, {
+                        runId: `${event.id}:${options.subscriberId}`,
+                        attempt: 1,
+                        signal,
+                        transaction: undefined
+                    }),
+                    options.timeoutInMs ?? DEFAULT_HOOK_TIMEOUT_IN_MS
+                ));
+            }
+            catch (error) {
+                this.logger.error(new EventProcessingError(
+                    event,
+                    options.subscriberId,
+                    new InternalError(`Running hook for event ${event.id} failed`, { cause: error })
+                ));
+            }
+            finally {
+                this.runningHooks--;
+            }
+        };
+        void run();
+    }
+
+    /**
      * Runs work in the tenant an event was emitted in.
      *
      * The poll hands out the events of every tenant from outside all of them, so a hook, the run it
@@ -506,196 +643,162 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
     }
 
     /**
-     * Runs the given hook with the given event and options.
+     * Runs the given hook with the given event and options, as an attempt of the subscriber's run.
      * @param hook - The hook to run.
      * @param event - The event to run the hook on.
      * @param options - Additional options like the subscriberId, attempts etc.
      */
     protected async runHook<K extends keyof ZibriEventMap>(
-        hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[K]>,
         event: Event<ZibriEventMap[K]>,
         options: EventSubscribeOptions
     ): Promise<void> {
-        // claim before doing anything. The same subscriber runs on every replica, and all of them
+        // claimed before anything runs. The same subscriber runs on every replica, and all of them
         // reach this point for the same event - without a claim a welcome mail goes out once per
-        // pod. Losing the race is the normal outcome everywhere but one, not an error, so the
-        // undefined this returns then is deliberately not looked at.
-        //
-        // The grant is renewed underneath for as long as the hook runs, and covers one attempt: the
-        // attempts after it are separate dispatches, each claiming the work again.
-        //
-        // 'retain' rather than 'release', because the grant is not only the exclusion but the thing
-        // that stops a replica arriving a moment later from running the same subscriber again -
-        // handing it back the instant the hook returns would reopen exactly the window the ledger
-        // row is written to close. It is also why a retry never happens sooner than the lease
-        // lapses, whatever the backoff works out to.
-        await this.leaseService.withLease(
-            {
-                key: claimKeyFor(event.id, options.subscriberId),
-                leaseInMs: inject(ZIBRI_DI_TOKENS.EVENT_EXECUTION_LEASE_IN_MS),
-                onCompletion: 'retain'
-            },
-            async lost => {
-                let error: InternalError | undefined = undefined;
-                try {
-                    // the hook's signal fires for the lost claim as it does for the timeout: from
-                    // the hook's side there is no difference, it has stopped being worth finishing
-                    await PromiseUtilities.withTimeout((signal) => hook(event, signal), options.timeout ?? Ms.SECOND * 30, lost);
-                }
-                catch (_error) {
-                    error = new InternalError(`Running hook for event ${event.id} failed`, { cause: _error });
-                }
-                // whoever took the claim over runs the hook again and writes the ledger row for it;
-                // a row written here beside that one would say the attempt ended twice
-                if (lost.aborted) {
-                    this.logger.warn(
-                        `Lost the claim on event ${event.id} for subscriber "${options.subscriberId}" while its hook was running`
-                        + ' - its result is not recorded, since whoever took the claim runs the hook again'
-                    );
-                    return;
-                }
-                await this.recordResult(event, options, error);
-            }
-        );
+        // pod. Losing the race is the normal outcome everywhere but one, not an error.
+        const previous: EventSubscriberRun<unknown> | undefined = event.eventSubscriberRuns.find(r => r.subscriberId === options.subscriberId);
+        await QueueUtilities.runClaimed(this.resolveRunQueue(hook, options), { event, attempts: previous?.attempts ?? 0 });
     }
 
     /**
-     * Writes down how the attempt ended, and settles the event when nothing is owed any more.
+     * Resolves the queue of a subscriber's runs: how an attempt runs its hook, and how it is recorded.
+     * @param hook - The hook of the subscriber.
+     * @param options - The options of the subscriber.
+     * @returns The queue.
+     */
+    private resolveRunQueue<K extends keyof ZibriEventMap>(
+        hook: EventHook<ZibriEventMap[K]>,
+        options: EventSubscribeOptions
+    ): QueueDefinition<EventRunItem<ZibriEventMap[K]>> {
+        const subscriberId: string = options.subscriberId;
+        return {
+            name: 'event',
+            wakeUpTopic: WAKE_UP_TOPICS.EVENTS,
+            dataSource: this.eventRepository.dataSource,
+            leaseInMs: inject(ZIBRI_DI_TOKENS.EVENT_EXECUTION_LEASE_IN_MS),
+            // 'retain' rather than 'release', because the grant is not only the exclusion but the
+            // thing that stops a replica arriving a moment later from running the same subscriber
+            // again - handing it back the instant the hook returns would reopen exactly the window
+            // the ledger row is written to close. It is also why a retry never happens sooner than
+            // the lease lapses, whatever the backoff works out to
+            onCompletion: 'retain',
+            claimedPer: 'item',
+            // doubling from the configured base. No jitter, because the lease already decides which
+            // replica runs an event - what a spread would buy here is between *events* that failed
+            // together, which is a concern of the fan out (evaluation/04 2.5) rather than of this
+            firstRetryDelayInMs: inject(ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS),
+            findRunId: item => `${item.event.id}:${subscriberId}`,
+            // the count lives on the row because the attempts are spread across polls and restarts,
+            // so the process running this one has no way of knowing it is the third
+            refresh: async item => ({
+                ...item,
+                attempts: (await this.eventSubscriberRunRepository.findOne({
+                    where: { eventId: item.event.id, subscriberId },
+                    required: false
+                }))?.attempts ?? 0
+            }),
+            findMaxAttempts: () => options.attempts ?? 1,
+            findDelivery: () => options.delivery ?? 'atLeastOnce',
+            // the hook's signal fires for the lost claim as it does for the timeout: from the hook's
+            // side there is no difference, it has stopped being worth finishing
+            run: async (item, run) => await PromiseUtilities.withTimeout(
+                async signal => await hook(item.event, signal, { ...run, signal }),
+                options.timeoutInMs ?? DEFAULT_HOOK_TIMEOUT_IN_MS,
+                run.signal
+            ),
+            record: async (item, outcome, transaction) => await this.recordResult(item.event, subscriberId, outcome, transaction),
+            // EventProcessingError means the subscriber gave up, which is what the docs promise it
+            // means - a failure with attempts left is worth knowing about but is not that
+            resolveGiveUpError: (item, cause) => new EventProcessingError(
+                item.event,
+                subscriberId,
+                new InternalError(`Running hook for event ${item.event.id} failed`, { cause })
+            )
+        };
+    }
+
+    /**
+     * Writes down how an attempt ended, and settles the event when nothing is owed any more.
      *
      * Written while the grant is still held on purpose. The row is what tells every future reader
      * where this subscriber stands with this event, and a grant that expired between the hook
      * returning and this landing would let another replica start the whole thing again.
-     *
-     * Guarded, because none of it is the subscriber's code and a failure here used to end the
-     * process. That is worth logging and never worth dying over - the grant is retained either way,
-     * so a write that failed means the attempt is repeated once the grant lapses rather than never
-     * recorded at all.
      * @param event - The event that was handled.
-     * @param options - The subscriber's options, for its id and how many attempts it gets.
-     * @param error - What the hook failed with, if it did.
+     * @param subscriberId - The subscriber.
+     * @param outcome - How the attempt ended.
+     * @param transaction - The transaction the attempt ran in, if it ran in one.
      */
     private async recordResult<K extends keyof ZibriEventMap>(
         event: Event<ZibriEventMap[K]>,
-        options: EventSubscribeOptions,
-        error: InternalError | undefined
+        subscriberId: string,
+        outcome: QueuedWorkOutcome,
+        transaction: Transaction | undefined
     ): Promise<void> {
-        const subscriberId: string = options.subscriberId;
-        try {
-            // the count lives on the row because the attempts are spread across polls and restarts,
-            // so the process running this one has no way of knowing it is the third
-            const previous: EventSubscriberRun<unknown> | undefined = await this.eventSubscriberRunRepository.findOne({
-                where: { eventId: event.id, subscriberId },
-                required: false
-            });
-            const attempts: number = (previous?.attempts ?? 0) + 1;
-            const hasAttemptsLeft: boolean = attempts < (options.attempts ?? 1);
-            const status: EventSubscriberRunStatus = error == undefined
-                ? EventSubscriberRunStatus.SUCCEEDED
-                : hasAttemptsLeft ? EventSubscriberRunStatus.PENDING_RETRY : EventSubscriberRunStatus.FAILED;
-            // eslint-disable-next-line unicorn/no-null
-            const loggedError: LoggedError | null = error == undefined ? null : errorToLoggedError(error);
-            const nextRetryAt: Date | null = status === EventSubscriberRunStatus.PENDING_RETRY
-                ? new Date(Date.now() + this.retryDelayFor(attempts))
-                // null and not undefined, because this clears a column that a previous attempt
-                // filled - the driver passes the value straight into the statement, where undefined
-                // is a dialect's guess and null is the value being asked for
-                // eslint-disable-next-line unicorn/no-null
-                : null;
+        const status: EventSubscriberRunStatus = RUN_STATUS_OF[outcome.kind];
+        await this.eventSubscriberRunRepository.upsert(
+            { eventId: event.id, subscriberId },
+            {
+                eventId: event.id,
+                subscriberId,
+                status,
+                attempts: outcome.attempts,
+                error: outcome.error,
+                nextAttemptAt: outcome.nextAttemptAt,
+                finishedAt: new Date()
+            },
+            {
+                status: { set: status },
+                attempts: { set: outcome.attempts },
+                // set rather than left alone, so it always describes the ending the status names
+                error: { set: outcome.error },
+                nextAttemptAt: { set: outcome.nextAttemptAt },
+                finishedAt: { set: new Date() }
+            },
+            { transaction }
+        );
 
-            if (error != undefined) {
-                // EventProcessingError means the subscriber gave up, which is what the docs promise
-                // it means - a failure with attempts left is worth knowing about but is not that
-                if (status === EventSubscriberRunStatus.FAILED) {
-                    this.logger.error(new EventProcessingError(event, subscriberId, error));
-                }
-                else {
-                    this.logger.warn(
-                        `Attempt ${attempts} at event ${event.id} for subscriber "${subscriberId}" failed,`
-                        + ` retrying after ${nextRetryAt?.toISOString()}`
-                    );
-                }
-            }
-
-            await this.eventSubscriberRunRepository.upsert(
-                { eventId: event.id, subscriberId },
-                {
-                    eventId: event.id,
-                    subscriberId,
-                    status,
-                    attempts,
-                    error: loggedError,
-                    nextRetryAt,
-                    finishedAt: new Date()
-                },
-                {
-                    status: { set: status },
-                    attempts: { set: attempts },
-                    // set rather than left alone, so it always describes the ending the status names
-                    error: { set: loggedError },
-                    nextRetryAt: { set: nextRetryAt },
-                    finishedAt: { set: new Date() }
-                }
-            );
-
-            // a run that is still owed leaves the event unsettled, and the poll offers it again when
-            // the earliest run it owes is due. Read once for both, after the write above
-            const runs: EventSubscriberRun<unknown>[] = await this.findRunsOf(event);
-            const liveSubscriberIds: string[] = await this.liveSubscriberIdsFor(event.type);
-            if (!await this.settleEvent(event, runs, liveSubscriberIds)) {
-                await this.scheduleNextDispatch(event, runs, liveSubscriberIds);
-            }
+        // a run that is still owed leaves the event unsettled, and the poll offers it again when
+        // the earliest run it owes is due. Read once for both, after the write above
+        const runs: EventSubscriberRun<unknown>[] = await this.findRunsOf(event, transaction);
+        const liveSubscriberIds: string[] = await this.liveSubscriberIdsFor(event.type);
+        if (!await this.settleEvent(event, runs, liveSubscriberIds, transaction)) {
+            await this.scheduleNextDispatch(event, runs, liveSubscriberIds, transaction);
         }
-        catch (_error) {
-            this.logger.error(
-                new InternalError(
-                    `Could not record the result of event ${event.id} for subscriber "${subscriberId}"`,
-                    { cause: _error }
-                )
-            );
-        }
-    }
-
-    /**
-     * How long to wait before the next attempt at an event.
-     *
-     * Doubling from the configured base: the first retry waits it out once, the second twice as
-     * long. No jitter, because the lease already decides which replica runs an event - what a spread
-     * would buy here is between *events* that failed together, which is a concern of the fan out
-     * rather than of this.
-     * @param attempts - How many attempts have been spent, the failed one included.
-     * @returns The delay in milliseconds.
-     */
-    private retryDelayFor(attempts: number): number {
-        // the fan out is evaluation/04 2.5
-        return inject(ZIBRI_DI_TOKENS.EVENT_RETRY_DELAY_IN_MS) * (2 ** (attempts - 1));
     }
 
     /**
      * The runs the subscribers of an event have recorded.
      * @param event - The event.
+     * @param transaction - The transaction to read in, if any.
      * @returns The runs.
      */
-    private async findRunsOf<K extends keyof ZibriEventMap>(event: Event<ZibriEventMap[K]>): Promise<EventSubscriberRun<unknown>[]> {
+    private async findRunsOf<K extends keyof ZibriEventMap>(
+        event: Event<ZibriEventMap[K]>,
+        transaction: Transaction | undefined
+    ): Promise<EventSubscriberRun<unknown>[]> {
         return await this.eventSubscriberRunRepository.findAll({
-            where: { event: { where: { id: event.id } } }
+            where: { event: { where: { id: event.id } } },
+            transaction
         });
     }
 
     /**
      * Moves the event's next dispatch to when the earliest run it still owes is due.
      *
-     * Now, while a subscriber has not run at all. The earliest `nextRetryAt`, while every subscriber
-     * that still owes a run is waiting for its retry: the poll then leaves the event out until that
-     * time, so a page of events waiting on long retries does not hold up the events behind them -
-     * and this instance's poll is woken then, however long it has found nothing.
+     * Now, while a subscriber has not run at all. The earliest `nextAttemptAt`, while every
+     * subscriber that still owes a run is waiting for its retry: the poll then leaves the event out
+     * until that time, so a page of events waiting on long retries does not hold up the events behind
+     * them - and this instance's poll is woken then, however long it has found nothing.
      * @param event - The event, which is not settled.
      * @param runs - The runs its subscribers recorded.
      * @param liveSubscriberIds - The subscribers of its type that have not lapsed.
+     * @param transaction - The transaction to write in, if any.
      */
     private async scheduleNextDispatch<K extends keyof ZibriEventMap>(
         event: Event<ZibriEventMap[K]>,
         runs: EventSubscriberRun<unknown>[],
-        liveSubscriberIds: string[]
+        liveSubscriberIds: string[],
+        transaction: Transaction | undefined
     ): Promise<void> {
         const dueAt: number[] = event.subscriberIds
             .filter(id => liveSubscriberIds.includes(id))
@@ -705,14 +808,14 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
                     return Date.now();
                 }
                 if (run.status === EventSubscriberRunStatus.PENDING_RETRY) {
-                    return run.nextRetryAt == undefined ? Date.now() : new Date(run.nextRetryAt).getTime();
+                    return run.nextAttemptAt == undefined ? Date.now() : new Date(run.nextAttemptAt).getTime();
                 }
                 return Number.POSITIVE_INFINITY;
             });
         const next: number = Math.min(...dueAt);
         // nothing due means nothing owed, which settleEvent decides and the poll settles if it was missed
         if (Number.isFinite(next)) {
-            await this.eventRepository.updateById(event.id, { nextDispatchAt: new Date(next) });
+            await this.eventRepository.updateById(event.id, { nextDispatchAt: new Date(next) }, { transaction });
             this.wakeUpService.wakeAt(WAKE_UP_TOPICS.EVENTS, new Date(next));
         }
     }
@@ -722,18 +825,20 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      * @param event - The event to settle.
      * @param runs - The runs its subscribers recorded.
      * @param liveSubscriberIds - The subscribers of its type that have not lapsed.
+     * @param transaction - The transaction to write in, if any.
      * @returns Whether the event is settled.
      */
     private async settleEvent<K extends keyof ZibriEventMap>(
         event: Event<ZibriEventMap[K]>,
         runs: EventSubscriberRun<unknown>[],
-        liveSubscriberIds: string[]
+        liveSubscriberIds: string[],
+        transaction: Transaction | undefined
     ): Promise<boolean> {
         const settled: EventStatus | undefined = this.settledStatusOf(event, runs, liveSubscriberIds);
         if (settled == undefined) {
             return false;
         }
-        await this.eventRepository.updateById(event.id, { status: settled });
+        await this.eventRepository.updateById(event.id, { status: settled }, { transaction });
         if (settled === EventStatus.FINISHED) {
             return true;
         }
@@ -742,12 +847,13 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         // that is owed again, and the poll only offers CREATED events. Looked at after the write,
         // because a replay landing after this read also writes CREATED after this write
         const replayed: boolean = await this.eventSubscriberRunRepository.exists({
-            where: { eventId: event.id, status: EventSubscriberRunStatus.PENDING_RETRY }
+            where: { eventId: event.id, status: EventSubscriberRunStatus.PENDING_RETRY },
+            transaction
         });
         if (!replayed) {
             return true;
         }
-        await this.eventRepository.updateById(event.id, { status: EventStatus.CREATED });
+        await this.eventRepository.updateById(event.id, { status: EventStatus.CREATED }, { transaction });
         return false;
     }
 
@@ -768,7 +874,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         const failed: EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>[] = await this.eventSubscriberRunRepository.findAll({
             where,
             relations: ['event'],
-            take: 'all',
+            limit: 'all',
             acrossTenants: options.acrossTenants
         });
         if (!failed.length) {
@@ -793,7 +899,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         // The error stays until the next attempt replaces it
         const replayed: EventSubscriberRun<ZibriEventMap[keyof ZibriEventMap]>[] = await this.eventSubscriberRunRepository.updateAll(
             { id: { oneOf: liveRunIds }, status: EventSubscriberRunStatus.FAILED },
-            { status: EventSubscriberRunStatus.PENDING_RETRY, attempts: 0, nextRetryAt: new Date() },
+            { status: EventSubscriberRunStatus.PENDING_RETRY, attempts: 0, nextAttemptAt: new Date() },
             { returnUpdated: true, acrossTenants: options.acrossTenants }
         );
         if (!replayed.length) {
@@ -816,7 +922,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
      *
      * Emitting only reaches subscribers in the emitting process, so without this an event whose
      * instance died is never picked up by anyone. Every instance polls, and the claim decides who
-     * actually runs - which is why the cron job driving this is deliberately not distributed.
+     * actually runs - which is why the cron job driving this deliberately runs on every instance.
      * @returns Whether any event was due.
      */
     async dispatchPending(): Promise<boolean> {
@@ -835,7 +941,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         const events: Event<ZibriEventMap[keyof ZibriEventMap]>[] = await this.eventRepository.findAll({
             where: { status: EventStatus.CREATED, nextDispatchAt: { beforeOrOn: new Date() } },
             relations: ['eventSubscriberRuns'],
-            take: inject(ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS),
+            limit: inject(ZIBRI_DI_TOKENS.EVENT_MAX_CONCURRENT_HOOKS),
             // the events of every tenant are owed the same, and each is then handled in its own
             acrossTenants: true
         });
@@ -859,7 +965,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
             //
             // Judged on the runs the page was read with: one recorded since is the hook that
             // recorded it settling the event itself
-            if (await this.settleEvent(event, event.eventSubscriberRuns, this.liveSubscriberIdsIn(registrations, event.type))) {
+            if (await this.settleEvent(event, event.eventSubscriberRuns, this.liveSubscriberIdsIn(registrations, event.type), undefined)) {
                 return;
             }
             this.eventSubject.next(event);
@@ -922,7 +1028,7 @@ export class EventService implements EventServiceInterface, OnAppInit, AfterAppS
         if (run.status !== EventSubscriberRunStatus.PENDING_RETRY) {
             return false;
         }
-        return (run.nextRetryAt?.getTime() ?? 0) <= Date.now();
+        return (run.nextAttemptAt?.getTime() ?? 0) <= Date.now();
     }
 
     private findSubscriptionForEventById(event: string, subscriberId: string): EventSubscription | undefined {

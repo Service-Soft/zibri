@@ -5,7 +5,7 @@ import { TsxComponent } from '../../../tsx/tsx-component.model';
 /**
  * Properties of a mailing list subscribe success page.
  */
-type MailingListSubscribeSuccessPageTemplateProps = {
+export type MailingListSubscribeSuccessPageTemplateProps = {
     /**
      * The mailing list for which the subscription was successful.
      */

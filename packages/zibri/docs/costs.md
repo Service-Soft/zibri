@@ -7,8 +7,8 @@ What a repository call costs is how often it talks to the data source: a round t
 - **A `create` or `createAll` given its ids with `allowId` reads once first**, to refuse an id a stored row holds.
 - **Relations are read once for the whole result**, not once per row. Asking for them adds a round trip or two to a call, whatever the number of rows.
 - **A page and its total are read together.** A page that holds no rows, past the last page or after the last row of a walk, reads its total in one more round trip.
-- **`findAll` without a `take` refuses to answer with more than 10,000 rows.** `updateAll` and `deleteAll` asked to return the rows count them first and refuse the same way, before anything is written.
-- **`deleteAll` reads only the ids of the rows it deletes**, unless it hands the rows to somebody: to you with `returnDeleted`, or to a before-save hook of your own, which runs for each deleted row. Then it reads every row and holds it in memory for as long as the call runs, so delete a very large set in parts.
+- **`findAll` without a `limit` refuses to answer with more than 10,000 rows.** `updateAll` and `deleteAll` asked to return the rows count them first and refuse the same way, before anything is written.
+- **`deleteAll` reads only the ids of the rows it deletes**, unless it hands the rows to somebody: to you with `returnDeleted`, or to a [`beforeDelete`](./data-source.md#running-your-own-code-on-every-row) of your own, which runs for each deleted row. Then it reads every row and holds it in memory for as long as the call runs, so delete a very large set in parts.
 - **Updating an encrypted property that is bound to its row reads the matching rows** and writes each its own value, since every row needs a value encrypted for it. Setting `bindToRow: false` on the property makes it one write again.
 - **An `upsert` whose `onConflict` sets an encrypted property bound to its row writes that value in one more round trip** when the row was already there, since it is encrypted for that row. `bindToRow: false` makes it part of the single write again.
 - **`count` and `exists` decrypt nothing**, and every row you receive is decrypted once. `deleteAll` decrypts the rows it reads, so only when it hands them to somebody.
@@ -28,6 +28,7 @@ The round trips each call takes on the data sources Zibri ships with. Measured o
 | `findAllPaginated` with a relation of a relation | 1 | 5 |
 | `findAllAfter` | 1 | 2 |
 | `stream` | 2 | 2 |
+| `stream` in an order | 2 | 3 |
 | `count` | 1 | 2 |
 | `exists` | 1 | 2 |
 | `sum`, `average`, `minimum`, `maximum` | 1 | 2 |
@@ -45,10 +46,13 @@ The round trips each call takes on the data sources Zibri ships with. Measured o
 | `upsert` | 1 | 9 |
 | `upsertAll` | 1 | 9 |
 | `deleteById` | 2 | 3 |
+| `deleteById` with a condition | 2 | 3 |
 | `deleteAll` | 2 | 4 |
 | `deleteAll` returning the rows | 3 | 6 |
 
 On ValKey, a filter reads every row of the entity and is answered in your application, unless it names the id, every property of a unique declaration, or every property of an index group the entity declares. Its cost in memory and time then grows with the table. A filter names an index group with a plain value for each of its properties, or with a `oneOf` of plain values for a group of one property. A filter naming only some properties of an index group reads every row.
+
+On ValKey, a `stream` in an order reads the rows it matches twice: once for what the order compares, which it holds for every matching row together with the id until the stream ends, and once to hand them out.
 
 ## See also
 - [Data Sources](./data-source.md) — the repository calls this page lists

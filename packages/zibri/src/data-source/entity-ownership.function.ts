@@ -93,8 +93,8 @@ export function resolveEntityOwnership(dataSources: RegisteredDataSource[]): voi
  * `@InjectRepository(Entity)` work without naming a data source in the common case.
  *
  * An entity the data source lists a repository class for is read and written through that class,
- * built over the repository the data source builds: every token hands out the one instance, and so
- * does the class itself.
+ * which the data source builds over its own repository: every token hands out the one instance, and
+ * so does the class itself.
  * @param dataSourceClass - The class of the data source, which the tokens are qualified with.
  * @param dataSource - The data source whose repositories should be registered.
  */
@@ -104,13 +104,8 @@ export function registerRepositoryProvidersFor(
 ): void {
     for (const entity of dataSource.entities) {
         const qualified: DiToken<Repository<BaseEntity>> = repositoryTokenFor(entity, dataSourceClass);
-        const repositoryClass: RepositoryClass | undefined =RepositoryForUtilities.findRepositoryClass(dataSource, entity);
-        register({
-            token: qualified,
-            useFactory: repositoryClass == undefined
-                ? () => dataSource.getRepository(entity)
-                : () => RepositoryForUtilities.buildRepository(repositoryClass, entity, dataSource.getRepository(entity))
-        });
+        const repositoryClass: RepositoryClass | undefined = RepositoryForUtilities.findRepositoryClass(dataSource, entity);
+        register({ token: qualified, useFactory: () => dataSource.getRepository(entity) });
 
         if (!getAmbiguousRepositoryDataSources(`Repository<${entity.name}>`)) {
             register({

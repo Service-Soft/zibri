@@ -24,17 +24,17 @@ import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Newable } from '../../types/newable.type';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-form-post-client';
 const CLIENT_SECRET: string = 'zibri-form-post-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 
 let provider: FakeOAuthProvider;
 
@@ -95,7 +95,7 @@ describe('evaluation/03-auth-and-security H17 - a provider answering with a form
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: 'https://app.example.com/register',
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -109,21 +109,21 @@ describe('evaluation/03-auth-and-security H17 - a provider answering with a form
         await provider?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('signs a linked user in when the provider posts its answer to the callback', async () => {
+    it('logs a linked user in when the provider posts its answer to the callback', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'form-post@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: provider.issuer, subject: 'form-post-subject', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: provider.issuer, subject: 'form-post-subject', userId: user.id, forLogin: true, grantedScopes: [] });
         provider.identity = { subject: 'form-post-subject' };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
         const atProvider: string = await browser.follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`
         );
         const page: Response = await browser.open(atProvider);
         expect(page.status).toBe(200);
 
         // the page submits the form: a POST another site sends, which a browser sends without a
-        // SameSite=Lax cookie. The sign-in is tied to the browser with a cookie, and the callback
+        // SameSite=Lax cookie. The login is tied to the browser with a cookie, and the callback
         // refuses the answer without it
         let res: Response = await browser.open(`${PUBLIC_URL}/auth/federated/form-post/callback`, {
             method: 'POST',

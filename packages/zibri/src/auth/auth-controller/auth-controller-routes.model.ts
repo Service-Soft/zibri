@@ -13,7 +13,7 @@ import { LogoutResult } from '../models/logout-result.model';
 import { CsrfToken } from '../strategies/csrf-token.model';
 
 /**
- * Where the routes of a sign-in at a provider are, below the path of the auth controller.
+ * Where the routes of a login at a provider are, below the path of the auth controller.
  */
 export const FEDERATED_ROUTE: Route = '/federated';
 
@@ -50,29 +50,29 @@ export type AuthControllerPasswordResetRoutes = {
 };
 
 /**
- * The route of `AuthController` for an authenticator that hands out a challenge to sign in with.
+ * The route of `AuthController` for an authenticator that hands out a challenge to log in with.
  */
-export type AuthControllerSignInOptionsRoutes = {
+export type AuthControllerLoginOptionsRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    signInOptions: (authenticator: string | undefined) => Promise<unknown>
+    loginOptions:(authenticator: string | undefined) => Promise<unknown>
 };
 
 /**
- * The routes of `AuthController` for an authenticator that signs up users by itself.
+ * The routes of `AuthController` for an authenticator that registers users by itself.
  */
-export type AuthControllerSignUpRoutes = {
+export type AuthControllerRegistrationRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    registrationOptions: (authenticator: string | undefined, request: object) => Promise<unknown>,
+    requestRegistration: (authenticator: string | undefined, request: object) => Promise<unknown>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    register: (authenticator: string | undefined, answer: object) => Promise<unknown>
+    confirmRegistration: (authenticator: string | undefined, answer: object) => Promise<unknown>
 };
 
 /**
- * The routes of `AuthController` for an authenticator that signs users in at a provider.
+ * The routes of `AuthController` for an authenticator that logs users in at a provider.
  */
 export type AuthControllerFederatedRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    authorize: (
+    requestProviderLogin: (
         authenticator: string | undefined,
         redirectTo: string,
         codeChallenge: string | undefined,
@@ -85,7 +85,7 @@ export type AuthControllerFederatedRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     formPostCallback: (provider: string, form: FederatedCallbackForm) => Promise<RedirectResponse>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    connectProvider: (provider: string, code: string) => Promise<RedirectResponse>,
+    continueLinkIdentity: (provider: string, code: string) => Promise<RedirectResponse>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     providerLogout: (provider: string) => Promise<RedirectResponse | HtmlResponse>,
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -97,19 +97,19 @@ export type AuthControllerFederatedRoutes = {
 };
 
 /**
- * The route of `AuthController` for an authenticator whose identities a user connects to their account.
+ * The route of `AuthController` for an authenticator whose identities a user links to their account.
  */
-export type AuthControllerConnectionRoutes = {
+export type AuthControllerLinkIdentityRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    startConnection: (authenticator: string | undefined, request: object) => Promise<unknown>
+    requestLinkIdentity: (authenticator: string | undefined, request: object) => Promise<unknown>
 };
 
 /**
- * The route of `AuthController` for an authenticator that finishes connecting with an answer of the client.
+ * The route of `AuthController` for an authenticator that confirms a link with an answer of the client.
  */
-export type AuthControllerConnectionCompletingRoutes = {
+export type AuthControllerLinkIdentityConfirmingRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    completeConnection: (authenticator: string | undefined, answer: object) => Promise<void>
+    confirmLinkIdentity: (authenticator: string | undefined, answer: object) => Promise<void>
 };
 
 /**
@@ -131,7 +131,7 @@ export type AuthControllerTwoFactorRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     confirmTwoFactorRegistration: (user: BaseUser<string>, method: string | undefined, data: object) => Promise<void>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    removeTwoFactorMethod: (user: BaseUser<string>, method: string) => Promise<void>,
+    removeTwoFactorRegistration: (user: BaseUser<string>, method: string) => Promise<void>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    startSecondFactor: (user: BaseUser<string>, method: string | undefined) => Promise<unknown>
+    requestSecondFactor: (user: BaseUser<string>, method: string | undefined) => Promise<unknown>
 };

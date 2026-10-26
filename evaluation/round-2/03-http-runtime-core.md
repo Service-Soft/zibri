@@ -217,6 +217,24 @@ The rest of the runtime is clean: content types are lowercased before comparison
 
 **Verify:** in-memory server with `@Param.header('User-Agent') agent: string` as the docs write it: expect the handler to receive the header; today 400. A second case overriding `VERSION_HEADER` with `'X-Version'` and sending it: expect the version to resolve.
 
+### H20. Building an application adds to the lists of the options it was given — MINOR
+*Filed and closed 2026-10-26, found by 08 §X27's work (06 §F27).*
+
+`ZibriApplication.createFullOptions` spread the provided options, so `cronJobs`, `authenticators`,
+`authStrategies`, `twoFactorMethods` and the other lists were the caller's own arrays, and everything
+the application added while it started went into them: the default `JwtAuthStrategy`,
+`PasswordAuthenticator` and `OtpTwoFactorMethod`, and every cron job a feature registers. A second
+application built from the same options, such as a test reusing `baseApplicationOptions`, started
+with what the first one added. The test harness's `reInit` made it worse by inheriting `app.options`
+itself, so a feature's cleanup job outlived the feature.
+
+> **Closed 2026-10-26.** The application copies every list it is given; `StartedTestServer` keeps the
+> options it built the application from and a `reInit` inherits those, plugins included (it dropped
+> plugins before, because `app.options` held what they had added). Tests:
+> `application.options-base.test.ts` "leaves the lists it was built from as they were", red with the
+> caller's arrays holding the defaults and the cron jobs; `password-reset-token-cleanup.cron-job.test.ts`
+> "after a reInit without the password authenticator", red with the job still registered.
+
 ## Code quality and architecture
 
 Moved to [code-review/03-http-runtime-core.md](./code-review/03-http-runtime-core.md) (Q1–Q9).

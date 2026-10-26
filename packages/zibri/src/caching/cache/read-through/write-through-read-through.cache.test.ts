@@ -265,7 +265,7 @@ describe('WriteThroughReadThroughCache', () => {
                 fn,
                 (id) => `key:${id}`,
                 {
-                    ttl: Ms.SECOND * 5
+                    ttlInMs: Ms.SECOND * 5
                 }
             );
 
@@ -323,7 +323,7 @@ describe('WriteThroughReadThroughCache', () => {
                 fn,
                 (result, name) => `${result.id}:${name}`,
                 {
-                    ttl: (result, name) => result.id === `id:${name}` ? Ms.SECOND * 10 : Ms.SECOND
+                    ttlInMs: (result, name) => result.id === `id:${name}` ? Ms.SECOND * 10 : Ms.SECOND
                 }
             );
 

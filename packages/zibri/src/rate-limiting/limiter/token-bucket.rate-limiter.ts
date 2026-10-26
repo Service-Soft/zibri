@@ -19,7 +19,7 @@ export type TokenBucketState = BaseRateLimitState & {
     /**
      * Timestamp of the last refill in ms.
      */
-    readonly lastRefillMs: number
+    readonly lastRefillAtMs: number
 };
 
 /**
@@ -33,7 +33,7 @@ type RefillResult = {
     /**
      * The timestamp at which the last refill happened (now).
      */
-    lastRefillMs: number
+    lastRefillAtMs: number
 };
 
 /**
@@ -46,7 +46,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         config: RateLimiterConfigInput<TokenBucketState>
     ) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
@@ -82,7 +82,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
                     return {
                         ...current,
                         tokens: tokensAfterOp,
-                        lastRefillMs: now,
+                        lastRefillAtMs: now,
                         // Renew idle-key expiry on every touch, same intent as the
                         // ttlMs argument the store used to take directly.
                         expiresAtMs: Math.max(current.expiresAtMs, now + this.intervalInMs)
@@ -125,7 +125,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
     protected initialAlgoState(now: number): TokenBucketState {
         return {
             tokens: this.config.capacity,
-            lastRefillMs: now,
+            lastRefillAtMs: now,
             reservations: [],
             expiresAtMs: now + this.intervalInMs
         };
@@ -138,7 +138,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         return {
             ...state,
             tokens: NumberUtilities.subtract(refilled.tokens, count).toNumber(),
-            lastRefillMs: now
+            lastRefillAtMs: now
         };
 
     }
@@ -150,7 +150,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         return {
             ...state,
             tokens: Math.min(this.config.capacity, NumberUtilities.add(refilled.tokens, count).toNumber()),
-            lastRefillMs: now
+            lastRefillAtMs: now
         };
     }
 
@@ -209,13 +209,13 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
         return {
             ...state,
             tokens: refilled.tokens,
-            lastRefillMs: now,
+            lastRefillAtMs: now,
             reservations: updatedReservations
         };
     }
 
     private refill(state: TokenBucketState, now: number): RefillResult {
-        const elapsedMs: number = Math.max(0, NumberUtilities.subtract(now, state.lastRefillMs).toNumber());
+        const elapsedMs: number = Math.max(0, NumberUtilities.subtract(now, state.lastRefillAtMs).toNumber());
         const refillTokens: number = NumberUtilities
             .multiply(elapsedMs, this.config.capacity)
             .dividedBy(this.intervalInMs)
@@ -223,7 +223,7 @@ export class TokenBucketRateLimiter extends BaseRateLimiter<TokenBucketState> {
 
         return {
             tokens: Math.min(this.config.capacity, NumberUtilities.add(state.tokens, refillTokens).toNumber()),
-            lastRefillMs: now
+            lastRefillAtMs: now
         };
     }
 

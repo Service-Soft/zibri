@@ -31,13 +31,9 @@ import { TsxUtilities } from '../../tsx/tsx.utilities';
 @Controller('/mailing-lists', { allowOrphan: true, versions: 'all' })
 export class MailingListController implements OnAppInit {
 
-    // the two below are read when used rather than injected: controllers are built before any init,
-    // and ZibriMailingListPlugin.validate names the entities that are missing - which it could not,
-    // if building this had failed on a repository token first
-    private get subscriberRepository(): Repository<MailingListSubscriber> {
-        return inject(repositoryTokenFor(MailingListSubscriber));
-    }
-
+    // read when used rather than injected: controllers are built before any init, and
+    // ZibriMailingListPlugin.validate names the entities that are missing - which it could not, if
+    // building this had failed on a repository token first
     private get mailingListRepository(): Repository<MailingList> {
         return inject(repositoryTokenFor(MailingList));
     }
@@ -69,7 +65,7 @@ export class MailingListController implements OnAppInit {
 
     @Response.html()
     @Get('/:id/subscribe/:token')
-    async subscribe(
+    async confirmSubscription(
         @Param.path('id')
         id: string,
         @Param.path('token')
@@ -77,7 +73,7 @@ export class MailingListController implements OnAppInit {
     ): Promise<HtmlResponse> {
         const mailingList: MailingList = await this.mailingListRepository.findById(id);
 
-        const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscribeToList(id, token);
+        const subscriber: MailingListSubscriber = await this.mailingListService.confirmSubscription(id, token);
         const managePreferencesLink: string = await this.mailingListService.resolveManagePreferencesLink(subscriber);
 
         const html: string = TsxUtilities.renderPage(
@@ -147,8 +143,7 @@ export class MailingListController implements OnAppInit {
         body: UpdateMailingListPreferences
     ): Promise<void> {
         const subscriber: MailingListSubscriber = await this.mailingListService.resolveSubscriberOfLink(subscriberId, secret);
-        const mailingLists: MailingList[] = await this.mailingListRepository.findAll({ where: { id: { oneOf: body.mailingListIds } } });
-        await this.subscriberRepository.updateById(subscriber.id, { mailingLists });
+        await this.mailingListService.updateSubscriptions(subscriber.id, body.mailingListIds);
     }
 
     /**

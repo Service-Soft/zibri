@@ -47,7 +47,7 @@ export class TraceSpanRecord {
      * How long it took, in milliseconds and fractions of one.
      */
     @Property.number()
-    durationMs!: number;
+    durationInMs!: number;
     /**
      * How it ended.
      */

@@ -58,8 +58,8 @@ const providers: DiProvider<unknown>[] = [
         useValue: {
             maxThreads: 1,
             maxPriorityThreads: 0,
-            defaultTimeoutMs: Ms.HOUR,
-            defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+            defaultTimeoutInMs: Ms.HOUR,
+            defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
             jobClaimInMs: Ms.SECOND * 30,
             maxAttempts: 3,
             workerResourceLimits: {},
@@ -98,7 +98,7 @@ describe('shutting down a thread job pool', () => {
             priority: false,
             progress: 0,
             attempts: 0,
-            timeout: Ms.HOUR,
+            timeoutInMs: Ms.HOUR,
             workerData
         });
 

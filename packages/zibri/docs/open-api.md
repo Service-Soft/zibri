@@ -6,6 +6,9 @@ Your application describes its routes as an [OpenAPI](https://spec.openapis.org/
 |---|---|---|
 | `OpenApiService`, `OpenApiServiceInterface` | class, interface | Builds the document and serves the explorer. Replaceable through `ZIBRI_DI_TOKENS.OPEN_API_SERVICE` |
 | `OpenApiDefinition` | type | The document of one version |
+| `OpenApiComponentsObject` | type | The `components` of the document, `securitySchemes` among them |
+| `OpenApiSecuritySchemeObject`, `OpenApiSecuritySchemeType` | type, type | How an [auth strategy](./glossary.md#auth-strategy) appears under `securitySchemes`, and the kinds of scheme, `mutualTLS` among them |
+| `OpenApiReferenceObject`, `isOpenApiReferenceObject` | type, function | A `$ref` to a schema, and whether a value is one rather than a schema |
 | `ZIBRI_DI_TOKENS.OPEN_API_AUTH` | DI token | Who may open the explorer and the document. Everyone by default |
 
 ## Reading the document
@@ -30,13 +33,13 @@ curl -o openapi.json https://api.example.com/explorer/spec/1.0.0
 | `info` | The `name` of the application as `title`, and the version as `version` |
 | `tags` | One for each controller. Each operation is tagged with its controller |
 | `paths` | Every route of the version: its path, query and header parameters, its request body, and its responses |
-| `components.securitySchemes` | One for each registered auth strategy, see [how sign-in appears](#how-sign-in-appears) |
+| `components.securitySchemes` | One for each registered auth strategy, see [how login appears](#how-login-appears) |
 
 A request body is described by the model of its `@Body`, and the responses by the `@Response` decorators of the route, see [defining OpenAPI responses](./creating-endpoints.md#defining-openapi-responses).
 
 A route registered directly on the router is in the document as well, unless it sets `openApi: { useInOpenApi: false }`. It describes its responses and tags in `openApi`, since it has no decorators. `HEAD`, `OPTIONS` and `TRACE` routes are left out.
 
-## How sign-in appears
+## How login appears
 `components.securitySchemes` holds the scheme of every registered auth strategy, under its name: `jwt`, `cookie`, `api-key` and so on.
 
 An operation that requires a login lists every strategy under `security`. One that answers anonymous callers lists none. A route that says nothing follows `defaultAuth` here as it does when it is called, see [what an undecorated route requires](./auth.md#what-an-undecorated-route-requires).

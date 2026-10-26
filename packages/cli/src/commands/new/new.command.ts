@@ -21,6 +21,11 @@ type EnvironmentVariable = {
      */
     value?: string,
     /**
+     * What the committed `.env.example` holds, when it differs from `value`: blank for a value a
+     * deployment has to choose for itself rather than inherit from a developer's machine.
+     */
+    example?: string,
+    /**
      * Whether this is a secret: generated for `.env`, and blank in the committed `.env.example`.
      */
     secret?: boolean,
@@ -44,6 +49,10 @@ type EnvironmentVariable = {
     /**
      * Never set on a comment.
      */
+    example?: undefined,
+    /**
+     * Never set on a comment.
+     */
     secret?: undefined
 };
 
@@ -62,6 +71,11 @@ const IMPORT_REQUIRE_ENV: string = 'import { requireEnv } from \'./env\';';
  * mentions - or being told to set one that nothing reads.
  */
 const ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
+    {
+        comment: 'Where the application runs: "development" or "production". In development every mail is'
+            + '\n# logged instead of sent, so a deployment names its own.'
+    },
+    { key: 'ENVIRONMENT', value: 'development', example: '' },
     { comment: 'Where the application listens, and the url it hands out in links it generates.' },
     { key: 'PORT', value: '3000' },
     { key: 'BASE_URL', value: 'http://localhost:3000' },
@@ -89,9 +103,9 @@ const ENVIRONMENT_VARIABLES: EnvironmentVariable[] = [
     { key: 'DEFAULT_ADMIN_PASSWORD', secret: true },
     { comment: 'Where a password reset link points, which is a page of your frontend rather than of this api.' },
     { key: 'CONFIRM_PASSWORD_RESET_URL', value: 'http://localhost:4200/confirm-password-reset' },
-    { comment: 'The mail server outgoing email is sent through. Blank until there is one to name.' },
+    { comment: 'The mail server outgoing email is sent through. Production does not start without one.' },
     { key: 'SMTP_HOST', value: '' },
-    { key: 'SMTP_PORT', value: '0' },
+    { key: 'SMTP_PORT', value: '' },
     { key: 'SMTP_USER', value: '' },
     { key: 'SMTP_PASSWORD', value: '' },
     { key: 'EMAIL_DEFAULT_SENDER', value: '' }
@@ -363,7 +377,7 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
                 'import { $ts, Auth, Controller, Get, GlobalRegistry, ServiceUnavailableError } from \'zibri\';',
                 '',
                 // a probe must answer the same way whatever posture the application takes, and this one is
-                // shipped into a project that is invited to switch its default to "requireLogin"
+                // shipped into a project that is invited to switch its default to "isLoggedIn"
                 '@Auth.skip({ allowRedundant: true })',
                 '@Controller(\'/health\', { versions: \'all\' })',
                 'export class HealthController {',
@@ -393,7 +407,9 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             'defineProvider',
             'DiProvider',
             'EmailConfigInput',
+            'GlobalRegistry',
             'JwtAuthOptionsInput',
+            'LoggingEmailTransport',
             'Ms',
             'SmtpEmailTransport',
             'ZIBRI_DI_TOKENS',
@@ -469,14 +485,17 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
                 '    }),',
                 '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT,',
-                '        useFactory: () => new SmtpEmailTransport({',
-                '            host: optionalEnv(\'SMTP_HOST\'),',
-                '            port: Number(optionalEnv(\'SMTP_PORT\')),',
-                '            auth: {',
-                '                user: optionalEnv(\'SMTP_USER\'),',
-                '                pass: optionalEnv(\'SMTP_PASSWORD\')',
-                '            }',
-                '        })',
+                '        // in development every mail is logged instead of sent, see the email docs',
+                '        useFactory: () => GlobalRegistry.getAppData(\'environment\') === \'development\'',
+                '            ? new LoggingEmailTransport()',
+                '            : new SmtpEmailTransport({',
+                '                host: optionalEnv(\'SMTP_HOST\'),',
+                '                port: Number(optionalEnv(\'SMTP_PORT\')),',
+                '                auth: {',
+                '                    user: optionalEnv(\'SMTP_USER\'),',
+                '                    pass: optionalEnv(\'SMTP_PASSWORD\')',
+                '                }',
+                '            })',
                 '    }),',
                 '    defineProvider({',
                 '        token: ZIBRI_DI_TOKENS.EVENT_FAILED_RETENTION_IN_MS,',
@@ -567,7 +586,7 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             'async function createDefaultRoles(transaction: Transaction): Promise<void> {',
             '    const roleRepository: RoleRepository = inject(RoleRepository);',
             // eslint-disable-next-line stylistic/max-len
-            '    const existing: Set<string> = new Set((await roleRepository.findAll({ take: \'all\', transaction })).map(role => role.name));',
+            '    const existing: Set<string> = new Set((await roleRepository.findAll({ limit: \'all\', transaction })).map(role => role.name));',
             '    const missing: RoleCreateData<Role>[] = defaultRoles.filter(role => !existing.has(role.name));',
             '    if (!missing.length) {',
             '        return;',
@@ -654,11 +673,12 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
         ];
         await this.createFile(getPath(appPath, 'src', 'application-options.base.ts'), [
             mailingList
-                ? 'import { MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from \'zibri\';'
-                : 'import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from \'zibri\';',
+                // eslint-disable-next-line stylistic/max-len
+                ? 'import { MailingListController, OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriMailingListPlugin } from \'zibri\';'
+                : 'import { OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions } from \'zibri\';',
             '',
             `import { AppAuthController, HealthController${pages ? ', PageController' : ''} } from './controllers';`,
-            IMPORT_REQUIRE_ENV,
+            'import { requireEnv, requireOneOfEnv } from \'./env\';',
             'import { version } from \'../package.json\';',
             'import { providers } from \'./providers\';',
             '',
@@ -682,9 +702,10 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             '    websocketControllers: [],',
             '    cronJobs: [],',
             '    version,',
+            '    environment: requireOneOfEnv(\'ENVIRONMENT\', ZIBRI_ENVIRONMENTS),',
             ...configuration.defaultAuth === 'public'
                 ? [
-                    '    // what an endpoint with no @Auth decorator requires. Switch to \'requireLogin\' to have',
+                    '    // what an endpoint with no @Auth decorator requires. Switch to \'isLoggedIn\' to have',
                     '    // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints',
                     '    // that really are public with @Auth.skip(). See the auth docs.'
                 ]
@@ -932,6 +953,7 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             `                for key in ${secrets.join(' ')}; do`,
             '                  sed -i "s/^$key=$/$key=$(openssl rand -hex 32)/" .env',
             '                done',
+            '                sed -i "s/^ENVIRONMENT=$/ENVIRONMENT=development/" .env',
             '            - run: npm run build',
             '            - run: npm test'
         ]);
@@ -941,9 +963,9 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
         const example: string[] = [
             '# Every variable this application reads. Copy it to ".env" to run the app somewhere new.',
             '#',
-            '# "zi new" already wrote a ".env" with a secret generated for each blank below, so this',
-            '# project runs as it stands. What is missing here is deliberate: a value published with',
-            '# the cli is a value everyone has.'
+            '# "zi new" already wrote a ".env" with a secret generated for each blank secret below and',
+            '# ENVIRONMENT=development, so this project runs as it stands. What is missing here is',
+            '# deliberate: a value published with the cli is a value everyone has.'
         ];
         const actual: string[] = [
             '# The secrets this application runs on, generated for this project. Git ignored.',
@@ -957,7 +979,7 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
                 actual.push('', `# ${entry.comment}`);
                 continue;
             }
-            example.push(`${entry.key}=${entry.secret === true ? '' : entry.value}`);
+            example.push(`${entry.key}=${entry.secret === true ? '' : entry.example ?? entry.value}`);
             // 32 bytes, base64url so that nothing in it has to be escaped by whatever reads the file
             actual.push(`${entry.key}=${entry.secret === true ? randomBytes(32).toString('base64url') : entry.value}`);
         }
@@ -1022,6 +1044,23 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             '}',
             '',
             '/**',
+            ' * Reads a variable the application cannot run without, which holds one of a few values.',
+            ' * @param key - The name of the variable.',
+            ' * @param values - The values it may hold.',
+            ' * @returns Its value.',
+            ' * @throws When it is unset, empty or none of the values, naming the variable and the values. A',
+            ' * typo stops here, rather than reading as a value nobody chose.',
+            ' */',
+            'export function requireOneOfEnv<T extends string>(key: string, values: readonly T[]): T {',
+            '    const value: string = requireEnv(key);',
+            '    const known: T | undefined = values.find(candidate => candidate === value);',
+            '    if (known == undefined) {',
+            '        throw new Error(`The environment variable "${key}" has to be one of ${values.join(\', \')}, got "${value}".`);',
+            '    }',
+            '    return known;',
+            '}',
+            '',
+            '/**',
             ' * Reads a variable the application runs without.',
             ' * @param key - The name of the variable.',
             ' * @returns Its value, or an empty string when it is unset.',
@@ -1034,14 +1073,11 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
 
     private async createJestConfig(appPath: Path): Promise<void> {
         await this.createFile(getPath(appPath, 'jest.config.mjs'), [
-            '/** @type {import(\'jest\').Config} */',
-            'const config = {',
-            '    // how TypeScript, the templates and the packages the framework loads are compiled for a test',
-            '    preset: \'zibri-testing\',',
-            '    rootDir: \'src\'',
-            '};',
+            'import { createJestConfig } from \'zibri-testing/jest-config\';',
             '',
-            'export default config;'
+            '// how TypeScript, the templates and the packages the framework loads are compiled for a test. A',
+            '// package of your own that ships as es modules only goes in esmPackages',
+            'export default createJestConfig({ rootDir: \'src\' });'
         ]);
     }
 
@@ -1213,7 +1249,7 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
         ];
         await this.createFile(getPath(appPath, 'src', DATA_SOURCES_DIR, 'db', 'db.data-source.ts'), [
             // eslint-disable-next-line stylistic/max-len
-            'import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from \'zibri\';',
+            'import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from \'zibri\';',
             '',
             'import { entities } from \'./entities\';',
             'import { repositories } from \'./repositories\';',
@@ -1226,6 +1262,9 @@ export class NewCommand extends BaseCommand<ScaffoldAnswers> {
             '    // property takes the old column and its contents with it. Switch to \'migrations\' before',
             '    // this application holds data anyone would miss. See the data source docs.',
             '    schemaManagement: SchemaManagement = \'synchronize\';',
+            '    // the database is reached directly. Behind a pooler in transaction mode, such as PgBouncer,',
+            '    // declare it together with where the server itself is. See the data source docs.',
+            '    readonly pooler: PostgresPooler = \'none\';',
             '',
             '    options: OmitStrict<PostgresOptions, \'type\' | \'entities\'> = {',
             '        host: requireEnv(\'DB_HOST\'),',

@@ -59,8 +59,8 @@ async function inTenant<T>(work: () => Promise<T>): Promise<T> {
  * Starts a payment, which the local PayPal serves as approved by its buyer.
  * @returns The payment.
  */
-async function startPayment(): Promise<PayPalPayment> {
-    return await inTenant(async () => await payments.startPayment(
+async function requestPayment(): Promise<PayPalPayment> {
+    return await inTenant(async () => await payments.requestPayment(
         KnownPaymentMethod.PAY_PAL,
         { amount: NumberUtilities.new(10), currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
     ));
@@ -113,7 +113,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('captures once when two confirmations of a payment run at once, and records it as paid', async () => {
-        const payment: PayPalPayment = await startPayment();
+        const payment: PayPalPayment = await requestPayment();
         const capturesBefore: number = localPayPal.countCalls('POST /v2/checkout/orders/:id/capture');
 
         // a double click, a retried request, two replicas: each holds its own copy saying CREATED
@@ -124,7 +124,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('records a payment PayPal captured as paid when the answer to the capture is lost', async () => {
-        const payment: PayPalPayment = await startPayment();
+        const payment: PayPalPayment = await requestPayment();
         localPayPal.losesCaptureAnswers = true;
 
         await inTenant(async () => await payments.confirmPayment(payment));
@@ -135,7 +135,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('leaves a payment as it was and says so when what PayPal did cannot be learned', async () => {
-        const payment: PayPalPayment = await startPayment();
+        const payment: PayPalPayment = await requestPayment();
         localPayPal.losesCaptureAnswers = true;
         localPayPal.failsOrderLookups = true;
 
@@ -146,7 +146,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('sends every call that moves money with an idempotency key', async () => {
-        const payment: PayPalPayment = await startPayment();
+        const payment: PayPalPayment = await requestPayment();
 
         await inTenant(async () => await payments.confirmPayment(payment));
 
@@ -158,7 +158,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('refuses a transition the stored payment does not allow, whatever the copy it is handed says', async () => {
-        const payment: PayPalPayment = await startPayment();
+        const payment: PayPalPayment = await requestPayment();
         // cancelled through another copy, the way another request or replica would
         await inTenant(async () => await payments.cancelPayment({ ...payment }));
         const capturesBefore: number = localPayPal.countCalls('POST /v2/checkout/orders/:id/capture');
@@ -170,7 +170,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
 
     it('refuses a repeated transactionId before PayPal has an order for it', async () => {
         const transactionId: string = UUIDUtilities.generate();
-        const start: () => Promise<PayPalPayment> = async () => await inTenant(async () => await payments.startPayment(
+        const start: () => Promise<PayPalPayment> = async () => await inTenant(async () => await payments.requestPayment(
             KnownPaymentMethod.PAY_PAL,
             { amount: NumberUtilities.new(10), currencyCode: 'EUR', transactionId }
         ));
@@ -189,7 +189,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('refuses a transactionId the tenant already paid with as a conflict', async () => {
-        const payment: PayPalPayment = await startPayment();
+        const payment: PayPalPayment = await requestPayment();
 
         await expect(inTenant(async () => await payments.validatePaymentData(
             KnownPaymentMethod.PAY_PAL,
@@ -201,7 +201,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
         // what a double makes of it is 0.30000000000000004
         const amount: BigNumber = NumberUtilities.add(new BigNumber('0.1'), new BigNumber('0.2'));
 
-        const payment: PayPalPayment = await inTenant(async () => await payments.startPayment(
+        const payment: PayPalPayment = await inTenant(async () => await payments.requestPayment(
             KnownPaymentMethod.PAY_PAL,
             { amount, currencyCode: 'EUR', transactionId: UUIDUtilities.generate() }
         ));
@@ -211,7 +211,7 @@ describe('the PayPal provider, against a PayPal that behaves like one around a c
     });
 
     it('sends an amount in a currency without decimals as a whole number', async () => {
-        await inTenant(async () => await payments.startPayment(
+        await inTenant(async () => await payments.requestPayment(
             KnownPaymentMethod.PAY_PAL,
             { amount: new BigNumber('1500'), currencyCode: 'JPY', transactionId: UUIDUtilities.generate() }
         ));

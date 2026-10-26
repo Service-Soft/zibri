@@ -1,5 +1,5 @@
 /**
- * The entry of a directory a user signed in as.
+ * The entry of a directory a user logged in as.
  */
 export type LdapEntry = {
     /**

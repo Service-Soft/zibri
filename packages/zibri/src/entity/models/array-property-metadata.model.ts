@@ -64,7 +64,7 @@ export type ArrayPropertyItemMetadataInput<
 /**
  * Input Metadata for array properties.
  */
-type DefaultArrayPropertyMetadataInput<TStringInput> = Partial<BasePropertyMetadata> & {
+export type DefaultArrayPropertyMetadataInput<TStringInput> = Partial<BasePropertyMetadata> & {
     /**
      * Input Metadata for array property items.
      */
@@ -76,7 +76,7 @@ type DefaultArrayPropertyMetadataInput<TStringInput> = Partial<BasePropertyMetad
 /**
  * Input Metadata for file array properties.
  */
-type FileArrayPropertyMetadataInput = Partial<BasePropertyMetadata> & {
+export type FileArrayPropertyMetadataInput = Partial<BasePropertyMetadata> & {
     /**
      * Input Metadata for file array property items.
      */

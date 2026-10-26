@@ -78,7 +78,7 @@ class BenchmarkController {
     @Response.array(BenchmarkItem)
     @Get('/items')
     async findAll(): Promise<BenchmarkItem[]> {
-        return await this.items.findAll({ take: LISTED_ROWS });
+        return await this.items.findAll({ limit: LISTED_ROWS });
     }
 
     @Response.object(BenchmarkItem)
@@ -136,7 +136,7 @@ describe('what the framework costs in time', () => {
         timings.push(await BenchmarkUtilities.resolveTiming(
             `repository findAll of ${LISTED_ROWS} rows`,
             RUNS,
-            async () => await items.findAll({ take: LISTED_ROWS })
+            async () => await items.findAll({ limit: LISTED_ROWS })
         ));
         timings.push(await BenchmarkUtilities.resolveTiming('POST one row', RUNS, async () => await request('/benchmark/items', {
             method: 'POST',

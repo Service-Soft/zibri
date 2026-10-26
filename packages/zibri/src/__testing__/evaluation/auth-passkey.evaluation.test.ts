@@ -28,11 +28,11 @@ import { Get } from '../../routing/decorators/get.decorator';
 import { Post } from '../../routing/decorators/post.decorator';
 import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const ORIGIN: string = 'https://app.example.com';
@@ -45,19 +45,19 @@ class EvaluationAuthController extends AuthController({
     }) {}
 
 @Controller('/users', { allowOrphan: true })
-class SignUpController {
-    // what an application writes: a sign-up with nothing but a passkey, the same three steps as a
-    // first sign-in through a provider
+class RegistrationController {
+    // what an application writes: a registration with nothing but a passkey, the same three steps as
+    // a first login through a provider
     @Auth.skip({ allowRedundant: true })
-    @Post('/sign-up-with-passkey')
-    async signUp(
+    @Post('/register-with-passkey')
+    async register(
         @Body(PasskeyTicketCredentials)
         input: PasskeyTicketCredentials
     ): Promise<JwtAuthData<string>> {
         const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
         const registration: PasskeyRegistration = await authService.resolveRegistration(PasskeyAuthenticator, input, undefined);
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.name, roles: [Roles.USER] });
-        await authService.linkIdentity(PasskeyAuthenticator, input, user.id, undefined);
+        await authService.linkTicketIdentity(PasskeyAuthenticator, input, user.id, undefined);
         return await authService.login(PasskeyAuthenticator<string, JwtUser>, JwtAuthStrategy<string, JwtUser>, input, undefined);
     }
 }
@@ -92,7 +92,7 @@ describe('evaluation/03-auth-and-security H10 - passkeys', () => {
             authStrategies: [JwtAuthStrategy],
             authenticators: [PasskeyAuthenticator],
             twoFactorMethods: [PasskeyTwoFactorMethod],
-            controllers: [EvaluationAuthController, SignUpController, AccountController],
+            controllers: [EvaluationAuthController, RegistrationController, AccountController],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
@@ -119,35 +119,35 @@ describe('evaluation/03-auth-and-security H10 - passkeys', () => {
         return [res.status, answer];
     }
 
-    async function signUp(device: FakePasskeyDevice, email: string): Promise<JwtAuthData<Roles>> {
-        const [, options] = await post<PasskeyCreationOptions>('/auth/registration-options', { name: email });
+    async function register(device: FakePasskeyDevice, email: string): Promise<JwtAuthData<Roles>> {
+        const [, options] = await post<PasskeyCreationOptions>('/auth/registration/request', { name: email });
         const response: PasskeyRegistrationResponse = device.create(options, ORIGIN);
-        const [, { ticket }] = await post<{ ticket: string }>('/auth/register', { response });
-        const [status, auth] = await post<JwtAuthData<Roles>>('/users/sign-up-with-passkey', { ticket });
+        const [, { ticket }] = await post<{ ticket: string }>('/auth/registration/confirm', { response });
+        const [status, auth] = await post<JwtAuthData<Roles>>('/users/register-with-passkey', { ticket });
         expect(status).toBe(200);
         return auth;
     }
 
-    it('signs a user up with nothing but a passkey, which logs them in, and signs them in with it later', async () => {
+    it('registers a user with nothing but a passkey, which logs them in, and logs them in with it later', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        const signedUp: JwtAuthData<Roles> = await signUp(device, 'passkey-only@example.com');
+        const registered: JwtAuthData<Roles> = await register(device, 'passkey-only@example.com');
         const account: Response = await fetch(`${baseUrl}/account`, {
-            headers: { [KnownHeader.AUTHORIZATION]: `Bearer ${signedUp.accessToken.value}` }
+            headers: { [KnownHeader.AUTHORIZATION]: `Bearer ${registered.accessToken.value}` }
         });
         expect(account.status).toBe(200);
 
         // no email, no password: the device offers the passkey it holds for the site
-        const [, options] = await post<PasskeyRequestOptions>('/auth/sign-in-options', {});
-        const [status, signedIn] = await post<JwtAuthData<Roles>>('/auth/login', { response: device.get(options, ORIGIN) });
+        const [, options] = await post<PasskeyRequestOptions>('/auth/login-options', {});
+        const [status, loggedIn] = await post<JwtAuthData<Roles>>('/auth/login', { response: device.get(options, ORIGIN) });
         expect(status).toBe(200);
-        expect(signedIn.userId).toBe(signedUp.userId);
+        expect(loggedIn.userId).toBe(registered.userId);
     });
 
     it('refuses a passkey the browser used on another origin, the way a phishing page would get it used', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        await signUp(device, 'phished@example.com');
+        await register(device, 'phished@example.com');
 
-        const [, options] = await post<PasskeyRequestOptions>('/auth/sign-in-options', {});
+        const [, options] = await post<PasskeyRequestOptions>('/auth/login-options', {});
         const phished: PasskeyAuthenticationResponse = device.get(options, 'https://app.examp1e.com');
         const [status] = await post<unknown>('/auth/login', { response: phished });
         expect(status).toBe(401);
@@ -155,13 +155,13 @@ describe('evaluation/03-auth-and-security H10 - passkeys', () => {
 
     it('takes a passkey as the second factor of an operation', async () => {
         const device: FakePasskeyDevice = new FakePasskeyDevice({ synced: true });
-        const { accessToken } = await signUp(device, 'second-factor@example.com');
+        const { accessToken } = await register(device, 'second-factor@example.com');
         const authorization: Record<string, string> = { [KnownHeader.AUTHORIZATION]: `Bearer ${accessToken.value}` };
 
         const [withoutFactor] = await post<unknown>('/account/payment-details', {}, authorization);
         expect(withoutFactor).toBe(401);
 
-        const [, options] = await post<PasskeyRequestOptions>('/auth/2fa/start', {}, authorization);
+        const [, options] = await post<PasskeyRequestOptions>('/auth/2fa/request', {}, authorization);
         const assertion: string = Buffer.from(JsonUtilities.stringify(device.get(options, ORIGIN))).toString('base64url');
         const [withFactor] = await post<unknown>(
             '/account/payment-details',

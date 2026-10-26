@@ -16,7 +16,7 @@ export type OidcBearerTokens = {
     accessTokenType: 'at+jwt' | 'any',
     /**
      * The clients whose ID tokens are taken: an ID token whose `aud` names one of them, such as the
-     * client a mobile app signs in as. Empty to take no ID tokens.
+     * client a mobile app logs in as. Empty to take no ID tokens.
      */
     idTokenAudiences: string[]
 };

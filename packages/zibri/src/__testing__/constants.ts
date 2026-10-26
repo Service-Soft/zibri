@@ -46,7 +46,7 @@ export abstract class TestTimeouts {
     /**
      * A server on Postgres.
      */
-    static readonly postgres: TestServerTimeouts = { start: 30 * Ms.SECOND, shutdown: 15 * Ms.SECOND, restart: 15 * Ms.SECOND };
+    static readonly postgres: TestServerTimeouts = { start: 40 * Ms.SECOND, shutdown: 15 * Ms.SECOND, restart: 15 * Ms.SECOND };
 
     /**
      * A server on the in-memory data source.

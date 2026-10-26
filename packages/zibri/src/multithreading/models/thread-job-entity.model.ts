@@ -1,9 +1,8 @@
 import { BaseFunctionThreadJobWorkerData, BaseThreadJobWorkerData } from './base-thread-job-worker-data.model';
 import { ThreadJobStatus } from './thread-job-status.enum';
-import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { LoggedError } from '../../logging/logged-error.model';
+import { QueuedWorkEntity } from '../../queue/queued-work-entity.model';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { type Percentage } from '../../types/percentage.type';
 import { ThreadJob } from '../services/thread-job';
@@ -21,12 +20,17 @@ const omitValues: (keyof ThreadJob<BaseThreadJobWorkerData, unknown>)[] = [
 type OmitValues = typeof omitValues[number];
 
 /**
- * A thread job as the queue keeps it: what it runs, where it stands, and how it ended.
+ * A thread job as the queue keeps it: what it runs, where it stands, and how it ended. Its `attempts`
+ * count how many times a worker was handed it, its first start and every takeover since, and `error`
+ * holds what it failed with. A job that failed is not tried again, so `nextAttemptAt` stays empty.
  */
-// indexed as the pool reads it: the takeable rows of a priority class, oldest first
+// indexed as the pool reads it: the takeable rows of a priority class, oldest first.
+//
+// On the columns every queue shares, but not on its run: a job counts its starts rather than its
+// outcomes, holds its claim for the whole run, and is not retried when it throws (09 §Q5)
 @Entity({ allowOrphan: true, indexes: [['status', 'priority', 'queuedAtMs']] })
 export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, ResultType>
-    extends BaseEntity
+    extends QueuedWorkEntity
     implements OmitStrict<ThreadJob<WorkerData, ResultType>, OmitValues> {
 
     /**
@@ -72,29 +76,13 @@ export class ThreadJobEntity<WorkerData extends BaseThreadJobWorkerData | BaseFu
     @Property.number({ format: 'integer' })
     progress!: Percentage;
 
-    /**
-     * How many times a worker was handed this job: its first start and every takeover since.
-     */
-    @Property.number({ format: 'integer' })
-    attempts!: number;
-
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.boolean()
     priority!: boolean;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.number()
-    timeout!: number;
-
-    /**
-     * What the job failed with.
-     *
-     * A `LoggedError` rather than an `Error`: an `Error` keeps its message, stack and cause on
-     * non-enumerable fields, so a column storing one keeps `{}` - the row would say a job failed
-     * and nothing whatever about what.
-     */
-    @Property.unknown({ required: false })
-    error?: LoggedError | null;
+    timeoutInMs!: number;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     @Property.unknown()

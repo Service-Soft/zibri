@@ -5,7 +5,7 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { MigrationEntity } from '../migration/migration-entity.model';
 import { Migration } from '../migration/migration.model';

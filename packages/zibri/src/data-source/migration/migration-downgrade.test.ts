@@ -11,7 +11,8 @@ import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
@@ -40,6 +41,7 @@ class MigrationDowngradeDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     override migrations: Newable<Migration>[] = [NewerReleaseMigration];
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 // carried by this build but belonging to a release after it, so booting at 1.0.0 skips it. Having

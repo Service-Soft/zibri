@@ -1,11 +1,17 @@
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { EntityRelations, RelationKeysOf } from '../../../entity/models/entity-relations.model';
+import { DeletedRelatedRows } from '../deleted-related-rows.type';
 
 /**
- * What every write that hands one row back takes, so that the row is the one finding it by its id
- * would give.
+ * What every write that can give rows of its relations takes: what it does with a soft deleted one,
+ * and which relations the row it hands back carries.
  */
 export type WriteRelationsOptions<T extends BaseEntity> = {
+    /**
+     * What the write does with a soft deleted row it is given by its id, as a row of a `oneToMany` or
+     * `hasOne` relation, at every level it writes. Falls back to the `deletedRows` of each relation.
+     */
+    deletedRelatedRows?: DeletedRelatedRows,
     /**
      * The relations to resolve on the row that comes back.
      *

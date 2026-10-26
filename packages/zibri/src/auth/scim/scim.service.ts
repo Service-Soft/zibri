@@ -475,7 +475,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         }
         const count: number = this.resolveCount(query);
         const totalResults: number = await this.groups.count({ where });
-        const found: ScimGroup[] = count === 0 ? [] : await this.groups.findAll({ where, order, skip: startIndex - 1, take: count });
+        const found: ScimGroup[] = count === 0 ? [] : await this.groups.findAll({ where, order, offset: startIndex - 1, limit: count });
         const resources: ScimBody[] = await Promise.all(
             found.map(async group => (await this.toGroupResponse(endpoint, group, query, undefined)).body)
         );
@@ -752,7 +752,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     }
 
     private async findElements(where: Where<ScimUserValue>): Promise<Set<string>> {
-        const values: ScimUserValue[] = await this.values.findAll({ where, take: 'all' });
+        const values: ScimUserValue[] = await this.values.findAll({ where, limit: 'all' });
         return new Set(values.map(value => `${value.scimUserId}#${value.element}`));
     }
 
@@ -781,7 +781,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             ScimWhereUtilities.toGroupFilter(groupFilter),
             new Map()
         );
-        const groups: ScimGroup[] = where.length ? await this.groups.findAll({ where, take: 'all' }) : [];
+        const groups: ScimGroup[] = where.length ? await this.groups.findAll({ where, limit: 'all' }) : [];
         return { ids: await this.resolveUsersUnder(groups.map(group => group.id), undefined), negated };
     }
 
@@ -791,7 +791,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     }
 
     private async findValueHolders(where: Where<ScimUserValue>): Promise<string[]> {
-        const values: ScimUserValue[] = await this.values.findAll({ where, take: 'all' });
+        const values: ScimUserValue[] = await this.values.findAll({ where, limit: 'all' });
         return [...new Set(values.map(value => value.scimUserId))];
     }
 
@@ -818,7 +818,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         // sort by a value with a filter is rare enough to pay that rather than keep the two together
         const filteredIds: string[] | undefined = where == undefined
             ? undefined
-            : (await this.users.findAll({ where, take: 'all' })).map(user => user.id);
+            : (await this.users.findAll({ where, limit: 'all' })).map(user => user.id);
         const valueWhere: WhereFilter<ScimUserValue> = {
             path: { oneOf: sort.paths },
             sortValue: true,
@@ -827,10 +827,10 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         const withValue: number = await this.values.count({ where: valueWhere });
         const withoutFirst: boolean = sort.direction === 'DESC';
         const firstSize: number = withoutFirst ? totalResults - withValue : withValue;
-        const skip: number = startIndex - 1;
-        const firstTake: number = Math.max(0, Math.min(count, firstSize - skip));
-        const first: [number, number] = [Math.min(skip, firstSize), firstTake];
-        const second: [number, number] = [Math.max(0, skip - firstSize), count - firstTake];
+        const offset: number = startIndex - 1;
+        const firstLimit: number = Math.max(0, Math.min(count, firstSize - offset));
+        const first: [number, number] = [Math.min(offset, firstSize), firstLimit];
+        const second: [number, number] = [Math.max(0, offset - firstSize), count - firstLimit];
         const found: ScimUser[] = withoutFirst
             ? [
                 ...await this.findUsersWithoutValue(where, valueWhere, ...first),
@@ -851,20 +851,20 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     private async findUsersWithValue(
         valueWhere: WhereFilter<ScimUserValue>,
         sort: ScimValueSort,
-        skip: number,
-        take: number
+        offset: number,
+        limit: number
     ): Promise<ScimUser[]> {
-        if (take <= 0) {
+        if (limit <= 0) {
             return [];
         }
         const values: ScimUserValue[] = await this.values.findAll({
             where: valueWhere,
             order: { text: sort.direction, number: sort.direction, boolean: sort.direction, scimUserId: 'ASC' },
-            skip,
-            take
+            offset,
+            limit
         });
         const ids: string[] = values.map(value => value.scimUserId);
-        const users: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: ids } }, take: 'all' });
+        const users: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: ids } }, limit: 'all' });
         const byId: Map<string, ScimUser> = new Map(users.map(user => [user.id, user]));
         return values.map(value => byId.get(value.scimUserId)).filter(user => user != undefined);
     }
@@ -872,10 +872,10 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     private async findUsersWithoutValue(
         where: WhereFilter<ScimUser>[] | undefined,
         valueWhere: WhereFilter<ScimUserValue>,
-        skip: number,
-        take: number
+        offset: number,
+        limit: number
     ): Promise<ScimUser[]> {
-        if (take <= 0) {
+        if (limit <= 0) {
             return [];
         }
         const holders: string[] = await this.findValueHolders(valueWhere);
@@ -887,7 +887,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         if (without.matchesNothing) {
             return [];
         }
-        return await this.users.findAll({ where: without.where, order: { id: 'ASC' }, skip, take });
+        return await this.users.findAll({ where: without.where, order: { id: 'ASC' }, offset, limit });
     }
 
     /**
@@ -908,7 +908,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         const startIndex: number = this.resolveStartIndex(query);
         const count: number = this.resolveCount(query);
         const totalResults: number = await this.users.count({ where });
-        const found: ScimUser[] = count === 0 ? [] : await this.users.findAll({ where, order, skip: startIndex - 1, take: count });
+        const found: ScimUser[] = count === 0 ? [] : await this.users.findAll({ where, order, offset: startIndex - 1, limit: count });
         const orphans: ScimUser[] = await this.findOrphans(found);
         if (orphans.length) {
             await this.removeOrphans(orphans);
@@ -1064,7 +1064,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         if (!scimUserIds.length) {
             return;
         }
-        const scimUsers: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: scimUserIds } }, take: 'all', transaction });
+        const scimUsers: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: scimUserIds } }, limit: 'all', transaction });
         const groupsOfUsers: Map<string, ScimUserGroup[]> = await this.resolveGroupsOfUsers(scimUserIds, transaction);
         const tenantId: string = this.getActiveTenantId();
         await PromiseUtilities.allChunked(scimUsers, async scimUser => {
@@ -1091,7 +1091,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         }
         const direct: ScimGroupMember[] = await this.members.findAll({
             where: { memberId: { oneOf: scimUserIds }, memberType: ScimMemberType.USER },
-            take: 'all',
+            limit: 'all',
             transaction
         });
         // the groups each group is a member of, up as far as they go: one read per level of nesting
@@ -1101,7 +1101,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         while (level.length) {
             const memberships: ScimGroupMember[] = await this.members.findAll({
                 where: { memberId: { oneOf: level }, memberType: ScimMemberType.GROUP },
-                take: 'all',
+                limit: 'all',
                 transaction
             });
             level = [];
@@ -1114,7 +1114,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
             }
         }
         const groups: ScimGroup[] = reached.size
-            ? await this.groups.findAll({ where: { id: { oneOf: [...reached] } }, take: 'all', transaction })
+            ? await this.groups.findAll({ where: { id: { oneOf: [...reached] } }, limit: 'all', transaction })
             : [];
         const byId: Map<string, ScimGroup> = new Map(groups.map(group => [group.id, group]));
         return new Map(scimUserIds.map(scimUserId => {
@@ -1161,7 +1161,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         while (level.length) {
             const memberships: ScimGroupMember[] = await this.members.findAll({
                 where: { groupId: { oneOf: level } },
-                take: 'all',
+                limit: 'all',
                 transaction
             });
             level = [];
@@ -1197,8 +1197,8 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         if (!memberIds.every(id => UUIDUtilities.isUuid(id))) {
             throw notProvisioned;
         }
-        const users: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: memberIds } }, take: 'all', transaction });
-        const groups: ScimGroup[] = await this.groups.findAll({ where: { id: { oneOf: memberIds } }, take: 'all', transaction });
+        const users: ScimUser[] = await this.users.findAll({ where: { id: { oneOf: memberIds } }, limit: 'all', transaction });
+        const groups: ScimGroup[] = await this.groups.findAll({ where: { id: { oneOf: memberIds } }, limit: 'all', transaction });
         const types: Map<string, ScimMemberType> = new Map([
             ...users.map((user): [string, ScimMemberType] => [user.id, ScimMemberType.USER]),
             ...groups.map((group): [string, ScimMemberType] => [group.id, ScimMemberType.GROUP])
@@ -1222,7 +1222,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     private async removeMembers(memberIds: string[], transaction: Transaction): Promise<void> {
         const memberships: ScimGroupMember[] = await this.members.findAll({
             where: { memberId: { oneOf: memberIds } },
-            take: 'all',
+            limit: 'all',
             transaction
         });
         if (!memberships.length) {
@@ -1232,7 +1232,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         // a group whose members changed is a new version of it, whatever changed them
         const groups: ScimGroup[] = await this.groups.findAll({
             where: { id: { oneOf: [...new Set(memberships.map(membership => membership.groupId))] } },
-            take: 'all',
+            limit: 'all',
             transaction
         });
         await PromiseUtilities.allChunked(groups, async group => await this.writeVersioned(
@@ -1295,7 +1295,9 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
         await this.inTransaction(async transaction => {
             await this.removeMembers(ids, transaction);
             await this.values.deleteAll({ scimUserId: { oneOf: ids } }, { transaction });
-            await this.users.deleteAll({ id: { oneOf: ids } }, { transaction });
+            // whatever version they are at: a resource whose user is gone is removed however the
+            // identity provider changed it since
+            await this.users.deleteAll({ id: { oneOf: ids }, version: undefined }, { transaction });
         });
         this.logger.info(`Removed ${ids.length} SCIM user resource(s) whose user does not exist anymore: ${ids.join(', ')}`);
     }
@@ -1490,7 +1492,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     }
 
     private async findMemberIds(groupId: string, transaction: Transaction | undefined): Promise<string[]> {
-        const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, take: 'all', transaction });
+        const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, limit: 'all', transaction });
         return memberships.map(membership => membership.memberId);
     }
 
@@ -1502,7 +1504,7 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     private async findGroupsOfMembers(memberIds: string[]): Promise<Map<string, string[]>> {
         const ids: string[] = [...new Set(memberIds.filter(id => UUIDUtilities.isUuid(id)))];
         const memberships: ScimGroupMember[] = ids.length
-            ? await this.members.findAll({ where: { memberId: { oneOf: ids } }, take: 'all' })
+            ? await this.members.findAll({ where: { memberId: { oneOf: ids } }, limit: 'all' })
             : [];
         const groupsOfMember: Map<string, string[]> = new Map();
         for (const membership of memberships) {
@@ -1630,14 +1632,14 @@ export class ScimService implements ScimServiceInterface, OnAppInit {
     }
 
     private async resolveMemberBodies(endpoint: ScimEndpoint, groupId: string, transaction: Transaction | undefined): Promise<ScimBody[]> {
-        const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, take: 'all', transaction });
+        const memberships: ScimGroupMember[] = await this.members.findAll({ where: { groupId }, limit: 'all', transaction });
         const userIds: string[] = memberships.filter(m => m.memberType === ScimMemberType.USER).map(m => m.memberId);
         const groupIds: string[] = memberships.filter(m => m.memberType === ScimMemberType.GROUP).map(m => m.memberId);
         const users: ScimUser[] = userIds.length
-            ? await this.users.findAll({ where: { id: { oneOf: userIds } }, take: 'all', transaction })
+            ? await this.users.findAll({ where: { id: { oneOf: userIds } }, limit: 'all', transaction })
             : [];
         const groups: ScimGroup[] = groupIds.length
-            ? await this.groups.findAll({ where: { id: { oneOf: groupIds } }, take: 'all', transaction })
+            ? await this.groups.findAll({ where: { id: { oneOf: groupIds } }, limit: 'all', transaction })
             : [];
         return [
             ...users.map(user => ({

@@ -31,7 +31,10 @@ import { CacheService } from '../../caching/cache.service';
 import { AlsUtilities } from '../../context/als.utilities';
 import { CronService } from '../../cron/cron.service';
 import { DataSourceService } from '../../data-source/data-source.service';
+import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
 import { EmailRateLimiter } from '../../email/email.rate-limiter';
+import { LoggingEmailTransport } from '../../email/transports/logging.email-transport';
+import { GlobalRegistry } from '../../global/global-registry';
 import { EmailService } from '../../email/email.service';
 import { errorHandler } from '../../error-handling/error-handler';
 import { EventService } from '../../event/event.service';
@@ -105,12 +108,12 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // short enough that a crash loses at most a second of entries. Anything shorter stops batching
     // the traffic that made batching worth doing: a service handling a few requests a second is
     // quiet on a 100ms window, so each line would still be written on its own.
-    LOGGER_FLUSH_INTERVAL_MS: { useFactory: () => Ms.SECOND },
+    LOGGER_FLUSH_INTERVAL_IN_MS: { useFactory: () => Ms.SECOND },
     ACCESS_LOG: { useFactory: () => false },
     AUDIT_SERVICE: { useClass: AuditService },
     AUDIT_RETENTION_IN_MS: { useFactory: () => undefined },
     AUDIT_MAX_REFUSALS_PER_MINUTE: { useFactory: () => 1000 },
-    LOGGER_CLEANUP_AFTER_MS: {
+    LOGGER_CLEANUP_AFTER_IN_MS: {
         useFactory: () => ({
             [LogLevel.DEBUG]: Ms.WEEK * 2,
             [LogLevel.INFO]: Ms.WEEK * 2,
@@ -135,6 +138,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     PARSER: { useClass: Parser },
     VALIDATION_SERVICE: { useClass: ValidationService },
     DATA_SOURCE_SERVICE: { useClass: DataSourceService },
+    REPOSITORY_HOOKS: { useFactory: (): RepositoryHooks => ({}) },
     SCHEMA_LOCK_TIMEOUT_IN_MS: { useFactory: () => Ms.MINUTE },
     SCHEMA_LOCK_HOLD_IN_MS: { useFactory: () => Ms.SECOND * 30 },
     VAL_KEY_TRANSACTION_LOCK_TIMEOUT_IN_MS: { useFactory: () => Ms.SECOND * 10 },
@@ -150,7 +154,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // rather than off: a client that cannot read an encoding never asks for one, so an application
     // already behind something that compresses only ever finds this doing nothing.
     COMPRESSION_OPTIONS: { useFactory: (): CompressionOptions => ({ enabled: true, thresholdInBytes: 1024 }) },
-    // handlerInMs bounds the other side of the same request: the three above are all satisfied the
+    // handlerTimeoutInMs bounds the other side of the same request: the three above are all satisfied the
     // moment it has arrived, and nothing after that stops the handler it reached. Thirty seconds
     // because it is long enough that no ordinary endpoint reaches it and short enough that a client
     // still has an answer before it gives up on its own.
@@ -159,10 +163,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // already does. The size is node's own default.
     HTTP_SERVER_LIMITS: {
         useFactory: (): HttpServerLimits => ({
-            requestInMs: Ms.SECOND * 60,
-            headersInMs: Ms.SECOND * 15,
-            keepAliveInMs: Ms.SECOND * 5,
-            handlerInMs: Ms.SECOND * 30,
+            requestTimeoutInMs: Ms.SECOND * 60,
+            headersTimeoutInMs: Ms.SECOND * 15,
+            keepAliveTimeoutInMs: Ms.SECOND * 5,
+            handlerTimeoutInMs: Ms.SECOND * 30,
             maxHeaderCount: 100,
             maxHeaderSizeInBytes: 16 * 1024
         })
@@ -233,7 +237,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
                 refreshTokenSecret: undefined,
                 previousRefreshTokenSecrets: [],
                 // a refresh token is a live login for as long as it lasts, so this is how long a
-                // stolen one is worth stealing. 30 days is the usual "stay signed in" window; 100
+                // stolen one is worth stealing. 30 days is the usual "stay logged in" window; 100
                 // was a third of a year.
                 refreshTokenExpiresInMs: 30 * Ms.DAY,
                 // long enough for every tab a browser has open to refresh with the same token once
@@ -255,10 +259,13 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // no reason to provide
     EMAIL_RATE_LIMITER: { useClass: EmailRateLimiter, register: 'onUse' },
     EMAIL_CONFIG: { useFactory: () => undefined },
-    // no default, the same way EMAIL_CONFIG has none: every transport needs something only the
-    // deployment knows - an smtp host and credentials, or an api key - so there is nothing to
-    // default to. EmailService names SmtpEmailTransport when it finds none.
-    EMAIL_TRANSPORT: { useFactory: () => undefined },
+    // none in production, the same way EMAIL_CONFIG has none: every transport needs something only
+    // the deployment knows - an smtp host and credentials, or an api key - so there is nothing to
+    // default to, and EmailService names SmtpEmailTransport when it finds none. On a developer's
+    // machine there is no deployment yet, and the mails are logged instead
+    EMAIL_TRANSPORT: {
+        useFactory: () => GlobalRegistry.getAppData('environment') === 'development' ? new LoggingEmailTransport() : undefined
+    },
     FILE_UPLOAD_TEMP_FOLDER: { useFactory: () => FsUtilities.getPath(resolveAppRoot(), '.zibri', 'uploads') },
     // where a backup is written on its way to a transport and read on its way back. On this
     // instance's own disk rather than on shared storage: what lives here is one instance's work in
@@ -267,6 +274,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // none, so that stopping a running backup and putting back what a running restore applied fits
     // the 30 seconds most orchestrators give a process before they kill it
     BACKUP_SHUTDOWN_WAIT_IN_MS: { useValue: 0 },
+    // a transport that cannot be reached for a while is the failure a retry is for, and three tries
+    // over a few minutes outlast most of those without holding a backup open for an outage
+    BACKUP_MAX_ATTEMPTS: { useValue: 3 },
+    BACKUP_RETRY_DELAY_IN_MS: { useFactory: () => Ms.MINUTE },
     // the route history belongs to the deployment, so it is resolved from the application's root:
     // an installed copy of the framework is the one place it must not land, and that is where
     // resolving it from this file put it for an application that does not bundle.
@@ -293,8 +304,8 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
         useFactory: () => ({
             maxThreads,
             maxPriorityThreads,
-            defaultTimeoutMs: Ms.HOUR,
-            defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+            defaultTimeoutInMs: Ms.HOUR,
+            defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
             jobClaimInMs: Ms.SECOND * 30,
             maxAttempts: 3,
             workerResourceLimits: { maxOldGenerationSizeMb: workerHeapShareInMb },
@@ -306,7 +317,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     THREAD_JOB_RETENTION_IN_MS: { useFactory: () => undefined },
     MULTITHREADING_SERVICE: { useClass: MultithreadingService },
     WEBSOCKET_SERVICE: { useClass: WebsocketService },
-    // handlerInMs bounds this server's own code, the way the http one does. Thirty seconds for the
+    // handlerTimeoutInMs bounds this server's own code, the way the http one does. Thirty seconds for the
     // same reason: long enough that no ordinary event reaches it, short enough that a client hears
     // something before it gives up
     WEBSOCKET_OPTIONS_INPUT: { useFactory: () => undefined },
@@ -322,7 +333,7 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
             }
             return {
                 timeoutInMs: Ms.SECOND * 5,
-                handlerInMs: Ms.SECOND * 30,
+                handlerTimeoutInMs: Ms.SECOND * 30,
                 startServer: 'whenDeclared',
                 isAllowedToConnect: () => true,
                 maxReplayedMessages: 1000,
@@ -336,11 +347,11 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
         useFactory: () => {
             const input: HttpClientOptionsInput = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT);
             return {
-                defaultTimeoutMs: Ms.SECOND * 5,
+                defaultTimeoutInMs: Ms.SECOND * 5,
                 defaultMaxResponseSize: '10mb',
                 // on by default: an application that never thought about it is the one whose every
                 // request would otherwise wait out a timeout against a dependency that is down
-                circuitBreaker: { failuresToOpen: 5, openForMs: Ms.SECOND * 30 },
+                circuitBreaker: { failuresToOpen: 5, openForInMs: Ms.SECOND * 30 },
                 ...input
             };
         }
@@ -354,6 +365,9 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     // the same number PromiseUtilities chunks by, because it answers the same question: how much of
     // a backlog one instance takes on at once
     EVENT_MAX_CONCURRENT_HOOKS: { useFactory: () => 50 },
+    // none: the framework needs none of them, and each one costs every write of its kind a read and
+    // a row, so an application names the ones it subscribes to (06 §Q4)
+    FRAMEWORK_EVENT_NAMES: { useFactory: () => ({}) },
     // no default: keeping every failed event and deleting them after a while are both legitimate,
     // so only the application can say which. Undefined rather than refused here, so that the event
     // service's onAppInit names the token in the error rather than DI failing on it

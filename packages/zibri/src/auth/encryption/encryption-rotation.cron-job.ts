@@ -7,6 +7,7 @@ import { EncryptedEntity, resolveEncryptedEntities } from './resolve-encrypted-e
 import { ZibriApplication } from '../../application/application';
 import { CronExpression } from '../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
+import { KeysetPage } from '../../data-source/models/pagination-result.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
@@ -16,7 +17,6 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { findEncryptedValues, StoredEncryptedValue } from '../../global/model-registry/find-encrypted-values.function';
 import { needsReEncryption } from '../../global/model-registry/needs-re-encryption.function';
 import { OnAppInit } from '../../global/on-app-init.interface';
-import { KeysetPage } from '../../open-api/pagination-result.model';
 import { Newable } from '../../types/newable.type';
 import { Ms } from '../../utilities/ms';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
@@ -67,7 +67,7 @@ export class EncryptionRotationCronJob extends CronJob implements OnAppInit {
         runOnInit: false,
         // every instance would otherwise sweep the same rows and write the same values over each
         // other. Unlike the rate limiter's state, what this rewrites is shared
-        distributed: true
+        runsOn: 'oneInstance'
     };
 
     private readonly encryptedEntities: EncryptedEntity[] = [];
@@ -103,7 +103,7 @@ export class EncryptionRotationCronJob extends CronJob implements OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async onTick(): Promise<void> {
-        const failures: EncryptionRotationFailure[] = await this.failureRepository.findAll({ take: 'all' });
+        const failures: EncryptionRotationFailure[] = await this.failureRepository.findAll({ limit: 'all' });
         let remaining: number = maxRowsPerRun - await this.retryFailures(failures);
 
         const progress: EncryptionRotationProgress = await this.resolveProgress();

@@ -38,7 +38,7 @@ describe('NewCommand (real npm install)', () => {
     });
 
     it('really installs devDependencies and links zibri to the local workspace build', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
         const appDir: Path = path.join(workDir, 'api') as Path;
         expect(await FsUtilities.exists(path.join(appDir, 'node_modules', 'webpack') as Path)).toBe(true);
@@ -53,7 +53,7 @@ describe('NewCommand (real npm install)', () => {
     }, TEST_TIMEOUT_MS);
 
     it('builds only what the bundle imports, so a broken test does not break the build', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
         const appDir: Path = path.join(workDir, 'api') as Path;
         // jest reports this when the tests run. The build used to compile every file the tsconfig
         // includes, so it failed here too and "start" never restarted the server
@@ -63,13 +63,13 @@ describe('NewCommand (real npm install)', () => {
     }, CI_WORKFLOW_TIMEOUT_MS);
 
     it('passes its own ci workflow on a checkout, which has no ".env"', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin', EVERY_FEATURE]));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'isLoggedIn', EVERY_FEATURE]));
         await runWorkflowOnCheckout(path.join(workDir, 'api') as Path);
     }, CI_WORKFLOW_TIMEOUT_MS);
 
     // round-2 08 §X14: the JSON API builds without the stylesheet's packages, which it never installed
     it('builds and tests a project without features, which installs nothing for a stylesheet', async () => {
-        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'requireLogin', 'none']));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'github', 'isLoggedIn', 'none']));
         const appDir: Path = path.join(workDir, 'api') as Path;
 
         await runWorkflowOnCheckout(appDir);

@@ -1,7 +1,5 @@
 import { BaseMembership } from './base-membership.model';
-import { ChangedMembership } from './changed-membership.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
-import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 
 /**
@@ -9,14 +7,14 @@ import { Newable } from '../../types/newable.type';
  */
 export interface MembershipServiceInterface {
     /**
-     * Finds the membership of a user in a tenant. A deactivated membership is none.
+     * Finds the active membership of a user in a tenant. A deactivated membership is none.
      */
-    findMembership: <Role extends string, T extends BaseMembership<Role>>(userId: string, tenantId: string) => Promise<T | undefined>,
+    findActiveMembership: <Role extends string, T extends BaseMembership<Role>>(userId: string, tenantId: string) => Promise<T | undefined>,
     /**
-     * Finds the memberships of a user in every tenant, eg. To let them pick the tenant to work in.
-     * Deactivated memberships are left out.
+     * Finds the active memberships of a user in every tenant, eg. To let them pick the tenant to work
+     * in. Deactivated memberships are left out.
      */
-    findMemberships: <Role extends string, T extends BaseMembership<Role>>(userId: string) => Promise<T[]>,
+    findActiveMemberships: <Role extends string, T extends BaseMembership<Role>>(userId: string) => Promise<T[]>,
     /**
      * Answers the membership of a user in a tenant, deactivated or not, and creates one without roles
      * when they have none.
@@ -50,12 +48,6 @@ export interface MembershipServiceInterface {
      */
     deleteMemberships: (userIds: string[], transaction: Transaction) => Promise<void>,
     /**
-     * Whether the given entity is the one memberships are stored in.
-     *
-     * Every write to it is reported to `handleMembershipsChanged`.
-     */
-    isMembershipEntity: (entityClass: Newable<BaseEntity>) => boolean,
-    /**
      * Finds the roles stored memberships hold other than the given ones and those of their tenant's
      * own, in every tenant, eg. To refuse starting an application whose members hold a role that does
      * not exist.
@@ -71,10 +63,9 @@ export interface MembershipServiceInterface {
      */
     isRoleHeld: (role: string, tenantId: string | undefined) => Promise<boolean>,
     /**
-     * Brings what follows the memberships of users in line with what is stored: which tenants'
-     * websocket broadcasts their connections receive.
-     *
-     * Called once a write to memberships is committed, with each user and tenant it wrote.
+     * Finds the entity the memberships are stored as, so that what follows them can observe its writes.
+     * @returns The entity, undefined when memberships are read from no data source. Known once the
+     * application has initialized.
      */
-    handleMembershipsChanged: (memberships: ChangedMembership[]) => Promise<void>
+    findMembershipEntityClass: () => Newable<BaseMembership<string>> | undefined
 }

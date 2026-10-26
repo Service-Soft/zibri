@@ -13,6 +13,7 @@ import { resolveBodyMetadata } from './resolve-body-metadata.function';
 import { resolveRouteParams } from './resolve-route-params.function';
 import { OpenApiRouteConfiguration, RouteConfiguration, RouteConfigurationInput } from './route-configuration.model';
 import { RouterInterface } from './router.interface';
+import { DeclaredResponseUtilities } from './declared-response.utilities';
 import { UndeclaredResultError } from './undeclared-result.error';
 import { ZibriApplication } from '../application/application';
 import type { AuthServiceInterface } from '../auth/auth-service.interface';
@@ -64,9 +65,9 @@ import { isNewable, Newable } from '../types/newable.type';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
+import { SemVerVersion } from '../utilities/sem-ver.utilities';
 import type { ValidationServiceInterface } from '../validation/validation-service.interface';
 import { RouteWithVersionData } from '../versioning/route-with-version-data.model';
-import { SemVerVersion } from '../versioning/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../versioning/supported-versions-options.model';
 import { Version } from '../versioning/version.model';
 import { type VersioningServiceInterface } from '../versioning/versioning-service.interface';
@@ -167,7 +168,7 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
      * @returns The application wide deadline.
      */
     private get handlerTimeout(): HandlerTimeout {
-        return inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).handlerInMs;
+        return inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS).handlerTimeoutInMs;
     }
 
     constructor(
@@ -972,7 +973,37 @@ export class Router implements RouterInterface, OnAppInit, OnAppStart {
         // serialized once and written. res.json would serialize whatever it is handed, so handing it
         // a parsed copy of a string the framework had already produced meant three passes over the
         // whole graph - and the middle one allocated a second copy of it to throw away.
-        res.type(format.mimeType === MimeType.XML ? MimeType.JSON : format.mimeType).send(JsonUtilities.stringify(result));
+        res.type(format.mimeType === MimeType.XML ? MimeType.JSON : format.mimeType)
+            .send(JsonUtilities.stringify(this.resolveDeclaredBody(responses, result)));
+    }
+
+    /**
+     * What a JSON result is written with: what the declaration answering for it names. A handler
+     * returning a stored row under a declaration of what may leave the server would otherwise send
+     * every column the row holds, and the type of the method cannot say so - the row is assignable to
+     * the narrower class.
+     * @param responses - What the route declares it can answer with.
+     * @param result - What the handler returned.
+     * @returns The result, without what its declaration does not name; the result itself when no
+     * declaration with a class answers for it.
+     */
+    private resolveDeclaredBody(responses: OpenApiResponse[], result: unknown): unknown {
+        const candidates: JsonOpenApiResponse[] = responses
+            .filter((r): r is JsonOpenApiResponse => r.type === 'json' && this.canAnswerWith(r, result));
+        const exact: JsonOpenApiResponse[] = candidates.filter(r => {
+            const cls: Newable<unknown> | undefined = r.isArray === true ? undefined : resolveResponseClass(r);
+            return cls != undefined && result instanceof cls;
+        });
+        const answering: JsonOpenApiResponse[] = exact.length === 1 ? exact : candidates;
+        const classes: (Newable<unknown> | undefined)[] = answering.map(r => resolveResponseClass(r));
+        // a declaration naming no class says the body is json, not which: there is nothing to keep to
+        if (classes.length === 0 || classes.includes(undefined)) {
+            return result;
+        }
+        const declared: Newable<unknown>[] = classes.filter(cls => cls != undefined);
+        return Array.isArray(result)
+            ? result.map(item => DeclaredResponseUtilities.resolveDeclaredValue(item, declared))
+            : DeclaredResponseUtilities.resolveDeclaredValue(result, declared);
     }
 
     /**

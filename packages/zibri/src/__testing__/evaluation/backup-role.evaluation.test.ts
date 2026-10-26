@@ -9,6 +9,7 @@ import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
 import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
@@ -81,6 +82,8 @@ class EvalBackupRoleDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 let server: StartedTestServer | undefined;
@@ -104,7 +107,8 @@ describe('evaluation/01-data-layer M55 - a restore by a separate backup role giv
         const itemRepository: Repository<EvalBackupRoleItem> = inject(repositoryTokenFor(EvalBackupRoleItem));
         const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
         await itemRepository.create({ value: 'owned' });
-        await inject(BackupService).createBackup({ name: 'separate-role' });
+        const backupService: BackupService = inject(BackupService);
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'separate-role' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'separate-role' }, relations: ['resources'] });
         assert(backup, 'the backup was not created');

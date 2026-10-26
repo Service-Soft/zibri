@@ -9,12 +9,14 @@ Zibri reads and writes xml the same way it reads and writes json: a [model](./mo
 | `XmlText` | decorator | Makes a property the element's own text |
 | `XmlMixed` | decorator | Makes a property everything inside the element: its text and its child elements, in order |
 | `XmlRoot` | decorator | Names the root element of a model, the namespace of the document and the prefixes it declares |
+| `XmlRootMetadataInput` | type | What `@XmlRoot` takes: the `name` of the root element, its `namespace` and the `prefixes` the document declares |
 | `XmlNamespace` | decorator | Puts the elements a model declares into a namespace |
 | `XmlUtilities` | class | `generateFrom` writes a document from a model and its data, `parseFrom` reads one, `resolveXmlString` checks text you wrote yourself |
 | `XmlString` | type | Text that is a well formed xml document |
 | `XmlGenerateOptions` | type | How `generateFrom` lays a document out |
 | `XmlParseOptions` | type | How strictly `parseFrom` reads a document |
 | `MimeType.XML` | enum | Declares a body as xml, and a response that can be written as xml |
+| `RawXmlBodyMetadataInput` | type | What `@Body` takes for an xml body handed over as the string that arrived, with `raw: true`, such as one whose signature is checked |
 
 ## Describing a document
 A model describes an element. Each property is a child element named after the property:

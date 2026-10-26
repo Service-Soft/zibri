@@ -21,7 +21,8 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { GlobalRegistry } from '../../global/global-registry';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { PostgresPooler } from '../data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../decorators/data-source.decorator';
 import { SchemaManagement } from '../models/schema-management.model';
@@ -48,6 +49,7 @@ class LegacyDbDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
     // stands in for the database as it was before the migration, so it is created from the classes
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 @Entity({ tenant: 'shared', tableName: 'item' })
@@ -73,6 +75,7 @@ class DbDataSource extends PostgresDataSource {
     override migrations: Newable<Migration>[] = [AddTestValueMigration];
     // the framework entities still need their tables, and the migration is what this asserts about
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 @Injectable()

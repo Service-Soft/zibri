@@ -12,5 +12,5 @@ export type PasswordFailureLimit = false | {
      * How long the lock lasts, in milliseconds. Until it has passed, the right password is refused
      * like a wrong one.
      */
-    lockForMs: number
+    lockForInMs: number
 };

@@ -18,6 +18,9 @@ public (`docs/deployment.md:92` uses it); the arrays and the container's `regist
 curated (an `internal` subpath for the harness) or the semver page is narrowed to the documented
 exports; today every refactor of the container is a breaking change by the project's own definition.
 
+> **Closed 2026-10-25 with 08 §X20.** The curated barrel: `DiContainer`, `initDiContainer` and the
+> registration internals are on `zibri/internal`; `GlobalRegistry` stays public, with its row.
+
 ### T17. `getRegisteredProviders` dedupes by `useValue` identity with `??`, so two value providers sharing a primitive collapse — MINOR, latent
 *Filed 2026-10-21.*
 

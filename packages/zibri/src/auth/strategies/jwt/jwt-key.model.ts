@@ -5,7 +5,7 @@ import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type';
 /**
  * A key a jwt is signed or verified with, and the one algorithm a token checked against it may name.
  *
- * Build one with `JwtUtilities.resolveSigningKey` or `JwtUtilities.resolveVerificationKey`.
+ * The jwt service builds them from the keys its options name.
  */
 export type JwtKey = {
     /**

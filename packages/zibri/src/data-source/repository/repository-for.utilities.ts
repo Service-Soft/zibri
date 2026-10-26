@@ -1,77 +1,15 @@
 import { Repository } from './repository';
 import { RepositoryClass } from './repository-class.type';
-import { USER_ENTITY } from '../../auth/models/base-user.model';
-import { ROLE_ENTITY } from '../../auth/roles/base-role.model';
-import { ROLE_REPOSITORY } from '../../auth/roles/role-repository.interface';
-import { USER_REPOSITORY } from '../../auth/user/user-repository.interface';
+import { REPOSITORY_KINDS } from './repository-kind.model';
 import { inject } from '../../di/inject.function';
-import { DiVariant, DiVariants } from '../../di/models/di-variant.model';
+import { DiVariant } from '../../di/models/di-variant.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
-import { MEMBERSHIP_ENTITY } from '../../tenancy/membership/base-membership.model';
-import { MEMBERSHIP_REPOSITORY } from '../../tenancy/membership/membership-repository.interface';
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { DataSourceInterface } from '../data-sources/data-source.interface';
 import { RegisteredDataSource } from '../entity-ownership.function';
-
-/**
- * What the rows of an entity are to the framework besides rows, with the marks that say so.
- */
-type RepositoryKind = {
-    /**
-     * What the rows are, for the messages.
-     */
-    name: 'user' | 'membership' | 'role',
-    /**
-     * The mark on the class of the entity, a static member so that it is no part of its rows.
-     */
-    entityMark: symbol,
-    /**
-     * The mark on the prototype of its repository.
-     */
-    repositoryMark: symbol,
-    /**
-     * The shipped base of such a repository, for the messages.
-     */
-    base: string,
-    /**
-     * The shipped base of such an entity, for the messages.
-     */
-    entityBase: string,
-    /**
-     * What the framework finds the repository by.
-     */
-    variant: DiVariant
-};
-
-const REPOSITORY_KINDS: RepositoryKind[] = [
-    {
-        name: 'user',
-        entityMark: USER_ENTITY,
-        repositoryMark: USER_REPOSITORY,
-        base: 'BaseUserRepository',
-        entityBase: 'BaseUserEntity()',
-        variant: DiVariants.USER_REPO
-    },
-    {
-        name: 'membership',
-        entityMark: MEMBERSHIP_ENTITY,
-        repositoryMark: MEMBERSHIP_REPOSITORY,
-        base: 'BaseMembershipRepository',
-        entityBase: 'BaseMembershipEntity()',
-        variant: DiVariants.MEMBERSHIP_REPO
-    },
-    {
-        name: 'role',
-        entityMark: ROLE_ENTITY,
-        repositoryMark: ROLE_REPOSITORY,
-        base: 'BaseRoleRepository',
-        entityBase: 'BaseRoleEntity',
-        variant: DiVariants.ROLE_REPO
-    }
-];
 
 /**
  * Utilities for the repository classes a data source lists, each declared with `@RepositoryFor`.
@@ -88,6 +26,23 @@ export abstract class RepositoryForUtilities {
     }
 
     /**
+     * Resolves the repository an entity is read and written through: the class the data source lists
+     * for it, built over the repository the data source builds, or that repository when it lists none.
+     * @param dataSource - The data source.
+     * @param entity - The entity.
+     * @param repository - The repository the data source builds for the entity.
+     * @returns The repository.
+     */
+    static resolveRepository(
+        dataSource: DataSourceInterface,
+        entity: Newable<BaseEntity>,
+        repository: Repository<BaseEntity>
+    ): Repository<BaseEntity> {
+        const repositoryClass: RepositoryClass | undefined = this.findRepositoryClass(dataSource, entity);
+        return repositoryClass == undefined ? repository : this.buildRepository(repositoryClass, entity, repository);
+    }
+
+    /**
      * Builds the repository class of an entity over the repository its data source builds for it.
      * @param repositoryClass - The class.
      * @param entity - The entity.
@@ -95,12 +50,18 @@ export abstract class RepositoryForUtilities {
      * @returns The repository.
      * @throws When the class builds something that is no repository.
      */
-    static buildRepository(repositoryClass: RepositoryClass, entity: Newable<BaseEntity>, repository: Repository<BaseEntity>): Repository<BaseEntity> {
+    static buildRepository(
+        repositoryClass: RepositoryClass,
+        entity: Newable<BaseEntity>,
+        repository: Repository<BaseEntity>
+    ): Repository<BaseEntity> {
         const built: object = new repositoryClass(entity, repository);
         if (!(built instanceof Repository)) {
-            throw new InternalError(`${repositoryClass.name} is declared with @RepositoryFor(${entity.name}), but does not extend Repository.`);
+            throw new InternalError(
+                `${repositoryClass.name} is declared with @RepositoryFor(${entity.name}), but does not extend Repository.`
+            );
         }
-        return built;
+        return built as Repository<BaseEntity>;
     }
 
     /**
@@ -144,8 +105,13 @@ export abstract class RepositoryForUtilities {
         const stored: Set<Newable<BaseEntity>> = new Set(dataSources.flatMap(({ dataSource }) => dataSource.entities));
         for (const repositoryClass of GlobalRegistry.repositoryClasses) {
             const entity: Newable<BaseEntity> | undefined = MetadataUtilities.getRepositoryForMetadata(repositoryClass)?.entity;
-            if (entity != undefined && stored.has(entity) && !dataSources.some(({ dataSource }) => dataSource.repositories.some(r => r === repositoryClass))) {
+            if (
+                entity != undefined
+                && stored.has(entity)
+                && !dataSources.some(({ dataSource }) => dataSource.repositories.some(r => r === repositoryClass))
+            ) {
                 throw new InternalError([
+                    // eslint-disable-next-line stylistic/max-len
                     `${repositoryClass.name} is declared with @RepositoryFor(${entity.name}), but no data source lists it in its repositories.`,
                     `Add it to the repositories of the data source that declares ${entity.name}.`
                 ]);
@@ -193,10 +159,14 @@ export abstract class RepositoryForUtilities {
     ): void {
         const entity: Newable<BaseEntity> | undefined = MetadataUtilities.getRepositoryForMetadata(repositoryClass)?.entity;
         if (entity == undefined) {
-            throw new InternalError(`${repositoryClass.name} is listed in the repositories of ${dataSourceName}, but is not declared with @RepositoryFor.`);
+            throw new InternalError(
+                `${repositoryClass.name} is listed in the repositories of ${dataSourceName}, but is not declared with @RepositoryFor.`
+            );
         }
         if (!(repositoryClass.prototype instanceof Repository)) {
-            throw new InternalError(`${repositoryClass.name} is declared with @RepositoryFor(${entity.name}), but does not extend Repository.`);
+            throw new InternalError(
+                `${repositoryClass.name} is declared with @RepositoryFor(${entity.name}), but does not extend Repository.`
+            );
         }
         // a class without a constructor of its own takes the one it inherits, which takes no parameter
         // it names itself. The framework builds it with the entity and the repository underneath

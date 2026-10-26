@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from '@jest/globals';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { PaginationResult } from '../../open-api/pagination-result.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { Repository } from '../repository/repository';
 
 /**
@@ -67,18 +67,18 @@ export function describePagingValues(dataSourceName: string, repositoryOf: () =>
         });
 
         it.each([
-            ['a take of 0', { take: 0 }, 'take', 1],
-            ['a negative take', { take: -2 }, 'take', 1],
-            ['a take that is a fraction', { take: 2.5 }, 'take', 1],
-            ['a negative skip', { skip: -2 }, 'skip', 0],
-            ['a skip that is a fraction', { skip: 1.5 }, 'skip', 0]
+            ['a limit of 0', { limit: 0 }, 'limit', 1],
+            ['a negative limit', { limit: -2 }, 'limit', 1],
+            ['a limit that is a fraction', { limit: 2.5 }, 'limit', 1],
+            ['a negative offset', { offset: -2 }, 'offset', 0],
+            ['an offset that is a fraction', { offset: 1.5 }, 'offset', 0]
         ])('refuses %s for a read of every row', async (_, window, name, min) => {
             await expect(repositoryOf().findAll({ ...window, order: { position: 'ASC' } }))
                 .rejects.toThrow(`PagedRow: the ${name} of a read has to be a whole number of at least ${min}`);
         });
 
-        it('reads every row for a skip of 0 and a take of all', async () => {
-            const rows: PagedRow[] = await repositoryOf().findAll({ skip: 0, take: 'all', order: { position: 'ASC' } });
+        it('reads every row for an offset of 0 and a limit of all', async () => {
+            const rows: PagedRow[] = await repositoryOf().findAll({ offset: 0, limit: 'all', order: { position: 'ASC' } });
 
             expect(rows.map(r => r.position)).toStrictEqual([1, 2, 3, 4, 5]);
         });

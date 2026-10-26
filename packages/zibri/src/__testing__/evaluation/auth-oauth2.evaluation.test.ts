@@ -21,17 +21,17 @@ import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Newable } from '../../types/newable.type';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-oauth2-client';
 const CLIENT_SECRET: string = 'zibri-oauth2-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 
 let provider: FakeOAuthProvider;
 
@@ -78,7 +78,7 @@ describe('evaluation/03-auth-and-security H15 - a provider that speaks plain OAu
     let baseUrl: string;
 
     beforeAll(async () => {
-        // a provider without OpenID Connect: no ID token, and who signed in is read from its api
+        // a provider without OpenID Connect: no ID token, and who logged in is read from its api
         provider = await startFakeOAuthProvider({
             clientId: CLIENT_ID,
             clientSecret: CLIENT_SECRET,
@@ -113,7 +113,7 @@ describe('evaluation/03-auth-and-security H15 - a provider that speaks plain OAu
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: 'https://app.example.com/register',
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -127,15 +127,15 @@ describe('evaluation/03-auth-and-security H15 - a provider that speaks plain OAu
         await provider?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('signs a linked user in, though the provider issues no ID token', async () => {
+    it('logs a linked user in, though the provider issues no ID token', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'oauth2@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: provider.issuer, subject: 'plain-subject', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: provider.issuer, subject: 'plain-subject', userId: user.id, forLogin: true, grantedScopes: [] });
         provider.identity = { subject: 'plain-subject' };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
         const atProvider: string = await browser.follow(
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO }).toString()}`
         );
         const landing: string = await browser.follow(await browser.follow(atProvider));
 

@@ -8,6 +8,7 @@ import { ClusterInstance, StartedDataSourceContainer, StartedTestCluster, startT
 import { clusterAskedEvent, clusterBroadcastEvent, ClusterLogin, ClusterWebsocketValKeyDataSource } from './websocket.instance-options';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { WebsocketAnswer } from '../../../websocket/models/websocket-answer.model';
+import { TestTimeouts } from '../../constants';
 
 /**
  * Executable form of evaluation/04-infrastructure-subsystems.md section 1.10.
@@ -31,7 +32,7 @@ beforeAll(async () => {
         instanceOptions: FsUtilities.getPath(__dirname, 'websocket.instance-options.ts'),
         instances: 2
     });
-}, 15000);
+}, TestTimeouts.postgres.start + TestTimeouts.valKey.start);
 
 afterAll(async () => {
     for (const socket of openSockets) {

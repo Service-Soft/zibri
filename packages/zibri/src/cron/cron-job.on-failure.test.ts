@@ -75,7 +75,7 @@ class StoppingCronJob extends ScriptedCronJob {
         name: 'stopping',
         cron: YEARLY,
         timezone: 'UTC',
-        onFailure: { stopAfterFailures: 3, restartAfterMs: Ms.HOUR }
+        onFailure: { stopAfterFailures: 3, restartAfterInMs: Ms.HOUR }
     };
 }
 
@@ -94,7 +94,7 @@ class LocalStoppingCronJob extends ScriptedCronJob {
         cron: YEARLY,
         timezone: 'UTC',
         syncToDataSource: false,
-        onFailure: { stopAfterFailures: 1, restartAfterMs: Ms.HOUR }
+        onFailure: { stopAfterFailures: 1, restartAfterInMs: Ms.HOUR }
     };
 }
 

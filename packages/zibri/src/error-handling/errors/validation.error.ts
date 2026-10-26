@@ -9,7 +9,7 @@ import { $t, $ts, TranslationToken } from '../../localization/translate.function
 import { ValidationProblem } from '../../validation/validation-problem.model';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type ValidationErrorType = 'body' | 'path' | 'query' | 'header' | 'websocketRequest';
+export type ValidationErrorType = 'body' | 'path' | 'query' | 'header' | 'websocketRequest';
 
 const startMessage: Record<ValidationErrorType, TranslationToken> = {
     body: $t`Validation failed for request body`,

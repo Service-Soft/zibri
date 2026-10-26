@@ -21,7 +21,7 @@ export type WebsocketOptions = {
      * given as long as it needs.
      * @default 30000
      */
-    handlerInMs: HandlerTimeout,
+    handlerTimeoutInMs: HandlerTimeout,
     /**
      * When the websocket server is started.
      *

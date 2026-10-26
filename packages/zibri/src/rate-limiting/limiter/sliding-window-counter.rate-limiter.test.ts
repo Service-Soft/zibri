@@ -19,8 +19,8 @@ class TestSlidingWindowCounterLimiter extends SlidingWindowCounterRateLimiter {
             name: 'test-sliding-counter',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<SlidingWindowCounterState>(),
-            maxReservationWaitMs: Ms.SECOND * 5,
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            maxReservationWaitInMs: Ms.SECOND * 5,
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY
         });
     }
@@ -163,7 +163,7 @@ describe('SlidingWindowCounterRateLimiter', () => {
             }
             // Reserve 1 – no capacity left
             const res: RateLimitReservationResult = await limiter.reserve('k', 1);
-            expect(res.allowed).toBe(true); // allowed because wait is within maxReservationWaitMs
+            expect(res.allowed).toBe(true); // allowed because wait is within maxReservationWaitInMs
             assert(res.allowed);
             // Crossing into the next window doesn't hard-reset the count: the
             // 10 consumed become the new window's previousCount, still fully

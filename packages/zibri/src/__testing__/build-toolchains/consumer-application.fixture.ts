@@ -1,4 +1,5 @@
-import { BaseEntity, BigNumber, Controller, Entity, Get, Inject, Injectable, MetadataUtilities, Param, Property, inject, initDiContainer } from 'zibri';
+import { BaseEntity, BigNumber, Controller, Entity, Get, Inject, Injectable, Param, Property, inject } from 'zibri';
+import { MetadataUtilities, initDiContainer } from 'zibri/internal';
 
 /**
  * What an application declares, written the way a consumer writes it.

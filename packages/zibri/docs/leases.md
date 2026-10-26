@@ -1,5 +1,5 @@
 # Leases
-A lease is the right to do a piece of work that no other instance may do at the same time. Zibri's
+A [lease](./glossary.md#lease) is the right to do a piece of work that no other instance may do at the same time. Zibri's
 cron elections, event claims, mail claims and named locks are all leases, and they all go through
 one service, so they behave the same way.
 
@@ -14,6 +14,7 @@ one service, so they behave the same way.
 | `LeaseAcquisitionMode` | type | `'wait'` or `'skip'`: what to do when somebody else holds it |
 | `LeaseCompletion` | type | `'release'`, `'retain'` or `'retainOnError'`: what happens to the grant when the work is over |
 | `HeldLease` | type | A grant that has been taken: its `name`, and how to `renew` and `release` it |
+| `KeptGrant` | type | A grant `keepAlive` renews until you `release` it, with the `lost` signal that aborts once it is lost |
 | `LeaseServiceInterface` | interface | The contract: `withLease` and `withLeases` for the whole cycle, `hold` for a grant you took yourself |
 | `LeaseService` | class | Default implementation. Renews while the work runs and drains on shutdown |
 | `LeaseAcquisitionTimeoutError` | error | Thrown when a `'wait'` acquisition runs out of patience |
@@ -256,9 +257,12 @@ Your data source declares these entities:
 |---|---|
 | `Lease` | Every application |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
 - [Replication](./replication.md) — what leases do once there is more than one instance
 - [Cron](./cron.md) — how a scheduled execution is claimed, and jobs that outlast their interval
 - [Events](./events.md) — how each attempt of a subscriber is claimed
 - [Data sources](./data-source.md) — `upsert` and transactions, for a value read and written back
 - [Application lifecycle](./application-lifecycle.md) — the shutdown hooks and timeouts the drain fits into
+- [Glossary](./glossary.md) — what lease, claim, grant and slot mean

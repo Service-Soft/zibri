@@ -39,7 +39,7 @@ export type ResolvedAuthMetadata = {
  * What one route's declaration means for a caller, with the application wide default already applied.
  *
  * The two halves are resolved together because the second one is not readable off the first: a route
- * that declares nothing still requires a login under a `'requireLogin'` default.
+ * that declares nothing still requires a login under a `'isLoggedIn'` default.
  */
 export type ResolvedRouteAuth = {
     /**

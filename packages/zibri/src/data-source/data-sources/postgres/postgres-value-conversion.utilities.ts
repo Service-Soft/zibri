@@ -4,7 +4,7 @@ import { StoredStringPropertyMetadata } from '../../../entity/models/string-prop
 import { INTEGER_REGEX } from '../../../parsing/functions/parse-number.function';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { ObjectUtilities } from '../../../utilities/object.utilities';
-import { UUID_REGEX } from '../../../validation/functions/validate-string.function';
+import { UUIDUtilities } from '../../../utilities/uuid.utilities';
 import { literalToSql } from '../../literal-to-sql.function';
 import { ConversionRefusal } from '../../models/conversion-refusal.enum';
 import { ResolvedPropertyConversion } from '../../models/resolved-property-conversion.model';
@@ -217,7 +217,7 @@ export abstract class PostgresValueConversionUtilities {
     private static stringFitsSql(text: string, into: AnyStringPropertyMetadata): string | undefined {
         const conditions: string[] = [];
         if (this.isUuid(into)) {
-            conditions.push(`${text} ~ ${literalToSql(UUID_REGEX.source)}`);
+            conditions.push(`${text} ~ ${literalToSql(UUIDUtilities.STRICT_SHAPE.source)}`);
         }
         if (into.enum != undefined) {
             conditions.push(`${text} IN (${this.listSql(ObjectUtilities.values(into.enum))})`);

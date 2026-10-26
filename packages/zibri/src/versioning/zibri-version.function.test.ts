@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { SemVerUtilities } from './sem-ver.utilities';
 import { zibriVersion } from './zibri-version.function';
 import { FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
+import { SemVerUtilities } from '../utilities/sem-ver.utilities';
 
 describe('zibriVersion', () => {
     it('reads the version off the package that is running', () => {

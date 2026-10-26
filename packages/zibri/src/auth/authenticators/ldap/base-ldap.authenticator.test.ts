@@ -93,17 +93,17 @@ let replica: FakeLdapDirectory;
 let unreachable: FakeLdapDirectory;
 
 /**
- * Every entry the first sign-in hook was handed, in order.
+ * Every entry the first login hook was handed, in order.
  */
-const firstSignIns: LdapEntry[] = [];
+const firstLogins: LdapEntry[] = [];
 
 /**
- * Every entry the hook of a later sign-in was handed, in order.
+ * Every entry the hook of a later login was handed, in order.
  */
-const laterSignIns: LdapEntry[] = [];
+const laterLogins: LdapEntry[] = [];
 
 /**
- * The directory the tests sign in at, with a hook that creates a user from the entry's email, and one
+ * The directory the tests log in at, with a hook that creates a user from the entry's email, and one
  * that gives the user the admin role while the entry is in the admins group.
  */
 abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
@@ -120,9 +120,9 @@ abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
     // read as the authenticator is built, which is once the directory is started
     override readonly trustedCertificates: string[] = [directory.certificate];
 
-    async resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
-        firstSignIns.push(entry);
-        // long enough for a second sign-in as the same entry to arrive meanwhile
+    async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
+        firstLogins.push(entry);
+        // long enough for a second login as the same entry to arrive meanwhile
         await new Promise(resolve => setTimeout(resolve, 50));
         const [email] = entry.attributes['mail'] ?? [];
         if (email == undefined) {
@@ -131,8 +131,8 @@ abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email, roles: [Roles.USER] }, { transaction });
     }
 
-    async resolveSignIn(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
-        laterSignIns.push(entry);
+    async resolveLogin(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
+        laterLogins.push(entry);
         const roles: Roles[] = entry.groups.some(dn => dn.toLowerCase() === groupDn('admins')) ? [Roles.ADMIN] : [Roles.USER];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).updateById(user.id, { roles }, { transaction });
     }
@@ -237,7 +237,7 @@ const DIRECTORIES: Record<string, Newable<TestDirectory>> = {
 };
 
 /**
- * How long a login in a transaction waits before it commits, longer than a waiting sign-in takes to
+ * How long a login in a transaction waits before it commits, longer than a waiting login takes to
  * ask for the lease again.
  */
 const SLOW_COMMIT_IN_MS: number = 300;
@@ -298,12 +298,12 @@ let server: StartedTestServer;
 let baseUrl: string;
 
 /**
- * Signs in through the login route of a directory.
+ * Logs in through the login route of a directory.
  * @param credentials - What the user typed.
  * @param name - The directory.
  * @returns The answer.
  */
-async function signIn(credentials: LdapCredentials, name: string = 'company'): Promise<Response> {
+async function logIn(credentials: LdapCredentials, name: string = 'company'): Promise<Response> {
     return await fetch(`${baseUrl}/login-ldap/${name}`, {
         method: 'POST',
         headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
@@ -312,13 +312,13 @@ async function signIn(credentials: LdapCredentials, name: string = 'company'): P
 }
 
 /**
- * Signs in through the login route of a directory that logs in inside a transaction, and commits it
+ * Logs in through the login route of a directory that logs in inside a transaction, and commits it
  * late.
  * @param credentials - What the user typed.
  * @param name - The directory.
  * @returns The answer.
  */
-async function signInInTransaction(credentials: LdapCredentials, name: string = 'company'): Promise<Response> {
+async function logInInTransaction(credentials: LdapCredentials, name: string = 'company'): Promise<Response> {
     return await fetch(`${baseUrl}/login-ldap/${name}/in-transaction`, {
         method: 'POST',
         headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
@@ -370,8 +370,8 @@ async function findCompanyLink(userId: string): Promise<LdapIdentity> {
 }
 
 /**
- * The user a successful sign-in logged in as.
- * @param res - The answer of the sign-in.
+ * The user a successful login logged in as.
+ * @param res - The answer of the login.
  * @returns The id of the user.
  */
 async function userIdOf(res: Response): Promise<string> {
@@ -379,8 +379,8 @@ async function userIdOf(res: Response): Promise<string> {
 }
 
 /**
- * What a successful sign-in answered.
- * @param res - The answer of the sign-in.
+ * What a successful login answered.
+ * @param res - The answer of the login.
  * @returns The auth data.
  */
 async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
@@ -419,7 +419,7 @@ function identities(): Repository<LdapIdentity, LdapIdentityCreateData> {
 }
 
 /**
- * Starts an application signing in at the given directories.
+ * Starts an application logging in at the given directories.
  * @param authenticators - The directories.
  * @returns The server, started.
  */
@@ -478,8 +478,8 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-    firstSignIns.length = 0;
-    laterSignIns.length = 0;
+    firstLogins.length = 0;
+    laterLogins.length = 0;
 });
 
 afterAll(async () => {
@@ -550,7 +550,7 @@ describe('BaseLdapAuthenticator', () => {
         await identities().create({ directory: 'company', entryId: ANNA_ID, userId: user.id });
         const bindsBefore: number = directory.binds.length;
 
-        expect(await userIdOf(await signIn({ username: 'anna', password: 'anna-secret' }))).toBe(user.id);
+        expect(await userIdOf(await logIn({ username: 'anna', password: 'anna-secret' }))).toBe(user.id);
 
         expect(directory.binds.slice(bindsBefore)).toStrictEqual([
             { dn: SERVICE_ACCOUNT.dn, withPassword: true, encrypted: true, succeeded: true },
@@ -561,20 +561,20 @@ describe('BaseLdapAuthenticator', () => {
             filter: '(&(objectclass=inetorgperson)(|(uid=anna)(mail=anna)))',
             boundAs: SERVICE_ACCOUNT.dn
         });
-        expect(firstSignIns).toStrictEqual([]);
+        expect(firstLogins).toStrictEqual([]);
     });
 
-    it('signs in by any of the attributes a name is looked for in', async () => {
-        const byUid: string = await userIdOf(await signIn({ username: 'bob', password: 'bob-secret' }));
+    it('logs in by any of the attributes a name is looked for in', async () => {
+        const byUid: string = await userIdOf(await logIn({ username: 'bob', password: 'bob-secret' }));
 
-        expect(await userIdOf(await signIn({ username: 'bob@zibri.test', password: 'bob-secret' }))).toBe(byUid);
+        expect(await userIdOf(await logIn({ username: 'bob@zibri.test', password: 'bob-secret' }))).toBe(byUid);
     });
 
-    it('hands the first sign-in as an entry to resolveFirstSignIn, and finds the user it answered from then on', async () => {
-        const userId: string = await userIdOf(await signIn({ username: 'carla', password: 'carla-secret' }));
+    it('hands the first login as an entry to resolveFirstLogin, and finds the user it answered from then on', async () => {
+        const userId: string = await userIdOf(await logIn({ username: 'carla', password: 'carla-secret' }));
 
-        expect(firstSignIns).toHaveLength(1);
-        const [entry] = firstSignIns;
+        expect(firstLogins).toHaveLength(1);
+        const [entry] = firstLogins;
         expect(entry?.dn).toBe(`uid=carla,${SEARCH_BASE}`);
         expect(entry?.attributes['mail']).toStrictEqual(['carla@zibri.test']);
         expect(entry?.attributes['objectclass']).toStrictEqual(['inetOrgPerson']);
@@ -582,42 +582,42 @@ describe('BaseLdapAuthenticator', () => {
         const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).findById(userId);
         expect(user.email).toBe('carla@zibri.test');
 
-        expect(await userIdOf(await signIn({ username: 'carla', password: 'carla-secret' }))).toBe(userId);
-        expect(firstSignIns).toHaveLength(1);
+        expect(await userIdOf(await logIn({ username: 'carla', password: 'carla-secret' }))).toBe(userId);
+        expect(firstLogins).toHaveLength(1);
     });
 
-    it('links two first sign-ins as the same entry at once to one user', async () => {
+    it('links two first logins as the same entry at once to one user', async () => {
         const [first, second] = await Promise.all([
-            signIn({ username: 'dave', password: 'dave-secret' }),
-            signIn({ username: 'dave', password: 'dave-secret' })
+            logIn({ username: 'dave', password: 'dave-secret' }),
+            logIn({ username: 'dave', password: 'dave-secret' })
         ]);
 
         const userId: string = await userIdOf(first);
         expect(await userIdOf(second)).toBe(userId);
-        expect(firstSignIns).toHaveLength(1);
+        expect(firstLogins).toHaveLength(1);
         expect(await identities().findAll({ where: { userId } })).toHaveLength(1);
     });
 
-    it('links two first sign-ins as the same entry at once to one user while their logins commit late', async () => {
+    it('links two first logins as the same entry at once to one user while their logins commit late', async () => {
         const [first, second] = await Promise.all([
-            signInInTransaction({ username: 'olga', password: 'olga-secret' }),
-            signInInTransaction({ username: 'olga', password: 'olga-secret' })
+            logInInTransaction({ username: 'olga', password: 'olga-secret' }),
+            logInInTransaction({ username: 'olga', password: 'olga-secret' })
         ]);
 
         const userId: string = await userIdOf(first);
         expect(await userIdOf(second)).toBe(userId);
-        expect(firstSignIns).toHaveLength(1);
+        expect(firstLogins).toHaveLength(1);
         expect(await identities().findAll({ where: { userId } })).toHaveLength(1);
         // the lease lasts until the login commits, so nothing was written outside of it
         await inject<LoggerInterface>(ZIBRI_DI_TOKENS.LOGGER).flush();
         const logs: Log[] = await inject(repositoryTokenFor(Log)).findAll({});
-        expect(logs.filter(l => l.message.includes('ldap-first-sign-in'))).toStrictEqual([]);
+        expect(logs.filter(l => l.message.includes('ldap-first-login'))).toStrictEqual([]);
     });
 
     it('upgrades a connection to ldap:// with StartTLS before anything is sent', async () => {
         const bindsBefore: number = directory.binds.length;
 
-        expect((await signIn({ username: 'frank', password: 'frank-secret' }, 'start-tls')).status).toBe(200);
+        expect((await logIn({ username: 'frank', password: 'frank-secret' }, 'start-tls')).status).toBe(200);
 
         const binds: FakeLdapDirectory['binds'] = directory.binds.slice(bindsBefore);
         expect(binds).toHaveLength(2);
@@ -626,9 +626,9 @@ describe('BaseLdapAuthenticator', () => {
 
     it('refuses a wrong password, an unknown name and a disabled account alike', async () => {
         const answers: Response[] = await Promise.all([
-            signIn({ username: 'anna', password: 'wrong' }),
-            signIn({ username: 'nobody', password: 'anna-secret' }),
-            signIn({ username: 'erin', password: 'erin-secret' })
+            logIn({ username: 'anna', password: 'wrong' }),
+            logIn({ username: 'nobody', password: 'anna-secret' }),
+            logIn({ username: 'erin', password: 'erin-secret' })
         ]);
 
         expect(answers.map(res => res.status)).toStrictEqual([401, 401, 401]);
@@ -642,9 +642,9 @@ describe('BaseLdapAuthenticator', () => {
 
     it('refuses a locked account whichever way the directory refuses its bind', async () => {
         const answers: Response[] = await Promise.all([
-            signIn({ username: 'erin', password: 'erin-secret' }),
-            signIn({ username: 'gina', password: 'gina-secret' }),
-            signIn({ username: 'hank', password: 'hank-secret' })
+            logIn({ username: 'erin', password: 'erin-secret' }),
+            logIn({ username: 'gina', password: 'gina-secret' }),
+            logIn({ username: 'hank', password: 'hank-secret' })
         ]);
 
         expect(answers.map(res => res.status)).toStrictEqual([401, 401, 401]);
@@ -653,7 +653,7 @@ describe('BaseLdapAuthenticator', () => {
     it('binds for an unknown name as well, so that it takes as long as a wrong password', async () => {
         const bindsBefore: number = directory.binds.length;
 
-        expect((await signIn({ username: 'nobody', password: 'some-password' })).status).toBe(401);
+        expect((await logIn({ username: 'nobody', password: 'some-password' })).status).toBe(401);
 
         expect(directory.binds.slice(bindsBefore)).toStrictEqual([
             expect.objectContaining({ dn: SERVICE_ACCOUNT.dn, succeeded: true }),
@@ -671,40 +671,42 @@ describe('BaseLdapAuthenticator', () => {
     });
 
     it('reads the typed name as a name, never as a part of the filter', async () => {
-        const res: Response = await signIn({ username: 'ann*', password: 'anna-secret' });
+        const res: Response = await logIn({ username: 'ann*', password: 'anna-secret' });
 
         expect(res.status).toBe(401);
         expect(directory.searches.at(-1)?.filter).toBe(String.raw`(&(objectclass=inetorgperson)(|(uid=ann\2a)(mail=ann\2a)))`);
     });
 
     it('refuses a name more than one entry has', async () => {
-        expect((await signIn({ username: 'twin', password: 'twin-secret' })).status).toBe(401);
+        expect((await logIn({ username: 'twin', password: 'twin-secret' })).status).toBe(401);
     });
 
     it('finds nobody outside the search base', async () => {
-        expect((await signIn({ username: 'outsider', password: 'outsider-secret' })).status).toBe(401);
+        expect((await logIn({ username: 'outsider', password: 'outsider-secret' })).status).toBe(401);
     });
 
-    it('refuses a sign-in resolveFirstSignIn refuses, and links nothing', async () => {
-        const res: Response = await signIn({ username: 'nomail', password: 'nomail-secret' });
+    it('refuses a login resolveFirstLogin refuses, and links nothing', async () => {
+        const res: Response = await logIn({ username: 'nomail', password: 'nomail-secret' });
 
         expect(res.status).toBe(403);
-        expect(await identities().findAll({ where: { entryId: firstSignIns[0]?.id ?? '' } })).toStrictEqual([]);
+        expect(await identities().findAll({ where: { entryId: firstLogins[0]?.id ?? '' } })).toStrictEqual([]);
     });
 
-    it('refuses an entry whose linked user was deleted', async () => {
-        const userId: string = await userIdOf(await signIn({ username: 'gone', password: 'gone-secret' }));
+    it('takes an entry whose linked user was deleted as a first login again, since the link went with the user', async () => {
+        const userId: string = await userIdOf(await logIn({ username: 'gone', password: 'gone-secret' }));
         await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).deleteById(userId);
 
-        const res: Response = await signIn({ username: 'gone', password: 'gone-secret' });
+        expect(await identities().findAll({ where: { userId } })).toStrictEqual([]);
+        const res: Response = await logIn({ username: 'gone', password: 'gone-secret' });
 
-        expect(res.status).toBe(401);
-        expect(firstSignIns).toHaveLength(1);
+        expect(res.status).toBe(200);
+        expect(firstLogins).toHaveLength(2);
+        expect(await userIdOf(res)).not.toBe(userId);
     });
 
     it('answers a directory it cannot trust or bind to with a 500, recorded as an error rather than a refusal', async () => {
-        expect((await signIn({ username: 'anna', password: 'anna-secret' }, 'untrusting')).status).toBe(500);
-        expect((await signIn({ username: 'anna', password: 'anna-secret' }, 'wrong-service-account')).status).toBe(500);
+        expect((await logIn({ username: 'anna', password: 'anna-secret' }, 'untrusting')).status).toBe(500);
+        expect((await logIn({ username: 'anna', password: 'anna-secret' }, 'wrong-service-account')).status).toBe(500);
 
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
             action: AuditAction.LOGIN,
@@ -714,8 +716,8 @@ describe('BaseLdapAuthenticator', () => {
         }));
     });
 
-    it('records the typed name of a refused sign-in in the audit trail', async () => {
-        expect((await signIn({ username: 'bob', password: 'wrong' })).status).toBe(401);
+    it('records the typed name of a refused login in the audit trail', async () => {
+        expect((await logIn({ username: 'bob', password: 'wrong' })).status).toBe(401);
 
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
             action: AuditAction.LOGIN,
@@ -725,28 +727,28 @@ describe('BaseLdapAuthenticator', () => {
         }));
     });
 
-    it('hands every later sign-in to resolveSignIn with the linked user, and logs in as the user it answers', async () => {
-        const userId: string = await userIdOf(await signIn({ username: 'carla', password: 'carla-secret' }));
+    it('hands every later login to resolveLogin with the linked user, and logs in as the user it answers', async () => {
+        const userId: string = await userIdOf(await logIn({ username: 'carla', password: 'carla-secret' }));
         await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).updateById(userId, { roles: [Roles.ADMIN] });
-        const laterBefore: number = laterSignIns.length;
+        const laterBefore: number = laterLogins.length;
 
-        const again: JwtAuthData<string> = await authDataOf(await signIn({ username: 'carla', password: 'carla-secret' }));
+        const again: JwtAuthData<string> = await authDataOf(await logIn({ username: 'carla', password: 'carla-secret' }));
 
-        expect(laterSignIns.slice(laterBefore).map(entry => entry.dn)).toStrictEqual([`uid=carla,${SEARCH_BASE}`]);
+        expect(laterLogins.slice(laterBefore).map(entry => entry.dn)).toStrictEqual([`uid=carla,${SEARCH_BASE}`]);
         // the hook took the role away again, since the entry is in no admins group
         expect(again.userId).toBe(userId);
         expect(again.roles).toStrictEqual([Roles.USER]);
     });
 
     it('hands the groups of the entry to the hooks, nested ones included, and keeps the roles in step with them', async () => {
-        const first: JwtAuthData<string> = await authDataOf(await signIn({ username: 'ivy', password: 'ivy-secret' }, 'groups'));
+        const first: JwtAuthData<string> = await authDataOf(await logIn({ username: 'ivy', password: 'ivy-secret' }, 'groups'));
 
         const expected: string[] = [groupDn('staff'), groupDn('admins'), groupDn('ring-a'), groupDn('ring-b')].sort();
-        expect([...firstSignIns[0]?.groups ?? []].sort()).toStrictEqual(expected);
+        expect([...firstLogins[0]?.groups ?? []].sort()).toStrictEqual(expected);
         expect(first.roles).toStrictEqual([Roles.USER]);
 
-        const second: JwtAuthData<string> = await authDataOf(await signIn({ username: 'ivy', password: 'ivy-secret' }, 'groups'));
-        expect([...laterSignIns[0]?.groups ?? []].sort()).toStrictEqual(expected);
+        const second: JwtAuthData<string> = await authDataOf(await logIn({ username: 'ivy', password: 'ivy-secret' }, 'groups'));
+        expect([...laterLogins[0]?.groups ?? []].sort()).toStrictEqual(expected);
         expect(second.roles).toStrictEqual([Roles.ADMIN]);
 
         // the entry is taken out of staff in the directory, the group that made it an admin
@@ -754,8 +756,8 @@ describe('BaseLdapAuthenticator', () => {
         const members: (string | Buffer)[] = staff?.attributes['member'] ?? [];
         staff?.attributes['member']?.splice(0);
         try {
-            const third: JwtAuthData<string> = await authDataOf(await signIn({ username: 'ivy', password: 'ivy-secret' }, 'groups'));
-            expect([...laterSignIns[1]?.groups ?? []].sort()).toStrictEqual([groupDn('ring-a'), groupDn('ring-b')]);
+            const third: JwtAuthData<string> = await authDataOf(await logIn({ username: 'ivy', password: 'ivy-secret' }, 'groups'));
+            expect([...laterLogins[1]?.groups ?? []].sort()).toStrictEqual([groupDn('ring-a'), groupDn('ring-b')]);
             expect(third.roles).toStrictEqual([Roles.USER]);
         }
         finally {
@@ -767,10 +769,10 @@ describe('BaseLdapAuthenticator', () => {
         const bindsBefore: number = directory.binds.length;
         const searchesBefore: number = directory.searches.length;
 
-        expect((await signIn({ username: 'ivy', password: 'wrong' }, 'groups')).status).toBe(401);
+        expect((await logIn({ username: 'ivy', password: 'wrong' }, 'groups')).status).toBe(401);
         expect(directory.searches.slice(searchesBefore)).toHaveLength(1);
 
-        expect((await signIn({ username: 'ivy', password: 'ivy-secret' }, 'groups')).status).toBe(200);
+        expect((await logIn({ username: 'ivy', password: 'ivy-secret' }, 'groups')).status).toBe(200);
         expect(directory.binds.slice(bindsBefore).map(bind => bind.dn)).toStrictEqual([
             SERVICE_ACCOUNT.dn,
             person('ivy').dn,
@@ -786,28 +788,28 @@ describe('BaseLdapAuthenticator', () => {
     it('reads no groups when groupSearchBase is undefined', async () => {
         const searchesBefore: number = directory.searches.length;
 
-        expect((await signIn({ username: 'mike', password: 'mike-secret' })).status).toBe(200);
+        expect((await logIn({ username: 'mike', password: 'mike-secret' })).status).toBe(200);
 
         expect(directory.searches.slice(searchesBefore)).toHaveLength(1);
-        expect(firstSignIns[0]?.groups).toStrictEqual([]);
+        expect(firstLogins[0]?.groups).toStrictEqual([]);
     });
 
     it('moves on to the next server when one cannot be reached', async () => {
         // the first server is a random one, so some of these start at the one that is down
         const answers: Response[] = [];
         for (let i: number = 0; i < 8; i++) {
-            answers.push(await signIn({ username: 'jack', password: 'jack-secret' }, 'partly-unreachable'));
+            answers.push(await logIn({ username: 'jack', password: 'jack-secret' }, 'partly-unreachable'));
         }
 
         expect(answers.map(res => res.status)).toStrictEqual(Array.from({ length: 8 }, () => 200));
     });
 
-    it('starts at a random server, so sign-ins are spread across all of them', async () => {
+    it('starts at a random server, so logins are spread across all of them', async () => {
         const [directoryBefore, replicaBefore] = [directory.binds.length, replica.binds.length];
 
         // that all 16 start at the same one of two servers is a chance of 1 in 32768
         for (let i: number = 0; i < 16; i++) {
-            expect((await signIn({ username: 'kate', password: 'kate-secret' }, 'replicated')).status).toBe(200);
+            expect((await logIn({ username: 'kate', password: 'kate-secret' }, 'replicated')).status).toBe(200);
         }
 
         expect(countBinds(directory, directoryBefore, SERVICE_ACCOUNT.dn)).toBeGreaterThan(0);
@@ -817,14 +819,14 @@ describe('BaseLdapAuthenticator', () => {
     it('asks no other server once one refused the password', async () => {
         const [directoryBefore, replicaBefore] = [directory.binds.length, replica.binds.length];
 
-        expect((await signIn({ username: 'kate', password: 'wrong' }, 'replicated')).status).toBe(401);
+        expect((await logIn({ username: 'kate', password: 'wrong' }, 'replicated')).status).toBe(401);
 
         const kate: string = person('kate').dn;
         expect(countBinds(directory, directoryBefore, kate) + countBinds(replica, replicaBefore, kate)).toBe(1);
     });
 
     it('answers a directory none of whose servers can be reached with a 500, recorded as an error', async () => {
-        expect((await signIn({ username: 'jack', password: 'jack-secret' }, 'unreachable')).status).toBe(500);
+        expect((await logIn({ username: 'jack', password: 'jack-secret' }, 'unreachable')).status).toBe(500);
 
         expect(await auditEvents()).toContainEqual(expect.objectContaining({
             action: AuditAction.LOGIN,
@@ -836,11 +838,11 @@ describe('BaseLdapAuthenticator', () => {
 
     // evaluation/03-auth-and-security H22: a login started before its entry was disabled in the
     // directory lived as long as its refresh credential, with the roles it had
-    describe('an entry that changes after its user signed in', () => {
+    describe('an entry that changes after its user logged in', () => {
         it('refuses the refresh of a user whose entry was disabled, ends their logins and api keys, and keeps the user active', async () => {
             const entry: FakeLdapEntry = addPerson('paul');
-            const first: JwtAuthData<string> = await authDataOf(await signIn({ username: 'paul', password: 'paul-secret' }));
-            const second: JwtAuthData<string> = await authDataOf(await signIn({ username: 'paul', password: 'paul-secret' }));
+            const first: JwtAuthData<string> = await authDataOf(await logIn({ username: 'paul', password: 'paul-secret' }));
+            const second: JwtAuthData<string> = await authDataOf(await logIn({ username: 'paul', password: 'paul-secret' }));
             const { key }: CreatedApiKey = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).createApiKey(
                 first.userId,
                 { name: 'ci', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
@@ -861,14 +863,14 @@ describe('BaseLdapAuthenticator', () => {
                 { action: AuditAction.ACCESS_ENDED, outcome: AuditOutcome.SUCCESS, userId: first.userId }
             ]));
 
-            // enabled again in the directory, they simply sign in
+            // enabled again in the directory, they simply log in
             entry.attributes['nsAccountLock'] = ['FALSE'];
-            expect(await userIdOf(await signIn({ username: 'paul', password: 'paul-secret' }))).toBe(first.userId);
+            expect(await userIdOf(await logIn({ username: 'paul', password: 'paul-secret' }))).toBe(first.userId);
         });
 
         it('refuses the refresh of a user whose entry was deleted', async () => {
             const entry: FakeLdapEntry = addPerson('rosa');
-            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'rosa', password: 'rosa-secret' }));
+            const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'rosa', password: 'rosa-secret' }));
             directory.entries.splice(directory.entries.indexOf(entry), 1);
 
             expect((await refresh(tokens.refreshToken.value)).status).toBe(403);
@@ -876,7 +878,7 @@ describe('BaseLdapAuthenticator', () => {
 
         it('counts an entry an administrator locked as disabled, and one locked by wrong passwords as not', async () => {
             const entry: FakeLdapEntry = addPerson('sara');
-            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'sara', password: 'sara-secret' }));
+            const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'sara', password: 'sara-secret' }));
 
             // OpenLDAP's password policy, after too many wrong passwords: whoever typed them must not be
             // able to end the logins of the person they were guessing for
@@ -890,7 +892,7 @@ describe('BaseLdapAuthenticator', () => {
 
         it('brings the roles in step with the groups of the entry on a refresh', async () => {
             const rita: FakeLdapEntry = addPerson('rita');
-            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'rita', password: 'rita-secret' }, 'groups'));
+            const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'rita', password: 'rita-secret' }, 'groups'));
             expect(tokens.roles).toStrictEqual([Roles.USER]);
 
             const admins: FakeLdapEntry | undefined = directory.entries.find(entry => entry.dn === groupDn('admins'));
@@ -906,7 +908,7 @@ describe('BaseLdapAuthenticator', () => {
 
         it('answers a refresh with a 500 while the directory cannot be reached, and ends nothing', async () => {
             addPerson('sven');
-            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'sven', password: 'sven-secret' }, 'switchable'));
+            const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'sven', password: 'sven-secret' }, 'switchable'));
 
             switchableReachable = false;
             try {
@@ -919,9 +921,9 @@ describe('BaseLdapAuthenticator', () => {
             expect((await refresh(tokens.refreshToken.value)).status).toBe(200);
         });
 
-        it('ends the logins of a user whose entry was disabled from a job, once, and a later sign-in clears the mark', async () => {
+        it('ends the logins of a user whose entry was disabled from a job, once, and a later login clears the mark', async () => {
             const entry: FakeLdapEntry = addPerson('tina');
-            const tokens: JwtAuthData<string> = await authDataOf(await signIn({ username: 'tina', password: 'tina-secret' }));
+            const tokens: JwtAuthData<string> = await authDataOf(await logIn({ username: 'tina', password: 'tina-secret' }));
             entry.attributes['nsAccountLock'] = ['TRUE'];
 
             await runDisabledEntriesJob();
@@ -939,7 +941,7 @@ describe('BaseLdapAuthenticator', () => {
             expect(ended).toHaveLength(1);
 
             entry.attributes['nsAccountLock'] = ['FALSE'];
-            await authDataOf(await signIn({ username: 'tina', password: 'tina-secret' }));
+            await authDataOf(await logIn({ username: 'tina', password: 'tina-secret' }));
             expect((await findCompanyLink(tokens.userId)).disabledAt ?? undefined).toBeUndefined();
         });
     });

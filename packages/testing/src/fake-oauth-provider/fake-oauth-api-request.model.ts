@@ -1,5 +1,5 @@
 /**
- * A request to the api of a fake provider: anything but its sign-in, token, revocation and key set
+ * A request to the api of a fake provider: anything but its login, token, revocation and key set
  * endpoints.
  */
 export type FakeOAuthApiRequest = {

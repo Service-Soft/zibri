@@ -7,9 +7,9 @@ import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { ProviderAuthentication } from '../../models/provider-authentication.model';
 
 /**
- * A sign-in at a provider that has been proven and not yet turned into a login.
+ * A login at a provider that has been proven and not yet turned into a login.
  *
- * Spent once, by the browser the sign-in was started in or by the frontend holding the PKCE verifier.
+ * Spent once, by the browser the login was started in or by the frontend holding the PKCE verifier.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
 export class FederatedHandoverCode extends BaseEntity {
@@ -20,25 +20,25 @@ export class FederatedHandoverCode extends BaseEntity {
     value!: HashString;
 
     /**
-     * The name of the authenticator the sign-in went through.
+     * The name of the authenticator the login went through.
      */
     @Property.string()
     provider!: string;
 
     /**
-     * The user that signed in.
+     * The user that logged in.
      */
     @Property.string({ format: 'uuid' })
     userId!: string;
 
     /**
-     * When the user signed in at the provider.
+     * When the user logged in at the provider.
      */
     @Property.date()
     authenticatedAt!: Date;
 
     /**
-     * Everything the provider proved about who signed in, for the login to hand to the authenticator.
+     * Everything the provider proved about who logged in, for the login to hand to the authenticator.
      */
     @Property.unknown()
     claims!: Record<string, unknown>;

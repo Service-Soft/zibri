@@ -32,15 +32,16 @@ export interface AnyPaymentProviderInterface {
     // eslint-disable-next-line typescript/no-explicit-any
     validatePaymentData: (method: any, data: any) => any,
     /**
-     * Starts a new payment with the given method and data.
+     * Requests a new payment with the given method and data, which `confirmPayment` finishes.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    startPayment: (method: any, data: any) => any,
+    requestPayment: (method: any, data: any) => any,
     /**
-     * Starts a new payment reservation with the given method and data.
+     * Requests a new payment reservation with the given method and data, which
+     * `confirmPaymentReservation` finishes.
      */
     // eslint-disable-next-line typescript/no-explicit-any
-    startPaymentReservation: (method: any, data: any) => any,
+    requestPaymentReservation: (method: any, data: any) => any,
     /**
      * Confirms The given payment reservation. This does NOT move any money yet, it just reserves the funds.
      */
@@ -111,12 +112,12 @@ export interface PaymentProviderInterface<
         data: PaymentDataForMethod[M]
     ) => ValidatedPaymentDataForMethod[M] | Promise<ValidatedPaymentDataForMethod[M]>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    startPayment: <M extends SupportedMethods[number]>(
+    requestPayment: <M extends SupportedMethods[number]>(
         method: M,
         data: ValidatedPaymentDataForMethod[M]
     ) => Payment<M, ProviderPaymentDataForMethod[M]> | Promise<Payment<M, ProviderPaymentDataForMethod[M]>>,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    startPaymentReservation: <
+    requestPaymentReservation: <
         M extends {
             [K in SupportedMethods[number]]: ReservationSupport[K] extends true ? K : never
         }[SupportedMethods[number]]

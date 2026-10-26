@@ -8,6 +8,7 @@ import { type RepositoryTypeForEntity } from '../data-sources/data-source.interf
  * A repository class of an entity, which the framework builds over the repository its data source
  * builds for the entity. It declares no constructor of its own.
  */
+// eslint-disable-next-line stylistic/max-len
 export type RepositoryClassFor<T extends BaseEntity> = new (entityClass: Newable<T>, repo: RepositoryTypeForEntity<T>) => RepositoryTypeForEntity<T>;
 
 /**

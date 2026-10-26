@@ -33,8 +33,9 @@ export type KeysetOrderKey = {
     direction: 'ASC' | 'DESC',
     /**
      * What the property holds, which decides how a value is compared and how it survives the cursor.
+     * A number past what a double holds is a `bigint` or a `bignumber`, as its format says.
      */
-    type: 'string' | 'number' | 'date',
+    type: 'string' | 'number' | 'bigint' | 'bignumber' | 'date',
     /**
      * The search the property is ordered by similarity to, when it is.
      *
@@ -118,10 +119,22 @@ export function resolveKeysetOrder<T extends BaseEntity>(
             );
         }
 
-        keys.push({ property, direction, type: metadata.type as 'string' | 'number' | 'date', similarTo: undefined });
+        keys.push({ property, direction, type: keyTypeOf(metadata), similarTo: undefined });
     }
 
     return keys;
+}
+
+/**
+ * What a property of the order holds, as a cursor carries it.
+ * @param metadata - The property, already known to be a string, a number or a date.
+ * @returns The type, with a number past what a double holds told apart by its format.
+ */
+function keyTypeOf(metadata: PropertyMetadata): KeysetOrderKey['type'] {
+    if (metadata.type === 'number') {
+        return metadata.format === 'bigint' || metadata.format === 'bignumber' ? metadata.format : 'number';
+    }
+    return metadata.type === 'date' ? 'date' : 'string';
 }
 
 /**

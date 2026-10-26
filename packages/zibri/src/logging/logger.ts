@@ -1,3 +1,5 @@
+import { AsyncResource } from 'node:async_hooks';
+
 import { errorToLoggedError } from './error-to-logged-error.function';
 import { LogBuffer } from './log-buffer';
 import { LogCleanupCronJob } from './log-cleanup.cron-job';
@@ -75,6 +77,11 @@ export class Logger implements LoggerInterface, OnAppInit {
     private pending: NodeJS.Timeout | undefined;
 
     /**
+     * The scope every drain runs in: the one the logger was built in.
+     */
+    private readonly drainScope: AsyncResource;
+
+    /**
      * How many entries were dropped since the logger was built.
      */
     private droppedTotal: number = 0;
@@ -82,14 +89,29 @@ export class Logger implements LoggerInterface, OnAppInit {
     constructor(
         @Inject(ZIBRI_DI_TOKENS.LOGGER_TRANSPORTS)
         readonly transports: LoggerTransport<BaseLoggerTransportConfig>[],
-        @Inject(ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_MS)
-        protected readonly cleanupAfterMs: Record<LogLevel, number>,
+        @Inject(ZIBRI_DI_TOKENS.LOGGER_CLEANUP_AFTER_IN_MS)
+        protected readonly cleanupAfterInMs: Record<LogLevel, number>,
         @Inject(ZIBRI_DI_TOKENS.LOGGER_BUFFER_CAPACITY)
         bufferCapacity: number,
-        @Inject(ZIBRI_DI_TOKENS.LOGGER_FLUSH_INTERVAL_MS)
-        private readonly flushIntervalMs: number
+        @Inject(ZIBRI_DI_TOKENS.LOGGER_FLUSH_INTERVAL_IN_MS)
+        private readonly flushIntervalInMs: number
     ) {
         this.buffer = new LogBuffer(bufferCapacity);
+        // the logger is built while the application starts, outside every request
+        this.drainScope = new AsyncResource('ZibriLoggerDrain');
+    }
+
+    /**
+     * Starts writing what is queued, in the logger's own scope rather than in whichever caller's.
+     *
+     * An entry is written by whatever drain is running when it is queued, or by the one it starts, and
+     * a drain started inside a request ran as part of that request: once the request had run out of
+     * time, its data source refused the write, and the entries of every caller in that batch were lost
+     * with it.
+     * @returns The drain.
+     */
+    private startDrain(): Promise<void> {
+        return this.drainScope.runInAsyncScope(async () => await this.drain());
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -195,7 +217,7 @@ export class Logger implements LoggerInterface, OnAppInit {
                 clearTimeout(this.pending);
                 this.pending = undefined;
             }
-            this.draining ??= this.drain();
+            this.draining ??= this.startDrain();
             await this.draining;
         }
         await Promise.all(this.transports.map(async transport => {
@@ -274,7 +296,7 @@ export class Logger implements LoggerInterface, OnAppInit {
             // eslint-disable-next-line unicorn/no-null
             tenantId: AlsUtilities.getCurrentTenant() ?? null,
             createdAt: new Date(),
-            cleanupAt: new Date(Date.now() + this.cleanupAfterMs[level]),
+            cleanupAt: new Date(Date.now() + this.cleanupAfterInMs[level]),
             message,
             context: {
                 ...context,
@@ -297,7 +319,7 @@ export class Logger implements LoggerInterface, OnAppInit {
      * first entry of every quiet period is written on its own - and an application that logs one
      * line per request is quiet between requests, so every line would be its own write and the
      * batching would buy nothing on the one path it was built for. Letting entries gather for
-     * `flushIntervalMs` is what turns a busy second into a handful of writes.
+     * `flushIntervalInMs` is what turns a busy second into a handful of writes.
      *
      * Unref'd, so a pending drain never holds the process open. Shutdown flushes explicitly.
      *
@@ -308,14 +330,14 @@ export class Logger implements LoggerInterface, OnAppInit {
         if (this.draining || this.pending) {
             return;
         }
-        if (!this.flushIntervalMs) {
-            this.draining = this.drain();
+        if (!this.flushIntervalInMs) {
+            this.draining = this.startDrain();
             return;
         }
         this.pending = setTimeout(() => {
             this.pending = undefined;
-            this.draining ??= this.drain();
-        }, this.flushIntervalMs);
+            this.draining ??= this.startDrain();
+        }, this.flushIntervalInMs);
         this.pending.unref();
     }
 
@@ -395,7 +417,7 @@ export class Logger implements LoggerInterface, OnAppInit {
             // eslint-disable-next-line unicorn/no-null
             tenantId: null,
             createdAt: new Date(),
-            cleanupAt: new Date(Date.now() + this.cleanupAfterMs[LogLevel.WARN]),
+            cleanupAt: new Date(Date.now() + this.cleanupAfterInMs[LogLevel.WARN]),
             message: `dropped ${count} log entries because the write queue was full`,
             context: { origin: 'Logger' },
             level: LogLevel.WARN

@@ -181,12 +181,12 @@ describe('MailingListService', () => {
         }));
     });
 
-    describe('requestSubscribeToList', () => {
+    describe('requestSubscription', () => {
         it('creates a confirmation token and queues a confirmation email for a brand new subscriber', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('list-new-subscriber');
             const email: string = 'new-subscriber@example.com';
 
-            await service.requestSubscribeToList(
+            await service.requestSubscription(
                 list.id,
                 { email, name: 'New Subscriber' } as MailingListSubscriberCreateData,
                 { subject: 'Please confirm' }
@@ -211,7 +211,7 @@ describe('MailingListService', () => {
 
             const subscriber: MailingListSubscriber = await subscriberRepository.create({ email, mailingLists: [listA] });
 
-            await service.requestSubscribeToList(listB.id, { email } as MailingListSubscriberCreateData, { subject: 'Confirm list b' });
+            await service.requestSubscription(listB.id, { email } as MailingListSubscriberCreateData, { subject: 'Confirm list b' });
 
             const updated: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(updated.mailingLists.map(l => l.id)).toEqual([listA.id]);
@@ -221,7 +221,7 @@ describe('MailingListService', () => {
             const emails: Email[] = await emailRepository.findAll({ where: { subject: 'Confirm list b' } });
             expect(emails.map(e => e.recipients)).toEqual([[email]]);
 
-            await service.confirmSubscribeToList(listB.id, tokenFromMail(emails[0]));
+            await service.confirmSubscription(listB.id, tokenFromMail(emails[0]));
             const confirmed: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
             expect(confirmed.mailingLists.map(l => l.id).sort()).toEqual([listA.id, listB.id].sort());
         }));
@@ -231,7 +231,7 @@ describe('MailingListService', () => {
             const email: string = 'already-on@example.com';
             await subscriberRepository.create({ email, mailingLists: [list] });
 
-            await service.requestSubscribeToList(list.id, { email } as MailingListSubscriberCreateData, { subject: 'Confirm already on' });
+            await service.requestSubscription(list.id, { email } as MailingListSubscriberCreateData, { subject: 'Confirm already on' });
 
             expect(await confirmationTokenRepository.findAll({ where: { email } })).toEqual([]);
             expect(await emailRepository.findAll({ where: { subject: 'Confirm already on' } })).toEqual([]);
@@ -241,7 +241,7 @@ describe('MailingListService', () => {
             const list: MailingList = await createMailingList('list-hashed');
             const email: string = 'hashed@example.com';
 
-            await service.requestSubscribeToList(list.id, { email } as MailingListSubscriberCreateData, { subject: 'Confirm hashed' });
+            await service.requestSubscription(list.id, { email } as MailingListSubscriberCreateData, { subject: 'Confirm hashed' });
 
             const [mail] = await emailRepository.findAll({ where: { subject: 'Confirm hashed' } });
             const [stored] = await confirmationTokenRepository.findAll({ where: { email } });
@@ -251,7 +251,7 @@ describe('MailingListService', () => {
         it('keeps no copy of the mail, whose link confirms the subscription', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('list-persist');
 
-            await service.requestSubscribeToList(
+            await service.requestSubscription(
                 list.id,
                 { email: 'persist@example.com' } as MailingListSubscriberCreateData,
                 { subject: 'Confirm persist', persist: true }
@@ -262,7 +262,7 @@ describe('MailingListService', () => {
         }));
     });
 
-    describe('confirmSubscribeToList', () => {
+    describe('confirmSubscription', () => {
         /**
          * Creates a confirmation token the way a request for a subscription does.
          * @param listId - The list it confirms a subscription to.
@@ -288,7 +288,7 @@ describe('MailingListService', () => {
             const email: string = 'confirm-new@example.com';
             const token: string = await createToken(list.id, email);
 
-            const subscriber: MailingListSubscriber = await service.confirmSubscribeToList(list.id, token);
+            const subscriber: MailingListSubscriber = await service.confirmSubscription(list.id, token);
 
             expect(subscriber.email).toBe(email);
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
@@ -302,7 +302,7 @@ describe('MailingListService', () => {
             const subscriber: MailingListSubscriber = await subscriberRepository.create({ email, mailingLists: [listA] });
             const token: string = await createToken(listB.id, email);
 
-            const result: MailingListSubscriber = await service.confirmSubscribeToList(listB.id, token);
+            const result: MailingListSubscriber = await service.confirmSubscription(listB.id, token);
 
             expect(result.id).toBe(subscriber.id);
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
@@ -315,7 +315,7 @@ describe('MailingListService', () => {
             const subscriber: MailingListSubscriber = await subscriberRepository.create({ email, mailingLists: [list] });
             const token: string = await createToken(list.id, email);
 
-            const result: MailingListSubscriber = await service.confirmSubscribeToList(list.id, token);
+            const result: MailingListSubscriber = await service.confirmSubscription(list.id, token);
 
             expect(result.id).toBe(subscriber.id);
             const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
@@ -327,7 +327,7 @@ describe('MailingListService', () => {
             const email: string = 'confirm-expired@example.com';
             const token: string = await createToken(list.id, email, -1);
 
-            await expect(service.confirmSubscribeToList(list.id, token)).rejects.toThrow(UnauthorizedError);
+            await expect(service.confirmSubscription(list.id, token)).rejects.toThrow(UnauthorizedError);
             expect(await subscriberRepository.findAll({ where: { email } })).toEqual([]);
         }));
 
@@ -337,7 +337,7 @@ describe('MailingListService', () => {
             const email: string = 'confirm-other@example.com';
             const token: string = await createToken(listA.id, email);
 
-            await expect(service.confirmSubscribeToList(listB.id, token)).rejects.toThrow(UnauthorizedError);
+            await expect(service.confirmSubscription(listB.id, token)).rejects.toThrow(UnauthorizedError);
             expect(await subscriberRepository.findAll({ where: { email } })).toEqual([]);
         }));
 
@@ -345,21 +345,21 @@ describe('MailingListService', () => {
             const list: MailingList = await createMailingList('confirm-used');
             const email: string = 'confirm-used@example.com';
             const token: string = await createToken(list.id, email);
-            const subscriber: MailingListSubscriber = await service.confirmSubscribeToList(list.id, token);
+            const subscriber: MailingListSubscriber = await service.confirmSubscription(list.id, token);
             await service.unsubscribeFromList(list.id, subscriber.id);
 
-            await expect(service.confirmSubscribeToList(list.id, token)).rejects.toThrow(UnauthorizedError);
-            const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
-            expect(persisted.mailingLists).toEqual([]);
+            await expect(service.confirmSubscription(list.id, token)).rejects.toThrow(UnauthorizedError);
+            // on no list, the subscriber was deleted, and the used token brings no one back
+            expect(await subscriberRepository.findAll({ where: { email } })).toEqual([]);
         }));
 
         it('answers a token that was used with its subscriber while the address is still on the list', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('confirm-used-again');
             const email: string = 'confirm-used-again@example.com';
             const token: string = await createToken(list.id, email);
-            const subscriber: MailingListSubscriber = await service.confirmSubscribeToList(list.id, token);
+            const subscriber: MailingListSubscriber = await service.confirmSubscription(list.id, token);
 
-            const again: MailingListSubscriber = await service.confirmSubscribeToList(list.id, token);
+            const again: MailingListSubscriber = await service.confirmSubscription(list.id, token);
 
             expect(again.id).toBe(subscriber.id);
             expect(await subscriberRepository.findAll({ where: { email } })).toHaveLength(1);
@@ -370,7 +370,7 @@ describe('MailingListService', () => {
             const email: string = 'confirm-concurrent@example.com';
             const token: string = await createToken(list.id, email);
 
-            await Promise.allSettled([service.confirmSubscribeToList(list.id, token), service.confirmSubscribeToList(list.id, token)]);
+            await Promise.allSettled([service.confirmSubscription(list.id, token), service.confirmSubscription(list.id, token)]);
 
             expect(await subscriberRepository.findAll({ where: { email } })).toHaveLength(1);
         }));
@@ -403,17 +403,18 @@ describe('MailingListService', () => {
     });
 
     describe('unsubscribeFromList', () => {
-        it('removes the mailing list from the subscriber', async () => await inTenant(async () => {
+        it('removes the mailing list from the subscriber, and deletes a subscriber it was the last list of', async () => await inTenant(async () => {
             const list: MailingList = await createMailingList('unsubscribe-list');
-            const subscriber: MailingListSubscriber = await subscriberRepository.create({
-                email: 'unsub@example.com',
-                mailingLists: [list]
-            });
+            const other: MailingList = await createMailingList('unsubscribe-other-list');
+            const onBoth: MailingListSubscriber = await subscriberRepository.create({ email: 'unsub-both@example.com', mailingLists: [list, other] });
+            const onOne: MailingListSubscriber = await subscriberRepository.create({ email: 'unsub@example.com', mailingLists: [list] });
 
-            await service.unsubscribeFromList(list.id, subscriber.id);
+            await service.unsubscribeFromList(list.id, onBoth.id);
+            await service.unsubscribeFromList(list.id, onOne.id);
 
-            const persisted: MailingListSubscriber = await subscriberRepository.findById(subscriber.id, { relations: ['mailingLists'] });
-            expect(persisted.mailingLists).toEqual([]);
+            const persisted: MailingListSubscriber = await subscriberRepository.findById(onBoth.id, { relations: ['mailingLists'] });
+            expect(persisted.mailingLists.map(l => l.id)).toEqual([other.id]);
+            expect(await subscriberRepository.findAll({ where: { id: onOne.id } })).toEqual([]);
         }));
 
         it('is idempotent when the subscriber is not subscribed to the list', async () => await inTenant(async () => {

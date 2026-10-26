@@ -57,7 +57,7 @@ export type CorsOptions = {
  * The default, and what it is chosen for.
  *
  * Every origin, no credentials. Nothing a browser does on its own reaches an api under this - a page
- * on another origin may send a request, but no cookies are attached to it, so acting as a signed in
+ * on another origin may send a request, but no cookies are attached to it, so acting as a logged in
  * user still needs a token that page was given deliberately. Locking it down is one option away, and
  * has to be, because the right value depends on where the api is deployed rather than on the
  * framework.

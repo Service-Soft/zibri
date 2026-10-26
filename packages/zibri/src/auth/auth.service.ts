@@ -14,7 +14,7 @@ import { type TwoFactorServiceInterface } from './2fa/two-factor-service.interfa
 import { AuthControllerUtilities } from './auth-controller/auth-controller.utilities';
 import { AuthenticatorInterface } from './authenticators/authenticator.interface';
 import { Authenticators } from './authenticators/authenticators.model';
-import { ConnectionCompletingAuthenticatorInterface } from './authenticators/connection-completing-authenticator.interface';
+import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/link-identity-confirming-authenticator.interface';
 import { FederatedAuthenticatorInterface } from './authenticators/federated/federated-authenticator.interface';
 import { FederatedRouteUtilities } from './authenticators/federated/federated-route.utilities';
 import { FederatedSessionMatch } from './authenticators/federated/federated-session-match.model';
@@ -100,8 +100,6 @@ import { Newable } from '../types/newable.type';
 import { MetadataUtilities } from '../utilities/metadata.utilities';
 import { Ms } from '../utilities/ms';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
-import { type BaseWebsocketConnection } from '../websocket/models/connection/base-websocket-connection.model';
-import { type WebsocketServiceInterface } from '../websocket/services/websocket-service.interface';
 
 /**
  * The account a set of credentials names, as far as the framework can tell.
@@ -217,11 +215,6 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
 
     private get membershipService(): MembershipServiceInterface {
         return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
-    }
-
-    // read when used rather than injected, since the websocket service is built with this one
-    private get websocketService(): WebsocketServiceInterface<BaseWebsocketConnection> {
-        return inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE);
     }
 
     /**
@@ -356,7 +349,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         // audited without having to remember to be.
         //
         // The only way into a login: there is deliberately nothing that starts one for a user without
-        // credentials an authenticator checked. Signing in at a provider, a one-time code, a
+        // credentials an authenticator checked. Logging in at a provider, a one-time code, a
         // registration that has just created the user - each is a credential with an authenticator
         const subject: string | undefined = auditSubject(credentials);
         try {
@@ -397,47 +390,47 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSecondFactorAtLogin<
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        SecondFactorStartType
+    async requestSecondFactorAtLogin<
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        SecondFactorRequestType
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, SecondFactorStartType>
-    ): Promise<SecondFactorStartType> {
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, SecondFactorRequestType>
+    ): Promise<SecondFactorRequestType> {
         const user: BaseUser<string> = await this.resolveTicketUser(await this.resolveLoginTicket(ticket));
-        return await this.twoFactorService.startSecondFactor(user, method);
+        return await this.twoFactorService.requestSecondFactor(user, method);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterTwoFactorMethodAtLogin<
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        TwoFactorRequestRegisterResult
+    async requestTwoFactorRegistrationAtLogin<
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        TwoFactorRegistrationRequestResult
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult, unknown>,
-        data: TwoFactorRequestRegisterData
-    ): Promise<TwoFactorRequestRegisterResult> {
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        data: TwoFactorRegistrationRequestData
+    ): Promise<TwoFactorRegistrationRequestResult> {
         const user: BaseUser<string> = await this.resolveEnrollingUser(ticket);
-        return await this.twoFactorService.requestRegisterTwoFactorMethodForUser(user, method, data);
+        return await this.twoFactorService.requestTwoFactorRegistration(user, method, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterTwoFactorMethodAtLogin<
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+    async confirmTwoFactorRegistrationAtLogin<
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>,
-        data: TwoFactorConfirmRegisterData
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>,
+        data: TwoFactorRegistrationConfirmData
     ): Promise<void> {
         const user: BaseUser<string> = await this.resolveEnrollingUser(ticket);
-        await this.twoFactorService.confirmRegisterTwoFactorMethodForUser(user, method, data);
+        await this.twoFactorService.confirmTwoFactorRegistration(user, method, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async completeLogin<
+    async confirmSecondFactorAtLogin<
         Role extends string,
         UserType extends BaseUser<Role>,
         AuthDataType,
@@ -624,11 +617,11 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         TicketType,
         RegistrationType,
         IdentityType extends Pick<BaseEntity, 'id'>,
-        ConnectionRequestType,
-        ConnectionStartType
+        LinkIdentityRequestType,
+        LinkIdentityStartType
     >(
         authenticator: Newable<IdentityLinkingAuthenticatorInterface<
-            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
         ticket: TicketType,
         transaction: Transaction | undefined
@@ -637,25 +630,25 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async linkIdentity<
+    async linkTicketIdentity<
         Role extends string,
         UserType extends BaseUser<Role>,
         CredentialsType,
         TicketType,
         RegistrationType,
         IdentityType extends Pick<BaseEntity, 'id'>,
-        ConnectionRequestType,
-        ConnectionStartType
+        LinkIdentityRequestType,
+        LinkIdentityStartType
     >(
         authenticator: Newable<IdentityLinkingAuthenticatorInterface<
-            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
         ticket: TicketType,
         userId: string,
         transaction: Transaction | undefined
     ): Promise<void> {
         try {
-            await inject(authenticator).linkIdentity(ticket, userId, transaction);
+            await inject(authenticator).linkTicketIdentity(ticket, userId, transaction);
             this.auditService.record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId });
         }
         catch (error) {
@@ -670,46 +663,46 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startConnection<
+    async requestLinkIdentity<
         Role extends string,
         UserType extends BaseUser<Role>,
         CredentialsType,
         TicketType,
         RegistrationType,
         IdentityType extends Pick<BaseEntity, 'id'>,
-        ConnectionRequestType,
-        ConnectionStartType
+        LinkIdentityRequestType,
+        LinkIdentityStartType
     >(
         authenticator: Newable<IdentityLinkingAuthenticatorInterface<
-            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
-        request: ConnectionRequestType
-    ): Promise<ConnectionStartType> {
-        // read from the request rather than taken as a parameter, so an identity is only ever connected
+        request: LinkIdentityRequestType
+    ): Promise<LinkIdentityStartType> {
+        // read from the request rather than taken as a parameter, so an identity is only ever linked
         // to the user who asked for it. Nothing is recorded yet: the identity is linked, or refused,
-        // once the user has signed in with it
+        // once the user has logged in with it
         const context: HttpRequestContext | WebsocketRequestContext | undefined
             = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (context == undefined) {
             throw new UnauthorizedError($ts`Could not resolve the currently logged in user.`);
         }
         const user: CurrentUser<UserType> = await this.getCurrentUser<Role, UserType, true>(context, this.strategies, true);
-        return await inject(authenticator).startConnection(user.id, request);
+        return await inject(authenticator).requestLinkIdentity(user.id, request);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async completeConnection<Role extends string, UserType extends BaseUser<Role>, CredentialsType, ConnectionAnswerType>(
-        authenticator: Newable<ConnectionCompletingAuthenticatorInterface<Role, UserType, CredentialsType, ConnectionAnswerType>>,
-        answer: ConnectionAnswerType
+    async confirmLinkIdentity<Role extends string, UserType extends BaseUser<Role>, CredentialsType, LinkIdentityAnswerType>(
+        authenticator: Newable<LinkIdentityConfirmingAuthenticatorInterface<Role, UserType, CredentialsType, LinkIdentityAnswerType>>,
+        answer: LinkIdentityAnswerType
     ): Promise<void> {
-        // the user of the request, for the reason startConnection reads it from there
+        // the user of the request, for the reason requestLinkIdentity reads it from there
         const context: HttpRequestContext | WebsocketRequestContext | undefined = inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT);
         if (context == undefined) {
             throw new UnauthorizedError($ts`Could not resolve the currently logged in user.`);
         }
         const user: CurrentUser<UserType> = await this.getCurrentUser<Role, UserType, true>(context, this.strategies, true);
         try {
-            await inject(authenticator).completeConnection(user.id, answer);
+            await inject(authenticator).confirmLinkIdentity(user.id, answer);
             this.auditService.record({ action: AuditAction.IDENTITY_LINKED, outcome: AuditOutcome.SUCCESS, userId: user.id });
         }
         catch (error) {
@@ -764,6 +757,27 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        if (!userIds.length) {
+            return;
+        }
+        // one after the other rather than together: they share the one transaction, which runs one
+        // statement at a time. Each deletes its rows of all the users at once
+        for (const authenticator of this.authenticators) {
+            await inject(authenticator).deleteUserRows?.(userIds, transaction);
+        }
+        for (const strategy of this.strategies) {
+            await inject(strategy).deleteUserRows?.(userIds, transaction);
+        }
+        await this.twoFactorService.deleteUserRows(userIds, transaction);
+        await this.apiKeyService.deleteUserRows(userIds, transaction);
+        // only an application whose logins ask for a second factor declares the tickets
+        if (this.twoFactorAtLogin !== 'never') {
+            await this.loginTicketRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveProviderAccessToken(userId: string, identityId: string, scopes: string[]): Promise<string> {
         // no transaction on purpose: a refresh writes the provider's new tokens, and a provider that
         // rotates its refresh token has refused the old one by then. Rolled back with the caller's
@@ -792,16 +806,16 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async revokeProviderSignIn(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeProviderLogin(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         try {
             const holder: ProviderAccessAuthenticatorInterface = await this.resolveProviderAccessHolder(userId, identityId, transaction);
             // the success is recorded by the authenticator, which knows whether the identity stopped
-            // signing in or was unlinked
-            await holder.revokeSignIn(userId, identityId, transaction);
+            // logging in or was unlinked
+            await holder.revokeLogin(userId, identityId, transaction);
         }
         catch (error) {
             this.auditService.record({
-                action: AuditAction.IDENTITY_SIGN_IN_REVOKED,
+                action: AuditAction.IDENTITY_LOGIN_REVOKED,
                 outcome: AuditOutcome.FAILURE,
                 reason: auditReasonFor(error),
                 userId
@@ -857,13 +871,11 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     // eslint-disable-next-line jsdoc/require-jsdoc
     async revokeApiKey(userId: string, apiKeyId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revoke(userId, apiKeyId, transaction));
-        await this.websocketService.disconnectEndedLogins([userId], transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async revokeApiKeys(userId: string, transaction: Transaction | undefined): Promise<void> {
         await this.auditApiKeyRevocation(userId, async () => await this.apiKeyService.revokeForUser(userId, transaction));
-        await this.websocketService.disconnectEndedLogins([userId], transaction);
     }
 
     /**
@@ -1210,7 +1222,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
      * @returns True when the route has not opted out of it.
      */
     private defaultAuthAppliesTo(auth: RouteAuthConfiguration | undefined): boolean {
-        return this.defaultAuth === 'requireLogin' && auth?.skip !== true;
+        return this.defaultAuth === 'isLoggedIn' && auth?.skip !== true;
     }
 
     /**
@@ -1408,7 +1420,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
      * through.
      * @param context - The request being checked.
      * @param factors - Which factors the route counts.
-     * @returns False as well when the strategy cannot say how its caller signed in at the provider.
+     * @returns False as well when the strategy cannot say how its caller logged in at the provider.
      */
     private async hasProviderFactor(
         context: HttpRequestContext | WebsocketRequestContext,
@@ -1511,8 +1523,8 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveUserPermissions(user: BaseUser<string>, tenantId: string | undefined): Promise<(Permission | PlatformPermission)[]> {
         const memberships: BaseMembership<string>[] = tenantId == undefined
-            ? await this.membershipService.findMemberships(user.id)
-            : [await this.membershipService.findMembership(user.id, tenantId)].filter(membership => membership != undefined);
+            ? await this.membershipService.findActiveMemberships(user.id)
+            : [await this.membershipService.findActiveMembership(user.id, tenantId)].filter(membership => membership != undefined);
         // each membership in its own tenant, whose own roles may carry what the same name carries
         // nowhere else
         const permissions: (Permission | PlatformPermission)[] = [
@@ -1690,7 +1702,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         }
         // the roles as the membership holds them: what the credential may use of them is a matter of
         // permissions, and narrowed where those are resolved
-        return await this.membershipService.findMembership(principal.id, tenantId);
+        return await this.membershipService.findActiveMembership(principal.id, tenantId);
     }
 
     /**
@@ -1746,7 +1758,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     /**
      * Warns about a skip that skips nothing.
      *
-     * Only reachable under a `'public'` default: with `'requireLogin'` there is always something to
+     * Only reachable under a `'public'` default: with `'isLoggedIn'` there is always something to
      * skip, because the skip is what makes the route public. A controller shipped by a library
      * cannot know which default the application picked and has to state its posture either way,
      * which is what `allowRedundant` is for.
@@ -1798,7 +1810,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         routeSkip: SkipAuthMetadata | undefined,
         controllerSkip: SkipAuthMetadata | undefined
     ): boolean {
-        return this.defaultAuth === 'requireLogin'
+        return this.defaultAuth === 'isLoggedIn'
             && !routeSkip
             && !controllerSkip
             && !MetadataUtilities.getRouteSkipIsLoggedIn(controllerClass, controllerMethod)
@@ -1815,7 +1827,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
      *
      * The single answer to "does a caller have to authenticate", shared by the runtime check and by
      * whoever describes the route to the outside. Not the same question as "does it carry an auth
-     * decorator": under a `'requireLogin'` default a route that carries nothing requires a login too,
+     * decorator": under a `'isLoggedIn'` default a route that carries nothing requires a login too,
      * and answering the wrong one of those documented every undecorated route as public.
      * @param controllerClass - The controller the route is on.
      * @param controllerMethod - The route to check.
@@ -2020,7 +2032,7 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
         this.validateControllerSkipDoesNotConflict(controllerClass, controllerIsLoggedIn, AUTH_IS_LOGGED_IN_LABEL);
 
         // the same condition @Auth.skip's warning hangs off, and for the same reason: under a
-        // `requireLogin` default there is always a login to skip, so this decorator is what makes the
+        // `isLoggedIn` default there is always a login to skip, so this decorator is what makes the
         // route reachable rather than a leftover. The other four per check skips stay unconditional -
         // none of them say anything about a login, so none of them become meaningful.
         if (this.defaultAuth === 'public' && !routeIsLoggedIn && !controllerIsLoggedIn && routeSkipIsLoggedIn) {
@@ -2265,8 +2277,6 @@ export class AuthService implements AuthServiceInterface, BeforeAppInit, OnAppIn
     // eslint-disable-next-line jsdoc/require-jsdoc
     async endLogins(userId: string, transaction: Transaction | undefined): Promise<void> {
         await Promise.all(this.findLoginStrategies().map(async strategy => await strategy.endLogins(userId, transaction)));
-        // after the strategies, so that what a socket is checked against is what they left
-        await this.websocketService.disconnectEndedLogins([userId], transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

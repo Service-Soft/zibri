@@ -68,7 +68,7 @@ export type StructuredBodyDeclaration = JsonBodyDeclaration | XmlBodyDeclaration
 /**
  * Fills in everything a body's metadata needs that the caller did not state.
  *
- * Built per kind rather than spread over one set of defaults: `cleanupAfterMs` and `limits` belong
+ * Built per kind rather than spread over one set of defaults: `cleanupAfterInMs` and `limits` belong
  * to a form data body and mean nothing on a json one, and `baseMaxSize` is an input that resolves
  * into `maxSize` rather than a field of its own.
  *
@@ -101,7 +101,7 @@ export function resolveBodyMetadata(input: BodyDeclaration, index: number): Body
                 description: input.description,
                 baseMaxSize: fileSizeToBytes(input.baseMaxSize ?? DEFAULT_BASE_MAX_SIZE),
                 type: MimeType.FORM_DATA,
-                cleanupAfterMs: input.cleanupAfterMs ?? Ms.DAY,
+                cleanupAfterInMs: input.cleanupAfterInMs ?? Ms.DAY,
                 limits: input.limits
             };
         }

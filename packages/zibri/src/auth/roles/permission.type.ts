@@ -15,7 +15,7 @@ declare const tenantPermission: unique symbol;
  */
 export type Permission<Value extends string = string> = Value & {
     /**
-     * Present in the type and in no value. See {@link tenantPermission}.
+     * Present in the type and in no value.
      */
     readonly [tenantPermission]: true
 };

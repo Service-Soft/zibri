@@ -47,6 +47,7 @@ import { CreatedApiKey } from '../strategies/api-key/created-api-key.model';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
 import { AuthorizationHeaderUtilities } from '../strategies/authorization-header.utilities';
 import { AuthorizationToken } from '../strategies/authorization-token.model';
+import { CredentialEntity } from '../strategies/credential-entity.model';
 import { ClientAccessTokenAuthStrategy } from '../strategies/client-access-token/client-access-token.auth-strategy';
 import { ClientAccessTokenGrant } from '../strategies/client-access-token-grant.model';
 import { ClientAccessTokenIssuingAuthStrategyInterface } from '../strategies/client-access-token-issuing-auth-strategy.interface';
@@ -458,6 +459,8 @@ type OpaqueToken = {
  */
 class OpaqueClientAccessTokenAuthStrategy implements ClientAccessTokenIssuingAuthStrategyInterface<string, JwtUser> {
     readonly name: string = 'opaque-client-access-token';
+    // kept in memory, where a socket follows no write
+    readonly credentialEntities: CredentialEntity[] = [];
     readonly securityScheme: OpenApiSecuritySchemeObject = { type: 'http', scheme: 'bearer' };
     private readonly tokens: Map<string, OpaqueToken> = new Map();
 

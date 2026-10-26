@@ -33,7 +33,7 @@ export class BackupStagingCleanupCronJob extends CronJob {
         runOnInit: false,
         // the staging folder is on this instance's own filesystem and no other instance can see it,
         // so electing one would leave every other instance's leftovers to fill its disk
-        distributed: false
+        runsOn: 'everyInstance'
     };
 
     constructor(

@@ -16,5 +16,5 @@ export type HttpClientCircuitBreakerOptions = {
      * through: an answer closes the circuit, a failure opens it again.
      * @default 30000
      */
-    openForMs: number
+    openForInMs: number
 };

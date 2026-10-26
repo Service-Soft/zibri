@@ -124,6 +124,36 @@ round trips through `RoundTripCounter` (`data-source/tests/repository-costs.case
 `updateById` and a membership `save`, asserting ≤ 1 read before an update on a non-role entity; an
 architecture test asserting no file under `data-source/` imports from `auth/` or `tenancy/`.
 
+> **Closed 2026-10-26 (user's design: observers registered at boot; `DeadlineAware` and `Traced` stay
+> wrappers).** Two parts of the recommended shape were already in place: the `ForwardingRepositoryDriver`
+> base (01 code-review §Q2), and the hook lists under `REPOSITORY_HOOKS`. The three entity-specific
+> wrappers are gone. One generic `WriteObservingRepositoryDriver` hands every write to the
+> `EntityWriteObserver`s of its entity, which the services register in `onAppInit` with an
+> `EntityWriteObserverRegistry` (internal, a provider per application, refusing a registration after
+> `onAppInit`). An observer has a `validateWrite` before the write, a `handleWritten` once it is
+> committed (logged, never failing the write), the `properties` it needs of an `updateAll` and the
+> operations it `followsBefore`. The seam reads the rows a write changes once, shared by every
+> observer. An entity nobody observes reads nothing and, once `onAppInit` is over, injects nothing.
+> The rules moved to where they belong:
+> - `RoleWriteObserver` in `auth/roles`;
+> - `UserWriteObserver` in `auth/user`;
+> - `MembershipWriteObserver` in `tenancy/membership`.
+>
+> `isRoleEntity` and `isMembershipEntity` were only asked by the wrappers and left the interfaces;
+> `upgrading-to-3.md` no longer lists the latter. The chain is `DeadlineAware → WriteObserving →
+> Traced → store`.
+>
+> Tests, red first: `write-observing.repository-driver.test.ts` (moved by `mv` from the membership
+> reporter's file) asserts the call lists in memory:
+> - an `updateAll` on memberships writing roles runs one aggregate (two before);
+> - a role `updateById` reads the role once, as one aggregate (two reads before);
+> - a role `deleteById` reads it once (twice before).
+>
+> The validator's suite moved to `auth/roles/role.write-observer.test.ts` unchanged. The frame-count
+> half of the Verify was not written: the chain lost three frames, and a stack depth is the wrong
+> thing to pin. The import half is 09 §Q9's test, since `data-source/` still imports auth in places
+> §Q9 moves. Change sets as a subscriber are 09 §Q6's.
+
 ### What the big files are made of
 
 `data-source/repository/repository.ts` — 2,959 lines, 1,159 of them comment lines (39%), *modified*.
@@ -413,6 +443,63 @@ than a code path per queue. **Verify:** the three existing cluster suites (`clus
 `cluster/events`, thread jobs) stay green through the fold; a size budget: three services shrink by the
 lines the primitive gains.
 
+> **Closed 2026-10-27.** Decisions (the user's): the full shape; the primitive internal, not a job
+> queue for applications; at least once, at most once and transactional delivery with a stable run id;
+> subscribers on every instance; backups queued and resumed; thread jobs on the shared columns only;
+> `createBackup` queues and returns, renamed `queueBackup` after the close; a shutdown hands a backup
+> over.
+>
+> `src/queue/`:
+> - `QueuedWorkEntity` (public): `attempts`, `nextAttemptAt`, `error`, the columns every queue shares;
+> - `QueueDefinition` and `QueueUtilities.poll`/`runClaimed` (on `zibri/internal`): the claim, the
+>   attempt count, the doubling backoff, giving up, the wake-up at the retry, and the delivery
+>   (`QueueDelivery`, public). A run gets `QueuedWorkRun` (public): `runId`, `attempt`, `signal`,
+>   `transaction`. At most once records the attempt `FAILED` ("stopped before it finished") before it
+>   runs. `QueuedWorkHandedBackError` skips recording, as a lost claim does;
+> - `QueuePollCronJob`: passes until one finds nothing. Mail and backups use it; event dispatch
+>   does not, since it hands events off without waiting, so draining would read the same page again.
+>
+> Per queue:
+> - **mail**: on the core with a batch claim and the rate-limited batch as `runBatch`; `retryAt` →
+>   `nextAttemptAt` plus `error` (the upgrade migration edited); the SMTP transport sends
+>   `Message-ID: <id@sender domain>`, the same on every attempt;
+> - **event runs**: selection, fan-out and settlement stay the event service's; each (event,
+>   subscriber) attempt goes through `runClaimed`, `refresh` re-reading the run under the claim.
+>   `EventSubscriberRun` on the shared columns (`nextRetryAt` → `nextAttemptAt`). Subscriber options
+>   `delivery` and `runsOn: 'everyInstance'`; such a subscriber registers with `runsOn`, owes no run,
+>   and hears emits elsewhere over the pub/sub channel `zibri.event-emitted`, published only when such a
+>   registration exists. Hooks get the run as a third argument (`EventHook`);
+> - **thread jobs**: `ThreadJobEntity` on the shared columns only. A job counts its starts, holds its
+>   claim for the whole run and is not retried when it throws; forcing that into the core needed modes
+>   only it would use;
+> - **backups**: `BackupEntity.status` (`BackupStatus`), each `BackupResourceEntity` a queue row;
+>   `queueBackup` returns the `RUNNING` backup and starts it, `waitForBackup` waits (`BackupFailedError`),
+>   `RunQueuedBackupsCronJob` on every instance resumes what a stopped or dead instance left;
+>   `BACKUP_MAX_ATTEMPTS` (3) and `BACKUP_RETRY_DELAY_IN_MS` (a minute). A shutdown hands the resource
+>   back without counting it.
+>
+> On the way, cron's `distributed` became `runsOn: 'oneInstance' | 'everyInstance'` (`RunsOn`, shared
+> with events); 2.x had no flag, so no upgrade entry. `EmailService` and `EventService` lost their
+> lease service constructor parameter. Docs: new `background-work.md` (when to use which tool, what
+> each guarantees), `events.md` ("Choosing how a hook is delivered", "Running on every instance"),
+> `email.md`, `backup.md`, `cron.md`, `configuration.md`, the upgrade guide.
+>
+> Tests, red first:
+> - `queue/queue.utilities.test.ts` (9);
+> - `event/event.service.delivery.test.ts` (4: stable run id, transactional, at most once, every
+>   instance);
+> - `backup/backup-service.queue.test.ts` (4: queued and waited for, retried, failed with the
+>   resource named, resumed);
+> - `backup-service.shutdown.test.ts`, its backup half rewritten for the hand-over;
+> - `email.service.retries.test.ts` with the error kept, `smtp.email-transport.test.ts` with the
+>   Message-ID, the cron type case for `runsOn`;
+> - `events.cluster.test.ts` gained the every-instance case across three replicas (container).
+>
+> `event.service.retry-backlog.test.ts` waits for its blocking hook to start, which now reads its run
+> under the claim before it runs. The 37 container-suite calls of `queueBackup` wait for the backup.
+> The size budget of the Verify was not measured: the services did not shrink by the primitive's
+> lines, since each keeps its selection.
+
 ### Q6. The event service is not used by the framework itself; subsystems call each other directly, and two of them re-implement an after-commit bus — MAJOR
 *Filed 2026-10-21.*
 
@@ -442,6 +529,48 @@ and the same `afterWrite` hook is where the framework can finally `emit` the use
 **Verify:** an architecture test that no `*.service.ts` under `auth/` imports a websocket or tenancy
 service for notification; the existing `websocket.service.ended-logins.test.ts` and
 `websocket.service.tenancy.test.ts` (*modified*) green through the move.
+
+> **Closed 2026-10-26 (user's design: the websocket observes rows; the websocket owns its tenant
+> rooms; change sets stay a repository).** The in-process seam is §Q1's `WriteObservingRepositoryDriver`,
+> not a second bus. The websocket registers three observers in `afterAppInit`, once the user and
+> membership services have found their entities:
+> - `EndedLoginWriteObserver` on each entity a strategy lists in its `credentialEntities`;
+> - `DeactivatedUserWriteObserver` on the user entities;
+> - `TenantRoomWriteObserver` on the membership entity.
+>
+> A strategy's `credentialEntities` is a new required member of `AuthStrategyInterface`: each entry
+> is a `CredentialEntity` with the entity and whether a `'remove'` or an `'insert'` ends a credential.
+> `JwtRevokedAccessToken` gained `userId` so an inserted revocation names its user. The auth service,
+> the JWT strategy and the client access token strategy lost their nine `disconnectEndedLogins` calls.
+> The membership service lost `handleMembershipsChanged`, and the websocket interface lost
+> `updateTenantRooms`. `disconnectEndedLogins` stays public for logins kept outside a data source.
+> `MembershipServiceInterface.findMembershipEntityClass` and `UserServiceInterface.getUserEntityClasses`
+> are what the websocket reads.
+>
+> Changes to the seam:
+> - `followsBefore` is a predicate on the operation and data, and optional;
+> - `handleWritten` is told the operation and data;
+> - a removal reads only `id` and the observers' properties;
+> - registration closes after `afterAppInit`.
+>
+> `MembershipWriteObserver` only checks roles now, so an application without websockets reads no
+> membership before writing it. Change sets stay `ChangeSetRepository`: a change set is part of the
+> write, in its transaction, where an observer follows after commit. What applications hear of
+> framework writes (user, membership, role events) is 06 §Q4's.
+>
+> Tests, red first (5):
+> - `application/subsystem-imports.test.ts`: nothing under `auth/` or `tenancy/` imports the
+>   websocket service or injects its token (three importers and one injector before);
+> - `websocket.service.ended-logins.test.ts`: a socket closes when the application deletes refresh
+>   tokens through the repository, and when it deactivates a user through `UserService`;
+> - `write-observing.repository-driver.test.ts`: in an app without websockets, a membership
+>   `updateAll` moving users and a membership delete each read nothing first.
+>
+> Kept green: a client access token revoked closes its socket (new case, was a direct call), and
+> `websocket.service.tenancy.test.ts` gained the moved-memberships case with its single aggregate,
+> which took over the reporting assertion the seam's test lost. Found on the way: a websocket
+> handshake carries no parsed cookies, so a cookie login cannot authenticate a socket at all; no page
+> claims it can, and it is left as a mention.
 
 **Registries vs scattered metadata reads.** `ModelRegistry` exists and is read 20 times;
 `MetadataUtilities.getModelProperties` is still called 107 times in production code, 11 of them in
@@ -548,6 +677,36 @@ enum moves to `error-handling` or `types`, breaking the 30/4 cycle. **Verify:** 
 (`dependency-cruiser`-style, or the awk graph this review used, ~40 lines) asserting an allowed-edges
 list between top-level directories, run in `test:normal`.
 
+> **Closed 2026-10-26 (user's scope: the data layer first, runtime imports only, change sets move
+> into `data-source`).** `application/subsystem-imports.test.ts` asserts that `data-source/` and
+> `entity/` import at runtime only `context`, `data-source`, `di`, `entity`, `error-handling`,
+> `global`, `localization`, `logging`, `parsing`, `tracing`, `types` and `utilities`. An import
+> whose names are all marked `type` is erased by the compiler, so it makes no runtime cycle, no
+> `design:paramtypes` collapse and no ESM temporal dead zone. Red first, it listed 66 runtime imports.
+>
+> Moves (with `mv`; the ~150 import paths were fixed with Edit by a subagent and checked by the
+> typecheck):
+> - `change-sets/` → `data-source/change-sets/`: soft delete and change sets are the data layer's own
+>   repository kinds;
+> - `PaginationResult` → `data-source/models/`;
+> - `sem-ver.utilities` → `utilities/`;
+> - `ValidationProblemCode` → `error-handling/`.
+>
+> Rewiring:
+> - the user, membership and role marks and the kinds table → `data-source/repository/repository-kind.model.ts`,
+>   which auth and tenancy import. The data layer reads them while registering repositories, before
+>   anything could register them;
+> - `UUID_REGEX` → `UUIDUtilities.STRICT_SHAPE`;
+> - type-only imports marked `type`: backup, application, leases, the encryption and hash options,
+>   open-api, http-client, routing, and the auth service interface in the two change-set repositories.
+>
+> The scope resolver and `removeRows` still reach auth, tenancy and users, through their tokens and
+> type-only imports. That keeps 01 code-review §Q3's per-delete `USER_SERVICE` injection, which stays
+> narrowed rather than moved. Out of this scope, filed red as §Q15 (`MetadataUtilities`) and §Q16 (the
+> `error-handling` ↔ `http` cycle), in `__testing__/evaluation/subsystem-imports.evaluation.test.ts`.
+> The data layer still sits in a runtime cycle through `utilities` until §Q15 closes. Type imports of
+> auth remain, so a driver package of its own (§Q2) would still need auth's types.
+
 ### Q10. The barrel exports internals and typeorm-shaped surface beside the application API — MINOR
 *Filed 2026-10-21.*
 
@@ -565,6 +724,11 @@ decided against (06 §T2), so the fix is not a subpath: group the barrel into la
 third group behind one `ZibriInternals` namespace export, so typedoc and autocomplete separate them.
 **Verify:** `published-package.test.ts` (*modified*) asserts the count of top-level names that are
 not in the application or SPI section.
+
+> **Closed 2026-10-25 with 08 §X20**, by the subpath this item argued against: the argument was 06
+> §T2's, which turned on test dependencies, and `zibri/internal` brings none. The driver SPI is part of
+> the public API (writing a driver is documented); the helpers only the built-in drivers and the
+> in-memory one use are on `zibri/internal`, and typedoc and autocomplete show `zibri` alone.
 
 ---
 
@@ -741,6 +905,31 @@ comment beside the code it explains.
 **Verify:** a test over the typedoc JSON output (`typedoc --json`) that no exported symbol's comment
 contains `deliberately`, `on purpose` or `rather than`, with a short allowlist for the ones that
 describe behavior. The docs-style test cannot do it: it reads `docs/`, not the published API.
+
+### Q15. `MetadataUtilities` holds the metadata accessors of every subsystem — MINOR
+*Filed 2026-10-26, split out of §Q9 (user's scope: the data layer first).*
+
+`utilities/metadata.utilities.ts` imports at runtime from `auth`, `routing`, `websocket`, `backup`,
+`data-source` and `open-api`, so every directory that imports it, the data layer included, sits in
+a runtime cycle with all of them through `utilities`. §Q9's test checks direct edges only, which is
+why the data layer passes while this cycle stays. Split it per subsystem: `RouteMetadataUtilities`
+in `routing/`, `WebsocketMetadataUtilities` in `websocket/`, the auth accessors in `auth/`, and the
+backup and data-source ones beside their decorators. Leave a small generic reflect wrapper in
+`utilities/`. **Verify:** `__testing__/evaluation/subsystem-imports.evaluation.test.ts`, red
+today with 17 runtime imports from `metadata.utilities.ts` and one from
+`validate-entities-registered.function.ts` (of `application`), asserts that `utilities` imports at
+runtime none of the subsystems built on it.
+
+### Q16. `HttpStatus` ties `error-handling` and `http` into a cycle — MINOR
+*Filed 2026-10-26, split out of §Q9.*
+
+Every http error class in `error-handling/errors/` imports `HttpStatus` from `http/` (30 imports),
+and `http/` imports `error-handling` (4). The evaluation test also finds `error-handler.ts` and
+`error-handler.model.ts` importing the http request and response models, `KnownHeader`, `MimeType`
+and `JsonMimeType`, and `method-not-allowed.error.ts` importing `HttpMethod`. So moving the enum is
+half of it: the error handler, which writes the response, belongs in `http`, and the plain enums go
+to `types` or `error-handling`. **Verify:** `__testing__/evaluation/subsystem-imports.evaluation.test.ts`
+asserts that `error-handling` imports nothing of `http` at runtime (red today).
 
 ---
 

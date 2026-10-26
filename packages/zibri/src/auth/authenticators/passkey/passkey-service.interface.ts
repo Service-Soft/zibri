@@ -9,47 +9,47 @@ import { Transaction } from '../../../data-source/transaction/transaction.model'
 /**
  * Interface for a passkey service: what issues the challenges a device signs, and verifies its answers.
  *
- * `PasskeyAuthenticator` signs users in with it and `PasskeyTwoFactorMethod` takes a passkey as a
+ * `PasskeyAuthenticator` logs users in with it and `PasskeyTwoFactorMethod` takes a passkey as a
  * second factor with it. An application reaches what it does through `AuthServiceInterface` and
  * `TwoFactorServiceInterface`.
  */
 export interface PasskeyServiceInterface {
     /**
-     * Starts a sign-in: a challenge for whichever passkey of the site the user picks.
+     * Requests a login: a challenge for whichever passkey of the site the user picks.
      */
-    startSignIn: () => Promise<PasskeyRequestOptions>,
+    requestLogin: () => Promise<PasskeyRequestOptions>,
     /**
-     * Starts creating a passkey for a user who does not exist yet, listed on the device under the
+     * Requests creating a passkey for a user who does not exist yet, listed on the device under the
      * given name.
      */
-    startSignUp: (name: string) => Promise<PasskeyCreationOptions>,
+    requestRegistration: (name: string) => Promise<PasskeyCreationOptions>,
     /**
-     * Starts creating a passkey for a user who exists, listed on the device under the given name, and
+     * Requests creating a passkey for a user who exists, listed on the device under the given name, and
      * adding it to them.
      */
-    startConnection: (userId: string, name: string) => Promise<PasskeyCreationOptions>,
+    requestAddition: (userId: string, name: string) => Promise<PasskeyCreationOptions>,
     /**
-     * Starts using a passkey of a user as the second factor of an operation. Throws a BadRequestError
+     * Requests using a passkey of a user as the second factor of an operation. Throws a BadRequestError
      * when the user has none.
      */
-    startSecondFactor: (userId: string) => Promise<PasskeyRequestOptions>,
+    requestSecondFactor: (userId: string) => Promise<PasskeyRequestOptions>,
     /**
      * Verifies a passkey created for a user who does not exist yet, and keeps it until they do.
      * Answers with the ticket the application creates the user with, and logs them in with.
      */
-    completeSignUp: (response: PasskeyRegistrationResponse) => Promise<string>,
+    confirmRegistration: (response: PasskeyRegistrationResponse) => Promise<string>,
     /**
      * Verifies a passkey created for a user who exists, and adds it to them. The creation has to have
-     * been started for them.
+     * been requested for them.
      */
-    completeConnection: (userId: string, response: PasskeyRegistrationResponse) => Promise<void>,
+    confirmAddition: (userId: string, response: PasskeyRegistrationResponse) => Promise<void>,
     /**
-     * Verifies a sign-in with a passkey, and answers with the passkey.
+     * Verifies a login with a passkey, and answers with the passkey.
      *
      * Throws an UnauthorizedError when it does not verify, and a CredentialClonedError when the
      * device's signature counter went backwards.
      */
-    verifySignIn: (response: PasskeyAuthenticationResponse, transaction: Transaction | undefined) => Promise<Passkey>,
+    confirmLogin: (response: PasskeyAuthenticationResponse, transaction: Transaction | undefined) => Promise<Passkey>,
     /**
      * Verifies a passkey presented as the second factor of an operation of a user.
      *
@@ -83,6 +83,11 @@ export interface PasskeyServiceInterface {
      * Removes every passkey of a user.
      */
     removePasskeys: (userId: string) => Promise<void>,
+    /**
+     * Deletes the passkeys of the given users, and the challenges and registration tickets bound to
+     * them. Called in the transaction that deletes the users for good.
+     */
+    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>,
     /**
      * Deletes the challenges and registration tickets that expired.
      */

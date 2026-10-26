@@ -4,11 +4,11 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { DatePropertyMetadata } from '../../entity/models/date-property-metadata.model';
+import { ValidationProblemCode } from '../../error-handling/validation-problem-code.enum';
 import { $f } from '../../localization/format.function';
 import { $ts } from '../../localization/translate.function';
 import { QueryParamMetadata, HeaderParamMetadata, PathParamMetadata } from '../../routing/decorators/param.decorator';
 import { DateParamMetadata } from '../../routing/models/date-param-metadata.model';
-import { ValidationProblemCode } from '../validation-problem-code.enum';
 import { IsRequiredValidationProblem, TypeMismatchValidationProblem, ValidationProblem } from '../validation-problem.model';
 
 /**

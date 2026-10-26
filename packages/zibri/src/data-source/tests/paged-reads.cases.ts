@@ -4,9 +4,9 @@ import { describe, expect, it } from '@jest/globals';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
+import { KeysetPage, PaginationResult } from '../models/pagination-result.model';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';
 
@@ -206,6 +206,57 @@ export function describePagedReads(dataSourceName: string, reposOf: () => PagedR
             finally {
                 await transaction.commit();
             }
+        });
+    });
+
+    /**
+     * Reads every row a stream hands out.
+     * @param rows - The stream.
+     * @returns The rows, in the order they came.
+     */
+    async function collect<R>(rows: AsyncIterable<R>): Promise<R[]> {
+        const res: R[] = [];
+        for await (const row of rows) {
+            res.push(row);
+        }
+        return res;
+    }
+
+    // 01 §D13: a stream had no order on any data source, because one of them could not give it
+    describe(`a stream in an order, on ${dataSourceName}`, () => {
+        it('hands out the rows in the order asked for, with the related rows they come with', async () => {
+            const { batch }: StoredOrders = await storeOrders();
+
+            const streamed: PagedOrder[] = await collect(reposOf().orders.stream({
+                where: { batch },
+                relations: ['lines'],
+                order: { position: 'DESC' }
+            }));
+
+            expect(streamed.map(o => [o.position, o.lines.length])).toEqual([[5, 3], [4, 3], [3, 3], [2, 3], [1, 3]]);
+        });
+
+        it('orders by a property of a related row it does not hand out', async () => {
+            const { batch }: StoredOrders = await storeOrders();
+
+            const streamed: PagedOrder[] = await collect(reposOf().orders.stream({
+                where: { batch },
+                order: { customer: { name: 'ASC' }, position: 'DESC' }
+            }));
+
+            // the value rather than `in`: an entity the orm builds declares every property, set or not
+            expect(streamed.map(o => [o.position, o.customer])).toEqual([[4, undefined], [2, undefined], [5, undefined], [3, undefined], [1, undefined]]);
+        });
+
+        it('keeps the order across every batch it reads', async () => {
+            const batch: string = UUIDUtilities.generate();
+            // more rows than a batch, written in the reverse of the order they are streamed in
+            const positions: number[] = Array.from({ length: 1100 }, (_, i) => 1100 - i);
+            await reposOf().orders.createAll(positions.map(position => ({ batch, position })));
+
+            const streamed: PagedOrder[] = await collect(reposOf().orders.stream({ where: { batch }, order: { position: 'ASC' } }));
+
+            expect(streamed.map(o => o.position)).toEqual([...positions].reverse());
         });
     });
 }

@@ -24,6 +24,7 @@ import { type TenantServiceInterface } from '../../tenancy/tenant-service.interf
 import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../mocks/entities/member-roles.enum';
 import { Roles } from '../mocks/entities/roles.enum';
@@ -32,7 +33,6 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../tes
 import { DefaultTestServerMembershipRepository } from '../test-server/membership-repository';
 import { defaultTestServerProviders, rolesAndPermissionsProviders, TestServerRole } from '../test-server/providers';
 import { DefaultTestServerRoleRepository } from '../test-server/role-repository';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

@@ -94,7 +94,7 @@ declare const declaredScope: unique symbol;
  */
 export type DeclaredScope = RestrictedToScope & {
     /**
-     * Present in the type and in no value. See {@link declaredScope}.
+     * Present in the type and in no value.
      */
     readonly [declaredScope]: true
 };
@@ -120,7 +120,7 @@ export function scopeFor<T extends BaseEntity>(scope: RestrictedToScope<T>): Dec
  * The single place scopes are enumerated: an entry here is a name `unscoped` accepts and a key
  * \@Entity understands, both derived below.
  */
-type EntityScopes = {
+export type EntityScopes = {
     /**
      * Restricts the rows to whatever the caller may see, decided per request.
      */

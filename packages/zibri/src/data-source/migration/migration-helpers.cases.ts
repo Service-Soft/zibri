@@ -104,7 +104,7 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
          * @returns What is stored.
          */
         async function storedGadgets(): Promise<[string | null, number][]> {
-            const gadgets: Gadget[] = await targetOf().gadgets.findAll({ take: 'all' });
+            const gadgets: Gadget[] = await targetOf().gadgets.findAll({ limit: 'all' });
             return gadgets
                 .map((g): [string | null, number] => [g.label ?? null, g.count])
                 .sort((a, b) => a[1] - b[1]);
@@ -376,7 +376,7 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
             }))).rejects.toThrow('already');
 
             expect(await storedGadgets()).toStrictEqual([['a', 1], ['b', 2]]);
-            expect((await badges.findAll({ take: 'all' })).map(b => b.code)).toStrictEqual(['a']);
+            expect((await badges.findAll({ limit: 'all' })).map(b => b.code)).toStrictEqual(['a']);
         });
 
         /**
@@ -442,7 +442,7 @@ export function describeMigrationHelpers(dataSourceName: string, targetOf: () =>
                 await dataSource.mergeEntity({ entity: Badge, currentTableName: 'retired_badge', transaction });
             });
 
-            const merged: Badge[] = await badges.findAll({ take: 'all' });
+            const merged: Badge[] = await badges.findAll({ limit: 'all' });
             expect(merged.map(b => b.code).sort()).toStrictEqual(['a', 'b', 'c']);
             expect(merged.find(b => b.code === 'b')?.id).toBe(stored.find(b => b.code === 'b')?.id);
         });

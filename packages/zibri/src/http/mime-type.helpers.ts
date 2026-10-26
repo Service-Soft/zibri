@@ -6,8 +6,11 @@ import { ObjectUtilities } from '../utilities/object.utilities';
  */
 export type FileExtension = NonNullable<(typeof mimeTypeToExtensions)[keyof typeof mimeTypeToExtensions]>[number];
 
+/**
+ * The file extensions for the given mime type.
+ */
 // eslint-disable-next-line typescript/typedef
-const mimeTypeToExtensions = {
+export const mimeTypeToExtensions = {
     [MimeType.JSON]: ['.json'],
     [MimeType.HTML]: ['.html', '.htm'],
     [MimeType.PNG]: ['.png'],

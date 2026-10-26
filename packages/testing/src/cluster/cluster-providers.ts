@@ -26,8 +26,8 @@ export const defaultClusterProviders: DiProvider<unknown>[] = [
         useFactory: () => ({
             maxThreads: 1,
             maxPriorityThreads: 1,
-            defaultTimeoutMs: Ms.HOUR,
-            defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+            defaultTimeoutInMs: Ms.HOUR,
+            defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
             // short, because a test that takes a replica down should not then wait out a production
             // sized claim to see the work picked up again
             jobClaimInMs: Ms.SECOND * 2,

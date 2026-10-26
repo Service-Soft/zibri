@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream';
 
-import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, ChangeSet, ChangeSetEntity, ChangeSetRepository, ConvertedValue, DataSourceInitializationError, DataSourceInterface, DataSourceSubscription, EntityMetadata, EntityMetadataMissingError, getDefaultBeforeReturnHook, getDefaultBeforeSaveHook, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, JsonUtilities, type LoggerInterface, MergeEntityInput, MetadataUtilities, MigratedEntityUtilities, Migration, MigrationPropertyMetadata, Newable, ObjectUtilities, PropertyMetadata, PubSubDataSourceInterface, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RemovePropertyFromEntityInput, RenameEntityInput, Repository, RepositoryClass, RepositoryDriverInterface, RepositoryTypeForEntity, ResolvedPropertyConversion, revertMigrationsAfter, RunInTransactionOptions, runMigrations, runMigrationsAfterRestore, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, TransactionUtilities, ValueConversionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { AddPropertyToEntityInput, type AuthServiceInterface, BaseEntity, ChangePropertyOfEntityInput, ChangeSet, ChangeSetEntity, ChangeSetRepository, DataSourceInitializationError, DataSourceInterface, DataSourceSubscription, EntityMetadataMissingError, Inject, InternalError, isChangeSetEntityNewable, isSoftDeleteEntityNewable, JsonUtilities, type LoggerInterface, MergeEntityInput, Migration, MigrationPropertyMetadata, Newable, ObjectUtilities, PubSubDataSourceInterface, RemovePropertyFromEntityInput, RenameEntityInput, Repository, RepositoryClass, RepositoryDriverInterface, RepositoryTypeForEntity, RunInTransactionOptions, SemVerVersion, SoftDeleteEntity, SoftDeleteRepository, StartTransactionOptions, Transaction, TransactionUtilities, ZIBRI_DI_TOKENS } from 'zibri';
+import { ConvertedValue, EntityMetadata, MetadataUtilities, MigratedEntityUtilities, PropertyMetadata, recordKeyReconciliation, RefusedValue, registerRepositoryProvidersFor, RepositoryForUtilities, ResolvedPropertyConversion, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore, ValueConversionUtilities } from 'zibri/internal';
 
 import { InMemoryScope, inMemoryStoreFor, InMemoryStore, InMemoryStoreSnapshot, StoredRow } from './in-memory-store';
 import { InMemoryTransaction } from './in-memory-transaction.model';
@@ -200,45 +201,30 @@ export abstract class InMemoryDataSource implements DataSourceInterface, PubSubD
 
         const driver: InMemoryRepositoryDriver<T> = this.recordRoundTrips(new InMemoryRepositoryDriver(cls, this.store), cls.name);
 
-        if (isSoftDeleteEntityNewable(cls)) {
-            const res: RepositoryTypeForEntity<T> = new SoftDeleteRepository(
+        const built: RepositoryTypeForEntity<T> = isSoftDeleteEntityNewable(cls)
+            ? new SoftDeleteRepository(
                 cls,
                 driver as unknown as RepositoryDriverInterface<SoftDeleteEntity>,
                 this.logger,
                 this,
-                getDefaultBeforeSaveHook(),
-                getDefaultBeforeReturnHook(),
                 this.authService,
                 this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>;
-            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-            return res;
-        }
-        if (isChangeSetEntityNewable(cls)) {
-            const res: RepositoryTypeForEntity<T> = new ChangeSetRepository(
-                cls,
-                driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
-                this.logger,
-                this,
-                getDefaultBeforeSaveHook(),
-                getDefaultBeforeReturnHook(),
-                this.authService,
-                this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>;
-            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-            return res;
-        }
-
-        const res: RepositoryTypeForEntity<T> = new Repository<T>(
-            cls,
-            driver,
-            this.logger,
-            this,
-            getDefaultBeforeSaveHook(),
-            getDefaultBeforeReturnHook()
-        ) as RepositoryTypeForEntity<T>;
-        this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-        return res;
+            ) as RepositoryTypeForEntity<T>
+            : isChangeSetEntityNewable(cls)
+                ? new ChangeSetRepository(
+                    cls,
+                    driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
+                    this.logger,
+                    this,
+                    this.authService,
+                    this.getRepository(ChangeSet)
+                ) as RepositoryTypeForEntity<T>
+                : new Repository<T>(cls, driver, this.logger, this) as RepositoryTypeForEntity<T>;
+        // the class listed for the entity rather than the repository it is built over, so that what it
+        // overrides holds for every row of the entity, those written through a relation included
+        const res: Repository<BaseEntity> = RepositoryForUtilities.resolveRepository(this, cls, built as Repository<BaseEntity>);
+        this.builtRepositories.set(cls, res);
+        return res as RepositoryTypeForEntity<T>;
     }
 
     /**

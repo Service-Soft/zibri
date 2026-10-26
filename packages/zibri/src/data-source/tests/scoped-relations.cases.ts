@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -9,6 +7,8 @@ import { denyAll, scopeFor } from '../../entity/models/entity-scope.model';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { Repository } from '../repository/repository';
 
 /**

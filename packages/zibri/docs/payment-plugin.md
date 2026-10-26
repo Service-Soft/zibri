@@ -6,7 +6,16 @@
 |---|---|---|
 | `ZibriPaymentPlugin` | class | The plugin for handling payments |
 | `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS` | DI token | The tokens of the plugin, see [configuring the plugin](#configuring-the-plugin) |
+| `PaymentPluginOptionsInput`, `PaymentPluginOptions` | type, type | Your payment methods, your payment providers and which provider takes which method, via `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT`. Required |
+| `PaymentServiceInterface`, `PaymentService` | interface, class | Takes the steps of a payment. Replaceable through `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.PAYMENT_SERVICE` |
 | `Payment` | entity | A payment made through a payment provider. Stored by `ZibriPaymentPlugin` |
+| `PaymentStatus` | enum | Where a payment stands: `CREATED`, `RESERVED`, `PAID`, `CANCELLED`, `REFUNDED` or `FAILED` |
+| `KnownPaymentMethod`, `PaymentMethod` | enum, type | A payment method, one of the known ones such as `PAY_PAL` and `CREDIT_CARD`, or a name of your own |
+| `PaymentDataForMethod`, `ValidatedPaymentDataForMethod`, `PaymentForMethod`, `PaymentReservationForMethod` | type, type, type, type | The data a payment of a method is made with, that data once validated, and the payment and reservation it results in, typed by the provider of the method |
+| `AllowedReservationMethods`, `AllowedCancellationMethods`, `AllowedRefundMethods` | type, type, type | The configured methods whose provider can reserve, cancel or refund a payment |
+| `PaymentProviderInterface`, `AnyPaymentProviderInterface`, `DefaultPaymentProviderArray` | interface, interface, type | What a payment provider implements, and the loosely typed provider and provider list the plugin tokens hold |
+| `PayPalPaymentProvider`, `PayPalPaymentProviderOptions`, `PayPalEnv` | class, type, type | Takes payments through the PayPal API, built with a client id, a client secret and the `sandbox` or `live` environment |
+| `PayPalPaymentData`, `PayPalValidatedPaymentData`, `PayPalPaymentProviderPaymentData` | class, type, type | The data a PayPal payment is made with, that data once validated, and what the provider keeps on the payment |
 
 ## Setting it up
 Add `new ZibriPaymentPlugin()` to the `plugins` of your application, see [registering a plugin](./plugin.md#registering-a-plugin), and `Payment` to the `entities` of your data source.
@@ -34,6 +43,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `Payment` | The plugin is registered |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Plugins](./plugin.md) — registering a plugin, and writing your own

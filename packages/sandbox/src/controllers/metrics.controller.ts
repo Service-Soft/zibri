@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface, FileResponse, MetricsExposition } from 'zibri';
+import { Controller, Inject, ZIBRI_DI_TOKENS, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface, FileResponse, MetricsExposition } from 'zibri';
 
 import { StaticPagesCache } from './page.controller';
 import { MetricsPage } from '../templates/pages/metrics/metrics';
@@ -16,7 +16,7 @@ export class MetricsController {
         private readonly rateLimitingService: RateLimitingServiceInterface
     ) {}
 
-    @Response.array(Metric)
+    @Response.array(MetricsSnapshot)
     @Get()
     get(): MetricsSnapshot[] {
         return this.metricsService.getMetricSnapshots();

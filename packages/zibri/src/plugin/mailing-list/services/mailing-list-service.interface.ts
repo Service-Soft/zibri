@@ -44,13 +44,13 @@ export interface MailingListServiceInterface {
      */
     queueEmailForList: <T>(listId: string, data: MailingListQueueEmailData<T>) => Promise<void>,
     /**
-     * Requests for a new subscriber to the be added to the mailing list with the provided id.
+     * Requests for a new subscriber to be added to the mailing list with the provided id.
      * This should initialize a two step process required by the GDPR.
      *
      * Every address confirms, whether it is subscribed to other lists or not. An address already on
      * the list is sent nothing.
      */
-    requestSubscribeToList: <T>(
+    requestSubscription: <T>(
         listId: string,
         subscriber: MailingListSubscriberCreateData,
         emailData: OmitStrict<MailingListQueueEmailData<T>, 'template' | 'compile'>
@@ -64,11 +64,21 @@ export interface MailingListServiceInterface {
      * @throws An UnauthorizedError when the token is unknown, belongs to another list or has expired,
      * or was spent and its address is no longer on the list.
      */
-    confirmSubscribeToList: (listId: string, confirmationTokenValue: string) => Promise<MailingListSubscriber>,
+    confirmSubscription: (listId: string, confirmationTokenValue: string) => Promise<MailingListSubscriber>,
     /**
-     * Removes a subscriber with the given id from the mailing list with the provided id.
+     * Removes a subscriber with the given id from the mailing list with the provided id. A subscriber
+     * that was on no other list is deleted.
      */
     unsubscribeFromList: (listId: string, subscriberId: string) => Promise<void>,
+    /**
+     * Puts a subscriber with the given id on exactly the mailing lists with the given ids. A
+     * subscriber put on none is deleted.
+     */
+    updateSubscriptions: (subscriberId: string, mailingListIds: string[]) => Promise<void>,
+    /**
+     * Deletes the mailing list with the given id, and the subscribers it was the last list of.
+     */
+    deleteList: (listId: string) => Promise<void>,
     /**
      * Resolves the subscribe confirmation link for the list with the given id and the
      * confirmationToken. Every link names the active tenant, through `TenantService.resolveTenantUrl`.

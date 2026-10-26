@@ -1,5 +1,8 @@
 import { type EventReplayOptions } from './event-replay-options.model';
 import { Event } from './event.model';
+import { type QueueDelivery } from '../queue/queue-delivery.type';
+import { type QueuedWorkRun } from '../queue/queued-work-run.model';
+import { type RunsOn } from '../types/runs-on.type';
 
 /**
  * Options for subscribing to events.
@@ -18,8 +21,26 @@ export type EventSubscribeOptions = {
     /**
      * The timeout in which the hook should finish. Defaults to 30 seconds.
      */
-    timeout?: number
+    timeoutInMs?: number,
+    /**
+     * How often the hook runs when an instance stops at the wrong moment. `'atLeastOnce'` by default.
+     * With `'transactional'`, the hook writes through the transaction of its run, which is recorded
+     * in it as well, so those writes happen once.
+     */
+    delivery?: QueueDelivery,
+    /**
+     * `'oneInstance'` by default: the deployment runs the hook once per event, with retries. With
+     * `'everyInstance'`, every instance hosting the subscriber runs it once, best effort: no retries,
+     * and an instance that is down misses the event.
+     */
+    runsOn?: RunsOn
 };
+
+/**
+ * The hook of a subscriber: handed the event, a signal that fires when the run should stop, and the
+ * run, which names it the same on every attempt and carries its transaction.
+ */
+export type EventHook<T> = (value: Event<T>, signal: AbortSignal, run: QueuedWorkRun) => void | Promise<void>;
 
 /**
  * The result of subscribing to an event.
@@ -87,7 +108,7 @@ export interface EventServiceInterface {
     /**
      * Emits an event of the given type and data.
      */
-    emit: <K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterMs?: number) => void | Promise<void>,
+    emit: <K extends keyof ZibriEventMap>(type: K, data: ZibriEventMap[K], cleanupAfterInMs?: number) => void | Promise<void>,
     /**
      * Subscribes to events of the given type with the given hook.
      *
@@ -96,7 +117,7 @@ export interface EventServiceInterface {
      */
     subscribe: <K extends keyof ZibriEventMap>(
         type: K,
-        hook: (value: Event<ZibriEventMap[K]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[K]>,
         options: EventSubscribeOptions
     ) => EventSubscriptionInterface | Promise<EventSubscriptionInterface>,
     /**
@@ -106,7 +127,7 @@ export interface EventServiceInterface {
      * This needs to be unique.
      */
     subscribeAll: (
-        hook: (value: Event<ZibriEventMap[keyof ZibriEventMap]>, signal: AbortSignal) => void | Promise<void>,
+        hook: EventHook<ZibriEventMap[keyof ZibriEventMap]>,
         options: EventSubscribeOptions
     ) => EventSubscriptionInterface | Promise<EventSubscriptionInterface>
 }

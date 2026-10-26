@@ -20,17 +20,17 @@ export type CronFailurePolicy = {
 } & ({
     /**
      * Takes the job off the schedule after this many failures in a row, into `STOPPED_ON_ERROR`, until
-     * the next start or until `restartAfterMs` has passed.
+     * the next start or until `restartAfterInMs` has passed.
      */
     stopAfterFailures: number,
     /**
      * Puts a job these failures stopped back on the schedule this long after its last run. A failure
      * of its next tick stops it again.
      */
-    restartAfterMs?: number
+    restartAfterInMs?: number
 } | {
     // eslint-disable-next-line jsdoc/require-jsdoc
     stopAfterFailures?: undefined,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    restartAfterMs?: undefined
+    restartAfterInMs?: undefined
 });

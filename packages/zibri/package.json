@@ -16,6 +16,10 @@
             "types": "./dist/cjs/webpack/index.d.ts",
             "default": "./dist/cjs/webpack/index.js"
         },
+        "./internal": {
+            "types": "./dist/cjs/internal.d.ts",
+            "default": "./dist/cjs/internal.js"
+        },
         "./tsconfig.application.json": "./tsconfig.application.json",
         "./package.json": "./package.json"
     },
@@ -49,7 +53,7 @@
         "test:coverage:merge": "mkdir -p src/__testing__/coverage/merge-input && cp src/__testing__/coverage/raw/normal/coverage-final.json src/__testing__/coverage/merge-input/normal.json && cp src/__testing__/coverage/raw/heavy/coverage-final.json src/__testing__/coverage/merge-input/heavy.json && nyc merge src/__testing__/coverage/merge-input src/__testing__/coverage/coverage-final.json && nyc report --temp-dir=src/__testing__/coverage --report-dir=src/__testing__/coverage/report --reporter=lcov --reporter=text-summary --reporter=json-summary",
         "start": "npm run watch:cjs",
         "watch:cjs": "tsc -p tsconfig.cjs.json --watch",
-        "build:prod": "npm run build && typedoc",
+        "build:prod": "npm run build && typedoc && node scripts/llms-txt.mjs",
         "build:cjs": "tsc -p tsconfig.cjs.code.json && tsc -p tsconfig.cjs.declarations.json",
         "build:clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
         "build": "npm run build:clean && npm run build:cjs",

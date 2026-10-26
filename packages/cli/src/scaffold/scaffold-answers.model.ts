@@ -14,12 +14,12 @@ export const CONTINUOUS_INTEGRATIONS: ContinuousIntegration[] = ['github', 'none
 /**
  * What an endpoint without an `@Auth` decorator requires in the new app.
  */
-export type DefaultAuth = 'requireLogin' | 'public';
+export type DefaultAuth = 'isLoggedIn' | 'public';
 
 /**
  * Every default auth a project can be generated with.
  */
-export const DEFAULT_AUTHS: DefaultAuth[] = ['requireLogin', 'public'];
+export const DEFAULT_AUTHS: DefaultAuth[] = ['isLoggedIn', 'public'];
 
 /**
  * What a project is generated from: everything `zi new` asks.
@@ -70,7 +70,7 @@ export const scaffoldQuestions: QuestionsFor<ScaffoldAnswers> = {
         type: 'select',
         message: 'what an endpoint without @Auth requires',
         choices: [
-            { name: 'a login (a forgotten decorator answers 401)', value: 'requireLogin' },
+            { name: 'a login (a forgotten decorator answers 401)', value: 'isLoggedIn' },
             { name: 'nothing (a forgotten decorator serves anyone)', value: 'public' }
         ]
     },

@@ -1,11 +1,11 @@
 import { CrudControllerOptions } from './crud-controller-options.model';
+import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { HttpStatus } from '../../http/http-status.enum';
 import { Response } from '../../open-api/decorators/response.decorator';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';
 import { Body } from '../decorators/body.decorator';

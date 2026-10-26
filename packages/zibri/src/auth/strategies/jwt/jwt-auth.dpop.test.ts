@@ -4,12 +4,12 @@ import { createInMemoryDataSource, FakeDpopKey, InMemoryDataSource } from 'zibri
 import { JwtAuthOptionsInput } from './jwt-auth-options.model';
 import { JwtAuthStrategy } from './jwt.auth-strategy';
 import { JwtUtilities } from './jwt.utilities';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { JwtTestAuthController } from '../../../__testing__/mocks/controllers/jwt-test-auth.controller';
 import { JwtUser } from '../../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../../__testing__/mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';

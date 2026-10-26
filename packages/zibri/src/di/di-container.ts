@@ -25,7 +25,7 @@ import { DiVariant } from './models/di-variant.model';
 /**
  * An error to throw when the given providerToken is invalid.
  */
-class InvalidProviderError extends InternalError {
+export class InvalidProviderError extends InternalError {
     constructor(providerToken: string) {
         super(`Provider for ${providerToken} is invalid`);
         this.name = 'InvalidProviderError';

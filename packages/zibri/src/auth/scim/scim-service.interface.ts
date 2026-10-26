@@ -6,7 +6,7 @@ import { ScimResourceResponse } from './scim-resource-response.model';
 /**
  * Which attributes a request for one resource asks for.
  */
-type ScimResourceQuery = Pick<ScimListQuery, 'attributes' | 'excludedAttributes'>;
+export type ScimResourceQuery = Pick<ScimListQuery, 'attributes' | 'excludedAttributes'>;
 
 /**
  * Interface for the service that answers SCIM requests (RFC 7644): it keeps the resources an identity

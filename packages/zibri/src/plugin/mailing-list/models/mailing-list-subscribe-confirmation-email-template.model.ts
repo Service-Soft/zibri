@@ -5,7 +5,7 @@ import { MailingListSubscriberCreateData } from '../services/mailing-list-servic
 /**
  * Properties of a mailing list subscribe confirmation email.
  */
-type MailingListSubscribeConfirmationEmailTemplateProps = {
+export type MailingListSubscribeConfirmationEmailTemplateProps = {
     /**
      * The (to be created) subscriber that needs to confirm.
      */

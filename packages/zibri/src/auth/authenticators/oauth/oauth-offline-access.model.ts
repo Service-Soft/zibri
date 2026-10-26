@@ -1,7 +1,7 @@
 /**
  * How a provider is asked for a refresh token, which lets its apis be called while the user is away.
  *
- * Added to every sign-in and connection that asks for scopes of the provider's apis.
+ * Added to every login and connection that asks for scopes of the provider's apis.
  */
 export type OAuthOfflineAccess = {
     /**

@@ -30,7 +30,7 @@ type ParsedAesGcmValue = {
 /**
  * Options for encrypting with the default aes-256-gcm encryption strategy implementation of Zibri.
  */
-type AesGcmEncryptOptions = BaseEncryptOptions<Buffer> & {
+export type AesGcmEncryptOptions = BaseEncryptOptions<Buffer> & {
     /**
      * The "Additional authenticated data" can be used to store something like a user id
      * on the encrypted value that needs to be provided when decrypting.
@@ -41,7 +41,7 @@ type AesGcmEncryptOptions = BaseEncryptOptions<Buffer> & {
 /**
  * Options for encrypting with the default aes-256-gcm encryption strategy implementation of Zibri.
  */
-type AesGcmDecryptOptions = BaseDecryptOptions<Buffer> & {
+export type AesGcmDecryptOptions = BaseDecryptOptions<Buffer> & {
     /**
      * The "Additional authenticated data" can be used to store something like a user id
      * on the encrypted value that needs to be provided when decrypting.

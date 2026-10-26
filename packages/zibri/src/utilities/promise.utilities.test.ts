@@ -4,8 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { PromiseUtilities, TimeoutError } from './promise.utilities';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 
 // this repository's own fixtures rather than an empty store: importing the harness registers

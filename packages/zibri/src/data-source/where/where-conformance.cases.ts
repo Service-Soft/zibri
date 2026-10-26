@@ -19,6 +19,7 @@ import { ArrayWhereFilter, ObjectArrayWhereFilter } from '../models/where/array-
 import { BooleanWhereFilter } from '../models/where/boolean-where-filter.model';
 import { DateWhereFilter } from '../models/where/date-where-filter.model';
 import { NumberWhereFilter } from '../models/where/number-where-filter.model';
+import { propertyOf } from '../models/where/property-of.function';
 import { StringWhereFilter } from '../models/where/string-where-filter.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { Repository } from '../repository/repository';
@@ -143,6 +144,12 @@ export class Probe extends BaseEntity {
      */
     @Property.date({ required: false })
     when?: Date;
+
+    /**
+     * A second moment, when there is one, which a filter compares the first with.
+     */
+    @Property.date({ required: false })
+    until?: Date;
 
     /**
      * A yes or no, when there is one.
@@ -353,6 +360,8 @@ const WRITE_ROWS: number = 24;
  */
 function generateRows(): ProbeData[] {
     const picker: Picker = new Picker(0x9e3779b9);
+    // a picker of its own, so the second moment leaves every other value as it was generated before
+    const untilPicker: Picker = new Picker(0x85ebca6b);
     return Array.from({ length: ROWS }, () => ({
         text: picker.maybe(TEXTS),
         owner: picker.maybe(OWNERS),
@@ -360,6 +369,7 @@ function generateRows(): ProbeData[] {
         count: picker.maybe(COUNTS),
         big: picker.maybe(LARGE_NUMBERS),
         when: picker.maybe(DATES),
+        until: untilPicker.maybe(DATES),
         flag: picker.maybe(FLAGS),
         tags: picker.maybe(TAGS)?.slice(),
         details: { color: picker.maybe(TEXTS), score: picker.maybe(AMOUNTS) },
@@ -637,6 +647,7 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
                 count: row.count,
                 big: row.big,
                 when: row.when,
+                until: row.until,
                 flag: row.flag,
                 tags: row.tags,
                 details: row.details,
@@ -788,6 +799,48 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
 
         it('reads a date the same way', async () => {
             expect(await mismatchesOf(DATE_CONDITIONS.map(when => ({ when })))).toStrictEqual([]);
+        });
+
+        // 01 §D19: a filter compared a property with a value only, never with another property of the row
+        it('compares two properties of a row the same way', async () => {
+            expect(await mismatchesOf([
+                { when: { after: propertyOf('until') } },
+                { when: { afterOrOn: propertyOf('until') } },
+                { when: { before: propertyOf('until') } },
+                { when: { beforeOrOn: propertyOf('until') } },
+                { when: { after: propertyOf('when') } },
+                { when: { afterOrOn: propertyOf('when') } },
+                { when: { after: propertyOf('until'), before: d3 } },
+                { when: { not: d1, beforeOrOn: propertyOf('until') } },
+                [{ when: null }, { when: { beforeOrOn: propertyOf('until') } }],
+                { when: [{ after: propertyOf('until') }, d4] },
+                { amount: { greaterThan: propertyOf('count') } },
+                { amount: { greaterThanEquals: propertyOf('count') } },
+                { amount: { lesserThan: propertyOf('count') } },
+                { amount: { lesserThanEquals: propertyOf('count') } },
+                { count: { greaterThan: propertyOf('amount') } },
+                { count: { lesserThanEquals: propertyOf('amount'), greaterThan: 0 } },
+                { amount: { greaterThan: propertyOf('amount') } },
+                { amount: { greaterThan: propertyOf('count') }, when: { before: propertyOf('until') } }
+            ])).toStrictEqual([]);
+            expect(await childMismatchesOf([
+                { probe: { where: { when: { after: propertyOf('until') } } } },
+                { probe: { where: { amount: { lesserThan: propertyOf('count') } } }, label: 'x' }
+            ])).toStrictEqual([]);
+        });
+
+        it('takes a reference to a property of the same kind only, in its type', () => {
+            const refused: Where<Probe>[] = [
+                // @ts-expect-error a date compared with a number
+                { when: { after: propertyOf('amount') } },
+                // @ts-expect-error a number compared with a date
+                { amount: { greaterThan: propertyOf('when') } },
+                // @ts-expect-error a property the entity does not declare
+                { when: { before: propertyOf('nowhere') } },
+                // @ts-expect-error a reference stands for a value to compare with, never for the value itself
+                { when: propertyOf('until') }
+            ];
+            expect(refused).toHaveLength(4);
         });
 
         it('reads a yes or no the same way', async () => {

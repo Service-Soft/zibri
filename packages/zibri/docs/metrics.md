@@ -6,9 +6,14 @@ Your application records metrics about requests and about its background work, a
 |---|---|---|
 | `MetricsServiceInterface` | interface | Records metrics, collects snapshots and answers a scrape |
 | `ZIBRI_DI_TOKENS.METRICS_SERVICE` | DI token | Injects `MetricsServiceInterface` |
+| `PrometheusMetricsService` | class | The default `MetricsServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.METRICS_SERVICE |
+| `CounterInterface`, `GaugeInterface`, `HistogramInterface` | interface, interface, interface | What `getCounter`, `getGauge` and `getHistogram` return: a counter to increase, a gauge to set, a histogram to observe values in |
+| `PromCounter`, `PromGauge`, `PromHistogram` | class, class, class | The counter, gauge and histogram `PrometheusMetricsService` returns |
+| `CounterMetricName`, `GaugeMetricName`, `HistogramMetricName` | type, type, type | The name of a counter, a gauge or a histogram, with the names recorded for you suggested |
 | `CollectMetricsCronJob` | cron job | Collects a metrics snapshot every 5 seconds. Registered for you |
 | `Metric` | class | A single collected metric within a snapshot |
-| `MetricsSnapshot` | type | A snapshot of all metrics at a point in time |
+| `MetricType` | enum | Whether a `Metric` is a counter, a gauge or a histogram |
+| `MetricsSnapshot` | class | A snapshot of all metrics at a point in time |
 | `MetricsExposition` | type | The metrics in the text format Prometheus scrapes, with its content type |
 | `MetricsCollector` | type | Work that sets gauges before the metrics are read |
 | `DATA_SOURCE_COLLECTOR_INTERVAL_IN_MS` | constant | How often a collector reading the data source runs at most: 30 seconds |
@@ -146,7 +151,7 @@ A project made with `zi new` and the [`metricsDashboard` feature](./project-layo
 
 ```ts
 // src/controllers/metrics.controller.ts
-import { Controller, Inject, ZIBRI_DI_TOKENS, Metric, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface } from 'zibri';
+import { Controller, Inject, ZIBRI_DI_TOKENS, Get, Response, MetricsSnapshot, MetricsServiceInterface, HtmlResponse, TsxUtilities, GlobalRegistry, CacheServiceInterface, Cached, RateLimitingServiceInterface } from 'zibri';
 
 import { StaticPagesCache } from './page.controller';
 import { MetricsPage } from '../templates/pages/metrics/metrics';
@@ -162,7 +167,7 @@ export class MetricsController {
         private readonly rateLimitingService: RateLimitingServiceInterface
     ) {}
 
-    @Response.array(Metric)
+    @Response.array(MetricsSnapshot)
     @Get()
     get(): MetricsSnapshot[] {
         return this.metricsService.getMetricSnapshots();

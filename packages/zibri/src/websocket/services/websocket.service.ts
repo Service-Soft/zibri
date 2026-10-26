@@ -6,6 +6,8 @@ import { WebsocketSendData, WebsocketSendDataMessage, WebsocketSendToAllData, We
 import { ZibriApplication } from '../../application/application';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { type CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { CredentialEntity } from '../../auth/strategies/credential-entity.model';
+import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
@@ -14,6 +16,7 @@ import { isPubSubDataSource } from '../../data-source/data-sources/pub-sub-data-
 import { WhereFilter } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
+import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -32,6 +35,7 @@ import { HttpError } from '../../error-handling/errors/http.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { AfterAppInit } from '../../global/after-app-init.interface';
 import { BeforeAppShutdown } from '../../global/before-app-shutdown.interface';
 import { GlobalRegistry } from '../../global/global-registry';
 import { OnAppInit } from '../../global/on-app-init.interface';
@@ -58,11 +62,11 @@ import { TracingUtilities } from '../../tracing/tracing.utilities';
 import { isNewable, Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { optionalPeer } from '../../utilities/optional-peer.function';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { type ValidationServiceInterface } from '../../validation/validation-service.interface';
 import { RouteWithVersionData } from '../../versioning/route-with-version-data.model';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { SupportedVersionsOptions } from '../../versioning/supported-versions-options.model';
 import { Version } from '../../versioning/version.model';
 import { type VersioningServiceInterface } from '../../versioning/versioning-service.interface';
@@ -81,6 +85,9 @@ import { WebsocketReplayIncomplete } from '../models/websocket-replay-incomplete
 import { WebsocketRequest, WebsocketRequestWithConnection } from '../models/websocket-request.model';
 import { WebsocketResponseHandler } from '../models/websocket-response.model';
 import { WebsocketMessageCleanupCronJob } from '../websocket-message-cleanup.cron-job';
+import { DeactivatedUserWriteObserver } from '../write-observers/deactivated-user.write-observer';
+import { EndedLoginWriteObserver } from '../write-observers/ended-login.write-observer';
+import { TenantRoomWriteObserver } from '../write-observers/tenant-room.write-observer';
 
 /**
  * Names the room a channel's messages are delivered through.
@@ -232,7 +239,7 @@ type SocketIOWebsocketHandler = (
  * Uses socket.io under the hood.
  */
 @Injectable({ register: 'onUse' })
-export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, BeforeAppShutdown {
+export class WebsocketService implements WebsocketServiceInterface<SocketIOWebsocketConnection>, OnAppInit, AfterAppInit, BeforeAppShutdown {
     /**
      * Absent for an application that declares no websockets, which is the one that never starts a
      * server. Read through `server` wherever one is required.
@@ -513,6 +520,38 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    afterAppInit(): void {
+        // what a connection follows - the logins it connected with, its user, the memberships of its
+        // user - is written by auth, tenancy and the application alike, so it is followed where every
+        // write passes rather than by each place that writes it. After init rather than on it, once the
+        // user and membership services have found their entities
+        if (this.socketServer == undefined) {
+            return;
+        }
+        const registry: EntityWriteObserverRegistry = inject(EntityWriteObserverRegistry);
+        const disconnect: (userIds: string[]) => Promise<void> = async userIds => await this.disconnectEndedLogins(userIds, undefined);
+        const credentialEntities: Map<string, CredentialEntity> = new Map();
+        for (const strategy of this.authService.strategies) {
+            for (const entity of inject(strategy).credentialEntities) {
+                credentialEntities.set(`${entity.entityClass.name}:${entity.endedBy}`, entity);
+            }
+        }
+        for (const { entityClass, endedBy } of credentialEntities.values()) {
+            registry.register(entityClass, new EndedLoginWriteObserver(endedBy, disconnect));
+        }
+        for (const entityClass of inject<UserServiceInterface>(ZIBRI_DI_TOKENS.USER_SERVICE).getUserEntityClasses()) {
+            registry.register(entityClass, new DeactivatedUserWriteObserver(disconnect));
+        }
+        const membershipEntityClass: Newable<BaseMembership<string>> | undefined = this.membershipService.findMembershipEntityClass();
+        if (membershipEntityClass != undefined) {
+            registry.register(
+                membershipEntityClass,
+                new TenantRoomWriteObserver(membershipEntityClass, async memberships => await this.updateTenantRooms(memberships))
+            );
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async beforeAppShutdown(): Promise<void> {
         if (this.socketServer == undefined) {
             return;
@@ -675,7 +714,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // each name theirs, so this is the one thing that limits what reaches it
         const tenantIds: string[] = currentUser == undefined
             ? []
-            : (await this.membershipService.findMemberships<string, BaseMembership<string>>(currentUser.id)).map(m => m.tenantId);
+            : (await this.membershipService.findActiveMemberships<string, BaseMembership<string>>(currentUser.id)).map(m => m.tenantId);
         // eslint-disable-next-line unicorn/no-null
         const reachable: WhereFilter<WebsocketMessage>['tenantId'] = { oneOf: [...tenantIds, null] };
 
@@ -729,7 +768,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const messages: WebsocketMessage[] = await this.messageRepository.findAll({
             // one more than is replayed, which is how a client that missed too many is told apart. The
             // offset is the client's to choose, so this bounds what any connection can make it read
-            take: this.options.maxReplayedMessages + 1,
+            limit: this.options.maxReplayedMessages + 1,
             where: whereFilters,
             acrossTenants: true
         });
@@ -764,7 +803,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // the cleanup deletes from the oldest message on, so what is kept starts right after what was
         // deleted. Messages the client could not have read count as well: telling a client to reload
         // when it did not have to costs a reload, the other way round costs what it never receives
-        const [oldest] = await this.messageRepository.findAll({ order: { seq: 'ASC' }, take: 1, acrossTenants: true });
+        const [oldest] = await this.messageRepository.findAll({ order: { seq: 'ASC' }, limit: 1, acrossTenants: true });
         if (oldest != undefined) {
             return oldest.seq > offset + 1;
         }
@@ -806,7 +845,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         // continuing from the newest message that is kept, for messages stored before there was a
         // sequence: starting it at 0 would give the next message a seq a client already has. Two
         // instances starting at once both get here, and the second finds the row the first created
-        const [newest] = await this.messageRepository.findAll({ order: { seq: 'DESC' }, take: 1, acrossTenants: true });
+        const [newest] = await this.messageRepository.findAll({ order: { seq: 'DESC' }, limit: 1, acrossTenants: true });
         await this.sequenceRepository.upsert(
             { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME },
             { name: WEBSOCKET_MESSAGE_SEQUENCE_NAME, seq: newest?.seq ?? 0 },
@@ -1236,16 +1275,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         await connection.leave(channelRoomOf(channel));
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateTenantRooms(memberships: ChangedMembership[]): Promise<void> {
-        const server: Server | undefined = this.socketServer;
-        if (server == undefined) {
-            return;
-        }
+    /**
+     * Brings which tenants' messages the connections of users receive in line with their memberships
+     * as they are stored, on every instance.
+     * @param memberships - The users and the tenants whose memberships of theirs were written.
+     */
+    private async updateTenantRooms(memberships: ChangedMembership[]): Promise<void> {
+        const server: Server = this.server;
         await Promise.all(memberships.map(async ({ userId, tenantId }) => {
             // what is stored now rather than what the write did, so that a membership deleted while
             // another one of the user in that tenant remains keeps the connection where it is
-            const isMember: boolean = await this.membershipService.findMembership(userId, tenantId) != undefined;
+            const isMember: boolean = await this.membershipService.findActiveMembership(userId, tenantId) != undefined;
             // through the room of the user, which reaches their connections on every instance
             const connections: ReturnType<Server['in']> = server.in(userRoomOf(userId));
             if (isMember) {
@@ -1487,7 +1527,7 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
                             const res: unknown = await RequestDeadlineUtilities.resolveWithinDeadline(
                                 context,
-                                timeoutInMs ?? this.options.handlerInMs,
+                                timeoutInMs ?? this.options.handlerTimeoutInMs,
                                 // eslint-disable-next-line typescript/no-unsafe-call, typescript/no-explicit-any, typescript/no-unsafe-member-access
                                 async (): Promise<unknown> => await ((controller as any)[route.controllerMethod] as Function)(...params)
                             );

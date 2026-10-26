@@ -5,6 +5,7 @@ import { PasswordCredentials, PasswordCredentialsCreateData, PasswordCredentials
 import { PasswordFailureLimit } from './password-failure-limit.model';
 import { PasswordFailureStreak, PasswordFailureStreakCreateData } from './password-failure-streak.model';
 import { PasswordResetEmailTemplate } from './password-reset-email-template.model';
+import { PasswordResetTokenCleanupCronJob } from './password-reset-token-cleanup.cron-job';
 import { RequestPasswordResetData } from './request-password-reset-data.model';
 import { ZibriApplication } from '../../../application/application';
 import { Repository } from '../../../data-source/repository/repository';
@@ -93,6 +94,10 @@ export class PasswordAuthenticator<
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
         validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordCredentials, PasswordResetToken);
+        // a reset token nobody used is otherwise kept until its user asks for the next one
+        if (!app.options.cronJobs.includes(PasswordResetTokenCleanupCronJob)) {
+            app.options.cronJobs.push(PasswordResetTokenCleanupCronJob);
+        }
         this.failureLimit = app.options.passwordFailureLimit;
         if (this.failureLimit !== false) {
             validateEntitiesRegistered(PasswordAuthenticator.name, app, PasswordFailureStreak);
@@ -101,10 +106,20 @@ export class PasswordAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.credentialsRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        await this.passwordResetTokenRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        // only an application that limits failed passwords declares the streaks
+        if (this.failureLimit !== false) {
+            await this.failureStreakRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async authenticate(credentials: PasswordCredentialsDto, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
         try {
             const foundUser: UserType | undefined = await this.userService.findByEmail(credentials.email, { required: false });
-            // a user can exist without a password - created by an admin, or signed in some other way -
+            // a user can exist without a password - created by an admin, or logged in some other way -
             // and that has to answer the same as a wrong password. A store that cannot be read is a
             // fault rather than a missing password, and surfaces as one below
             const storedPassword: HashString | undefined = foundUser == undefined
@@ -288,7 +303,7 @@ export class PasswordAuthenticator<
         const locks: boolean = count >= this.failureLimit.maxFailures && !this.isLocked(streak);
         // null rather than undefined, so an update that does not lock keeps the column as it is
         // eslint-disable-next-line unicorn/no-null
-        const lockedUntil: Date | null = locks ? new Date(Date.now() + this.failureLimit.lockForMs) : streak?.lockedUntil ?? null;
+        const lockedUntil: Date | null = locks ? new Date(Date.now() + this.failureLimit.lockForInMs) : streak?.lockedUntil ?? null;
         await (streak
             ? this.failureStreakRepository.updateById(streak.id, { count, lockedUntil })
             : this.failureStreakRepository.create({ userId, count, lockedUntil }));
@@ -332,13 +347,13 @@ export class PasswordAuthenticator<
         if (this.failureLimit === false) {
             return;
         }
-        const { maxFailures, lockForMs } = this.failureLimit;
+        const { maxFailures, lockForInMs } = this.failureLimit;
         // 100 is NIST 800-63B's ceiling for consecutive failures; fewer than one would lock on none
         if (!Number.isInteger(maxFailures) || maxFailures < 1 || maxFailures > 100) {
             throw new InternalError(`passwordFailureLimit.maxFailures must be a whole number from 1 to 100, got ${maxFailures}.`);
         }
-        if (!(lockForMs > 0)) {
-            throw new InternalError(`passwordFailureLimit.lockForMs must be greater than 0, got ${lockForMs}.`);
+        if (!(lockForInMs > 0)) {
+            throw new InternalError(`passwordFailureLimit.lockForInMs must be greater than 0, got ${lockForInMs}.`);
         }
     }
 

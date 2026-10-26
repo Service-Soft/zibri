@@ -4,7 +4,7 @@ import { AuditEntry, BaseEntity, CacheInvalidation, Change, ChangeSet, CronJobEn
 // one only some suites need stays with those suites
 /**
  * The entities of the framework a test data source declares on top of the ones a test names: those
- * every application needs, and those of password and JWT sign-in, one-time passwords, migrations,
+ * every application needs, and those of password and JWT login, one-time passwords, migrations,
  * change sets, caches and websockets.
  *
  * A feature beyond these lists its entities under Requirements on its page. Name them in the

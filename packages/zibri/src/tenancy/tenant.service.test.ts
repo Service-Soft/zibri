@@ -40,7 +40,7 @@ import { WebsocketRequest } from '../websocket/models/websocket-request.model';
 
 // round-2 08 §X15: the tenant property from the base class, the way an application declares most entities
 @Entity()
-class TenancyNote extends BaseTenantEntity {
+class TenancyNote extends BaseTenantEntity() {
     @Property.string()
     title!: string;
 }
@@ -112,7 +112,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
 const websocketOptions: WebsocketOptionsInput = {
     messageRetentionInMs: Ms.DAY,
     timeoutInMs: 5000,
-    handlerInMs: 5000,
+    handlerTimeoutInMs: 5000,
     isAllowedToConnect: () => true
 };
 

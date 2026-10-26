@@ -1,10 +1,13 @@
 # Plugin
-A plugin bundles providers, controllers, cron jobs, body parsers and auth strategies, so you can reuse them across projects. Built-in plugins cover invoicing, mailing lists and payments, and you can write your own.
+A plugin bundles providers, controllers, cron jobs, body parsers and [auth strategies](./glossary.md#auth-strategy), so you can reuse them across projects. Built-in plugins cover invoicing, mailing lists and payments, and you can write your own.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `ZibriPlugin` | class | Abstract base class a custom plugin extends |
+| `validateEntitiesRegistered` | function | Checks at boot that the entities a plugin stores rows in are declared by a data source |
+| `validateTokensRegistered` | function | Checks at boot that every token of a `TokenRecord` has a provider |
+| `optionalPeer`, `hasOptionalPeer` | function, function | Loads a peer dependency a feature needs, failing with the feature it was needed for, and checks whether one is installed without loading it |
 
 ## Registering a plugin
 Plugins are listed in the `plugins` option your application is built from:
@@ -17,6 +20,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     name: 'Task Tracker',
     baseUrl: 'http://localhost:3000',
     version: '1.0.0',
+    environment: 'development',
     plugins: [new ZibriInvoicingPlugin(), new ZibriMailingListPlugin()],
     controllers: [],
     websocketControllers: [],

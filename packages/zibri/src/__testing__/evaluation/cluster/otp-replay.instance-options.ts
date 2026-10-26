@@ -39,7 +39,10 @@ import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissio
  */
 const clusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed
-    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership, TestRole], repositories: defaultTestServerRepositories })
+    createPostgresTestDataSource({
+        entities: [...defaultClusterTestEntities, JwtUser, TestMembership, TestRole],
+        repositories: defaultTestServerRepositories
+    })
 ];
 
 /**
@@ -107,7 +110,7 @@ class ClusterOtpController {
         await this.credentialsRepository.create({ password: otpUserPassword, userId: user.id });
 
         const method: OtpTwoFactorMethod = inject(OtpTwoFactorMethod);
-        const registration: OtpRegistration = await this.twoFactorService.requestRegisterTwoFactorMethodForUser(
+        const registration: OtpRegistration = await this.twoFactorService.requestTwoFactorRegistration(
             user,
             method,
             undefined
@@ -117,7 +120,7 @@ class ClusterOtpController {
         // validation, so it spends the code it is given - doing that with the current one would
         // leave the caller holding digits that are already used, and every test below would pass
         // for the wrong reason.
-        await this.twoFactorService.confirmRegisterTwoFactorMethodForUser(user, method, {
+        await this.twoFactorService.confirmTwoFactorRegistration(user, method, {
             token: new TOTP({ secret: registration.secret, period: OTP_PERIOD_IN_SECONDS })
                 .generate({ timestamp: Date.now() - (OTP_PERIOD_IN_SECONDS * Ms.SECOND) })
         });

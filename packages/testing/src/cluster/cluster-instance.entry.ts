@@ -5,7 +5,8 @@ import { AddressInfo } from 'node:net';
 
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import 'reflect-metadata'; // has to come before every zibri import below: they are all decorated.
-import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, Newable, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { DataSourceInterface, DiProvider, FsPath, inject, Newable, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { initDiContainer } from 'zibri/internal';
 
 import { defaultClusterDataSources } from './cluster-data-sources';
 import { requireClusterEnv } from './cluster-env.function';
@@ -14,7 +15,7 @@ import { defaultClusterProviders } from './cluster-providers';
 import { registerAheadOfInit } from '../register-ahead-of-init.function';
 import { resolveApplicationOptions } from '../resolve-application-options.function';
 import { scratchProviders } from '../scratch-directory.function';
-import { applyContainerPort, buildDataSources, needsContainer, TestDataSource } from '../start-data-source-containers.function';
+import { applyContainerPorts, buildDataSources, DataSourcePorts, needsContainer, TestDataSource } from '../start-data-source-containers.function';
 import { StartTestServerOptions } from '../start-test-server-options.model';
 
 /**
@@ -71,7 +72,7 @@ function sendAndExit(message: ClusterInstanceMessage, code: number): void {
  */
 async function boot(): Promise<void> {
     const optionsModulePath: string = requireClusterEnv(CLUSTER_INSTANCE_OPTIONS_ENV);
-    const ports: number[] = JSON.parse(requireClusterEnv(CLUSTER_DATA_SOURCE_PORTS_ENV)) as number[];
+    const ports: DataSourcePorts[] = JSON.parse(requireClusterEnv(CLUSTER_DATA_SOURCE_PORTS_ENV)) as DataSourcePorts[];
 
     // the parent is the only reason this process exists. When the ipc channel goes away - jest
     // crashed, the run was interrupted - exit instead of staying behind as an orphan holding a port
@@ -133,11 +134,11 @@ async function boot(): Promise<void> {
     }
     for (const [i, dataSource] of withContainer.entries()) {
         // one port per data source, in the same order - the length check above is what says so
-        const port: number | undefined = ports[i];
-        if (port == undefined) {
+        const mapped: DataSourcePorts | undefined = ports[i];
+        if (mapped == undefined) {
             throw new Error(`no mapped port for the data source at position ${i}`);
         }
-        applyContainerPort(dataSource, port);
+        applyContainerPorts(dataSource, mapped);
     }
 
     const app: ZibriApplication = new ZibriApplication({

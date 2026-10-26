@@ -16,7 +16,7 @@ export type FakeSamlAnswer = {
     xml: string,
     /**
      * The session at the provider the answer names, which a logout request can end. Undefined when the
-     * answer does not sign the user in.
+     * answer does not log the user in.
      */
     sessionIndex: string | undefined
 };

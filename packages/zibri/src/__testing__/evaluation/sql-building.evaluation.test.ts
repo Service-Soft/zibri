@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/globals';
 
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
@@ -88,6 +89,8 @@ class EvalSqlDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 const dataSourceClass: Newable<PostgresDataSource> = EvalSqlDataSource;

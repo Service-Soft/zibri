@@ -2,6 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
+import { PostgresPooler } from './postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
@@ -13,8 +14,8 @@ import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
+import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 import { TypeOrmUtilities } from '../../../utilities/typeorm.utilities';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
 import { DataSource } from '../../decorators/data-source.decorator';
 import { MigrationEntity } from '../../migration/migration-entity.model';
 import { Migration } from '../../migration/migration.model';
@@ -107,6 +108,8 @@ class TimedDataSource extends PostgresDataSource {
 
     schemaManagement: SchemaManagement = 'synchronize';
 
+    readonly pooler: PostgresPooler = 'none';
+
     protected override readonly statementTimeoutInMs: number = 200;
 }
 
@@ -129,6 +132,8 @@ class SingleConnectionDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = [];
 
     schemaManagement: SchemaManagement = 'synchronize';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 let server: StartedTestServer | undefined;
@@ -229,6 +234,27 @@ describe('the time a migration may take', () => {
 
         expect(await migrations.findAll({ where: { name: CappedSleepingMigration.name } })).toEqual([]);
     });
+
+    it('creates the table the migrations are recorded in under the migration timeout as well', async () => {
+        // creating it is the first step of the schema setup, and takes longer than a statement may
+        // here: an event trigger sleeps whenever it is created
+        await server?.runAsSuperuser(TimedDataSource, [
+            'CREATE FUNCTION sleep_on_migration_table() RETURNS event_trigger LANGUAGE plpgsql AS $$ BEGIN'
+            + ' IF EXISTS (SELECT 1 FROM pg_event_trigger_ddl_commands() WHERE object_identity LIKE \'%migration_entity\')'
+            + ' THEN PERFORM pg_sleep(0.5); END IF; END $$',
+            'CREATE EVENT TRIGGER sleep_on_migration_table ON ddl_command_end EXECUTE FUNCTION sleep_on_migration_table()',
+            'DROP TABLE migration_entity'
+        ]);
+        try {
+            await server?.reInit();
+
+            const migrations: Repository<MigrationEntity> = inject(repositoryTokenFor(MigrationEntity, TimedDataSource));
+            expect(await migrations.findAll({ where: { name: SleepingMigration.name } })).toHaveLength(1);
+        }
+        finally {
+            await server?.runAsSuperuser(TimedDataSource, ['DROP EVENT TRIGGER sleep_on_migration_table']);
+        }
+    }, 60000);
 });
 
 describe('a data source with a single connection', () => {

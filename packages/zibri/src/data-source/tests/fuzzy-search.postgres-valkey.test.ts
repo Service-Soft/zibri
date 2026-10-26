@@ -2,9 +2,9 @@ import { afterAll, beforeAll } from '@jest/globals';
 import { StartedTestServer } from 'zibri-testing';
 
 import { Contact, describeFuzzySearch } from './fuzzy-search.cases';
+import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../__testing__/test-server/create-test-val-key-data-source.function';
-import { TestTimeouts } from '../../__testing__/constants';
 import { startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { Newable } from '../../types/newable.type';

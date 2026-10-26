@@ -15,7 +15,7 @@ about, with a code a client can act on. The same checks run on a response read t
 | `ValidationProblemCode` | enum | The code of every problem the property options find, such as `required` or `maxLength` |
 | `DateBound` | type | What `before` and `after` of a date take: given the object and the request, returns the date |
 | `EntityCheck` | type | A check of an entity written out, with the `code` and `message` it is answered with |
-| `ValidationServiceInterface` | interface | Validates values against their models. Replaceable through `ZIBRI_DI_TOKENS.VALIDATION_SERVICE` |
+| `ValidationService`, `ValidationServiceInterface` | class, interface | Validates values against their models. Replaceable through `ZIBRI_DI_TOKENS.VALIDATION_SERVICE` |
 
 ## Reading a refused request
 A refused request is answered with the [error body](./error-handling.md#how-the-global-error-handler-processes-an-error)
@@ -129,7 +129,7 @@ import { $t, BaseTenantEntity, Entity, OmitClass, Property, whereFor } from 'zib
         whereFor<Task>({ points: { greaterThanEquals: 0 } })
     ]
 })
-export class Task extends BaseTenantEntity {
+export class Task extends BaseTenantEntity() {
     @Property.string()
     status!: string;
 
@@ -149,7 +149,9 @@ naming the properties it compares.
 
 A check is judged when the body holds every property it compares, `null` included. An update
 leaving one out keeps the stored value, which only the data source knows, so the data source judges
-it when it writes. A model derived without a property the check compares does not take the check.
+it when it writes. A write it refuses is answered the same way, with the code and message of the
+check under `body`, and with the name `CheckConstraintViolationError`. A model derived without a
+property the check compares does not take the check.
 
 ## Writing a rule of your own
 `@ValidateCustom` adds a rule to a model that its properties cannot say on their own. It is given the
@@ -185,8 +187,8 @@ and decorating a class other than the one it is written for is a compile error.
 | Use | When |
 |---|---|
 | An option of the property | The rule is about the value alone, such as its length |
-| A function for `required`, `before` or `after` | It depends on another property of the same object, or on the request |
-| A [check](./data-source.md#rules-every-row-follows) | Every stored row follows it, whoever writes the row |
+| A function for `required`, `before` or `after` | It depends on another property of the same object for this request alone, or on the request |
+| A [check](./data-source.md#rules-every-row-follows) | Every stored row follows it, whoever writes the row, such as an end after a start |
 | `@ValidateCustom` | Anything else about the values of one object |
 | A [unique](./data-source.md#defining-entities) | No two rows may share a value, such as an email address. It is answered with `409` by the write |
 

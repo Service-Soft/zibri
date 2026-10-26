@@ -25,7 +25,7 @@ class TestLimiter extends SemaphoreRateLimiter {
             name: `wait-for-reservation-test-${capacity}-${Math.random()}`,
             capacity,
             store: new InMemoryRateLimiterStore<SemaphoreState>(),
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: capacity
         });
     }
@@ -40,7 +40,7 @@ class BucketLimiter extends TokenBucketRateLimiter {
             name: `base-rate-limiter-test-${Math.random()}`,
             capacity: CAPACITY,
             store,
-            maxReservationWaitMs: Ms.MINUTE,
+            maxReservationWaitInMs: Ms.MINUTE,
             onStoreFailure
         });
     }

@@ -5,7 +5,8 @@ export abstract class MaskUtilities {
     /**
      * Masks the given input string.
      * @param input - The sensitive info that should be masked.
-     * @returns The first and last two characters of the given string, with any chars in between being replaced with *.
+     * @returns The first character and the last two of the given string, with every character in between
+     * replaced with *. A string of three characters or fewer comes back as it is.
      */
     static mask(input: string): string {
         if (input.length <= 3) {

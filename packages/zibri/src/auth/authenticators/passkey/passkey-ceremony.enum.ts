@@ -3,17 +3,17 @@
  */
 export enum PasskeyCeremony {
     /**
-     * Signing in with a passkey.
+     * Logging in with a passkey.
      */
-    SIGN_IN = 'sign-in',
+    LOGIN = 'login',
     /**
      * Creating a passkey for a user who does not exist yet.
      */
-    SIGN_UP = 'sign-up',
+    REGISTRATION = 'registration',
     /**
      * Creating a passkey for a user who exists, and adding it to them.
      */
-    CONNECTION = 'connection',
+    ADDITION = 'addition',
     /**
      * Using a passkey as the second factor of an operation.
      */

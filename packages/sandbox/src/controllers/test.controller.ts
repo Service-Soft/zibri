@@ -11,7 +11,7 @@ export class TestRateLimiter extends TokenBucketRateLimiter {
                 name: 'TestRateLimiter',
                 store: new InMemoryRateLimiterStore<TokenBucketState>(),
                 capacity: 1,
-                maxReservationWaitMs: undefined
+                maxReservationWaitInMs: undefined
             }
         );
     }

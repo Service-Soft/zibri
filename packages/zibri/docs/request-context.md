@@ -5,10 +5,14 @@ The request context holds what belongs to the request being handled: the incomin
 | Export | Kind | Purpose |
 |---|---|---|
 | `AlsUtilities` | class | Runs code inside a context, and reads the active ones |
+| `OperationLimit` | type | How long the work running here may take: the `timeoutInMs` of one statement, and the `signal` that fires when the work or its request runs out of time. Read with `AlsUtilities.findCurrentOperationLimit` |
+| `LeaseScopeResult` | type | What `AlsUtilities.runInLeaseScope` returns: the result of the function, and the transactions written to while it ran |
 | `BaseContext` | class | Base class all contexts extend, holding the per-request token value cache |
 | `HttpRequestContext` | class | Context for an incoming HTTP request |
 | `WebsocketRequestContext` | class | Context for an incoming websocket request |
 | `HttpRequest` | type | An incoming HTTP request, the `request` of an `HttpRequestContext` |
+| `isHttpRequest` | function | Whether a value is an `HttpRequest` |
+| `HttpResponse` | type | The response to an HTTP request, the Express response with a `setHeader` that takes a `KnownHeader` and its value |
 | `WebsocketRequest` | class | An incoming websocket request, the `request` of a `WebsocketRequestContext` |
 | `CacheContext` | class | Context describing a cache operation currently in flight |
 | `RequestContextToken` | class | Defines a value computed once per request, on first access, under a unique key |
@@ -33,7 +37,7 @@ function currentLocalePrefix(): string {
 - `request`: the raw `HttpRequest` (HTTP) or `WebsocketRequest` (websocket).
 - `controllerClass` / `controllerMethod`: the matched route. Both are set before any check or handler runs, so a service called by a handler sees them. A middleware that runs before routing sees `undefined`.
 - `.get(token)` / `.has(token)`: read a `RequestContextToken`'s value.
-- `signal`: an `AbortSignal` that fires when the handler runs out of the time its route or event allows, see [deadlines](./creating-endpoints.md#deadlines) and [websocket deadlines](./websocket.md#deadlines). Pass it on to whatever a handler is waiting for. `AlsUtilities.findCurrentRequestSignal()` is the same signal, reached without the context. The HTTP client, the lease service and waiting for a thread job listen to it.
+- `signal`: an `AbortSignal` that fires when the handler runs out of the time its route or event allows, see [deadlines](./creating-endpoints.md#deadlines) and [websocket deadlines](./websocket.md#deadlines). Pass it on to whatever a handler is waiting for. `AlsUtilities.findCurrentRequestSignal()` is the same signal, reached without the context. The HTTP client, the [lease](./glossary.md#lease) service and waiting for a thread job listen to it.
 
 `HttpRequestContext` additionally carries `response: HttpResponse`. `WebsocketRequestContext` additionally carries `connection: BaseWebsocketConnection | undefined`. Both expose a `type` discriminant (`'http-request'` or `'websocket-request'`) so you can narrow which one you got:
 
@@ -54,9 +58,9 @@ Pass one of `ZIBRI_REQUEST_CONTEXT_TOKENS` to `.get()`/`.has()`. Each token's va
 |---|---|---|
 | `NONCE` | `string` | Random per-request base64 nonce, used for CSP |
 | `TRACE_CONTEXT` | `TraceSpanContext` or `undefined` | The trace this request belongs to, read from its `traceparent`. See [tracing](./tracing.md) |
-| `CURRENT_USER` | resolved user or `undefined` | Runs the route's configured auth strategies, and throws when the route requires a user it cannot resolve |
+| `CURRENT_USER` | resolved user or `undefined` | Runs the route's configured [auth strategies](./glossary.md#auth-strategy), and throws when the route requires a user it cannot resolve |
 | `IS_LOGGED_IN` | `boolean` | Runs the route's configured auth strategies |
-| `HAS_2FA` | `boolean` | Whether this request presented a valid second factor for the current user; `false` when there is no current user |
+| `HAS_2FA` | `boolean` | Whether this request presented a valid [second factor](./glossary.md#second-factor) for the current user; `false` when there is no current user |
 | `CURRENT_VERSION` | `Version` | Resolved via `VERSIONING_SERVICE` |
 | `CURRENT_LOCALE` | `LocaleCode` | Resolved via `LOCALIZE_SERVICE` |
 

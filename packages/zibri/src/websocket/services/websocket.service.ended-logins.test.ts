@@ -3,12 +3,12 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
 import { TestPlatformPermissions } from '../../__testing__/mocks/entities/test-permissions.model';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
@@ -18,8 +18,14 @@ import { PasswordAuthenticator } from '../../auth/authenticators/password/passwo
 import { ApiKeyAuthStrategy } from '../../auth/strategies/api-key/api-key.auth-strategy';
 import { ApiKey } from '../../auth/strategies/api-key/api-key.model';
 import { CreatedApiKey } from '../../auth/strategies/api-key/created-api-key.model';
+import { ClientAccessTokenAuthStrategy } from '../../auth/strategies/client-access-token/client-access-token.auth-strategy';
+import { IssuedClientAccessToken } from '../../auth/strategies/issued-client-access-token.model';
 import { JwtAuthData } from '../../auth/strategies/jwt/jwt-auth-data.model';
+import { type JwtServiceInterface } from '../../auth/strategies/jwt/jwt-service.interface';
 import { JwtAuthStrategy } from '../../auth/strategies/jwt/jwt.auth-strategy';
+import { JwtRefreshToken } from '../../auth/strategies/jwt/jwt-refresh-token.model';
+import { JwtRevokedAccessToken } from '../../auth/strategies/jwt/jwt-revoked-access-token.model';
+import { type UserServiceInterface } from '../../auth/user/user-service.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -144,13 +150,16 @@ describe('a socket whose login has ended', () => {
     beforeAll(async () => {
         server = await startTestServer({
             websocketControllers: [EndedLoginsWsController],
-            dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, ApiKey], repositories: defaultTestServerRepositories })],
-            authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
+            dataSources: [createInMemoryDataSource({
+                entities: [...defaultTestServerEntities, ApiKey, JwtRevokedAccessToken],
+                repositories: defaultTestServerRepositories
+            })],
+            authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy, ClientAccessTokenAuthStrategy],
             providers: [
                 ...defaultTestServerProviders,
                 defineProvider({
                     token: ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT,
-                    useValue: { messageRetentionInMs: Ms.DAY, timeoutInMs: 5000, handlerInMs: 5000, isAllowedToConnect: () => true }
+                    useValue: { messageRetentionInMs: Ms.DAY, timeoutInMs: 5000, handlerTimeoutInMs: 5000, isAllowedToConnect: () => true }
                 }),
                 defineProvider({
                     token: ZIBRI_DI_TOKENS.JWT_AUTH_OPTIONS_INPUT,
@@ -286,6 +295,51 @@ describe('a socket whose login has ended', () => {
         const socket: Socket = await connect({ 'x-api-key': created.key });
 
         await authService.revokeApiKey(user.id, created.apiKey.id, undefined);
+
+        expect(await isClosedWithin(socket, 2000)).toBe(true);
+    });
+
+    it('is closed when the access token of a client it connected with is revoked', async () => {
+        const user: JwtUser = await createUser();
+        const created: CreatedApiKey = await authService.createApiKey(
+            user.id,
+            { name: 'client', permissions: [TestPlatformPermissions.USER], expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+            undefined
+        );
+        const strategy: ClientAccessTokenAuthStrategy<Roles> = inject(ClientAccessTokenAuthStrategy<Roles>);
+        const issued: IssuedClientAccessToken = await strategy.issueClientAccessToken(user, {
+            clientId: created.apiKey.id,
+            permissions: [TestPlatformPermissions.USER],
+            tenantId: undefined,
+            audience: [inject<JwtServiceInterface>(ZIBRI_DI_TOKENS.JWT_SERVICE).issuer],
+            certificateThumbprint: undefined,
+            dpopKeyThumbprint: undefined
+        });
+        const socket: Socket = await connect({ authorization: `Bearer ${issued.value}` });
+
+        await strategy.revokeToken(issued.value);
+
+        expect(await isClosedWithin(socket, 2000)).toBe(true);
+    });
+
+    // 09 §Q6: a login ends with the rows it lives in, however they are removed. Only the auth service
+    // and the strategies said so to the websocket service
+    it('is closed when the application removes the refresh tokens of its login itself', async () => {
+        const login: LoggedIn = await logIn(await createUser());
+        const socket: Socket = await connectAs(login);
+        const bystander: Socket = await connectAs(await logIn(await createUser()));
+
+        await inject<Repository<JwtRefreshToken>>(repositoryTokenFor(JwtRefreshToken)).deleteAll({ userId: login.user.id });
+
+        expect(await isClosedWithin(socket, 2000)).toBe(true);
+        expect(await isClosedWithin(bystander, quietPeriodInMs)).toBe(false);
+    });
+
+    it('is closed when the application deactivates its user through the user service', async () => {
+        const login: LoggedIn = await logIn(await createUser());
+        const socket: Socket = await connectAs(login);
+
+        await inject<UserServiceInterface>(ZIBRI_DI_TOKENS.USER_SERVICE).updateDeactivatedAt(login.user.id, new Date(), undefined);
 
         expect(await isClosedWithin(socket, 2000)).toBe(true);
     });

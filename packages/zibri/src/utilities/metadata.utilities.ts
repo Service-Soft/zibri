@@ -1,6 +1,7 @@
 /* eslint-disable jsdoc/require-jsdoc */
 import { MetadataInjectionKeys } from './metadata-injection-keys.enum';
 import { ReflectUtilities } from './reflect.utilities';
+import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
 import { resolveCallSites } from './resolve-call-sites.function';
 import { CurrentUserMetadata } from '../auth/decorators/current-user.decorator';
 import { HasPermissionMetadata, SkipHasPermissionMetadata } from '../auth/models/has-permission-metadata.model';
@@ -156,6 +157,21 @@ export abstract class MetadataUtilities {
             parentCtor = MetadataUtilities.getParentConstructor(parentCtor);
         }
         return undefined;
+    }
+
+    // the metadata holds one permission, so a second decorator replaced the first without a word: a
+    // route written as "this and that" checked only one of the two. A route names one permission,
+    // and a subclass's own still replaces what it inherits, which is why only the own metadata counts
+    private static validateNoPermissionYet(
+        metadataKey: MetadataInjectionKeys,
+        label: string,
+        controller: Function,
+        controllerMethod?: string
+    ): void {
+        if (ReflectUtilities.getOwnMetadata(metadataKey, controller, controllerMethod) !== undefined) {
+            const target: string = controllerMethod == undefined ? controller.name : `${controller.name}.${controllerMethod}`;
+            throw new InvalidDecoratorCombinationError(target, [label, label]);
+        }
     }
 
     private static toNewable<T>(target: Newable<T> | T): Newable<T> {
@@ -388,6 +404,12 @@ export abstract class MetadataUtilities {
 
     // ---------- permission metadata (method-level for routes) ----------
     static setRouteHasPermission(controller: Function, data: HasPermissionMetadata<Permission>, controllerMethod: string): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.ROUTE_HAS_PERMISSION,
+            '@Auth.hasPermission',
+            controller,
+            controllerMethod
+        );
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_PERMISSION, data, controller, controllerMethod);
     }
 
@@ -412,6 +434,7 @@ export abstract class MetadataUtilities {
     }
 
     static setControllerHasPermission(controller: Function, data: HasPermissionMetadata<Permission>): void {
+        MetadataUtilities.validateNoPermissionYet(MetadataInjectionKeys.CONTROLLER_HAS_PERMISSION, '@Auth.hasPermission', controller);
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PERMISSION, data, controller);
     }
 
@@ -433,6 +456,12 @@ export abstract class MetadataUtilities {
         data: HasPermissionMetadata<PlatformPermission>,
         controllerMethod: string
     ): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.ROUTE_HAS_PLATFORM_PERMISSION,
+            '@Auth.hasPlatformPermission',
+            controller,
+            controllerMethod
+        );
         ReflectUtilities.setMetadata(MetadataInjectionKeys.ROUTE_HAS_PLATFORM_PERMISSION, data, controller, controllerMethod);
     }
 
@@ -460,6 +489,11 @@ export abstract class MetadataUtilities {
     }
 
     static setControllerHasPlatformPermission(controller: Function, data: HasPermissionMetadata<PlatformPermission>): void {
+        MetadataUtilities.validateNoPermissionYet(
+            MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_PERMISSION,
+            '@Auth.hasPlatformPermission',
+            controller
+        );
         ReflectUtilities.setMetadata(MetadataInjectionKeys.CONTROLLER_HAS_PLATFORM_PERMISSION, data, controller);
     }
 

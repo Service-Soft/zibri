@@ -80,10 +80,10 @@ describe('MembershipService', () => {
         const first: string = await joinNewTenant(user);
         const second: string = await joinNewTenant(user);
 
-        expect((await memberships().findMembership(user.id, first))?.tenantId).toBe(first);
-        expect(await memberships().findMembership(user.id, UUIDUtilities.generate())).toBeUndefined();
-        expect((await memberships().findMemberships(user.id)).map(m => m.tenantId)).toEqual(expect.arrayContaining([first, second]));
-        expect(await memberships().findMemberships(user.id)).toHaveLength(2);
+        expect((await memberships().findActiveMembership(user.id, first))?.tenantId).toBe(first);
+        expect(await memberships().findActiveMembership(user.id, UUIDUtilities.generate())).toBeUndefined();
+        expect((await memberships().findActiveMemberships(user.id)).map(m => m.tenantId)).toEqual(expect.arrayContaining([first, second]));
+        expect(await memberships().findActiveMemberships(user.id)).toHaveLength(2);
     });
 
     it('answers the membership a user has in a tenant, creating one without roles when they have none', async () => {
@@ -104,18 +104,18 @@ describe('MembershipService', () => {
 
         await memberships().updateDeactivatedAt(user.id, first, new Date(), undefined);
 
-        expect(await memberships().findMembership(user.id, first)).toBeUndefined();
-        expect((await memberships().findMemberships(user.id)).map(m => m.tenantId)).toEqual([second]);
+        expect(await memberships().findActiveMembership(user.id, first)).toBeUndefined();
+        expect((await memberships().findActiveMemberships(user.id)).map(m => m.tenantId)).toEqual([second]);
         // still stored, with its roles, rather than made anew
         expect((await memberships().resolveMembership<string, TestMembership>(user.id, first, undefined)).roles).toEqual([MemberRoles.USER]);
 
         await memberships().deleteMembership(user.id, second, undefined);
-        expect(await memberships().findMemberships(user.id)).toEqual([]);
+        expect(await memberships().findActiveMemberships(user.id)).toEqual([]);
 
         // null rather than undefined: it clears the column
         // eslint-disable-next-line unicorn/no-null
         await memberships().updateDeactivatedAt(user.id, first, null, undefined);
-        expect((await memberships().findMembership(user.id, first))?.roles).toEqual([MemberRoles.USER]);
+        expect((await memberships().findActiveMembership(user.id, first))?.roles).toEqual([MemberRoles.USER]);
     });
 
     it('deletes the memberships of a user in every tenant with the user, whichever way the user is deleted', async () => {
@@ -126,10 +126,10 @@ describe('MembershipService', () => {
         await users().deleteById(byId.id);
         await users().deleteAll({ id: byFilter.id });
 
-        expect(await memberships().findMemberships(byId.id)).toEqual([]);
-        expect(await memberships().findMemberships(byFilter.id)).toEqual([]);
+        expect(await memberships().findActiveMemberships(byId.id)).toEqual([]);
+        expect(await memberships().findActiveMemberships(byFilter.id)).toEqual([]);
         // the memberships of everybody else stay
-        expect(await memberships().findMemberships(kept.id)).toHaveLength(2);
+        expect(await memberships().findActiveMemberships(kept.id)).toHaveLength(2);
     });
 
     it('deletes the memberships in the transaction that deletes the user, so they stay when it rolls back', async () => {
@@ -140,6 +140,6 @@ describe('MembershipService', () => {
         await transaction.rollback();
 
         expect(await users().findById(user.id)).toMatchObject({ id: user.id });
-        expect(await memberships().findMemberships(user.id)).toHaveLength(2);
+        expect(await memberships().findActiveMemberships(user.id)).toHaveLength(2);
     });
 });

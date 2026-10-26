@@ -55,7 +55,7 @@ let ldapsUrl: string;
 /**
  * Every entry the hook was handed, in order.
  */
-const firstSignIns: LdapEntry[] = [];
+const firstLogins: LdapEntry[] = [];
 
 abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
     readonly serviceAccount: LdapServiceAccount = DIRECTORY_MANAGER;
@@ -74,13 +74,13 @@ abstract class TestDirectory extends BaseLdapAuthenticator<string, JwtUser> {
     // read as the authenticator is built, which is once the key is made
     override readonly trustedCertificates: string[] = [authority.certificate];
 
-    async resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
-        firstSignIns.push(entry);
+    async resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<JwtUser> {
+        firstLogins.push(entry);
         const [email] = entry.attributes['mail'] ?? [];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).create({ email: email ?? '', roles: [Roles.USER] }, { transaction });
     }
 
-    async resolveSignIn(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
+    async resolveLogin(entry: LdapEntry, user: JwtUser, transaction: Transaction | undefined): Promise<JwtUser> {
         const roles: Roles[] = entry.groups.some(dn => dn.toLowerCase() === `cn=admins,${GROUPS}`) ? [Roles.ADMIN] : [Roles.USER];
         return await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).updateById(user.id, { roles }, { transaction });
     }
@@ -151,7 +151,7 @@ async function refresh(refreshToken: string): Promise<Response> {
 }
 
 /**
- * What a successful sign-in or refresh answered.
+ * What a successful login or refresh answered.
  * @param res - The answer.
  * @returns The auth data.
  */
@@ -163,12 +163,12 @@ async function authDataOf(res: Response): Promise<JwtAuthData<string>> {
 }
 
 /**
- * Signs in through the login route of a directory.
+ * Logs in through the login route of a directory.
  * @param credentials - What the user typed.
  * @param name - The directory.
  * @returns The answer.
  */
-async function signIn(credentials: LdapCredentials, name: string = 'ldaps'): Promise<Response> {
+async function logIn(credentials: LdapCredentials, name: string = 'ldaps'): Promise<Response> {
     return await fetch(`${baseUrl}/login-ldap/${name}`, {
         method: 'POST',
         headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
@@ -282,8 +282,8 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
         await container?.stop();
     });
 
-    it('signs in over ldaps, linked by the nsUniqueId the directory gave the entry', async () => {
-        const first: Response = await signIn({ username: 'anna', password: 'anna-secret' });
+    it('logs in over ldaps, linked by the nsUniqueId the directory gave the entry', async () => {
+        const first: Response = await logIn({ username: 'anna', password: 'anna-secret' });
         expect(first.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId }: JwtAuthData<string> = await first.json();
@@ -293,41 +293,41 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
             attributes: ['nsUniqueId']
         })).searchEntries);
         const nsUniqueId: Entry[string] | undefined = stored?.['nsUniqueId'];
-        expect(firstSignIns.map(entry => entry.id)).toStrictEqual([nsUniqueId]);
-        expect(firstSignIns[0]?.attributes['mail']).toStrictEqual(['anna@zibri.test']);
+        expect(firstLogins.map(entry => entry.id)).toStrictEqual([nsUniqueId]);
+        expect(firstLogins[0]?.attributes['mail']).toStrictEqual(['anna@zibri.test']);
 
-        const again: Response = await signIn({ username: 'anna@zibri.test', password: 'anna-secret' });
+        const again: Response = await logIn({ username: 'anna@zibri.test', password: 'anna-secret' });
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { userId: againUserId }: JwtAuthData<string> = await again.json();
         expect(againUserId).toBe(userId);
     });
 
-    it('signs in over ldap:// upgraded with StartTLS', async () => {
-        expect((await signIn({ username: 'bob', password: 'bob-secret' }, 'start-tls')).status).toBe(200);
+    it('logs in over ldap:// upgraded with StartTLS', async () => {
+        expect((await logIn({ username: 'bob', password: 'bob-secret' }, 'start-tls')).status).toBe(200);
     });
 
     it('refuses a wrong password, an unknown name and an inactivated account alike', async () => {
         const answers: Response[] = await Promise.all([
-            signIn({ username: 'anna', password: 'wrong' }),
-            signIn({ username: 'nobody', password: 'anna-secret' }),
-            signIn({ username: 'carla', password: 'carla-secret' })
+            logIn({ username: 'anna', password: 'wrong' }),
+            logIn({ username: 'nobody', password: 'anna-secret' }),
+            logIn({ username: 'carla', password: 'carla-secret' })
         ]);
 
         expect(answers.map(res => res.status)).toStrictEqual([401, 401, 401]);
     });
 
     it('reads the typed name as a name, never as a part of the filter', async () => {
-        expect((await signIn({ username: 'ann*', password: 'anna-secret' })).status).toBe(401);
+        expect((await logIn({ username: 'ann*', password: 'anna-secret' })).status).toBe(401);
     });
 
     it('hands the groups of the entry to the hooks, nested ones included, and keeps the roles in step with them', async () => {
-        const first: Response = await signIn({ username: 'dave', password: 'dave-secret' });
+        const first: Response = await logIn({ username: 'dave', password: 'dave-secret' });
         expect(first.status).toBe(200);
 
         // a distinguished name is the same name whatever its case
-        expect(firstSignIns.at(-1)?.groups.map(dn => dn.toLowerCase()).sort()).toStrictEqual([`cn=admins,${GROUPS}`, `cn=staff,${GROUPS}`]);
+        expect(firstLogins.at(-1)?.groups.map(dn => dn.toLowerCase()).sort()).toStrictEqual([`cn=admins,${GROUPS}`, `cn=staff,${GROUPS}`]);
 
-        const again: Response = await signIn({ username: 'dave', password: 'dave-secret' });
+        const again: Response = await logIn({ username: 'dave', password: 'dave-secret' });
         expect(again.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { roles }: JwtAuthData<string> = await again.json();
@@ -337,8 +337,8 @@ describe('BaseLdapAuthenticator against 389 Directory Server', () => {
     // evaluation/03-auth-and-security H22
     it('finds an entry by its nsUniqueId on a refresh, and refuses it once an administrator inactivated it', async () => {
         await addPerson('erin');
-        const signedIn: JwtAuthData<string> = await authDataOf(await signIn({ username: 'erin', password: 'erin-secret' }));
-        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(signedIn.refreshToken.value));
+        const loggedIn: JwtAuthData<string> = await authDataOf(await logIn({ username: 'erin', password: 'erin-secret' }));
+        const refreshed: JwtAuthData<string> = await authDataOf(await refresh(loggedIn.refreshToken.value));
 
         await asAdministrator(client => client.modify(
             `uid=erin,${PEOPLE}`,

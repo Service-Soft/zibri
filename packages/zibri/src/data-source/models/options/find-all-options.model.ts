@@ -30,7 +30,7 @@ export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | 
         /**
          * How many entities to pass over before the first one that is returned.
          */
-        skip?: number,
+        offset?: number,
         /**
          * How many entities to read at most, or `'all'` for every one that matches.
          *
@@ -42,7 +42,7 @@ export type FindAllOptions<T extends BaseEntity, S extends EntitySelection<T> | 
          * `'all'` is how a read that means it says so. It is the same unbounded read either way - it
          * is only no longer an accident, and it can be searched for.
          */
-        take?: number | 'all',
+        limit?: number | 'all',
         /**
          * The where filter to find the options by.
          */

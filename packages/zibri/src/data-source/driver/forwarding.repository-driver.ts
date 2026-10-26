@@ -1,8 +1,9 @@
+import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { AggregateRow } from '../models/aggregate.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
@@ -68,8 +69,8 @@ export abstract class ForwardingRepositoryDriver<T extends BaseEntity> implement
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
-        await this.inner.remove(ids, transaction);
+    async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
+        return await this.inner.remove(ids, reach, transaction);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

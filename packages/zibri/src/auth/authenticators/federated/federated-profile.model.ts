@@ -1,5 +1,5 @@
 /**
- * What a provider reports about who signed in, which the registration of a new user reads.
+ * What a provider reports about who logged in, which the registration of a new user reads.
  */
 export type FederatedProfile = {
     /**

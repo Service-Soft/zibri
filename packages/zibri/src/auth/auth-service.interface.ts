@@ -4,7 +4,7 @@ import { Newable } from '../types/newable.type';
 import { TwoFactorMethod } from './2fa/methods/two-factor-method.interface';
 import { AuthenticatorInterface } from './authenticators/authenticator.interface';
 import { Authenticators } from './authenticators/authenticators.model';
-import { ConnectionCompletingAuthenticatorInterface } from './authenticators/connection-completing-authenticator.interface';
+import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/link-identity-confirming-authenticator.interface';
 import { FederatedSessionMatch } from './authenticators/federated/federated-session-match.model';
 import { IdentityLinkingAuthenticatorInterface } from './authenticators/identity-linking-authenticator.interface';
 import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model';
@@ -141,7 +141,7 @@ export interface AuthServiceInterface {
     /**
      * Checks whether reaching the provided method on the provided controller requires an
      * authenticated caller - including when it requires one only because the application declared
-     * `defaultAuth: 'requireLogin'` and the route says nothing itself.
+     * `defaultAuth: 'isLoggedIn'` and the route says nothing itself.
      */
     requiresAuthentication: (
         controllerClass: Newable<unknown>,
@@ -150,7 +150,7 @@ export interface AuthServiceInterface {
     /**
      * Checks whether reaching a manually registered route requires an authenticated caller -
      * including when it requires one only because the application declared
-     * `defaultAuth: 'requireLogin'` and the route states nothing itself.
+     * `defaultAuth: 'isLoggedIn'` and the route states nothing itself.
      */
     requiresRouteAuthentication: (auth: RouteAuthConfiguration | undefined) => boolean,
     /**
@@ -244,51 +244,51 @@ export interface AuthServiceInterface {
         transaction: Transaction | undefined
     ) => Promise<AuthDataType>,
     /**
-     * Starts the second factor of a login that waits for one, with the given method: sends the user a
+     * Requests the second factor of a login that waits for one, with the given method: sends the user a
      * code, or answers with a challenge for their device.
      *
      * The ticket is the one the login answered with, in its `SecondFactorRequiredError`.
      */
-    startSecondFactorAtLogin: <
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        SecondFactorStartType
+    requestSecondFactorAtLogin: <
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        SecondFactorRequestType
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, SecondFactorStartType>
-    ) => Promise<SecondFactorStartType>,
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, SecondFactorRequestType>
+    ) => Promise<SecondFactorRequestType>,
     /**
      * Requests the registration of the given two factor method for the user of a login that waits for
      * a second factor, who has none yet.
      * @throws A `ForbiddenError` when the user has a second factor, which a login presents instead.
      */
-    requestRegisterTwoFactorMethodAtLogin: <
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        TwoFactorRequestRegisterResult
+    requestTwoFactorRegistrationAtLogin: <
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        TwoFactorRegistrationRequestResult
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult, unknown>,
-        data: TwoFactorRequestRegisterData
-    ) => Promise<TwoFactorRequestRegisterResult>,
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        data: TwoFactorRegistrationRequestData
+    ) => Promise<TwoFactorRegistrationRequestResult>,
     /**
      * Confirms the registration of the given two factor method for the user of a login that waits for
      * a second factor, who has none yet.
      * @throws A `ForbiddenError` when the user has a second factor, which a login presents instead.
      */
-    confirmRegisterTwoFactorMethodAtLogin: <
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+    confirmTwoFactorRegistrationAtLogin: <
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData
     >(
         ticket: string,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>,
-        data: TwoFactorConfirmRegisterData
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>,
+        data: TwoFactorRegistrationConfirmData
     ) => Promise<void>,
     /**
-     * Completes a login that waits for its second factor, with the factor the current request
+     * Confirms the second factor of a login that waits for one, with the factor the current request
      * presents, and starts the login of the provided auth strategy. Spends the ticket.
      */
-    completeLogin: <
+    confirmSecondFactorAtLogin: <
         Role extends string,
         UserType extends BaseUser<Role>,
         AuthDataType,
@@ -300,8 +300,8 @@ export interface AuthServiceInterface {
         transaction: Transaction | undefined
     ) => Promise<AuthDataType>,
     /**
-     * Reads who signed in through the provided authenticator, for creating the user they become, from
-     * the ticket a first sign-in continues with. Does not spend the ticket.
+     * Reads who logged in through the provided authenticator, for creating the user they become, from
+     * the ticket a first login continues with. Does not spend the ticket.
      */
     resolveRegistration: <
         Role extends string,
@@ -310,64 +310,64 @@ export interface AuthServiceInterface {
         TicketType,
         RegistrationType,
         IdentityType extends Pick<BaseEntity, 'id'>,
-        ConnectionRequestType,
-        ConnectionStartType
+        LinkIdentityRequestType,
+        LinkIdentityStartType
     >(
         authenticator: Newable<IdentityLinkingAuthenticatorInterface<
-            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
         ticket: TicketType,
         transaction: Transaction | undefined
     ) => Promise<RegistrationType>,
     /**
      * Links the identity a ticket of the provided authenticator names to a user, so the ticket logs
-     * them in and every later sign-in with the identity finds them. Does not spend the ticket.
+     * them in and every later login with the identity finds them. Does not spend the ticket.
      */
-    linkIdentity: <
+    linkTicketIdentity: <
         Role extends string,
         UserType extends BaseUser<Role>,
         CredentialsType,
         TicketType,
         RegistrationType,
         IdentityType extends Pick<BaseEntity, 'id'>,
-        ConnectionRequestType,
-        ConnectionStartType
+        LinkIdentityRequestType,
+        LinkIdentityStartType
     >(
         authenticator: Newable<IdentityLinkingAuthenticatorInterface<
-            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
         ticket: TicketType,
         userId: string,
         transaction: Transaction | undefined
     ) => Promise<void>,
     /**
-     * Starts connecting an identity of the provided authenticator to the user logged in with the
+     * Requests linking an identity of the provided authenticator to the user logged in with the
      * current request, as the request says. Answers with what the browser needs to go on with it: the
      * url to send it to for a provider, the options to create a passkey with for a passkey.
      */
-    startConnection: <
+    requestLinkIdentity: <
         Role extends string,
         UserType extends BaseUser<Role>,
         CredentialsType,
         TicketType,
         RegistrationType,
         IdentityType extends Pick<BaseEntity, 'id'>,
-        ConnectionRequestType,
-        ConnectionStartType
+        LinkIdentityRequestType,
+        LinkIdentityStartType
     >(
         authenticator: Newable<IdentityLinkingAuthenticatorInterface<
-            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, ConnectionRequestType, ConnectionStartType
+            Role, UserType, CredentialsType, TicketType, RegistrationType, IdentityType, LinkIdentityRequestType, LinkIdentityStartType
         >>,
-        request: ConnectionRequestType
-    ) => Promise<ConnectionStartType>,
+        request: LinkIdentityRequestType
+    ) => Promise<LinkIdentityStartType>,
     /**
-     * Finishes connecting an identity of the provided authenticator to the user logged in with the
-     * current request, with what the client answered to the connection started for them, such as the
+     * Confirms linking an identity of the provided authenticator to the user logged in with the
+     * current request, with what the client answered to the link requested for them, such as the
      * passkey a device created.
      */
-    completeConnection: <Role extends string, UserType extends BaseUser<Role>, CredentialsType, ConnectionAnswerType>(
-        authenticator: Newable<ConnectionCompletingAuthenticatorInterface<Role, UserType, CredentialsType, ConnectionAnswerType>>,
-        answer: ConnectionAnswerType
+    confirmLinkIdentity: <Role extends string, UserType extends BaseUser<Role>, CredentialsType, LinkIdentityAnswerType>(
+        authenticator: Newable<LinkIdentityConfirmingAuthenticatorInterface<Role, UserType, CredentialsType, LinkIdentityAnswerType>>,
+        answer: LinkIdentityAnswerType
     ) => Promise<void>,
     /**
      * Finds the identities linked to a user, each with the name of the authenticator it is linked
@@ -382,9 +382,16 @@ export interface AuthServiceInterface {
         ): Promise<LinkedIdentity<IdentityType>[]>
     },
     /**
-     * Unlinks an identity from a user, whichever authenticator it signs in through.
+     * Unlinks an identity from a user, whichever authenticator it logs in through.
      */
     unlinkIdentity: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    /**
+     * Deletes every row auth keeps for the given users: what each registered authenticator, auth
+     * strategy and two factor method keeps for them, their api keys, failure streaks and login tickets.
+     * Called in the transaction that deletes the users for good, so a user is never gone while their
+     * passwords, second factors or sessions stay; a soft deleted user keeps them.
+     */
+    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>,
     /**
      * Resolves an access token for calling a provider's apis for a user, with an identity of theirs
      * whose tokens are kept, that has been granted the provided scopes. Asks the provider for a new one
@@ -393,15 +400,15 @@ export interface AuthServiceInterface {
     resolveProviderAccessToken: (userId: string, identityId: string, scopes: string[]) => Promise<string>,
     /**
      * Stops keeping the tokens of an identity of a user, and hands them back to the provider. An
-     * identity that does not sign in is unlinked.
+     * identity that does not log in is unlinked.
      */
     revokeProviderAccess: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
-     * Stops an identity of a user from signing in as them, and keeps the provider's tokens for its
-     * apis. An identity without api access is unlinked. Connecting it again to sign in turns signing in
+     * Stops an identity of a user from logging in as them, and keeps the provider's tokens for its
+     * apis. An identity without api access is unlinked. Connecting it again to log in turns logging in
      * on again.
      */
-    revokeProviderSignIn: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
+    revokeProviderLogin: (userId: string, identityId: string, transaction: Transaction | undefined) => Promise<void>,
     /**
      * Creates an api key for a user, with the permissions the key may use. A key that is a secret is
      * sent by a request to act as the user through ApiKeyAuthStrategy, and answers with the key itself,

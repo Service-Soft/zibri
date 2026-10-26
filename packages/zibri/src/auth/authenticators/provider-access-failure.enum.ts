@@ -3,7 +3,7 @@
  */
 export enum ProviderAccessFailure {
     /**
-     * No tokens are kept for the identity: it was linked to sign in only, or its tokens were removed.
+     * No tokens are kept for the identity: it was linked to log in only, or its tokens were removed.
      */
     NOT_CONNECTED = 'not_connected',
     /**

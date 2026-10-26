@@ -1,10 +1,11 @@
-import { USER_REPOSITORY, UserRepositoryInterface } from './user-repository.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { type ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { type SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { UserRepositoryInterface } from './user-repository.interface';
+import { ChangeSetRepository } from '../../data-source/change-sets/change-set-repository';
+import { type ChangeSetEntity } from '../../data-source/change-sets/models/change-set-entity.model';
+import { type SoftDeleteEntity } from '../../data-source/change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../../data-source/change-sets/soft-delete-repository';
 import { Where } from '../../data-source/models/where/where-filter.model';
 import { Repository } from '../../data-source/repository/repository';
+import { USER_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { Newable } from '../../types/newable.type';

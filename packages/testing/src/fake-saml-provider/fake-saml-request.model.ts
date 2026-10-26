@@ -15,7 +15,7 @@ export type FakeSamlRequest = {
      */
     assertionConsumerServiceUrl: string,
     /**
-     * Whether the user is to sign in again rather than reuse a session at the provider.
+     * Whether the user is to log in again rather than reuse a session at the provider.
      */
     forceAuthn: boolean,
     /**

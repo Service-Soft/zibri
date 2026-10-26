@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
+import { ChangeSetEntity } from './change-sets/models/change-set-entity.model';
+import { ChangeSet } from './change-sets/models/change-set.model';
+import { Change } from './change-sets/models/change.model';
+import { SoftDeleteEntity } from './change-sets/models/soft-delete-entity.model';
 import { DataSource } from './decorators/data-source.decorator';
 import { MigrationEntity } from './migration/migration-entity.model';
 import { RepositoryClass } from './repository/repository-class.type';
@@ -8,10 +12,6 @@ import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { startAndStopTestServerWithout } from '../__testing__/test-server/start-and-stop-test-server-without.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
-import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../change-sets/models/change-set.model';
-import { Change } from '../change-sets/models/change.model';
-import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { inject } from '../di/inject.function';
 import { BaseEntity } from '../entity/base-entity.model';

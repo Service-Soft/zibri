@@ -7,6 +7,7 @@ A client binds its tokens to a key pair it holds: it signs a proof with the priv
 | `ZIBRI_DI_TOKENS.DPOP_NONCES` | DI token | Whether a proof carries a nonce your application issued. Defaults to `false` |
 | `ZIBRI_DI_TOKENS.DPOP_SERVICE` | DI token | The service checking proofs, replaceable |
 | `DpopServiceInterface` | interface | What a service of your own implements |
+| `DpopService` | class | Checks the [DPoP](./glossary.md#dpop) proofs of requests. Replaceable through `ZIBRI_DI_TOKENS.DPOP_SERVICE` |
 | `AuthorizationToken` | type | An access token a request sends, and its scheme |
 | `AuthorizationHeaderUtilities` | class | Reads the access token of a request's authorization header |
 

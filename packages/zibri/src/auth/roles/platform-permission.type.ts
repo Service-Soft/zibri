@@ -15,7 +15,7 @@ declare const platformPermission: unique symbol;
  */
 export type PlatformPermission<Value extends string = string> = Value & {
     /**
-     * Present in the type and in no value. See {@link platformPermission}.
+     * Present in the type and in no value.
      */
     readonly [platformPermission]: true
 };

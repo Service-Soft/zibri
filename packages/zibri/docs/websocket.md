@@ -7,13 +7,25 @@ A websocket server is started for an application that declares websockets: one t
 | Export | Kind | Purpose |
 |---|---|---|
 | `WebsocketController` | decorator | Registers a class as a websocket controller |
+| `WebsocketControllerInputData` | type | The options of `@WebsocketController`: an event prefix, the supported versions and a handler timeout |
 | `WebsocketRoute` | decorator | Registers a method to handle an incoming websocket event |
+| `WebsocketRouteOptions` | type | The supported versions and the handler timeout of one `@WebsocketRoute` |
+| `WebsocketEvent`, `LooseWebsocketEvent` | enum, type | The built-in events (an answer, an incomplete replay, a disconnect), and any event name |
 | `WebsocketBody` | decorator | Parses/validates the body of an incoming websocket message, `WebsocketBody.oneOf` for a body of [several shapes](./creating-endpoints.md#a-body-of-several-shapes) |
+| `WebsocketBodyMetadataInput`, `OneOfWebsocketBodyMetadataInput` | type, type | The options of `@WebsocketBody` and of `WebsocketBody.oneOf` |
 | `CurrentWebsocketConnection` | decorator | Injects the connection that sent the current message |
 | `BaseWebsocketConnection` | type | The connection object passed to route handlers |
+| `SocketIOWebsocketConnection` | class | The connection `WebsocketService` passes to route handlers |
+| `WebsocketServiceInterface` | interface | Contract for sending messages, joining and leaving channels and finding connections. Replaceable through ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE |
 | `WebsocketService` | class | Sends messages to a connection, all connections, or a channel |
+| `WebsocketSendData`, `WebsocketSendToAllData`, `WebsocketSendToChannelData` | type, type, type | What `send`, `sendToAll` and `sendToChannel` take: the event, the message, and whether an answer is expected |
+| `WebsocketSendDataMessage`, `WebsocketSendDataSuccessMessage`, `WebsocketSendDataErrorMessage` | type, type, type | The message sent: its `data` when `ok` is `true`, its `error` when `ok` is `false` |
+| `WebsocketSendResult`, `WebsocketSendToMultipleResult` | type, type | What sending returns when an answer is expected: the answer of one connection, or the answers of all of them |
+| `WebsocketRequestWithConnection` | type | What a connection answered, with that connection |
+| `WebsocketResponseHandler` | type | Handles the answer to a message, passed as `responseHandler` |
 | `WebsocketChannel` | entity | Entity used to create and join/leave channels |
 | `WebsocketMessage` | entity | A sent message, kept to replay what a reconnecting client missed |
+| `WebsocketRecipientType` | enum | Whom a message was sent to: all connections, a user or a channel |
 | `WebsocketMessageSequence` | entity | The seq the last message was given |
 | `WebsocketMessageCleanupCronJob` | cron job | Deletes the messages older than `messageRetentionInMs` |
 | `WebsocketReplayIncomplete` | type | What a reconnecting client is sent instead of the messages it missed, when they cannot all be sent |
@@ -21,6 +33,7 @@ A websocket server is started for an application that declares websockets: one t
 | `ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE` | DI token | Injects `WebsocketService` |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT` | DI token | The websocket options your application sets, `messageRetentionInMs` among them |
 | `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS` | DI token | The websocket options in effect, built from `WEBSOCKET_OPTIONS_INPUT` |
+| `WebsocketOptions`, `WebsocketOptionsInput` | type, type | The websocket options in effect, and the ones your application sets |
 
 ## Configuring websockets
 An application with websockets sets how long its messages are kept. Everything else has a default: every connection attempt is accepted, a client has 5 seconds to answer, a handler has 30 seconds, and a reconnecting client is sent at most 1000 messages.
@@ -214,7 +227,7 @@ name is unique within that tenant. A channel created outside every tenant is joi
 inside any of them. A message belongs to the tenant it was sent in.
 
 `sendToAll` inside a tenant reaches the connections of that tenant's members. Outside every tenant it
-reaches every connection. A connection follows the memberships of its user: it receives a tenant's
+reaches every connection. A connection follows the [memberships](./glossary.md#membership) of its user: it receives a tenant's
 broadcasts and the messages of the tenant's channels its user is in once a membership in that tenant
 is stored, and stops receiving them once it is deleted or deactivated. The user stays in those
 channels, and receives them again once they are a member again.
@@ -225,14 +238,17 @@ sent outside every tenant.
 ## Logins
 A connection receives as the user its handshake's credential resolves to, for as long as a request
 with that credential would be accepted. It is closed when its login ends: a logout, ended logins, a
-deactivated user, a revoked token or API key, or a session its provider ended. It is closed when the
+deactivated user, a revoked token or [API key](./glossary.md#api-key), or a session its provider ended. It is closed when the
 credential expires, too. The other logins of the same user stay connected.
+
+A login ends however its rows are written: a refresh token your code deletes through its repository
+closes the connections of its login as a logout does, see [writing a strategy of your own](./auth.md#writing-a-strategy-of-your-own).
 
 An access token that works until it expires keeps its connection until then as well, see
 [when access tokens stop working](./authorization-server.md#when-access-tokens-stop-working).
 
 ## Deadlines
-A handler has a limited time to produce a result, as an HTTP route does. `handlerInMs` in the [options](#configuring-websockets) sets it for the application, 30 seconds by default. A controller sets it for all of its events, and an event sets its own. Below, `suggest` answers a keystroke and gets two seconds, and `export` takes as long as it needs:
+A handler has a limited time to produce a result, as an HTTP route does. `handlerTimeoutInMs` in the [options](#configuring-websockets) sets it for the application, 30 seconds by default. A controller sets it for all of its events, and an event sets its own. Below, `suggest` answers a keystroke and gets two seconds, and `export` takes as long as it needs:
 
 ```ts
 // src/controllers/chat.websocket-controller.ts
@@ -255,7 +271,7 @@ export class ChatWebsocketController {
 
 A handler that runs out of its time is answered on the socket with `ok: false` and status `504`, and its `signal` on the [request context](./request-context.md) fires. The `signal` also fires when the client disconnects.
 
-The handler itself runs on until it returns. The `signal` ends the same three waits it ends for an HTTP request: a call of the HTTP client, waiting for a lease, and waiting for a thread job. See [deadlines](./creating-endpoints.md#deadlines).
+The handler itself runs on until it returns. The `signal` ends the same three waits it ends for an HTTP request: a call of the HTTP client, waiting for a [lease](./glossary.md#lease), and waiting for a thread job. See [deadlines](./creating-endpoints.md#deadlines).
 
 ## Running more than one instance
 
@@ -305,6 +321,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `WebsocketChannel`, `WebsocketMessage`, `WebsocketMessageSequence` | The application declares websockets |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Replication](./replication.md) — everything else that changes once there is more than one instance

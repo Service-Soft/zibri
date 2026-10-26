@@ -203,7 +203,7 @@ describe('evaluation/04-infrastructure-subsystems 4.2 - http client body reads',
         const http: HttpClientInterface = inject(ZIBRI_DI_TOKENS.HTTP_CLIENT);
         const startedAt: number = Date.now();
 
-        await expect(http.get(`${baseUrl}/slow-body`, { timeoutMs: 500 })).rejects.toThrow();
+        await expect(http.get(`${baseUrl}/slow-body`, { timeoutInMs: 500 })).rejects.toThrow();
 
         // the deadline used to be cleared as soon as fetch resolved, which is when the *headers*
         // arrive - the body read then ran with no deadline at all, so a dribbling or hung upstream

@@ -76,6 +76,7 @@ class FormController {
     }
 
     @RouteResponse.object(SearchById)
+    @RouteResponse.object(SearchByName)
     @Post('/search')
     search(
         @Body.oneOf({ type: MimeType.FORM_URL_ENCODED, shapes: [{ type: 'object', cls: () => SearchById }, { type: 'object', cls: () => SearchByName }] })

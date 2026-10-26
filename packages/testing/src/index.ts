@@ -49,6 +49,7 @@ export * from './in-memory-data-source/in-memory-data-source.model';
 export * from './in-memory-data-source/in-memory-store';
 export * from './in-memory-data-source/in-memory-transaction.model';
 export * from './in-memory-data-source/in-memory.repository-driver';
+export * from './jest-config';
 export * from './password-reset-email.template';
 export * from './resolve-application-options.function';
 export * from './round-trip-counter.model';

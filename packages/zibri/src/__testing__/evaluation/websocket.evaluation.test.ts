@@ -13,9 +13,9 @@ import { SocketIOWebsocketConnection } from '../../websocket/models/connection/s
 import { WebsocketMessage } from '../../websocket/models/websocket-message.model';
 import { WebsocketOptionsInput } from '../../websocket/models/websocket-options.model';
 import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
+import { TestTimeouts } from '../constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**
@@ -53,7 +53,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
 const websocketOptions: WebsocketOptionsInput = {
     messageRetentionInMs: Ms.DAY,
     timeoutInMs: 5000,
-    handlerInMs: 5000,
+    handlerTimeoutInMs: 5000,
     isAllowedToConnect: () => true
 };
 

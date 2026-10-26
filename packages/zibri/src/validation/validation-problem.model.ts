@@ -1,4 +1,3 @@
-import { ValidationProblemCode } from './validation-problem-code.enum';
 import { BaseEntity } from '../entity/base-entity.model';
 import { Property, RelationMetadata } from '../entity/decorators/property.decorator';
 import { BelongsToOnePropertyMetadata } from '../entity/models/belongs-to-one-property-metadata.model';
@@ -9,6 +8,7 @@ import { ManyToOnePropertyMetadata } from '../entity/models/many-to-one-property
 import { type OneOfShapeMetadata } from '../entity/models/one-of-property-metadata.model';
 import { OneToManyPropertyMetadata } from '../entity/models/one-to-many-property-metadata.model';
 import { Relation } from '../entity/models/relation.enum';
+import { ValidationProblemCode } from '../error-handling/validation-problem-code.enum';
 import { MimeType } from '../http/mime-type.enum';
 import type { TranslatedString } from '../localization/models/translated-string.model';
 import { $ts } from '../localization/translate.function';

@@ -35,8 +35,8 @@ describe('MultithreadingService, given a job without a timeout', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 1,
-                        defaultTimeoutMs: Ms.HOUR,
-                        defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+                        defaultTimeoutInMs: Ms.HOUR,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},
@@ -54,15 +54,15 @@ describe('MultithreadingService, given a job without a timeout', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('gives a normal job defaultTimeoutMs', async () => {
+    it('gives a normal job defaultTimeoutInMs', async () => {
         const id: string = await multithreadingService.queueThreadJob({ workerData: { filePath: computingWorker, amount: 1 } });
 
-        expect((await threadJobs.findById(id)).timeout).toBe(Ms.HOUR);
+        expect((await threadJobs.findById(id)).timeoutInMs).toBe(Ms.HOUR);
     });
 
-    it('gives a priority job defaultTimeoutPriorityMs', async () => {
+    it('gives a priority job defaultPriorityTimeoutInMs', async () => {
         const id: string = await multithreadingService.queueThreadJob({ workerData: { filePath: computingWorker, amount: 1 }, priority: true });
 
-        expect((await threadJobs.findById(id)).timeout).toBe(Ms.MINUTE * 5);
+        expect((await threadJobs.findById(id)).timeoutInMs).toBe(Ms.MINUTE * 5);
     });
 });

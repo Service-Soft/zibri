@@ -1,4 +1,4 @@
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { zibriFrameworkEntities } from './framework-entities';
 
@@ -103,6 +103,8 @@ export function createPostgresTestDataSource(options: CreatePostgresTestDataSour
         // a harness ships no migrations and needs tables, so this is the one deployment shape it is
         // actually right for
         override schemaManagement: SchemaManagement = 'synchronize';
+
+        override readonly pooler: PostgresPooler = 'none';
     }
 
     return TestPostgresDataSource;

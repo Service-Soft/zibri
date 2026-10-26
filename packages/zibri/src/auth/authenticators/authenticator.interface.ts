@@ -30,7 +30,14 @@ export interface AuthenticatorInterface<
      * Throws an http error below 500 when they do not prove who someone is, and any other error when
      * the check itself could not be made.
      */
-    authenticate: (credentials: CredentialsType, transaction: Transaction | undefined) => Promise<Authentication<UserType>>
+    authenticate: (credentials: CredentialsType, transaction: Transaction | undefined) => Promise<Authentication<UserType>>,
+    /**
+     * Deletes every row the authenticator keeps for the given users, such as their passwords or their
+     * identities at a provider. Called in the transaction that deletes the users for good, so a user
+     * is never gone while their rows stay; a soft deleted user keeps them, and gets them back with a
+     * restore.
+     */
+    deleteUserRows?: (userIds: string[], transaction: Transaction) => Promise<void>
 }
 
 /**

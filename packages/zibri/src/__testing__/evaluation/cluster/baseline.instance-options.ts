@@ -32,7 +32,10 @@ import { defaultTestServerPermissions, defaultTestServerRoles, rolesAndPermissio
  */
 const clusterDataSources: Newable<DataSourceInterface>[] = [
     // needs to be distributed
-    createPostgresTestDataSource({ entities: [...defaultClusterTestEntities, JwtUser, TestMembership, TestRole], repositories: defaultTestServerRepositories })
+    createPostgresTestDataSource({
+        entities: [...defaultClusterTestEntities, JwtUser, TestMembership, TestRole],
+        repositories: defaultTestServerRepositories
+    })
 ];
 
 /**

@@ -15,7 +15,7 @@ export type WebsocketRouteOptions = {
     /**
      * How long the handler of this route has to produce a result.
      *
-     * Overrides what the controller says, which overrides the application's `handlerInMs`. Use
+     * Overrides what the controller says, which overrides the application's `handlerTimeoutInMs`. Use
      * `'none'` for an event that legitimately takes as long as it takes.
      */
     timeoutInMs?: HandlerTimeout

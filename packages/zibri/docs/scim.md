@@ -1,19 +1,25 @@
 # Provisioning through SCIM
-A tenant's identity provider, such as Entra ID, Okta, Google or Keycloak, makes its people members of the [tenant](./tenancy.md) before they first sign in, keeps them up to date, gives them roles there through its groups, and takes their access away the moment they leave. It does so through SCIM, a set of routes your application offers and the identity provider of each tenant calls.
+A tenant's identity provider, such as Entra ID, Okta, Google or Keycloak, makes its people members of the [tenant](./tenancy.md) before they first log in, keeps them up to date, gives them roles there through its groups, and takes their access away the moment they leave. It does so through [SCIM](./glossary.md#scim), a set of routes your application offers and the identity provider of each tenant calls.
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `ScimController` | function | Defines the SCIM routes, for a controller of yours to extend |
+| `ScimControllerClass`, `isScimControllerClass` | type, function | A controller class `ScimController` defined, and the function telling one apart |
 | `ScimControllerOptions`, `ScimBulkOptions` | type | Who may provision, and how much one bulk request may do |
 | `BaseScimProvisioner` | class | Extend it to say what provisioning does to your users |
+| `ScimProvisionerClass` | type | A class extending `BaseScimProvisioner`, as a SCIM request is handled with it |
 | `ScimUserResource` | type | A user as the identity provider provisions it |
 | `ScimGroupResource` | type | A group as the identity provider provisions it |
 | `ScimUser`, `ScimUserValue`, `ScimGroup`, `ScimGroupMember` | entity | The users and groups each tenant's identity provider provisioned, the values filters find users by, and who is a member of which |
 | `ScimMemberType` | enum | Whether a member of a group is a user or a group |
 | `ScimError` | class | An error answered the way SCIM says errors look |
+| `ScimErrorType` | enum | What a `ScimError` says went wrong, as its `scimType` |
 | `ZIBRI_DI_TOKENS.SCIM_SERVICE` | DI token | The service answering the SCIM routes, replaceable |
+| `ScimService` | class | Answers the SCIM routes. Replaceable through `ZIBRI_DI_TOKENS.SCIM_SERVICE` |
 | `ScimServiceInterface`, `ScimEndpoint`, `ScimResourceResponse` | type | What a service of your own implements, and what it is handed and answers |
+| `ScimBody` | class | A SCIM resource or message as the routes take and answer it, with whatever attributes the protocol gives it |
+| `ScimListQuery`, `ScimResourceQuery` | type, type | What a request listing resources asks for, and the attributes a request for one resource asks for |
 
 ## Setting it up
 Declare `ScimUser`, `ScimUserValue`, `ScimGroup` and `ScimGroupMember` in the data source your users live in, next to `ApiKey` and your [memberships](./tenancy.md#members-and-their-roles), and register `ApiKeyAuthStrategy`: the identity provider calls the routes with an [API key](./api-keys.md).
@@ -216,8 +222,10 @@ Your data source declares these entities:
 |---|---|
 | `ScimUser`, `ScimUserValue`, `ScimGroup`, `ScimGroupMember` | A SCIM controller is registered |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
 - [Tenants](./tenancy.md) — memberships, their roles, and deactivating one
 - [Authentication & authorization](./auth.md) — deactivating a user, and the user repository
 - [API keys](./api-keys.md) — the key the identity provider calls with
-- [Sign-in through a provider](./sign-in-through-a-provider.md) — signing the provisioned users in
+- [Login through a provider](./login-through-a-provider.md) — logging the provisioned users in

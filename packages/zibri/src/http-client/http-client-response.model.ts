@@ -10,7 +10,7 @@ import { Newable } from '../types/newable.type';
 import { OmitStrict } from '../types/omit-strict.type';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type JsonResponseBodyInput<
+export type JsonResponseBodyInput<
     T extends object,
     IsArray extends boolean
 > = OmitStrict<JsonBodyMetadataInput, 'type' | 'isArray'> & {
@@ -38,7 +38,7 @@ type JsonResponseBodyInput<
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type XmlResponseBodyInput<
+export type XmlResponseBodyInput<
     T extends object,
     IsArray extends boolean
 > = OmitStrict<XmlBodyMetadataInput, 'type' | 'isArray'> & {
@@ -66,7 +66,7 @@ type XmlResponseBodyInput<
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type FormDataResponseBodyInput<T extends object> = OmitStrict<FormDataBodyMetadataInput, 'type'> & {
+export type FormDataResponseBodyInput<T extends object> = OmitStrict<FormDataBodyMetadataInput, 'type'> & {
     /**
      * The type of the response.
      */
@@ -87,7 +87,7 @@ type FormDataResponseBodyInput<T extends object> = OmitStrict<FormDataBodyMetada
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type FormUrlEncodedResponseBodyInput<T extends object> = OmitStrict<FormUrlEncodedBodyMetadataInput, 'type'> & {
+export type FormUrlEncodedResponseBodyInput<T extends object> = OmitStrict<FormUrlEncodedBodyMetadataInput, 'type'> & {
     /**
      * The type of the response.
      */
@@ -108,7 +108,7 @@ type FormUrlEncodedResponseBodyInput<T extends object> = OmitStrict<FormUrlEncod
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type StreamResponseBodyInput = StreamBodyMetadataInput & Pick<StreamBodyMetadataInput, 'type'>;
+export type StreamResponseBodyInput = StreamBodyMetadataInput & Pick<StreamBodyMetadataInput, 'type'>;
 
 // the types whose body is a model or several shapes, and is read the same way either way
 // eslint-disable-next-line jsdoc/require-jsdoc

@@ -5,6 +5,7 @@ import { Duplex } from 'node:stream';
 import express, { ErrorRequestHandler, RequestHandler } from 'express';
 
 import { HstsOptions, ZibriApplicationOptions, ZibriApplicationSecurityOptions } from './application-options.model';
+import { ZIBRI_ENVIRONMENTS } from './zibri-environment.type';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
 import { isTwoFactorMethod } from '../auth/2fa/methods/two-factor-method.interface';
 import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
@@ -63,14 +64,21 @@ import { Ms } from '../utilities/ms';
 import { NumberUtilities } from '../utilities/number.utilities';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins' | 'security'>> & {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+/**
+ * The options of a built application, with every default filled in.
+ */
+export type FullZibriApplicationOptions = Required<OmitStrict<ZibriApplicationOptions, 'plugins' | 'security'>> & {
+    /**
+     * The security options, each with its default where the application named none.
+     */
     security: ZibriApplicationSecurityOptions
 };
 
+/**
+ * All signals that trigger a shutdown.
+ */
 // eslint-disable-next-line typescript/typedef
-const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
+export const SHUTDOWN_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'] as const;
 
 const DEFAULT_SHUTDOWN_TIMEOUT_IN_MS: number = Ms.SECOND * 30;
 
@@ -342,6 +350,13 @@ export class ZibriApplication {
     async init(): Promise<void> {
         initDiContainer();
 
+        // checked at runtime as well: the type requires it, but an application built against an older
+        // declaration passes nothing, and "nothing" must not read as either environment
+        if (!ZIBRI_ENVIRONMENTS.includes(this.options.environment)) {
+            throw new InternalError(
+                `The environment has to be one of ${ZIBRI_ENVIRONMENTS.join(', ')}, got ${String(this.options.environment)}.`
+            );
+        }
         GlobalRegistry.setAppData(this.options);
 
         for (const provider of this.options.providers) {
@@ -437,9 +452,10 @@ export class ZibriApplication {
      */
     private createHttpServer(): Server {
         const limits: HttpServerLimits = inject(ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS);
-        if (limits.headersInMs > limits.requestInMs) {
+        if (limits.headersTimeoutInMs > limits.requestTimeoutInMs) {
             throw new InternalError(
-                `The headers timeout (${limits.headersInMs}ms) has to be at most the request timeout (${limits.requestInMs}ms).`
+                `The headers timeout (${limits.headersTimeoutInMs}ms) has to be at most `
+                + `the request timeout (${limits.requestTimeoutInMs}ms).`
             );
         }
         const headerLimits: [string, number][] = [
@@ -465,9 +481,9 @@ export class ZibriApplication {
             this.express(req, res);
         });
         server.maxHeadersCount = limits.maxHeaderCount + 1;
-        server.requestTimeout = limits.requestInMs;
-        server.headersTimeout = limits.headersInMs;
-        server.keepAliveTimeout = limits.keepAliveInMs;
+        server.requestTimeout = limits.requestTimeoutInMs;
+        server.headersTimeout = limits.headersTimeoutInMs;
+        server.keepAliveTimeout = limits.keepAliveTimeoutInMs;
         // an upgraded connection - a websocket - leaves the list the server closes connections by,
         // while `close` keeps waiting for it. Kept here so that a shutdown can end it, since it never
         // ends on its own
@@ -1066,18 +1082,24 @@ export class ZibriApplication {
         const hsts: DeepPartial<HstsOptions> | boolean | undefined = this.providedOptions.security?.headers?.[KnownHeader.STRICT_TRANSPORT_SECURITY];
 
         const res: FullZibriApplicationOptions = {
-            dataSources: [],
-            authStrategies: [],
-            authenticators: [],
-            twoFactorMethods: [],
-            bodyParsers: [],
-            providers: [],
-            cronJobs: [],
-            backupTransports: [],
             ...this.providedOptions,
+            // copies, because the application adds to its lists while it starts - its default auth
+            // strategy and authenticator, the cron jobs a feature registers - and the caller's own
+            // arrays are no place for that: a second application built from the same options would
+            // start with what the first one added
+            dataSources: [...this.providedOptions.dataSources ?? []],
+            authStrategies: [...this.providedOptions.authStrategies ?? []],
+            authenticators: [...this.providedOptions.authenticators ?? []],
+            twoFactorMethods: [...this.providedOptions.twoFactorMethods ?? []],
+            bodyParsers: [...this.providedOptions.bodyParsers ?? []],
+            providers: [...this.providedOptions.providers ?? []],
+            cronJobs: [...this.providedOptions.cronJobs ?? []],
+            backupTransports: [...this.providedOptions.backupTransports ?? []],
+            controllers: [...this.providedOptions.controllers],
+            websocketControllers: [...this.providedOptions.websocketControllers],
             // after the spread rather than among the defaults above, because an option that is
             // present and undefined takes the default away again
-            additionalLifecycleServices: this.providedOptions.additionalLifecycleServices ?? [],
+            additionalLifecycleServices: [...this.providedOptions.additionalLifecycleServices ?? []],
             twoFactorFailureLimit: this.providedOptions.twoFactorFailureLimit ?? false,
             passwordFailureLimit: this.providedOptions.passwordFailureLimit ?? false,
             security: {

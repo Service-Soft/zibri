@@ -556,7 +556,7 @@ describe('circuit breaker', () => {
     }
 
     it('refuses requests to an origin that failed too often in a row without sending them, and only to that origin', async () => {
-        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: Ms.MINUTE } });
 
         expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
         expect(await failureOf(http.get(`${downUrl}/status`))).toMatchObject({ responseData: { status: 503 } });
@@ -571,14 +571,14 @@ describe('circuit breaker', () => {
     });
 
     it('stops retrying once the circuit opens', async () => {
-        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: Ms.MINUTE } });
 
         expect(await failureOf(http.get(`${downUrl}/status`, { attempts: 5 }))).toBeInstanceOf(CircuitOpenError);
         expect(downRequests).toBe(2);
     });
 
-    it('lets one request through after openForMs, and closes when it is answered', async () => {
-        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: 200 } });
+    it('lets one request through after openForInMs, and closes when it is answered', async () => {
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: 200 } });
         await failureOf(http.get(`${downUrl}/status`));
         await failureOf(http.get(`${downUrl}/status`));
 
@@ -594,7 +594,7 @@ describe('circuit breaker', () => {
     });
 
     it('opens again at once when the request let through fails', async () => {
-        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: 200 } });
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: 200 } });
         await failureOf(http.get(`${downUrl}/status`));
         await failureOf(http.get(`${downUrl}/status`));
 
@@ -605,7 +605,7 @@ describe('circuit breaker', () => {
     });
 
     it('counts any answer below 500 as the origin being up', async () => {
-        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: Ms.MINUTE } });
 
         await failureOf(http.get(`${downUrl}/status`));
         downStatus = 429;
@@ -618,7 +618,7 @@ describe('circuit breaker', () => {
     });
 
     it('counts a request that got no answer as a failure', async () => {
-        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForMs: Ms.MINUTE } });
+        const http: HttpClientInterface = clientWith({ circuitBreaker: { failuresToOpen: 2, openForInMs: Ms.MINUTE } });
         // port 1 refuses the connection at once
         await failureOf(http.get('http://127.0.0.1:1/status'));
         await failureOf(http.get('http://127.0.0.1:1/status'));

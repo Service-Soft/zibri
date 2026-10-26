@@ -38,10 +38,10 @@ import { FederatedProviderLogout } from '../federated/federated-provider-logout.
 import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
 import { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import { FederatedSession } from '../federated/federated-session.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInStart } from '../federated/federated-sign-in-start.model';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
-import { FederatedSignIn } from '../federated/federated-sign-in.model';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginStart } from '../federated/federated-login-start.model';
+import { FederatedLoginError } from '../federated/federated-login.error';
+import { FederatedLogin } from '../federated/federated-login.model';
 import { FederatedSoapLogout } from '../federated/federated-soap-logout.model';
 
 /**
@@ -71,7 +71,7 @@ const LOGOUT_RESPONSE_PATH: string = '//*[local-name(.)=\'LogoutResponse\' and n
 const LOGOUT_RESPONSE_ISSUER_PATH: string = `${LOGOUT_RESPONSE_PATH}/*[local-name(.)='Issuer']`;
 
 /**
- * The NameID format of an id that is new for every sign-in, which could never find the user again.
+ * The NameID format of an id that is new for every login, which could never find the user again.
  */
 const TRANSIENT_NAME_ID_FORMAT: string = 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient';
 
@@ -148,15 +148,15 @@ type ReadSettings = {
 };
 
 /**
- * Authenticates a user by a sign-in at a SAML 2.0 identity provider, such as Microsoft Entra ID, Okta,
+ * Authenticates a user by a login at a SAML 2.0 identity provider, such as Microsoft Entra ID, Okta,
  * ADFS or Keycloak: the browser is sent there with a request, and comes back with a signed answer it
  * posts to the callback.
  *
  * Extend it once for every identity provider, naming the provider, the entity id of the application
- * and where the provider's metadata is. The sign-in itself runs through the routes of `AuthController`,
+ * and where the provider's metadata is. The login itself runs through the routes of `AuthController`,
  * which publish the metadata of the application at `/auth/federated/{name}/metadata`.
  *
- * Only an answer to a request this browser sent is taken. A sign-in the identity provider starts on
+ * Only an answer to a request this browser sent is taken. A login the identity provider starts on
  * its own, such as from the tile of the application in its portal, is refused: configure the tile
  * with the authorize route of the provider as its sign-on url.
  */
@@ -176,7 +176,7 @@ export abstract class BaseSamlAuthenticator<
     abstract readonly entityId: string;
 
     /**
-     * Where the identity provider's metadata is, or where it signs users in and what it signs with.
+     * Where the identity provider's metadata is, or where it logs users in and what it signs with.
      */
     abstract readonly identityProvider: SamlIdentityProvider;
 
@@ -186,9 +186,9 @@ export abstract class BaseSamlAuthenticator<
     readonly nameIdFormat: SamlNameIdFormat = SamlNameIdFormat.PERSISTENT;
 
     /**
-     * The classes of authentication a sign-in asks the identity provider for, as the
+     * The classes of authentication a login asks the identity provider for, as the
      * RequestedAuthnContext of the request names them, such as one that stands for a second factor.
-     * None by default, which leaves how the user signs in to the identity provider.
+     * None by default, which leaves how the user logs in to the identity provider.
      */
     readonly requestedAuthnContext: string[] = [];
 
@@ -217,7 +217,7 @@ export abstract class BaseSamlAuthenticator<
 
     /**
      * The metadata of the identity provider as it was last read. Dropped when reading it failed and
-     * nothing was read before, so the next sign-in tries again.
+     * nothing was read before, so the next login tries again.
      */
     private readSettings: ReadSettings | undefined;
 
@@ -230,13 +230,13 @@ export abstract class BaseSamlAuthenticator<
         this.resolveNodeSaml();
         const urls: string[] = 'metadataUrl' in this.identityProvider
             ? [this.identityProvider.metadataUrl]
-            : [this.identityProvider.signInUrl, ...this.identityProvider.logoutUrl == undefined ? [] : [this.identityProvider.logoutUrl]];
+            : [this.identityProvider.loginUrl, ...this.identityProvider.logoutUrl == undefined ? [] : [this.identityProvider.logoutUrl]];
         for (const url of urls) {
             this.validateProviderUrl(url);
         }
         // a logout here sends the browser on to the identity provider, which sends it back to land here
-        if (this.resolveOptions().signedOutUrl == undefined) {
-            throw new InternalError(`${this.constructor.name} needs FEDERATION_OPTIONS to name a signedOutUrl, where a logout lands.`);
+        if (this.resolveOptions().loggedOutUrl == undefined) {
+            throw new InternalError(`${this.constructor.name} needs FEDERATION_OPTIONS to name a loggedOutUrl, where a logout lands.`);
         }
         if ('certificates' in this.identityProvider && !this.identityProvider.certificates.length) {
             throw new InternalError(
@@ -272,7 +272,7 @@ export abstract class BaseSamlAuthenticator<
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveFormPostOrigins(): Promise<string[]> {
         const settings: SamlIdentityProviderSettings = await this.resolveSettings();
-        const urls: string[] = [settings.signInUrl, settings.logoutUrl, settings.logoutPostUrl].filter(url => url != undefined);
+        const urls: string[] = [settings.loginUrl, settings.logoutUrl, settings.logoutPostUrl].filter(url => url != undefined);
         return [...new Set(urls.map(url => new URL(url).origin))];
     }
 
@@ -353,7 +353,7 @@ export abstract class BaseSamlAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async createSignInUrl(start: FederatedSignInStart): Promise<string> {
+    protected async createLoginUrl(start: FederatedLoginStart): Promise<string> {
         const settings: SamlIdentityProviderSettings = await this.resolveSettings();
         const saml: SAML = this.createSaml(settings, this.toRequestId(start.binding), start.reauthenticate);
         return await saml.getAuthorizeUrlAsync(start.state, undefined, {});
@@ -363,17 +363,17 @@ export abstract class BaseSamlAuthenticator<
     protected async verifyAnswer(
         answer: URLSearchParams,
         context: FederatedAnswerContext
-    ): Promise<FederatedSignIn | FederatedReauthentication> {
+    ): Promise<FederatedLogin | FederatedReauthentication> {
         const response: string | null = answer.get('SAMLResponse');
         if (response == undefined) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: context.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: context.action });
         }
         let settings: SamlIdentityProviderSettings;
         try {
             settings = await this.resolveSettings();
         }
         catch (error) {
-            throw new FederatedSignInError(FederatedSignInFailure.PROVIDER_ERROR, { cause: error, action: context.action });
+            throw new FederatedLoginError(FederatedLoginFailure.PROVIDER_ERROR, { cause: error, action: context.action });
         }
         let profile: Profile | null;
         try {
@@ -383,12 +383,12 @@ export abstract class BaseSamlAuthenticator<
             ({ profile } = await saml.validatePostResponseAsync({ SAMLResponse: response }));
         }
         catch (error) {
-            throw new FederatedSignInError(this.toFailure(error), { cause: error, action: context.action });
+            throw new FederatedLoginError(this.toFailure(error), { cause: error, action: context.action });
         }
         if (profile == undefined) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: context.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: context.action });
         }
-        return this.toSignIn(profile, context);
+        return this.toLogin(profile, context);
     }
 
     protected override readState(answer: URLSearchParams): string | null {
@@ -442,7 +442,7 @@ export abstract class BaseSamlAuthenticator<
      * @throws When it is not installed.
      */
     protected resolveNodeSaml(): NodeSaml {
-        return optionalPeer<NodeSaml>('@node-saml/node-saml', 'Sign-in through a SAML identity provider');
+        return optionalPeer<NodeSaml>('@node-saml/node-saml', 'Login through a SAML identity provider');
     }
 
     /**
@@ -610,25 +610,25 @@ export abstract class BaseSamlAuthenticator<
     }
 
     private resolveNodeSamlXml(): NodeSamlXml {
-        return optionalPeer<NodeSamlXml>('@node-saml/node-saml/lib/xml', 'Sign-in through a SAML identity provider');
+        return optionalPeer<NodeSamlXml>('@node-saml/node-saml/lib/xml', 'Login through a SAML identity provider');
     }
 
-    private toSignIn(profile: Profile, context: FederatedAnswerContext): FederatedSignIn | FederatedReauthentication {
+    private toLogin(profile: Profile, context: FederatedAnswerContext): FederatedLogin | FederatedReauthentication {
         // the identity provider's own answer, signed: one by another identity provider whose
         // certificate happens to be configured would otherwise be taken for this one's
         if (profile.issuer !== this.issuer) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: context.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: context.action });
         }
-        // a transient NameID is new for every sign-in, so it would link a new identity each time
+        // a transient NameID is new for every login, so it would link a new identity each time
         if (!profile.nameID || profile.nameIDFormat === TRANSIENT_NAME_ID_FORMAT) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: context.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: context.action });
         }
         const authenticatedAt: Date | undefined = this.findAuthnInstant(profile);
         if (authenticatedAt == undefined) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { action: context.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { action: context.action });
         }
-        // SAML has no way to tell the provider how old a sign-in may be, so an older one is asked for
-        // again rather than refused: the user signs in once more and lands where they wanted
+        // SAML has no way to tell the provider how old a login may be, so an older one is asked for
+        // again rather than refused: the user logs in once more and lands where they wanted
         if (Date.now() - authenticatedAt.getTime() > context.maxAuthenticationAgeInMs) {
             return { reauthenticate: true };
         }
@@ -711,7 +711,7 @@ export abstract class BaseSamlAuthenticator<
     }
 
     /**
-     * Reads when the user signed in at the identity provider, from the authentication statement of the
+     * Reads when the user logged in at the identity provider, from the authentication statement of the
      * assertion.
      * @param profile - What the identity provider sent about the user.
      * @returns The time, or undefined when the assertion does not say.
@@ -730,7 +730,7 @@ export abstract class BaseSamlAuthenticator<
      * Reads back what a login kept to end its session at the identity provider.
      * @param logout - What the login kept.
      * @returns The user and the session the logout request names.
-     * @throws InternalError when it is not what a sign-in through this authenticator keeps.
+     * @throws InternalError when it is not what a login through this authenticator keeps.
      */
     private toLogoutSubject(logout: string): SamlLogoutSubject {
         const value: unknown = JsonUtilities.parse(logout);
@@ -755,20 +755,20 @@ export abstract class BaseSamlAuthenticator<
         };
     }
 
-    private toFailure(error: unknown): FederatedSignInFailure {
+    private toFailure(error: unknown): FederatedLoginFailure {
         const { SamlStatusError } = this.resolveNodeSaml();
         if (!(error instanceof SamlStatusError)) {
-            return FederatedSignInFailure.INVALID;
+            return FederatedLoginFailure.INVALID;
         }
         // the status is the identity provider's own word, which it signs only sometimes - so it says
-        // why the user is not signed in, never that they are
-        return error.xmlStatus.includes(REQUEST_DENIED_STATUS) ? FederatedSignInFailure.CANCELLED : FederatedSignInFailure.PROVIDER_ERROR;
+        // why the user is not logged in, never that they are
+        return error.xmlStatus.includes(REQUEST_DENIED_STATUS) ? FederatedLoginFailure.CANCELLED : FederatedLoginFailure.PROVIDER_ERROR;
     }
 
     /**
      * The id of the request the browser is sent to the identity provider with, which its answer has to
-     * name. Worked out from the cookie of the sign-in, the way an OpenID Connect nonce is, so nothing
-     * has to be stored and only the browser holding the cookie can complete the sign-in.
+     * name. Worked out from the cookie of the login, the way an OpenID Connect nonce is, so nothing
+     * has to be stored and only the browser holding the cookie can complete the login.
      * @param binding - The secret of the cookie.
      * @returns The id, starting with an underscore since an XML id cannot start with a digit.
      */
@@ -785,7 +785,7 @@ export abstract class BaseSamlAuthenticator<
         const { SAML, ValidateInResponseTo } = this.resolveNodeSaml();
         return new SAML({
             callbackUrl: this.getCallbackUrl(),
-            entryPoint: settings.signInUrl,
+            entryPoint: settings.loginUrl,
             // where a logout response says it goes, which is the url for posted messages when the
             // provider has no other
             logoutUrl: settings.logoutUrl ?? settings.logoutPostUrl,
@@ -797,7 +797,7 @@ export abstract class BaseSamlAuthenticator<
             identifierFormat: this.nameIdFormat,
             forceAuthn,
             // only the classes the authenticator names: the library's own default asks for a
-            // password-protected sign-in, which turns away one with a passkey, a smart card or
+            // password-protected login, which turns away one with a passkey, a smart card or
             // windows authentication, and that is the identity provider's to decide
             authnContext: this.requestedAuthnContext,
             disableRequestedAuthnContext: !this.requestedAuthnContext.length,
@@ -836,7 +836,7 @@ export abstract class BaseSamlAuthenticator<
     }
 
     /**
-     * Where the identity provider signs users in and what it signs with, read from its metadata when it
+     * Where the identity provider logs users in and what it signs with, read from its metadata when it
      * is given as a url.
      *
      * Read again once a day, so a certificate the provider rotates is picked up. When reading it again
@@ -848,7 +848,7 @@ export abstract class BaseSamlAuthenticator<
         const provider: SamlIdentityProvider = this.identityProvider;
         if (!('metadataUrl' in provider)) {
             return {
-                signInUrl: provider.signInUrl,
+                loginUrl: provider.loginUrl,
                 certificates: provider.certificates,
                 logoutUrl: provider.logoutUrl,
                 logoutPostUrl: undefined
@@ -858,7 +858,7 @@ export abstract class BaseSamlAuthenticator<
         if (previous != undefined && Date.now() - previous.readAt < METADATA_MAX_AGE_IN_MS) {
             return await previous.settings;
         }
-        // one reading for every sign-in that needs it meanwhile
+        // one reading for every login that needs it meanwhile
         const reading: ReadSettings = { settings: this.readMetadata(provider.metadataUrl), readAt: Date.now() };
         this.readSettings = reading;
         try {
@@ -893,8 +893,8 @@ export abstract class BaseSamlAuthenticator<
         if (metadata.entityId !== this.issuer) {
             throw new InternalError(`The metadata at ${metadataUrl} is about ${metadata.entityId}, not about ${this.issuer}.`);
         }
-        const signInUrl: string | undefined = this.findRedirectLocation(metadata.identityProvider?.signInServices ?? []);
-        if (signInUrl == undefined) {
+        const loginUrl: string | undefined = this.findRedirectLocation(metadata.identityProvider?.loginServices ?? []);
+        if (loginUrl == undefined) {
             throw new InternalError(`The metadata at ${metadataUrl} names no single sign-on url for the HTTP-Redirect binding.`);
         }
         const certificates: string[] = (metadata.identityProvider?.keys ?? [])
@@ -905,7 +905,7 @@ export abstract class BaseSamlAuthenticator<
         if (!certificates.length) {
             throw new InternalError(`The metadata at ${metadataUrl} names no signing certificate.`);
         }
-        this.validateProviderUrl(signInUrl);
+        this.validateProviderUrl(loginUrl);
         const logoutServices: SamlMetadataEndpoint[] = metadata.identityProvider?.logoutServices ?? [];
         const logoutUrl: string | undefined = this.findLocation(logoutServices, HTTP_REDIRECT_BINDING);
         const logoutPostUrl: string | undefined = this.findLocation(logoutServices, HTTP_POST_BINDING);
@@ -914,7 +914,7 @@ export abstract class BaseSamlAuthenticator<
                 this.validateProviderUrl(url);
             }
         }
-        return { signInUrl, certificates, logoutUrl, logoutPostUrl };
+        return { loginUrl, certificates, logoutUrl, logoutPostUrl };
     }
 
     private findRedirectLocation(endpoints: SamlMetadataEndpoint[]): string | undefined {

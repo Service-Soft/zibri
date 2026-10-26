@@ -184,7 +184,13 @@ const options: StartTestServerOptions = {
     // this repository's own fixtures plus the mark table, the way every other suite here declares a
     // data source: importing the helper above registers JwtUser, and a registered entity no data
     // source declares is refused at boot
-    dataSources: [createTestDataSource({ entities: [...defaultTestServerEntities, ClusterMark], repositories: defaultTestServerRepositories }), ShutdownValKeyDataSource],
+    dataSources: [
+        createTestDataSource({
+            entities: [...defaultTestServerEntities, ClusterMark],
+            repositories: defaultTestServerRepositories
+        }),
+        ShutdownValKeyDataSource
+    ],
     // spread rather than replaced: providers is the same field startTestServer takes, where what is
     // passed is what is used, so all the defaults have to be kept here
     providers: [

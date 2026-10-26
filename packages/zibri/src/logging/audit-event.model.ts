@@ -47,7 +47,7 @@ export enum AuditAction {
      */
     TWO_FACTOR_RESET = 'auth.2fa.reset',
     /**
-     * Linking an identity at a provider to a user who already exists, which it signs in as from then on.
+     * Linking an identity at a provider to a user who already exists, which it logs in as from then on.
      */
     IDENTITY_LINKED = 'auth.identity.linked',
     /**
@@ -55,10 +55,10 @@ export enum AuditAction {
      */
     IDENTITY_UNLINKED = 'auth.identity.unlinked',
     /**
-     * Stopping an identity at a provider from signing in as its user, which stays linked for the
+     * Stopping an identity at a provider from logging in as its user, which stays linked for the
      * provider's apis.
      */
-    IDENTITY_SIGN_IN_REVOKED = 'auth.identity.sign-in-revoked',
+    IDENTITY_LOGIN_REVOKED = 'auth.identity.login-revoked',
     /**
      * Starting to keep a provider's tokens for an identity, which lets the application call the
      * provider's apis for the user it is linked to.

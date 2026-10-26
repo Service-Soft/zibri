@@ -36,7 +36,7 @@ describe('AddCommand', () => {
         process.env['GIT_CONFIG_NOSYSTEM'] = '1';
         workDir = await emptyWorkDirectory('add-command');
         execSpy = jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
-        project = await GeneratedProject.create(workDir, ['none', 'requireLogin', 'none']);
+        project = await GeneratedProject.create(workDir, ['none', 'isLoggedIn', 'none']);
         execSpy.mockClear();
     });
 

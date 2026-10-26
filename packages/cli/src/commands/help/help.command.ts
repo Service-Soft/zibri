@@ -18,11 +18,11 @@ export class HelpCommand extends BaseCommand {
         console.log(this.getCommandLabel(Command.VERSION, Command.V), 'shows the currently used version');
         console.log(
             this.getCommandLabel(Command.NEW, Command.N),
-            `creates a new Zibri application, as "new [name] [github|none] [requireLogin|public] [${FEATURE_LIST}|none]"`
+            `creates a new Zibri application, as "new [name] [github|none] [isLoggedIn|public] [${FEATURE_LIST}|none]"`
         );
         console.log(
             this.getCommandLabel(Command.UPGRADE, Command.U),
-            'brings the project in this folder to what this version generates, as "upgrade [github|none] [requireLogin|public]"'
+            'brings the project in this folder to what this version generates, as "upgrade [github|none] [isLoggedIn|public]"'
         );
         console.log(
             this.getCommandLabel(Command.ADD, Command.A),

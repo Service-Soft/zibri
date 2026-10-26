@@ -18,7 +18,7 @@ export type GcraState = BaseRateLimitState & {
      * The theoretical arrival time (ms) — how far into the future consumed
      * capacity has pushed the limiter's clock.
      */
-    readonly theoreticalArrivalTimeMs: number,
+    readonly theoreticalArrivalAtMs: number,
     /**
      * Tokens debited by pending reservations.
      */
@@ -40,7 +40,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
         config: RateLimiterConfigInput<GcraState>
     ) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
@@ -50,7 +50,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected initialAlgoState(now: number): GcraState {
         return {
-            theoreticalArrivalTimeMs: now,
+            theoreticalArrivalAtMs: now,
             reservedCount: 0,
             reservations: [],
             expiresAtMs: now + this.intervalInMs
@@ -69,7 +69,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
 
     private rawTokens(state: GcraState, now: number): number {
         const burstMs: number = this.intervalInMs;
-        const outstanding: number = Math.max(0, state.theoreticalArrivalTimeMs - now);
+        const outstanding: number = Math.max(0, state.theoreticalArrivalAtMs - now);
         const charged: number = Math.min(burstMs, outstanding);
         return Math.floor(
             NumberUtilities.multiply(burstMs - charged, this.config.capacity)
@@ -141,11 +141,11 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
                 .multiply(this.intervalInMs, r.count)
                 .dividedBy(this.config.capacity)
                 .toNumber();
-            const newTat: number = Math.max(current.theoreticalArrivalTimeMs, now) + incrementMs;
+            const newTat: number = Math.max(current.theoreticalArrivalAtMs, now) + incrementMs;
 
             return {
                 ...current,
-                theoreticalArrivalTimeMs: newTat,
+                theoreticalArrivalAtMs: newTat,
                 reservedCount: current.reservedCount - r.count,
                 reservations: current.reservations.filter((_, i) => i !== index)
             };
@@ -194,7 +194,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
                 key,
                 (current) => {
                     const state: GcraState = current ?? this.initialAlgoState(now);
-                    const prevTat: number = state.theoreticalArrivalTimeMs;
+                    const prevTat: number = state.theoreticalArrivalAtMs;
                     const tatBase: number = Math.max(prevTat, now);
                     const newTat: number = tatBase + incrementMs;
                     allowAtMs = newTat - burstMs;
@@ -211,7 +211,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
 
                     return {
                         ...state,
-                        theoreticalArrivalTimeMs: tatAfterOp,
+                        theoreticalArrivalAtMs: tatAfterOp,
                         // reservedCount unchanged
                         expiresAtMs: Math.max(state.expiresAtMs, now + this.intervalInMs)
                     };
@@ -225,7 +225,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
 
         // Capacity still "owed" to the limiter, in ms, converted back into
         // resource units to report `remaining`.
-        const outstanding: number = Math.max(0, value.theoreticalArrivalTimeMs - now);
+        const outstanding: number = Math.max(0, value.theoreticalArrivalAtMs - now);
         const charged: number = Math.min(burstMs, outstanding);
         const rawRemaining: number = Math.floor(
             NumberUtilities.multiply(burstMs - charged, this.config.capacity)
@@ -238,7 +238,7 @@ export class GcraRateLimiter extends BaseRateLimiter<GcraState> {
             allowed,
             limit: this.config.capacity,
             remaining,
-            resetsAtMs: Math.ceil(value.theoreticalArrivalTimeMs),
+            resetsAtMs: Math.ceil(value.theoreticalArrivalAtMs),
             ...!allowed && { retryAtMs: Math.max(now, Math.ceil(allowAtMs)) }
         };
     }

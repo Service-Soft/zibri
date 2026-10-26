@@ -34,6 +34,7 @@ import { Newable } from '../../types/newable.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { TestMembership } from '../mocks/entities/test-membership.entity';
 import { TestRole } from '../mocks/entities/test-role.entity';
@@ -41,7 +42,6 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../tes
 import { DefaultTestServerMembershipRepository } from '../test-server/membership-repository';
 import { defaultTestServerProviders, rolesAndPermissionsProviders, TestServerRole } from '../test-server/providers';
 import { DefaultTestServerRoleRepository } from '../test-server/role-repository';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

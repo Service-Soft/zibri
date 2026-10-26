@@ -14,6 +14,7 @@ import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthStrategyInterface } from '../auth-strategy.interface';
 import { AuthorizationHeaderUtilities } from '../authorization-header.utilities';
 import { AuthorizationToken } from '../authorization-token.model';
+import { CredentialEntity } from '../credential-entity.model';
 import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities';
 
 /**
@@ -30,6 +31,10 @@ export class ProviderTokenAuthStrategy<
 > implements AuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'provider-token';
+
+    // the provider keeps whatever its tokens are checked against
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialEntities: CredentialEntity[] = [];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {

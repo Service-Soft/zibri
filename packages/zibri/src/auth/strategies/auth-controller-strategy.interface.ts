@@ -28,7 +28,7 @@ export interface AuthControllerStrategyInterface<
     readonly logoutModel: Newable<Omit<LogoutDataType, 'transaction'>>,
     /**
      * Whether a login the strategy starts goes out with the response it is started in, as cookies do.
-     * A sign-in at a provider without a code challenge logs in on the redirect back from it, which only
+     * A login at a provider without a code challenge completes on the redirect back from it, which only
      * such a strategy can do. Any other strategy has the login handed over by code.
      */
     readonly logsInWithResponse: boolean,

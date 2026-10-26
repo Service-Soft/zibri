@@ -8,39 +8,103 @@ side.
 | Export | Kind | Purpose |
 |---|---|---|
 | `DataSource` | decorator | Registers a class as a data source |
+| `DataSourceMetadataInput` | type | What `@DataSource` takes: its injectable options and `allowOrphan` |
 | `DataSourceInterface` | interface | Contract a data source must implement |
+| `DataSourceInitializationError` | error | Thrown when a data source is used before it was initialized |
+| `isDataSource` | function | Whether a value is a data source |
+| `SqlDataSourceInterface`, `QueryOptions`, `QueryBuilder` | interface, type, type | A data source whose `query` starts a SQL query builder on the table of an entity, the options `query` takes, and the builder it returns |
+| `ParameterizedSql` | type | A piece of SQL with a `:name` placeholder for every value, and the values they stand for |
+| `PubSubDataSourceInterface`, `isPubSubDataSource`, `DataSourceSubscription` | interface, function, type | A data source that carries messages between instances with `publish` and `subscribe`, whether a value is one, and a subscription that `unsubscribe` ends |
+| `DataSourceServiceInterface`, `DataSourceService` | interface, class | Starts and stops the data sources. Replaceable through `ZIBRI_DI_TOKENS.DATA_SOURCE_SERVICE` |
 | `PostgresDataSource` | class | Predefined data source for Postgres, extend from this instead of implementing `DataSourceInterface` directly |
 | `PostgresOptions` | interface | Connection/config options for `PostgresDataSource` |
+| `PostgresPooler`, `PostgresTransactionPooler`, `PostgresDirectConnection` | type, type, type | What stands between a Postgres data source and its server, a pooler in transaction mode, and where the server itself is behind one. Required |
 | `SchemaManagement` | type | Who makes the database match the entities of a SQL data source: `'synchronize'`, `'migrations'` or `'external'`. Required |
 | `ValKeyDataSource` | class | Predefined data source for Valkey, extend from this instead of implementing `DataSourceInterface` directly |
 | `ValKeyOptions` | interface | Connection/config options for `ValKeyDataSource` |
 | `RepositoryDriverInterface` | interface | The storage specific part of a repository, implemented once per data source type |
+| `DriverFindOptions`, `DriverStreamOptions`, `DriverFindAndCountOptions`, `DriverAggregateOptions`, `DriverUpdateAllOptions` | type, type, type, type, type | What a driver is handed to find, stream, find and count, aggregate and update rows, with the defaults of the entity already applied |
+| `RelationTree`, `SelectionTree`, `RelatedNarrowing`, `RemovalReach` | type, type, type, type | The relations and the selection of a read in the shape a driver walks, the rows of each entity reached through a relation that the caller may see, and what the rows of a delete have to match as they are removed |
+| `WriteDataUtilities` | class | Copies the data of a write, and merges, replaces or increments what it gives into the stored row, for a driver |
+| `AggregateUtilities` | class | Checks what a value may be taken of, reads what a store answers, and takes the value over rows held in memory, for a driver |
+| `TransactionUtilities` | class | Runs work in a transaction, and again from the start after a conflict, for the `runInTransaction` of a data source of your own |
+| `StoredValueTypeMismatchError`, `MistypedStoredValue` | error, type | Thrown when a filter finds a stored value its property does not describe, and the path, declared type and value it names |
+| `QueryFailedError` | error | A SQL query that failed |
+| `UniqueConstraintViolationError` | error | Thrown when a write takes a value a unique key already holds. Answers 409 over HTTP |
+| `CheckConstraintViolationError` | error | Thrown when a write breaks a check of its entity. Answers 400 over HTTP, with the check as its problem |
 | `BaseEntity` | class | Base class entities must extend, defines an id property |
-| `BaseTenantEntity` | class | `BaseEntity` with the uuid `tenantId`, for an entity whose rows each belong to a tenant |
+| `BaseTenantEntity`, `TenantRow` | function, type | `BaseEntity`, or the `SoftDeleteEntity` or `ChangeSetEntity` it is given, with the uuid `tenantId`, for an entity whose rows each belong to a [tenant](./glossary.md#tenant) |
+| `ChangeSetOnlyEntityClass` | type | `ChangeSetEntity`, or a class extending it that does not [soft delete](./glossary.md#soft-delete), as the bases take it |
 | `Entity` | decorator | Registers a class as an entity, and declares the `scope` restricting its rows |
+| `EntityMetadataInput` | type | What `@Entity` takes |
 | `whereFor` | function | Types a filter in `uniques`, `unique` or `checks` against the entity it is declared on |
+| `propertyOf` | function | Names another property of the same row for a comparison to compare with, such as `{ endsAt: { after: propertyOf('startsAt') } }` |
+| `PropertyReference`, `PropertiesHolding` | type, type | What `propertyOf` returns, and the properties of an entity holding a kind of value, which it can name |
+| `UniqueDeclaration`, `UniqueGroupInput`, `KeyWhere` | type, type, type | What `unique` of a property takes, a group of properties unique together in `uniques`, and the rows a key covers, written with `whereFor` |
 | `scopeFor` | function | Types a `scope` against the entity it is declared on |
 | `EntityScopeContext` | type | What a `scope` is told about the caller it decides for |
+| `EntityScopes`, `EntityScope`, `EntityScopeName` | type, type, type | Every scope an entity can declare with the configuration it takes, the scopes one entity declares, and the name of one |
+| `RestrictedToScope`, `DeclaredScope` | type, type | A `restrictedTo` scope, given the caller and returning a filter, `denyAll` or nothing, and that scope typed with `scopeFor` |
 | `denyAll` | constant | Returned from a `scope` to give the caller no rows at all |
+| `DenyAll` | type | The type of `denyAll` |
+| `Unscoped`, `isUnscoped` | type, function | What `unscoped` of a call takes, `true` or the names of the scopes to skip, and whether it skips a given scope |
 | `Property` | decorator | Maps a class property to a data source column, also used for validation |
 | `BigNumber` | class | An exact decimal of any size, which a `@Property.number({ format: 'bignumber' })` holds |
 | `NumberUtilities` | class | Arithmetic and comparison over every shape a number takes: `number`, `bigint`, `BigNumber` |
 | `Newable` | type | Helper type for referencing a class (constructor) |
+| `isNewable` | function | Whether a value is a class |
+| `DeepPartial` | type | A value with every property optional, at every depth, as the data of a create or an update |
 | `InjectRepository` | decorator | Injects a `Repository` for a given entity into a constructor parameter |
 | `RepositoryFor` | decorator | Declares a class as the repository of an entity, in every data source that lists it in its `repositories` |
 | `RepositoryClass` | type | A repository class, as a data source lists them in `repositories` |
+| `RepositoryTypeForEntity` | type | The repository an entity gets: a `SoftDeleteRepository`, a `ChangeSetRepository` or a `Repository` |
 | `Repository` | class | Generic repository exposing `findAll`, `findAllPaginated`, `findAllAfter`, `stream`, `findOne`, `findById`, `count`, `sum`, `average`, `minimum`, `maximum`, `exists`, `createAll`, `create`, `updateAll`, `updateById`, `upsert`, `upsertAll`, `deleteAll`, `deleteById` |
-| `StreamOptions` | type | What `stream` accepts: a filter and relations, with no limit and no order |
+| `RepositoryHooks` | type | Hooks every repository runs on every row, via `ZIBRI_DI_TOKENS.REPOSITORY_HOOKS`. Defaults to none |
+| `BeforeSaveHook`, `SaveOperation` | type, enum | What runs on a row before it is created or updated, and which of the two it is |
+| `BeforeDeleteHook` | type | What runs on a row before it is removed |
+| `BeforeReturnHook` | type | What runs on a row before it is handed back |
+| `BaseRepositoryOptions` | type | What every repository call takes: `transaction`, `unscoped`, `acrossTenants` and `timeoutInMs` |
+| `FindAllOptions`, `FindAllPaginatedOptions`, `FindOneOptions`, `FindByIdOptions`, `CountOptions` | type, type, type, type, type | What `findAll`, `findAllPaginated`, `findOne`, `findById` and `count` take |
+| `StreamOptions` | type | What `stream` accepts: a filter, relations and an order, with no limit |
 | `KeysetPage` | type | A page `findAllAfter` reads: the items, how many rows match, and the cursor of the next page |
+| `EntityRelations`, `RelationKeysOf`, `ToOneRelationKeysOf`, `ColumnKeysOf` | type, type, type, type | What `relations` takes, `true` or the relations below it, and the properties of an entity that hold other entities, exactly one other entity, or a value of their own |
+| `EntitySelection`, `Selected`, `Projected` | type, type, type | What `select` takes, a value narrowed to what it names, and what a read hands back per entity |
+| `EntityOrder`, `OrderDirection`, `SimilarityOrder` | type, type, type | What `order` takes: `'ASC'` or `'DESC'` per property, or `{ similarTo }` to put the values most similar to a search first |
+| `CreateOptions`, `CreateAllOptions`, `UpdateByIdOptions`, `UpdateAllOptions`, `UpsertOptions`, `UpsertAllOptions`, `DeleteByIdOptions`, `DeleteAllOptions` | type, type, type, type, type, type, type, type | What `create`, `createAll`, `updateById`, `updateAll`, `upsert`, `upsertAll`, `deleteById` and `deleteAll` take |
+| `WriteRelationsOptions`, `BulkWriteOptions` | type, type | The relations to resolve on the row a write hands back, and on the rows a bulk write hands back, and what the write does with a soft deleted row of a relation |
+| `DeletedRelatedRows` | type | What a write does with a soft deleted row it is given by its `id` in a `oneToMany` or `hasOne` value: `'refuse'` or `'restore'`. Defaults to `'refuse'` |
+| `UpdateAllData`, `Increment` | type, type | What `updateAll` changes on every matching row: a value per property, or an `increment` for a number property |
+| `UpsertRow`, `AtomicUpdate` | type, type | One row of an upsert, what to insert and what to change on the row already holding its identity, and that change, a value set or a number incremented |
+| `AggregateOptions`, `AggregateFunction`, `Aggregated`, `AggregateRow` | type, type, type, type | What `sum`, `average`, `minimum` and `maximum` take, which of them is taken, what they answer with or without `groupBy`, and one group as a driver answers it |
+| `NumberKeysOf`, `OrderedKeysOf`, `GroupKeysOf` | type, type, type | The properties a sum or an average, a minimum or a maximum, and a `groupBy` can name |
+| `Where`, `WhereFilter`, `WhereFilterProperty` | type, type, type | A filter or an array of filters a row matches any of, one filter by property, and the filter of one property |
+| `StringWhereFilter`, `NumberWhereFilter`, `BooleanWhereFilter`, `DateWhereFilter`, `ObjectWhereFilter`, `ArrayWhereFilter`, `ObjectArrayWhereFilter`, `OneOfWhereFilter` | type, type, type, type, type, type, type, type | The filter of a property, per kind of value it holds |
+| `AnyNumber` | type | A `number`, `bigint` or `BigNumber`, any of which a number filter takes as a bound |
+| `FuzzyLikeFilter`, `MinSimilarity` | type, type | What `fuzzyLike` takes: the search, and the `minSimilarity` a match needs as a percentage from 1 to 99. Defaults to 30 |
 | `ChangeSetRepository` | class | Extended `Repository` that tracks who changed what, and when |
 | `ChangeSetEntity` | class | Base class for an entity whose changes are recorded, which gets a `ChangeSetRepository` |
-| `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds soft delete functionality |
+| `isChangeSetEntityNewable` | function | Whether a class is a `ChangeSetEntity` |
+| `ChangeSetType` | enum | What a [change set](./glossary.md#change-set) records: a create, replace, reset, update or delete |
+| `ResetChangeSetResult` | type | What resetting a change set answers: the entity, and the values that changed |
+| `SoftDeleteRepository` | class | Extended `ChangeSetRepository` that adds [soft delete](./glossary.md#soft-delete) functionality |
 | `SoftDeleteEntity` | class | Base class for an entity that deletes softly, which gets a `SoftDeleteRepository` |
+| `isSoftDeleteEntityNewable` | function | Whether a class is a `SoftDeleteEntity` |
+| `SoftDeletedRows` | type | Which soft deleted rows a call reaches: `'exclude'`, `'include'` or `'only'`. Defaults to `'exclude'` |
+| `SoftDeleteFindAllOptions`, `SoftDeleteFindAllPaginatedOptions`, `SoftDeleteFindOneOptions`, `SoftDeleteFindByIdOptions`, `SoftDeleteCountOptions`, `SoftDeleteStreamOptions`, `SoftDeleteAggregateOptions`, `SoftDeleteUpdateAllOptions`, `SoftDeleteUpdateByIdOptions` | type, type, type, type, type, type, type, type, type | What the reads and updates of a `SoftDeleteRepository` take, with `deleted` naming the soft deleted rows they reach |
+| `SoftDeleteByIdOptions`, `SoftDeleteAllOptions` | type, type | What `deleteById` and `deleteAll` of a `SoftDeleteRepository` take, with `hardDelete` to remove the rows |
+| `SoftDeleteWhere`, `SoftDeleteWhereFilter` | type, type | A filter of a soft delete entity, which names no `deleted` |
 | `ChangeSet`, `Change` | entity | The recorded change sets |
 | `Transaction` | class | Represents a started transaction (`commit`/`rollback`/`afterCommit`/`afterFinish`) |
 | `IsolationLevel` | enum | The isolation level a transaction is started with |
+| `StartTransactionOptions`, `RunInTransactionOptions` | type, type | What `startTransaction` takes, the isolation level and idle timeout, and what `runInTransaction` takes on top, `maxAttempts` |
+| `TransactionConflictError`, `TransactionSerializationError` | error, error | Thrown when a transaction was ended for a conflict with another one, and that conflict for a `REPEATABLE READ` or `SERIALIZABLE` transaction whose rows changed meanwhile. Nothing it wrote is applied |
+| `KeyDeclarationsChangedError` | error | Thrown at the commit of a transaction after the indexes or uniques of an entity it wrote changed. Nothing it wrote is applied |
+| `TransactionAlreadyFinishedError` | error | Thrown when a transaction is used after its commit or rollback |
 | `Migration` | class | Base class to extend when defining a migration |
 | `SemVerVersion` | type | Version type used for `Migration.version` |
+| `MigrationEntity` | entity | The migrations a data source has run |
+| `CreateEntityInput`, `RenameEntityInput`, `MergeEntityInput`, `AddPropertyToEntityInput`, `ChangePropertyOfEntityInput`, `RemovePropertyFromEntityInput` | type, type, type, type, type, type | What `createEntity`, `renameEntity`, `mergeEntity`, `addPropertyToEntity`, `changePropertyOfEntity` and `removePropertyFromEntity` take |
+| `MigrationPropertyMetadata`, `PropertyConversion` | type, type | A property as a migration writes it out, and what happens to its stored values when a migration changes its storage |
 | `ValueConversion` | enum | What `changePropertyOfEntity` does with a stored value its `convert` does not list |
 
 ## Defining a data source
@@ -49,7 +113,7 @@ instead of implementing it yourself, and decorate it with `@DataSource`:
 
 ```ts
 // src/data-sources/db/db.data-source.ts
-import { BaseEntity, DataSource, Migration, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Migration, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 import { Task } from '../../models/task.model';
 import { TaskRepository } from '../../repositories/task.repository';
@@ -73,6 +137,7 @@ export class DbDataSource extends PostgresDataSource {
     repositories: RepositoryClass[] = [TaskRepository];
     migrations: Newable<Migration>[] = [RenameTaskNameMigration];
     schemaManagement: SchemaManagement = 'synchronize';
+    pooler: PostgresPooler = 'none';
 }
 ```
 
@@ -121,6 +186,10 @@ because no value is safe everywhere:
 `'migrations'` needs at least one migration. Use `'external'` for a schema that something else
 creates. [Handling migrations](#handling-migrations) describes the migrations a data source lists.
 
+`pooler` says what stands between a Postgres data source and its server, see
+[connecting through a pooler](#connecting-through-a-pooler). `'none'` when it connects to the server
+itself.
+
 `createAll`, `upsertAll`, `updateAll` and `deleteAll` take as many rows as you pass them. A call that
 holds more values than one statement can is split into several statements inside one transaction, so
 it lands whole or not at all. `maxBoundValuesPerStatement` in the options says how many values that
@@ -132,7 +201,7 @@ says so on the declaration:
 
 ```ts
 // src/data-sources/reporting/reporting.data-source.ts
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @DataSource({ allowOrphan: true })
 class ReportingDataSource extends PostgresDataSource {
@@ -140,8 +209,52 @@ class ReportingDataSource extends PostgresDataSource {
     entities: Newable<BaseEntity>[] = [];
     repositories: RepositoryClass[] = [];
     schemaManagement: SchemaManagement = 'external';
+    pooler: PostgresPooler = 'none';
 }
 ```
+
+### Connecting through a pooler
+A connection pooler such as PgBouncer sits between the instances of an application and the
+database, and shares a few server connections among many clients. `pooler` says which kind stands in
+front of a Postgres data source:
+
+| Value | When |
+|---|---|
+| `'none'` | The data source connects to the server itself |
+| `'session'` | A pooler hands each connection one server connection for as long as it is open, such as PgBouncer in session mode |
+| `{ mode: 'transaction', direct }` | A pooler hands out a server connection per transaction, such as PgBouncer in transaction mode and most managed poolers |
+
+Behind a pooler in transaction mode, `options` point at the pooler and `direct` at the server itself.
+The lock around the schema setup, building indexes, listening for messages and
+[backups](./backup.md) each hold one server connection for a while, and connect through `direct`.
+Everything else goes through the pooler. `direct` takes the `host`, and the `port`, `username`,
+`password`, `database` and `ssl` where they differ from `options`:
+
+```ts
+// src/data-sources/pooled/pooled.data-source.ts
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
+
+@DataSource()
+export class PooledDataSource extends PostgresDataSource {
+    // the pooler
+    options: OmitStrict<PostgresOptions, 'type' | 'entities'> = { host: 'pgbouncer.internal', port: 6432, username: 'app', database: 'db', ssl: true };
+    // the server itself
+    pooler: PostgresPooler = { mode: 'transaction', direct: { host: 'db.internal', port: 5432 } };
+    entities: Newable<BaseEntity>[] = [];
+    repositories: RepositoryClass[] = [];
+    schemaManagement: SchemaManagement = 'synchronize';
+}
+```
+
+A data source asks its connections for a statement timeout and for the similarity a
+[search](#searching-for-something-similar) is answered from. Behind a pooler in transaction mode a
+connection has what its role has, so give the role both, once. `resolveRoleSettingsSql()` returns the
+`ALTER ROLE` statements that do, for the role itself or anybody allowed to alter it to run. The
+pooler keeps the server connections it opened with what they had, so restart it afterwards.
+
+A data source whose connections report other values than the ones it asks for refuses to start, and
+names them. Behind a pooler in transaction mode, a call with a [`timeoutInMs`](#how-long-a-call-may-take)
+outside a transaction runs in a transaction of its own, which takes two more round trips.
 
 ## Using Valkey
 `ValKeyDataSource` connects to Valkey. It is configured the same way and has the same repositories,
@@ -213,7 +326,7 @@ The data source above lists one entity, `Task`:
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Task extends BaseTenantEntity {
+export class Task extends BaseTenantEntity() {
     @Property.string()
     title!: string;
 
@@ -223,7 +336,9 @@ export class Task extends BaseTenantEntity {
 ```
 
 An entity to be included in a data source needs to extend `BaseEntity`, which defines an id property,
-or `BaseTenantEntity`, which adds the [tenant](./tenancy.md) of each row in `tenantId`.
+or `BaseTenantEntity()`, which adds the [tenant](./tenancy.md) of each row in `tenantId`.
+`BaseTenantEntity(SoftDeleteEntity)` and `BaseTenantEntity(ChangeSetEntity)` add it to an entity that
+[soft deletes](#soft-deleting-rows) or [records its change sets](#recording-who-changed-what).
 
 An entity is stored in the table its class is named after, `task` here, and `tableName` on `@Entity`
 names another. Every entity of a data source needs a table of its own, and every entity of the
@@ -241,7 +356,7 @@ A single column that has to be unique says so on the property: `@Property.string
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity({ uniques: [['year', 'recipientId']] })
-export class NumberInvoices extends BaseTenantEntity {
+export class NumberInvoices extends BaseTenantEntity() {
     @Property.number()
     year!: number;
 
@@ -270,17 +385,14 @@ A `where` narrows which rows a unique declaration covers, so the value stays fre
 
 ```ts
 // src/models/account.model.ts
-import { Entity, Property, SoftDeleteEntity, whereFor } from 'zibri';
+import { BaseTenantEntity, Entity, Property, SoftDeleteEntity, whereFor } from 'zibri';
 
 @Entity({
     uniques: [{ properties: ['email', 'handle'], where: whereFor<Account>({ deleted: false }) }]
 })
-export class Account extends SoftDeleteEntity {
+export class Account extends BaseTenantEntity(SoftDeleteEntity) {
     @Property.string({ unique: { where: whereFor<Account>({ deleted: false }) } })
     inviteCode!: string;
-
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
 
     @Property.string()
     email!: string;
@@ -304,7 +416,7 @@ or "where: {}" to keep the value taken for good.
 
 | `where` | A soft deleted row |
 |---|---|
-| `whereFor<Account>({ deleted: false })` | Frees its value, so someone can sign up again with the same address. Restoring the row fails with a `UniqueConstraintViolationError` when another row took the value meanwhile |
+| `whereFor<Account>({ deleted: false })` | Frees its value, so someone can register again with the same address. Restoring the row fails with a `UniqueConstraintViolationError` when another row took the value meanwhile |
 | `{}` | Keeps its value taken for good |
 
 A key covering only some rows is an `upsert` target like any other, and the rows it leaves out are not in its way. An `upsert` identified by an account's email and handle lands on the live row holding them, and inserts beside the deleted ones that still hold them.
@@ -317,7 +429,7 @@ entity for a lookup that uses several:
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity({ indexes: [['customerId', 'status']] })
-export class Order extends BaseTenantEntity {
+export class Order extends BaseTenantEntity() {
     @Property.string()
     customerId!: string;
 
@@ -366,7 +478,7 @@ import { $t, BaseTenantEntity, Entity, Property, whereFor } from 'zibri';
         whereFor<Project>({ budget: { greaterThanEquals: 0 } })
     ]
 })
-export class Project extends BaseTenantEntity {
+export class Project extends BaseTenantEntity() {
     @Property.string()
     status!: string;
 
@@ -379,13 +491,49 @@ export class Project extends BaseTenantEntity {
 ```
 
 A create, update or upsert leaving a row that breaks a check is refused with a
-`CheckConstraintViolationError`, which answers 400 and names the properties the check compares. Nothing
-of the write is stored. A request body of the entity, or of a model derived from it, is answered
+`CheckConstraintViolationError`, which names the properties the check compares and carries the `code`
+of the check. It answers 400 with the check as its one problem, under the key `body`, with the code and
+message of the check, see [reading a refused request](./validation.md#reading-a-refused-request).
+Nothing of the write is stored. A request body of the entity, or of a model derived from it, is answered
 before the handler runs, see [answering the checks of an entity](./validation.md#answering-the-checks-of-an-entity).
 
 A check compares the same way a `where` on a unique does. A row holding null matches `not` and
 `notOneOf` unless they name null, and never matches a comparison, so `{ budget: { greaterThanEquals: 0 } }`
 also says the budget is there.
+
+A check compares a date with `after`, `before`, `afterOrOn` and `beforeOrOn`. A date or a number can
+also be compared with another property of the same row, named with `propertyOf`:
+
+```ts
+// src/models/sprint.model.ts
+import { $t, BaseTenantEntity, Entity, Property, propertyOf, whereFor } from 'zibri';
+
+@Entity({
+    checks: [
+        {
+            where: whereFor<Sprint>({ endsAt: { after: propertyOf('startsAt') } }),
+            code: 'endsBeforeStart',
+            message: $t`a sprint ends after it starts`
+        },
+        whereFor<Sprint>({ startsAt: { afterOrOn: new Date('2020-01-01T00:00:00.000Z') } })
+    ]
+})
+export class Sprint extends BaseTenantEntity() {
+    @Property.date()
+    startsAt!: Date;
+
+    @Property.date()
+    endsAt!: Date;
+
+    @Property.date({ required: false })
+    closedAt?: Date | null;
+}
+```
+
+`propertyOf` names a property of the same entity holding the same kind of value: a date for a date,
+a number for a number. A check naming one compares that property as well, so a request body lacking
+either of the two leaves the check to the data source, and a `CheckConstraintViolationError` names
+both.
 
 ### Keeping indexes and uniques
 
@@ -484,7 +632,7 @@ A repository always exposes the methods:
 - deleteAll
 - deleteById
 
-The full, detailed definition can be found under the [repository typedoc](./generated/classes/data-source_repository.Repository.html).
+The full, detailed definition can be found under {@link Repository | the repository's reference}.
 
 `findOne` and `findById` throw a `NotFoundError` when nothing matches. When a missing row is an
 answer, such as when you check whether a name is taken, pass `required: false` and get `undefined`
@@ -507,14 +655,14 @@ want:
 ```ts
 // src/services/task.functions.ts
 async function readSome(): Promise<void> {
-    await taskRepository.findAll({ take: 100 });       // at most this many
+    await taskRepository.findAll({ limit: 100 });      // at most this many
     await taskRepository.findAllPaginated(1, 100);     // a page at a time
-    await taskRepository.findAll({ take: 'all' });     // every row that matches
+    await taskRepository.findAll({ limit: 'all' });    // every row that matches
 }
 ```
 
-A page, a limit and a `take` are whole numbers of at least 1, and a `skip` is one of at least 0. Any
-other value throws before the data source is asked.
+A page and a `limit` are whole numbers of at least 1, and an `offset` is one of at least 0. Any other
+value throws before the data source is asked.
 
 `create` and `createAll` give every row its id. With `allowId` a row is created with the id you give
 it, and an id a stored row holds already, deleted or not, is refused with a
@@ -570,7 +718,7 @@ hold null, or on a value that has no order. The primary key is appended for you.
 | `findAllAfter` | A walk that spans requests |
 | `stream` | A job that reads everything in one go, holding only part of it at a time |
 
-`take: 'all'` returns every row at once. `stream` reads them without holding them all:
+`limit: 'all'` returns every row at once. `stream` reads them without holding them all:
 
 ```ts
 // src/services/task.functions.ts
@@ -585,8 +733,10 @@ Only a bounded part of the result is in memory at any moment, and `break` stops 
 stream is narrowed by the same [scopes](#restricting-which-rows-a-caller-may-see) every other read
 is, and each row is decrypted the same way, so it returns what `findAll` would.
 
-A stream takes no `take`, no `skip` and no order. Order what you keep, or use `findAll` with an order
-and a limit.
+A stream takes no `limit` and no `offset`. With an `order` it hands the rows out in that order, such
+as `stream({ where: { status: 'new' }, order: { createdAt: 'ASC' } })`. Without one they come in no
+particular order, and the entity's `defaultOrder` does not apply: ordering a stream costs more than
+reading it, see [costs](./costs.md).
 
 `count` and `exists` answer how many rows match, and whether any do, without reading them:
 
@@ -611,7 +761,7 @@ them:
 import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
 @Entity()
-export class Sale extends BaseTenantEntity {
+export class Sale extends BaseTenantEntity() {
     @Property.string()
     region!: string;
 
@@ -667,7 +817,7 @@ into what a property holds:
 ```ts
 // src/services/task.functions.ts
 async function listTitles(): Promise<{ id: string, title: string }[]> {
-    return await taskRepository.findAll({ select: ['title'], take: 'all' });
+    return await taskRepository.findAll({ select: ['title'], limit: 'all' });
 }
 ```
 
@@ -681,7 +831,7 @@ With the `Customer` of [Updating part of an object](#updating-part-of-an-object)
 ```ts
 // src/services/customer.service.ts
 async function listStreets(): Promise<{ id: string, address: { street: string } }[]> {
-    return await customerRepository.findAll({ select: { address: { street: true } }, take: 100 });
+    return await customerRepository.findAll({ select: { address: { street: true } }, limit: 100 });
 }
 ```
 
@@ -715,7 +865,7 @@ export class Address {
 }
 
 @Entity()
-export class Customer extends BaseTenantEntity {
+export class Customer extends BaseTenantEntity() {
     @Property.object({ cls: () => Address })
     address!: Address;
 }
@@ -758,7 +908,7 @@ import { BaseTenantEntity, Entity, Property } from 'zibri';
 import { Seat } from './seat.model';
 
 @Entity()
-export class Team extends BaseTenantEntity {
+export class Team extends BaseTenantEntity() {
     @Property.string()
     name!: string;
 
@@ -774,7 +924,7 @@ import { BaseTenantEntity, Entity, Property } from 'zibri';
 import { Team } from './team.model';
 
 @Entity()
-export class Seat extends BaseTenantEntity {
+export class Seat extends BaseTenantEntity() {
     @Property.string()
     occupant!: string;
 
@@ -813,9 +963,9 @@ Every read takes the same option, and a relation of a relation is asked for by n
 ```ts
 // src/services/seat.service.ts
 async function readSeats(): Promise<void> {
-    await seatRepository.findAll({ take: 100, relations: ['team'] });
-    await seatRepository.findAll({ take: 100, relations: { team: true } });
-    await seatRepository.findAll({ take: 100, relations: { team: { seats: true } } });
+    await seatRepository.findAll({ limit: 100, relations: ['team'] });
+    await seatRepository.findAll({ limit: 100, relations: { team: true } });
+    await seatRepository.findAll({ limit: 100, relations: { team: { seats: true } } });
 }
 ```
 
@@ -832,8 +982,8 @@ An order reaches through a relation the same way:
 ```ts
 // src/services/seat.service.ts
 async function readSeatsByTeam(): Promise<void> {
-    await seatRepository.findAll({ take: 100, order: { team: { name: 'ASC' } } });
-    await seatRepository.findAll({ take: 100, order: { team: { name: 'ASC' }, occupant: 'ASC' } });
+    await seatRepository.findAll({ limit: 100, order: { team: { name: 'ASC' } } });
+    await seatRepository.findAll({ limit: 100, order: { team: { name: 'ASC' }, occupant: 'ASC' } });
 }
 ```
 
@@ -884,6 +1034,12 @@ apply to them as they do to a write of your own. A row with an `id` that you may
 found, and the whole write is refused. A row that is left out and whose entity soft deletes is soft
 deleted.
 
+A soft deleted row with an `id` is refused with a `ConflictError` that names it, and nothing of the
+write is kept. A relation declaring `deletedRows: 'restore'` restores it instead, the way a
+[restore](#soft-deleting-rows) does, together with the rows its delete took along, and then writes
+it. A write's own `deletedRelatedRows: 'restore'` or `'refuse'` decides for every relation it writes,
+whatever the relations declare.
+
 When the relation's `cascade` includes `'remove'`, which it does by default, deleting a row deletes
 the rows of the relation the same way, and theirs in turn, however the scope of their entity
 restricts:
@@ -910,7 +1066,7 @@ By default the last write wins. When two people may edit a property at once, dec
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Company extends BaseTenantEntity {
+export class Company extends BaseTenantEntity() {
     @Property.string({ optimisticLocking: true })
     name!: string;
 }
@@ -958,6 +1114,22 @@ async function renameRegardless(id: string, name: string): Promise<void> {
 
 Naming the property is what counts, so a filter you built that came out empty is still refused.
 
+A delete names every locked property the same way, since it takes all of them away. `deleteById`
+takes the condition in its `where`, `deleteAll` in its filter, and a soft delete is no different:
+
+```ts
+// src/services/company.service.ts
+async function removeCompany(id: string, seen: string): Promise<void> {
+    await companyRepository.deleteById(id, { where: { name: seen } });
+}
+```
+
+A row that holds another value by then is not deleted, and the call fails with a `ConflictError`.
+`{ where: { name: undefined } }` deletes it regardless. The rows of a relation deleted along with
+their owner, and the [memberships](./glossary.md#membership) deleted with their user, are deleted
+regardless. `deleteById` takes a `where` on every entity, locked or not, and answers a row that does
+not meet it the way `updateById` does.
+
 An [`upsert`](#changing-a-value-based-on-what-is-stored) whose `onConflict` sets a locked
 property says what it read the same way, with `where` in its options. In `upsertAll` each row brings
 its own `where`:
@@ -967,7 +1139,7 @@ its own `where`:
 import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
 @Entity({ uniques: [['slug']] })
-export class Workspace extends BaseTenantEntity {
+export class Workspace extends BaseTenantEntity() {
     @Property.string()
     slug!: string;
 
@@ -1038,13 +1210,103 @@ export class TaskRepository extends Repository<Task> {
 }
 ```
 
-`@InjectRepository(Task)`, `repositoryTokenFor(Task)` and `inject(TaskRepository)` then hand out the one instance of it, and the framework reads and writes tasks through it too. It reads and writes the way the one it is built on does: through the same data source, with the same hooks, narrowed by the same scopes.
+`@InjectRepository(Task)`, `repositoryTokenFor(Task)` and `inject(TaskRepository)` then hand out the one instance of it, and the framework reads and writes tasks through it too, the tasks written through a relation included. It reads and writes the way the one it is built on does: through the same data source, narrowed by the same scopes.
 
 The repository is built over the one the data source builds, so it declares no constructor. It reaches anything else it needs through `inject`, the way [dependency injection](./di.md) describes.
 
 An entity that records change sets or soft deletes is built as a `ChangeSetRepository` or a `SoftDeleteRepository`, and a repository of your own on it extends that class.
 
-The repositories of the users, the memberships and the roles extend the bases the framework ships, see [creating and registering user models](./auth.md#creating-and-registering-user-models), [members and their roles](./tenancy.md#members-and-their-roles) and [roles](./roles-and-permissions.md#roles).
+The repositories of the users, the [memberships](./glossary.md#membership) and the roles extend the bases the framework ships, see [creating and registering user models](./auth.md#creating-and-registering-user-models), [members and their roles](./tenancy.md#members-and-their-roles) and [roles](./roles-and-permissions.md#roles).
+
+## Writing a query by hand
+A SQL data source starts a query builder on the table of an entity with `query`. Use it for what the
+repository has no form for, such as a report that groups and counts. `transaction` is the
+transaction it runs in, and `alias` names the table in the query, the entity's name by default. The
+builder is TypeORM's query builder.
+
+```ts
+// src/services/task-report.service.ts
+import { Transaction } from 'zibri';
+
+import { DbDataSource } from '../data-sources/db/db.data-source';
+import { Task } from '../models/task.model';
+
+/**
+ * How many tasks of a project are done.
+ */
+type DoneTasksRow = {
+    projectId: string,
+    done: string
+};
+
+export class TaskReportService {
+    constructor(private readonly dataSource: DbDataSource) {}
+
+    async findDoneTasksPerProject(transaction: Transaction | undefined): Promise<DoneTasksRow[]> {
+        return await this.dataSource.query(Task, { alias: 'task', transaction })
+            .select('task.projectId', 'projectId')
+            .addSelect('COUNT(*)', 'done')
+            .where('task.status = :status', { status: 'done' })
+            .groupBy('task.projectId')
+            .getRawMany<DoneTasksRow>();
+    }
+}
+```
+
+The query sees what its transaction wrote. Inside a request it is stopped like every other statement
+once the request runs out of time, see [reads and writes inside a request](#reads-and-writes-inside-a-request).
+Its values are what the database answers: a count is a string, and an encrypted property is its
+ciphertext.
+
+> [!WARNING]
+> A query written by hand reads and writes every row it names, across every
+> [tenant](./glossary.md#tenant) and past every [scope](#restricting-which-rows-a-caller-may-see).
+> Filter by `tenantId` yourself where the rows belong to a tenant.
+
+## Running your own code on every row
+Every row passes through three hooks: `beforeSave` before it is created or updated, `beforeDelete` before it is removed, and `beforeReturn` before it is handed back. By default they fill in default values, encrypt, hash, decrypt and remove excluded properties.
+
+For the rows of one entity, override the method on its [repository](#writing-a-repository-of-your-own), and call the one of `super` to keep what it does:
+
+```ts
+// src/repositories/project.repository.ts
+import { DeepPartial, Repository, RepositoryFor, SaveOperation } from 'zibri';
+
+import { Project } from '../models/project.model';
+
+@RepositoryFor(Project)
+export class ProjectRepository extends Repository<Project> {
+    protected override async beforeSave(data: Project | DeepPartial<Project>, operation: SaveOperation): Promise<void> {
+        if (data.status != undefined) {
+            data.status = data.status.trim().toLowerCase();
+        }
+        await super.beforeSave(data, operation);
+    }
+}
+```
+
+For the rows of every entity, provide `RepositoryHooks`. Each hook is given the one it wraps, which does what a repository does by default:
+
+```ts
+// src/providers.ts
+import { defineProvider, inject, RepositoryHooks, ZIBRI_DI_TOKENS } from 'zibri';
+
+const repositoryHooks: RepositoryHooks = {
+    beforeDelete: async (row, entity, wrapped) => {
+        inject(ZIBRI_DI_TOKENS.LOGGER).info(`${entity.name} ${row.id} is removed`);
+        await wrapped(row, entity);
+    }
+};
+
+defineProvider({ token: ZIBRI_DI_TOKENS.REPOSITORY_HOOKS, useValue: repositoryHooks })
+```
+
+The methods of a repository run around these: `super.beforeSave` runs the `beforeSave` of `RepositoryHooks`, and its `wrapped` runs the default.
+
+> [!WARNING]
+> A method that does not call `super`, and a hook that does not call `wrapped`, leave out what the default does. Encrypted properties are then stored as they are given, and passwords unhashed.
+
+`deleteAll` reads only the ids of the rows it removes, unless it returns them. A `beforeDelete` of your own, on a repository or in `RepositoryHooks`, makes it read every row it removes, to hand each one over. See [costs](./costs.md).
 
 ## Using one entity in multiple data sources
 An entity belongs to one data source, so `@InjectRepository(Task)` names none. To keep the same entity
@@ -1141,6 +1403,30 @@ an id taken out of a URL, the name of a field inside a JSON object: each is hand
 as a value, so none of them can change what the query asks for. Build filters out of request data
 without escaping anything yourself.
 
+### Comparing two properties of a row
+
+A comparison of a date or a number can name another property of the same row with `propertyOf`,
+where it takes a value otherwise:
+
+```ts
+// src/services/sprint.functions.ts
+import { inject, propertyOf, Repository, repositoryTokenFor } from 'zibri';
+
+import { Sprint } from '../models/sprint.model';
+
+const sprintRepository: Repository<Sprint> = inject(repositoryTokenFor(Sprint));
+
+async function findSprintsClosedLate(): Promise<Sprint[]> {
+    return await sprintRepository.findAll({ where: { closedAt: { after: propertyOf('endsAt') } }, limit: 'all' });
+}
+```
+
+It names a property of the same entity holding the same kind of value, which the filter checks as
+you write it: a date for a date, a number for a number. Inside a [relation's](#reading-relations)
+`where` or an [object property's](#filtering-inside-an-object-property) `where`, it names a property
+beside the one it compares, of the related row or of the object. A row holding no value on either
+side matches no comparison, as a comparison with null never matches.
+
 ### Searching for something similar
 
 `fuzzyLike` finds the values that resemble what you searched for. `minSimilarity` is a percentage
@@ -1151,7 +1437,7 @@ between 1 and 99, and defaults to 30. 1 matches nearly everything, and 99 is clo
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Contact extends BaseTenantEntity {
+export class Contact extends BaseTenantEntity() {
     @Property.string()
     name!: string;
 
@@ -1227,7 +1513,7 @@ class ProductMetadata {
 }
 
 @Entity()
-export class Product extends BaseTenantEntity {
+export class Product extends BaseTenantEntity() {
     @Property.object({ cls: () => ProductMetadata, required: false })
     metadata: ProductMetadata | undefined | null;
 }
@@ -1260,7 +1546,7 @@ that matches any of them:
 import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
 @Entity()
-export class Story extends BaseTenantEntity {
+export class Story extends BaseTenantEntity() {
     @Property.array({ items: { type: 'string' }, required: false })
     tags: string[] | undefined | null;
 }
@@ -1315,7 +1601,7 @@ class Invite {
 }
 
 @Entity()
-export class Lead extends BaseTenantEntity {
+export class Lead extends BaseTenantEntity() {
     @Property.oneOf({ shapes: { Signup: { type: 'object', cls: () => Signup }, Invite: { type: 'object', cls: () => Invite } } })
     contact!: OneOf<{ Signup: Signup, Invite: Invite }>;
 }
@@ -1351,7 +1637,7 @@ import { $ts, BaseTenantEntity, Entity, Property, scopeFor, UnauthorizedError } 
         })
     }
 })
-export class Invoice extends BaseTenantEntity {
+export class Invoice extends BaseTenantEntity() {
     @Property.string()
     title!: string;
 
@@ -1395,6 +1681,12 @@ A relation holds only the rows the caller may see. Reading an account with `rela
 
 An [`upsert`](#changing-a-value-based-on-what-is-stored) only ever changes a row the caller may see. When its identity is held by a row they may not see, it is refused with the same `UniqueConstraintViolationError` inserting that identity would be. Its changes are judged the way an update's are: a value it sets before anything is written, and an amount it adds on the row once it is written, so an increment that carries the row outside the filter is refused and rolled back. Inside a transaction you passed, that increment stays until you roll the transaction back. An `upsertAll` is all or nothing: when one of its rows is refused, none of the others are written either.
 
+A delete removes only rows the caller may still see as it removes them. A row another caller moved
+out of their reach since the delete read it stays. When the rows were handed over first, to a
+`beforeDelete` or back to the caller with `returnDeleted`, or rows of theirs go with them, the delete
+fails with a `ConflictError` and removes none of them, as `updateById` does for a row that changed.
+A `deleteAll` that only counts leaves that row out of its count.
+
 ### What a scope is told
 The function is handed an `EntityScopeContext`:
 
@@ -1419,6 +1711,9 @@ The function is handed an `EntityScopeContext`:
 
 Return `denyAll` for a caller who sees none of the rows. Throw for a caller who may not ask at all.
 
+A repository call asks the scope once, however many rows it reads or writes, so a scope can read
+what it needs from a data source.
+
 An array of filters lets one table hold public rows and private ones:
 
 ```ts
@@ -1439,7 +1734,7 @@ import { Permissions } from './permissions';
         })
     }
 })
-export class Document extends BaseTenantEntity {
+export class Document extends BaseTenantEntity() {
     @Property.boolean()
     published!: boolean;
 
@@ -1495,7 +1790,7 @@ async function currentUser(): Promise<CurrentUser | undefined> {
 }
 
 @Entity()
-export class Receipt extends BaseTenantEntity {
+export class Receipt extends BaseTenantEntity() {
     @Property.string({ format: 'uuid', default: async () => (await currentUser())?.id ?? '' })
     userId!: string;
 }
@@ -1868,7 +2163,7 @@ Every rule of `upsert` applies to each row. The rows come back in the order you 
 import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
 @Entity()
-export class Job extends BaseTenantEntity {
+export class Job extends BaseTenantEntity() {
     @Property.string()
     status!: string;
 }
@@ -1901,7 +2196,7 @@ A number property takes `{ increment: amount }` instead of a value. The amount i
 import { BaseTenantEntity, Entity, inject, Property, Repository, repositoryTokenFor } from 'zibri';
 
 @Entity()
-export class PageView extends BaseTenantEntity {
+export class PageView extends BaseTenantEntity() {
     @Property.string()
     path!: string;
 
@@ -1972,13 +2267,10 @@ A `ChangeSetRepository` is a `Repository` that tracks who changed what, and when
 
 ```ts
 // src/models/note.model.ts
-import { ChangeSetEntity, Entity, Property } from 'zibri';
+import { BaseTenantEntity, ChangeSetEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Note extends ChangeSetEntity {
-    @Property.string({ format: 'uuid' })
-    tenantId!: string;
-
+export class Note extends BaseTenantEntity(ChangeSetEntity) {
     @Property.string({ excludeFromChangeSets: true })
     draft!: string;
 }
@@ -2072,7 +2364,7 @@ store. `0` lifts the limit. A single Valkey command keeps its `requestTimeout` e
 
 ```ts
 // src/data-sources/warehouse/warehouse.data-source.ts
-import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+import { BaseEntity, DataSource, Newable, OmitStrict, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @DataSource()
 class WarehouseDataSource extends PostgresDataSource {
@@ -2080,6 +2372,7 @@ class WarehouseDataSource extends PostgresDataSource {
     entities: Newable<BaseEntity>[] = [];
     repositories: RepositoryClass[] = [];
     schemaManagement: SchemaManagement = 'external';
+    pooler: PostgresPooler = 'none';
 
     protected override readonly statementTimeoutInMs: number = 60000;
 }
@@ -2128,8 +2421,11 @@ Your data source declares these entities:
 | `MigrationEntity` | Its `schemaManagement` is `'migrations'`, see [handling migrations](#handling-migrations) |
 | `ChangeSet`, `Change` | One of its entities records who changed what, see [recording who changed what](#recording-who-changed-what) |
 
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
+
 ## See also
 - [Costs](./costs.md) — how many round trips each repository call takes
+- [Framework tables](./framework-tables.md) — how large each table of the framework grows, and what deletes its rows
 - [Models](./models.md) — the `@Property` decorators entities are declared with
 - [Validating requests](./validation.md) — the checks of an entity, answered for a request body
 - [Replication](./replication.md) — the shared data source every instance coordinates through
@@ -2138,3 +2434,4 @@ Your data source declares these entities:
 - [Application lifecycle](./application-lifecycle.md) — data sources are provided to the `ZibriApplication`
 - [Encryption & Hashing](./encryption-and-hashing.md) — encrypting/hashing entity properties defined via `@Property`
 - [Auth](./auth.md) — who the requesting user a `scope` restricts rows to is, and what a refused request answers
+- [Glossary](./glossary.md) — what scope, change set and soft delete mean

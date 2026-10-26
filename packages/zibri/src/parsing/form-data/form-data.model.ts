@@ -37,18 +37,18 @@ export class FormData<FormDataType extends object> {
      * Creates a new form data object from the given input.
      * @param value - The actual value of the form data.
      * @param tempFolder - The temporary folder that was created on uploading the form data.
-     * @param cleanupAfterMs - A timeout after which the temporary folder is save to delete.
+     * @param cleanupAfterInMs - A timeout after which the temporary folder is save to delete.
      * @returns A new FormData object.
      */
     static async create<FormDataType extends object>(
         value: FormDataType,
         tempFolder: FsPath,
-        cleanupAfterMs: number
+        cleanupAfterInMs: number
     ): Promise<FormData<FormDataType>> {
         const res: FormData<FormDataType> = new this(value, tempFolder);
         await FsUtilities.createFile(
             FsUtilities.getPath(res.tempFolder, CLEANUP_AT_FILE_NAME),
-            `${Date.now() + cleanupAfterMs}`
+            `${Date.now() + cleanupAfterInMs}`
         );
         return res;
     }

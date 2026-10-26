@@ -3,6 +3,7 @@ import type SMTPPool from 'nodemailer/lib/smtp-pool';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 import { EmailSendResult, EmailTransportInterface } from './email-transport.interface';
+import { InternalError } from '../../error-handling/internal-error.model';
 import { optionalPeer } from '../../utilities/optional-peer.function';
 import { Email } from '../models/email.model';
 
@@ -68,8 +69,16 @@ export class SmtpEmailTransport implements EmailTransportInterface {
     /**
      * Creates a transport that sends through the given SMTP server.
      * @param options - How to reach the server.
+     * @throws {InternalError} When the host is empty or the port is no port, so an application
+     * missing its mail server does not start rather than failing every mail it sends.
      */
     constructor(options: SmtpEmailTransportOptions) {
+        if (options.host.trim() === '') {
+            throw new InternalError('The SMTP host of the SmtpEmailTransport is empty.');
+        }
+        if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65_535) {
+            throw new InternalError(`The SMTP port of the SmtpEmailTransport has to be a whole number from 1 to 65535, got ${options.port}.`);
+        }
         // eslint-disable-next-line typescript/typedef
         const createTransport = optionalPeer<typeof import('nodemailer')>('nodemailer', 'The smtp email transport').createTransport;
 
@@ -94,6 +103,9 @@ export class SmtpEmailTransport implements EmailTransportInterface {
             bcc: email.bcc ?? undefined,
             cc: email.cc ?? undefined,
             attachments: email.attachments?.map(a => ({ filename: a.filename, content: a.base64Content, encoding: 'base64' })),
+            // named by the mail rather than generated per send, so a send retried after the server
+            // took the first one carries the same id, which receiving servers drop duplicates by
+            messageId: `<${email.id}@${email.sender.slice(email.sender.lastIndexOf('@') + 1)}>`,
             // nodemailer writes the url as `List-Unsubscribe: <url>`; the second header is what makes
             // it a one-click unsubscribe (RFC 8058) rather than a link the provider opens in a browser
             ...email.listUnsubscribeUrl == undefined

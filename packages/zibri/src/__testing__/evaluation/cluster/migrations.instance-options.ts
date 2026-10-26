@@ -1,5 +1,6 @@
 import { defaultClusterTestEntities, StartTestServerOptions } from 'zibri-testing';
 
+import { PostgresPooler } from '../../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../../data-source/decorators/data-source.decorator';
 import { Migration } from '../../../data-source/migration/migration.model';
@@ -9,7 +10,7 @@ import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Newable } from '../../../types/newable.type';
 import { OmitStrict } from '../../../types/omit-strict.type';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 
 /**
  * What every instance of the migration cluster boots with.
@@ -65,6 +66,7 @@ class MigrationDataSource extends PostgresDataSource {
     // both halves race here, which is the point of this scenario: the original run failed on two
     // instances issuing the same CREATE TABLE, with the migration race still latent underneath it
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 const options: StartTestServerOptions = {

@@ -2,7 +2,7 @@ import { Property } from '../../../../entity/decorators/property.decorator';
 import { XmlAttribute } from '../../../../parsing/xml/xml-attribute.decorator';
 
 /**
- * An endpoint a SAML metadata document names, such as where an identity provider signs users in.
+ * An endpoint a SAML metadata document names, such as where an identity provider logs users in.
  */
 export class SamlMetadataEndpoint {
     /**

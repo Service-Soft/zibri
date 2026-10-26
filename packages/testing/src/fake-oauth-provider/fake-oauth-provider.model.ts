@@ -39,27 +39,27 @@ type SigningKeyPair = {
  */
 type IssuedCode = {
     /**
-     * The callback the sign-in was started with, which the exchange has to name again.
+     * The callback the login was started with, which the exchange has to name again.
      */
     redirectUri: string,
     /**
-     * The PKCE challenge the sign-in was started with.
+     * The PKCE challenge the login was started with.
      */
     codeChallenge: string,
     /**
-     * The nonce the sign-in was started with, which the ID token carries.
+     * The nonce the login was started with, which the ID token carries.
      */
     nonce: string | undefined,
     /**
-     * Who signed in.
+     * Who logged in.
      */
     identity: FakeOAuthIdentity,
     /**
-     * When they signed in.
+     * When they logged in.
      */
     authenticatedAt: Date,
     /**
-     * The session the sign-in started at the provider, which the ID token names in `sid`.
+     * The session the login started at the provider, which the ID token names in `sid`.
      */
     sessionId: string,
     /**
@@ -67,7 +67,7 @@ type IssuedCode = {
      */
     scopes: string[],
     /**
-     * Whether the sign-in asked for access while the user is away, which a refresh token gives.
+     * Whether the login asked for access while the user is away, which a refresh token gives.
      */
     offline: boolean
 };
@@ -108,22 +108,22 @@ type IssuedAccessToken = {
  * A provider running in the test's own process. It speaks OpenID Connect, or plain OAuth2 when it
  * issues no ID tokens.
  *
- * It signs in whoever `identity` says without asking anything, and keeps what it was asked, so a test
- * can drive a sign-in end to end and see what the application sent.
+ * It logs in whoever `identity` says without asking anything, and keeps what it was asked, so a test
+ * can drive a login end to end and see what the application sent.
  */
 export class FakeOAuthProvider {
     /**
-     * Who the next sign-in signs in as.
+     * Who the next login logs in as.
      */
     identity: FakeOAuthIdentity = { subject: 'fake-subject', email: 'fake@example.com', emailVerified: true };
 
     /**
-     * When the next sign-in says the user signed in at the provider. Now, when undefined.
+     * When the next login says the user logged in at the provider. Now, when undefined.
      */
     authenticatedAt: Date | undefined;
 
     /**
-     * The query of every sign-in the provider was asked for, in order.
+     * The query of every login the provider was asked for, in order.
      */
     readonly authorizationRequests: URLSearchParams[] = [];
 
@@ -134,7 +134,7 @@ export class FakeOAuthProvider {
     readonly tokenRequests: URLSearchParams[] = [];
 
     /**
-     * What every sign-in answered with posted to the callback, in order, when the provider answers with a
+     * What every login answered with posted to the callback, in order, when the provider answers with a
      * form post.
      */
     readonly formPosts: URLSearchParams[] = [];
@@ -162,7 +162,7 @@ export class FakeOAuthProvider {
     readonly endSessionRequests: URLSearchParams[] = [];
 
     /**
-     * The id of the session each sign-in started at the provider, in order, as the ID tokens name it in
+     * The id of the session each login started at the provider, in order, as the ID tokens name it in
      * `sid` and a logout names it again.
      */
     readonly sessionIds: string[] = [];
@@ -218,7 +218,7 @@ export class FakeOAuthProvider {
     }
 
     /**
-     * Answers the next sign-in with the given error rather than a code, as a provider does when the user
+     * Answers the next login with the given error rather than a code, as a provider does when the user
      * declines or something goes wrong there.
      * @param error - The error, eg. `access_denied`.
      */
@@ -267,8 +267,8 @@ export class FakeOAuthProvider {
 
     /**
      * Signs an ID token for whoever `identity` says, issued to the given client, the way a mobile app
-     * holds one once the user signed in there.
-     * @param audience - The `aud` claim: the client the app signed in as.
+     * holds one once the user logged in there.
+     * @param audience - The `aud` claim: the client the app logged in as.
      * @param claims - Claims put in on top of the ones every ID token carries, or in their place.
      * @returns The token.
      */
@@ -524,7 +524,7 @@ export class FakeOAuthProvider {
     }
 
     /**
-     * The `auth_time` claim of an ID token, for a provider that says when the user signed in.
+     * The `auth_time` claim of an ID token, for a provider that says when the user logged in.
      * @param authenticatedAt - When they did.
      * @returns The claim, or nothing for a provider that does not say.
      */

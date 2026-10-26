@@ -6,9 +6,20 @@ The HTTP client sends requests to other APIs. It validates the response body and
 |---|---|---|
 | `HttpClientInterface` | interface | Contract for making outgoing HTTP requests |
 | `ZIBRI_DI_TOKENS.HTTP_CLIENT` | DI token | Injects `HttpClientInterface` |
+| `HttpClient` | class | The default `HttpClientInterface`. Replaceable through ZIBRI_DI_TOKENS.HTTP_CLIENT |
+| `UrlUtilities` | class | Checks a URL before calling it: `isLoopback`, `isPrivate` (https or loopback, so nobody can listen in) and `withoutQuery` |
+| `HttpOptions`, `HttpOptionsInput` | type, type | The options of one request: query, headers, timeout, attempts, the request body type and the expected response body and headers |
+| `HttpClientHeaderValue` | type | A value a request header can be sent with |
+| `HttpClientRequestBodyMimeType`, `HttpClientRequestBody` | type, type | The mime types a request body can be sent as, and the body each one takes, an `XmlString` for XML |
+| `HttpClientResponseBodyInput`, `JsonResponseBodyInput`, `XmlResponseBodyInput`, `FormDataResponseBodyInput`, `FormUrlEncodedResponseBodyInput`, `StreamResponseBodyInput` | type, type, type, type, type, type | The `responseBody` of a request: a model class, or the format with its model or shapes |
 | `HttpClientResponse` | type | Shape of a response, including validated body and headers |
+| `HttpClientResponseForBody` | type | The response a request returns for the `responseBody` it declares |
+| `isHttpClientResponse` | function | Checks whether a value is an `HttpClientResponse` |
+| `HttpClientError`, `isHttpClientError` | error, function | Thrown when no response arrives or its body or a header fails to parse or validate, and a check for it |
+| `HttpClientErrorRequestData`, `HttpClientErrorResponseData`, `HttpClientErrorOptions` | type, type, type | The request and the response an `HttpClientError` carries, and what it is created with |
 | `HttpClientDispatcher` | type | What a request is sent over: a proxy, a CA bundle, a client certificate |
 | `ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT` | DI token | Deployment-wide timeout, response size limit, dispatcher and circuit breaker |
+| `HttpClientOptions`, `HttpClientOptionsInput` | type, type | The options every request is sent with, and the ones a deployment sets |
 | `HttpClientIdempotencyKey` | type | The [idempotency key](#idempotency-keys) a request is sent with |
 | `HttpClientCircuitBreakerOptions` | type | When requests to an [origin that keeps failing](#when-an-upstream-keeps-failing) stop being sent |
 | `CircuitOpenError` | error | A request that was not sent because its origin's circuit is open |
@@ -63,7 +74,7 @@ By default, the HTTP client:
 
 The timeout covers the whole answer, body included: the clock runs until the body has been read.
 
-Override both with the `attempts` and `timeoutMs` options:
+Override both with the `attempts` and `timeoutInMs` options:
 
 ```ts
 // src/services/partner-api.service.ts
@@ -75,14 +86,14 @@ export async function getWithRetries(): Promise<HttpClientResponse> {
         'https://partner.example.com/some-endpoint',
         {
             attempts: 3,
-            timeoutMs: 10000
+            timeoutInMs: 10000
         }
     );
 }
 ```
 
 ## Inside a request
-A call sent while handling a request is also bound by that request's deadline, and the shorter of the two ends it. A route allowed two seconds holds an upstream connection for two seconds, not for the ten its `timeoutMs` allows. A call that is backing off before another attempt stops backing off.
+A call sent while handling a request is also bound by that request's deadline, and the shorter of the two ends it. A route allowed two seconds holds an upstream connection for two seconds, not for the ten its `timeoutInMs` allows. A call that is backing off before another attempt stops backing off.
 
 It fails with the same `GatewayTimeoutError` the caller was answered with. See [deadlines](./creating-endpoints.md#deadlines).
 
@@ -124,7 +135,7 @@ import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 
 defineProvider({
     token: ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT,
-    useValue: { circuitBreaker: { failuresToOpen: 10, openForMs: 60000 } }
+    useValue: { circuitBreaker: { failuresToOpen: 10, openForInMs: 60000 } }
 })
 ```
 
@@ -151,13 +162,13 @@ import { defineProvider, ZIBRI_DI_TOKENS } from 'zibri';
 defineProvider({
     token: ZIBRI_DI_TOKENS.HTTP_CLIENT_OPTIONS_INPUT,
     useValue: {
-        defaultTimeoutMs: 30000,
+        defaultTimeoutInMs: 30000,
         defaultMaxResponseSize: '50mb'
     }
 })
 ```
 
-A `timeoutMs` on a single request wins over the default.
+A `timeoutInMs` on a single request wins over the default.
 
 ## Egress: proxies, CA bundles and mutual TLS
 

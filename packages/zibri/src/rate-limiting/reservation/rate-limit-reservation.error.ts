@@ -13,12 +13,12 @@ export class RateLimitReservationError extends InternalError {
     /**
      * The estimated time before the reservation might be able to succeed.
      */
-    readonly estimatedWaitMs?: number;
+    readonly estimatedWaitInMs?: number;
 
-    constructor(reason: RateLimitReservationRejectionReason, estimatedWaitMs?: number) {
+    constructor(reason: RateLimitReservationRejectionReason, estimatedWaitInMs?: number) {
         super(`Reservation rejected: ${reason}`);
         this.name = 'RateLimitReservationError';
         this.reason = reason;
-        this.estimatedWaitMs = estimatedWaitMs;
+        this.estimatedWaitInMs = estimatedWaitInMs;
     }
 }

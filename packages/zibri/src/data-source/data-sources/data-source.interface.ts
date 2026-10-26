@@ -1,11 +1,11 @@
-import { BackupResourceInterface } from '../../backup/backup-resource.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
+import { type BackupResourceInterface } from '../../backup/backup-resource.interface';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
+import { ChangeSetRepository } from '../change-sets/change-set-repository';
+import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { Migration } from '../migration/migration.model';
 import { AddPropertyToEntityInput } from '../models/add-property-to-entity-input.model';
 import { ChangePropertyOfEntityInput } from '../models/change-property-of-entity-input.model';
@@ -126,7 +126,8 @@ export interface DataSourceInterface extends BackupResourceInterface {
     shutDown: () => void | Promise<void>,
 
     /**
-     * Gets a repository to manage the provided entity class in the data source.
+     * Gets a repository to manage the provided entity class in the data source: the class listed for
+     * it in `repositories`, when there is one.
      * @param cls - The entity class to get the repository for.
      * @returns A repository for the provided entity class.
      * @throws When the data source has not been initialized yet or the provided entity does not belong to this data source.

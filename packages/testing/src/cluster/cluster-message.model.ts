@@ -27,7 +27,7 @@ export const CLUSTER_INSTANCE_OPTIONS_ENV: string = 'ZIBRI_CLUSTER_INSTANCE_OPTI
 
 /**
  * The environment variable holding the host ports the declared data sources got mapped to, as a
- * json number array in the order they are declared in.
+ * json array of their `DataSourcePorts` in the order they are declared in.
  */
 export const CLUSTER_DATA_SOURCE_PORTS_ENV: string = 'ZIBRI_CLUSTER_DATA_SOURCE_PORTS';
 

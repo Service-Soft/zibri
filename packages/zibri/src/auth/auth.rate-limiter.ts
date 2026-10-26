@@ -63,7 +63,7 @@ export class AuthRateLimiter extends TokenBucketRateLimiter {
                 name: 'AuthRateLimiter',
                 store: new InMemoryRateLimiterStore<TokenBucketState>({ maxKeys: options.maxKeys }),
                 capacity: options.maxAttempts,
-                maxReservationWaitMs: undefined,
+                maxReservationWaitInMs: undefined,
                 // the one limiter everybody has to pass: a store full of attacker networks must not
                 // decide for every newcomer, so the application says which way it is wrong
                 onStoreFailure: options.onStoreFailure

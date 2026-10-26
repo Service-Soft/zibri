@@ -14,18 +14,19 @@ import { BackupService } from '../../backup/backup.service';
 import { Backup } from '../../backup/decorators/backup-resource.decorator';
 import { BackupTransport } from '../../backup/decorators/backup-transport.decorator';
 import { BaseFsBackupTransport } from '../../backup/transports/fs.backup-transport';
-import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
-import { Migration } from '../../data-source/migration/migration.model';
 import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { ValKeyDataSource, ValKeyOptions } from '../../data-source/data-sources/val-key/val-key-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
+import { MigrationEntity } from '../../data-source/migration/migration-entity.model';
+import { Migration } from '../../data-source/migration/migration.model';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
 import { Repository } from '../../data-source/repository/repository';
 import { RepositoryClass } from '../../data-source/repository/repository-class.type';
 import { Transaction } from '../../data-source/transaction/transaction.model';
-import { Injectable } from '../../di/decorators/injectable.decorator';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
+import { Injectable } from '../../di/decorators/injectable.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
@@ -34,8 +35,8 @@ import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
 import { zibriVersion } from '../../versioning/zibri-version.function';
 import { testFileFolder } from '../constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
@@ -148,6 +149,8 @@ class EvalBackupDataSource extends PostgresDataSource {
     // the way a boot does, and synchronizing sets every entity table's comment to the one its entity
     // declares - so under it a comment on a table would say what TypeORM did, not what the archive held
     schemaManagement: SchemaManagement = 'migrations';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 /**
@@ -229,7 +232,7 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
     it('takes a backup from a data source that was never given root credentials', async () => {
         await itemRepository.create({ value: 'kept' });
 
-        await backupService.createBackup({ name: 'no-root-credentials' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'no-root-credentials' }));
 
         expect(await FsUtilities.exists(
             FsUtilities.getPath(backupFolder, 'no-root-credentials', EvalBackupDataSource.name)
@@ -237,7 +240,7 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
     }, 60000);
 
     it('writes a dump that carries no role definitions and no password hashes', async () => {
-        await backupService.createBackup({ name: 'no-roles' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'no-roles' }));
 
         const dump: string = await readStoredDump('no-roles');
 
@@ -250,7 +253,7 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
     }, 60000);
 
     it('writes a dump of this data source\'s database and nothing else', async () => {
-        await backupService.createBackup({ name: 'one-database' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'one-database' }));
 
         const dump: string = await readStoredDump('one-database');
 
@@ -266,7 +269,7 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
     }, 60000);
 
     it('writes an artifact that cannot destroy anything by itself', async () => {
-        await backupService.createBackup({ name: 'no-drops' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'no-drops' }));
 
         const dump: string = await readStoredDump('no-drops');
 
@@ -280,7 +283,7 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'restore-me' });
 
-        await backupService.createBackup({ name: 'round-trip' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'round-trip' }));
         await itemRepository.deleteAll({});
         expect(await itemRepository.findAll()).toHaveLength(0);
 
@@ -335,7 +338,7 @@ describe('evaluation/01-data-layer C6 - a backup is this application\'s database
 
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'least-privilege' });
-        await backupService.createBackup({ name: 'least-privilege' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'least-privilege' }));
         await itemRepository.deleteAll({});
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
@@ -392,7 +395,7 @@ describe('evaluation/01-data-layer M55 - a backup is the schema the data source 
         await runSql('CREATE SCHEMA eval_other_app');
         await runSql('CREATE TABLE eval_other_app.ledger (entry text)');
         await runSql('INSERT INTO eval_other_app.ledger VALUES (\'before\')');
-        await backupService.createBackup({ name: 'other-schema' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'other-schema' }));
         await runSql('UPDATE eval_other_app.ledger SET entry = \'after\'');
 
         // a backup of the whole database rolled the other application back to the moment this one
@@ -408,7 +411,7 @@ describe('evaluation/01-data-layer M55 - a backup is the schema the data source 
         await runSql('CREATE TYPE eval_mood AS ENUM (\'calm\', \'busy\')');
         await runSql('CREATE VIEW eval_backup_values AS SELECT value FROM eval_backup_item');
         await runSql('CREATE FUNCTION eval_double(n integer) RETURNS integer LANGUAGE sql AS $$ SELECT n * 2 $$');
-        await backupService.createBackup({ name: 'every-kind' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'every-kind' }));
         await runSql('CREATE TABLE eval_created_later (id integer)');
 
         // a restore that cleared the tables alone failed on the type and the function it found still
@@ -431,7 +434,7 @@ describe('evaluation/01-data-layer M55 - a backup is the schema the data source 
     it('puts back the grants and comments on the schema\'s objects', async () => {
         await runSql('COMMENT ON TABLE eval_backup_item IS \'what the evaluation keeps\'');
         await runSql('GRANT SELECT ON eval_backup_item TO PUBLIC');
-        await backupService.createBackup({ name: 'grants' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'grants' }));
 
         await backupService.restore(await findBackup('grants'));
 
@@ -545,6 +548,7 @@ describe('evaluation/01-data-layer MINOR - postgres never requires tls', () => {
             entities: Newable<BaseEntity>[] = [];
             readonly repositories: RepositoryClass[] = [];
             schemaManagement: SchemaManagement = 'synchronize';
+            readonly pooler: PostgresPooler = 'none';
         }
 
         class EvalUnsaidValKeyDataSource extends ValKeyDataSource {
@@ -564,7 +568,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     // every archive is checked before any is applied, and the applied ones are put back from snapshots.
 
     it('records what it wrote, so there is something to check a restore against', async () => {
-        await backupService.createBackup({ name: 'measured' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'measured' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'measured' },
@@ -587,7 +591,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     }, 60000);
 
     it('records the shape it was written in, and refuses one it does not know', async () => {
-        await backupService.createBackup({ name: 'format-checked' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'format-checked' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'format-checked' },
@@ -611,7 +615,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     }, 60000);
 
     it('leaves a stored record in a shape it does not know alone, rather than reading it as this one', async () => {
-        await backupService.createBackup({ name: 'from-the-future' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'from-the-future' }));
         // the record as some later build wrote it: this one knows the field that says which shape it
         // is, and nothing else about it.
         //
@@ -639,7 +643,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     }, 60000);
 
     it('records which version of the framework took it', async () => {
-        await backupService.createBackup({ name: 'versioned' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'versioned' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'versioned' } });
         assert(backup, 'the backup was not created');
@@ -655,7 +659,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     it('refuses to restore a resource that was never finished', async () => {
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'untouched' });
-        await backupService.createBackup({ name: 'interrupted' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'interrupted' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'interrupted' },
@@ -680,7 +684,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     }, 60000);
 
     it('writes that record beside the data, so a restore has it when the database does not', async () => {
-        await backupService.createBackup({ name: 'self-describing' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'self-describing' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'self-describing' },
@@ -703,7 +707,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     it('refuses to restore an archive that is not the one it recorded', async () => {
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'still-here' });
-        await backupService.createBackup({ name: 'damaged' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'damaged' }));
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'damaged' },
@@ -728,7 +732,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     it('restores an archive that is the one it recorded', async () => {
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'verified' });
-        await backupService.createBackup({ name: 'intact' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'intact' }));
         await itemRepository.deleteAll({});
 
         const [backup]: BackupEntity[] = await backupRepository.findAll({
@@ -744,7 +748,7 @@ describe('evaluation/04-infrastructure-subsystems 5.4 - a backup must be checkab
     }, 60000);
 
     it('gives every transport the whole archive rather than a share of it', async () => {
-        await backupService.createBackup({ name: 'two-transports' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'two-transports' }));
 
         const first: Buffer = await readFile(FsUtilities.getPath(backupFolder, 'two-transports', EvalBackupDataSource.name));
         const second: Buffer = await readFile(FsUtilities.getPath(secondBackupFolder, 'two-transports', EvalBackupDataSource.name));

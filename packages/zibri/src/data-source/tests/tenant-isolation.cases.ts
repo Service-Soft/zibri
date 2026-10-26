@@ -196,7 +196,7 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
             const other: TenantNote = await createNote(tenantB, 'other');
 
             await tenants().runAs(tenantA, async () => {
-                const ids: string[] = (await notes().findAll({ take: 'all' })).map(n => n.id);
+                const ids: string[] = (await notes().findAll({ limit: 'all' })).map(n => n.id);
                 expect(ids).toContain(own.id);
                 expect(ids).not.toContain(other.id);
 
@@ -204,7 +204,7 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
                 await expect(notes().findById(other.id)).rejects.toThrow(NotFoundError);
                 expect(await notes().count({ where: { id: other.id } })).toBe(0);
                 // a filter naming the other tenant outright finds nothing either
-                expect(await notes().findAll({ where: { tenantId: tenantB }, take: 'all' })).toEqual([]);
+                expect(await notes().findAll({ where: { tenantId: tenantB }, limit: 'all' })).toEqual([]);
             });
         });
 
@@ -214,7 +214,7 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
             expect([archivedOwn.tenantId, archivedOther.tenantId]).toEqual([tenantA, tenantB]);
 
             await tenants().runAs(tenantA, async () => {
-                const ids: string[] = (await notes().findAll({ unscoped: true, take: 'all' })).map(n => n.id);
+                const ids: string[] = (await notes().findAll({ unscoped: true, limit: 'all' })).map(n => n.id);
                 // the scope hid the archived row and no longer does...
                 expect(ids).toContain(archivedOwn.id);
                 // ...while the other tenant's stays out of reach
@@ -223,8 +223,8 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
         });
 
         it('refuses a tenant\'s rows while no tenant is active', async () => {
-            await expect(notes().findAll({ take: 'all' })).rejects.toThrow(NoActiveTenantError);
-            await expect(notes().findAll({ take: 'all', unscoped: true })).rejects.toThrow(NoActiveTenantError);
+            await expect(notes().findAll({ limit: 'all' })).rejects.toThrow(NoActiveTenantError);
+            await expect(notes().findAll({ limit: 'all', unscoped: true })).rejects.toThrow(NoActiveTenantError);
             await expect(notes().create({ code: 'outside', title: 'outside', archived: false }))
                 .rejects.toThrow(NoActiveTenantError);
         });
@@ -351,14 +351,14 @@ export function describeTenantIsolation(name: string, getRepositories: () => Ten
             expect(shared.tenantId ?? undefined).toBeUndefined();
             expect(own.tenantId).toBe(tenantA);
 
-            const insideA: string[] = await tenants().runAs(tenantA, async () => (await notices().findAll({ take: 'all' })).map(n => n.id));
+            const insideA: string[] = await tenants().runAs(tenantA, async () => (await notices().findAll({ limit: 'all' })).map(n => n.id));
             expect(insideA).toEqual(expect.arrayContaining([shared.id, own.id]));
 
-            const insideB: string[] = await tenants().runAs(tenantB, async () => (await notices().findAll({ take: 'all' })).map(n => n.id));
+            const insideB: string[] = await tenants().runAs(tenantB, async () => (await notices().findAll({ limit: 'all' })).map(n => n.id));
             expect(insideB).toContain(shared.id);
             expect(insideB).not.toContain(own.id);
 
-            const outside: string[] = (await notices().findAll({ take: 'all' })).map(n => n.id);
+            const outside: string[] = (await notices().findAll({ limit: 'all' })).map(n => n.id);
             expect(outside).toContain(shared.id);
             expect(outside).not.toContain(own.id);
         });

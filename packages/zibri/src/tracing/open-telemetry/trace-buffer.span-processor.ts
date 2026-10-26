@@ -33,7 +33,7 @@ export class TraceBufferSpanProcessor implements OpenTelemetrySpanProcessor {
             name: span.name,
             kind: OpenTelemetryUtilities.findKind(span.kind, this.api),
             startedAt: new Date(OpenTelemetryUtilities.resolveMilliseconds(span.startTime)),
-            durationMs: OpenTelemetryUtilities.resolveMilliseconds(span.duration),
+            durationInMs: OpenTelemetryUtilities.resolveMilliseconds(span.duration),
             status: OpenTelemetryUtilities.findStatus(span.status.code, this.api),
             statusMessage: span.status.message,
             attributes: { ...span.attributes }

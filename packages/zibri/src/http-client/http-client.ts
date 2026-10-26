@@ -430,7 +430,7 @@ export class HttpClient implements HttpClientInterface {
                     method,
                     url,
                     { ...init, headers },
-                    this.clientOptions.defaultTimeoutMs,
+                    this.clientOptions.defaultTimeoutInMs,
                     this.clientOptions.dispatcher,
                     signals.length ? AbortSignal.any(signals) : undefined
                 );
@@ -549,7 +549,7 @@ export class HttpClient implements HttpClientInterface {
                     method,
                     urlWithParams,
                     init,
-                    options?.timeoutMs ?? this.clientOptions.defaultTimeoutMs,
+                    options?.timeoutInMs ?? this.clientOptions.defaultTimeoutInMs,
                     // the request's own replaces the application's rather than merging with it: a
                     // dispatcher is one connection policy, and half of two is not a policy
                     options?.dispatcher ?? this.clientOptions.dispatcher,
@@ -964,7 +964,7 @@ export class HttpClient implements HttpClientInterface {
      * @param method - The method the request is sent with, for the error when it is not sent.
      * @param url - The url to request.
      * @param init - The request to send.
-     * @param timeoutMs - How long the whole answer may take.
+     * @param timeoutInMs - How long the whole answer may take.
      * @param dispatcher - What to send it over, or undefined for node's own.
      * @param requestSignal - The deadline of the request this is being sent for, if there is one.
      * @returns The response, and the release for its deadline.
@@ -974,7 +974,7 @@ export class HttpClient implements HttpClientInterface {
         method: HttpMethod,
         url: string,
         init: RequestInit,
-        timeoutMs: number,
+        timeoutInMs: number,
         dispatcher: HttpClientDispatcher | undefined,
         requestSignal: AbortSignal | undefined
     ): Promise<SentRequest> {
@@ -985,7 +985,7 @@ export class HttpClient implements HttpClientInterface {
                 throw new CircuitOpenError(origin, reopensAt, method, url);
             }
         }
-        const sent: SentRequest = await this.sendThroughDeadline(url, init, timeoutMs, dispatcher, requestSignal)
+        const sent: SentRequest = await this.sendThroughDeadline(url, init, timeoutInMs, dispatcher, requestSignal)
             .catch((error: unknown) => {
                 if (origin != undefined) {
                     // the request this was sent for being answered says nothing about the origin;
@@ -1014,7 +1014,7 @@ export class HttpClient implements HttpClientInterface {
      * Sends the request under its deadline, handing back the means to end it.
      * @param url - The url to request.
      * @param init - The request to send.
-     * @param timeoutMs - How long the whole answer may take.
+     * @param timeoutInMs - How long the whole answer may take.
      * @param dispatcher - What to send it over, or undefined for node's own.
      * @param requestSignal - The deadline of the request this is being sent for, if there is one.
      * @returns The response, and the release for its deadline.
@@ -1022,12 +1022,12 @@ export class HttpClient implements HttpClientInterface {
     private async sendThroughDeadline(
         url: string,
         init: RequestInit,
-        timeoutMs: number,
+        timeoutInMs: number,
         dispatcher: HttpClientDispatcher | undefined,
         requestSignal: AbortSignal | undefined
     ): Promise<SentRequest> {
         const controller: AbortController = new AbortController();
-        const timeout: NodeJS.Timeout = setTimeout(() => controller.abort(), timeoutMs);
+        const timeout: NodeJS.Timeout = setTimeout(() => controller.abort(), timeoutInMs);
         // whichever of the two comes first, which is the only sensible reading of having both: a
         // call may not outlive its own timeout, and it may not outlive the request that asked for it
         const signal: AbortSignal = requestSignal

@@ -12,6 +12,7 @@ import { BaseS3BackupTransport } from './s3.backup-transport';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { PostgresBackupScope } from '../../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
@@ -94,6 +95,7 @@ class DbDataSource extends PostgresDataSource {
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
     repositories: RepositoryClass[] = defaultTestServerRepositories;
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 /**
@@ -200,7 +202,7 @@ describe('BaseS3BackupTransport', () => {
         const backupService: BackupService = inject(BackupService);
         await itemRepository.create({ value: '42' });
 
-        await backupService.createBackup({ name: 'round-trip' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'round-trip' }));
         await itemRepository.deleteAll({});
         await backupRepository.deleteAll({});
         await backupService.syncBackupEntities();
@@ -214,7 +216,7 @@ describe('BaseS3BackupTransport', () => {
     it('deletes a backup from the bucket, so that syncing does not bring it back', async () => {
         const backupRepository: Repository<BackupEntity> = inject(repositoryTokenFor(BackupEntity));
         const backupService: BackupService = inject(BackupService);
-        await backupService.createBackup({ name: 'deleted-for-good' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'deleted-for-good' }));
         const [backup]: BackupEntity[] = await backupRepository.findAll({ where: { name: 'deleted-for-good' }, relations: ['resources'] });
         assert(backup, 'the backup was not created');
 

@@ -1,7 +1,7 @@
-import { FederatedConnectionRequest } from './federated-connection-request.model';
-import { FederatedConnectionStart } from './federated-connection-start.model';
 import { FederatedCredentials, FederatedTicketCredentials } from './federated-credentials.model';
 import { FederatedIdentity } from './federated-identity.model';
+import { FederatedLinkIdentityRequest } from './federated-link-identity-request.model';
+import { FederatedLinkIdentityStart } from './federated-link-identity-start.model';
 import { FederatedMetadata } from './federated-metadata.model';
 import { FederatedProviderLogoutMessage } from './federated-provider-logout-message.model';
 import { FederatedProviderLogout } from './federated-provider-logout.model';
@@ -10,15 +10,15 @@ import { FederatedRouteEndpoint } from './federated-route-endpoint.model';
 import { FederatedRoute } from './federated-route.type';
 import { FederatedSessionMatch } from './federated-session-match.model';
 import { FederatedSession } from './federated-session.model';
-import { FederatedSignInRequest } from './federated-sign-in-request.model';
-import { FederatedSignInResult } from './federated-sign-in-result.model';
+import { FederatedLoginRequest } from './federated-login-request.model';
+import { FederatedLoginResult } from './federated-login-result.model';
 import { FederatedSoapLogout } from './federated-soap-logout.model';
 import { BaseUser } from '../../models/base-user.model';
 import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator } from '../identity-linking-authenticator.interface';
 
 /**
- * Interface for an authenticator that signs users in at a provider: the browser is sent there, and
- * comes back with an answer the provider proves who signed in with.
+ * Interface for an authenticator that logs users in at a provider: the browser is sent there, and
+ * comes back with an answer the provider proves who logged in with.
  *
  * The routes of `AuthController` find it by its `name`. `BaseFederatedAuthenticator` implements it.
  */
@@ -32,8 +32,8 @@ export interface FederatedAuthenticatorInterface<
         FederatedTicketCredentials,
         FederatedRegistration,
         FederatedIdentity,
-        FederatedConnectionRequest,
-        FederatedConnectionStart
+        FederatedLinkIdentityRequest,
+        FederatedLinkIdentityStart
     > {
     /**
      * The routes whose urls the authenticator gives out, with the method the browser requests each
@@ -46,18 +46,18 @@ export interface FederatedAuthenticatorInterface<
      */
     resolveRouteUrl: (route: FederatedRoute) => string,
     /**
-     * Starts a sign-in at the provider. Answers with the url at the provider to send the browser to.
+     * Requests a login at the provider. Answers with the url at the provider to send the browser to.
      */
-    startSignIn: (request: FederatedSignInRequest) => Promise<string>,
+    requestProviderLogin: (request: FederatedLoginRequest) => Promise<string>,
     /**
-     * Sends a connection started with `startConnection` on to the provider, by its one-time code.
+     * Sends a link requested with `requestLinkIdentity` on to the provider, by its one-time code.
      * Answers with the url at the provider to send the browser to.
      */
-    continueConnection: (code: string) => Promise<string>,
+    continueLinkIdentity: (code: string) => Promise<string>,
     /**
-     * Takes the provider's answer to a sign-in: the query of a redirect, or the fields of a form post.
+     * Takes the provider's answer to a login: the query of a redirect, or the fields of a form post.
      */
-    completeSignIn: (answer: URLSearchParams) => Promise<FederatedSignInResult>,
+    confirmProviderLogin: (answer: URLSearchParams) => Promise<FederatedLoginResult>,
     /**
      * The origins the provider's answer may be posted to the callback from. None when it redirects.
      */
@@ -89,7 +89,7 @@ export interface FederatedAuthenticatorInterface<
 }
 
 /**
- * Checks whether or not the given value is an authenticator that signs users in at a provider.
+ * Checks whether or not the given value is an authenticator that logs users in at a provider.
  * @param value - The value to check.
  * @returns True if it links identities to users and has every key FederatedAuthenticatorInterface adds.
  */
@@ -100,9 +100,9 @@ export function isFederatedAuthenticator(value: unknown): value is FederatedAuth
     const keys: string[] = [
         'routes',
         'resolveRouteUrl',
-        'startSignIn',
-        'continueConnection',
-        'completeSignIn',
+        'requestProviderLogin',
+        'continueLinkIdentity',
+        'confirmProviderLogin',
         'resolveFormPostOrigins',
         'resolveMetadata',
         'createLogoutUrl',

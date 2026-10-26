@@ -50,7 +50,7 @@ describe('ThreadJobCleanupCronJob', () => {
             progress: 0,
             attempts: 1,
             priority: false,
-            timeout: Ms.MINUTE,
+            timeoutInMs: Ms.MINUTE,
             workerData: { filePath: 'nowhere.js' }
         });
     }
@@ -65,8 +65,8 @@ describe('ThreadJobCleanupCronJob', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 0,
-                        defaultTimeoutMs: Ms.MINUTE,
-                        defaultTimeoutPriorityMs: Ms.MINUTE,
+                        defaultTimeoutInMs: Ms.MINUTE,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},

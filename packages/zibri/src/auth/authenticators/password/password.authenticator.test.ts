@@ -29,7 +29,7 @@ import { OmitClass } from '../../../entity/omit-class.model';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { Newable } from '../../../types/newable.type';
 import { JsonUtilities } from '../../../utilities/json.utilities';
-import { SemVerVersion } from '../../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../../utilities/sem-ver.utilities';
 import { OtpTwoFactorMethod } from '../../2fa/methods/otp/otp.two-factor-method';
 import { AuthController } from '../../auth-controller/auth-controller.model';
 import { type HashString, HashUtilities } from '../../hash/hash.utilities';
@@ -267,7 +267,7 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('signs in with the password of either strategy once the upgrade migration moved them', async () => {
+    it('logs in with the password of either strategy once the upgrade migration moved them', async () => {
         expect(await login(baseUrl, 'jwt-only@example.com', 'jwt-password')).toBe(200);
         expect(await login(baseUrl, 'cookie-only@example.com', 'cookie-password')).toBe(200);
     });
@@ -280,7 +280,7 @@ describe('PasswordAuthenticator — passwords 2.x stored', () => {
     it('stores one password per user, without the email', async () => {
         const stored: PasswordCredentials[] = await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
             repositoryTokenFor(PasswordCredentials)
-        ).findAll({ take: 'all' });
+        ).findAll({ limit: 'all' });
 
         expect(stored.map(c => Object.keys(c).sort())).toStrictEqual([0, 1, 2].map(() => ['id', 'password', 'userId']));
     });
@@ -373,7 +373,7 @@ describe('PasswordAuthenticator — passwords 2.x hashed with bcrypt', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('moves a password to scrypt the next time its user signs in', async () => {
+    it('moves a password to scrypt the next time its user logs in', async () => {
         expect(await findStoredStrategy(email)).toBe('bcrypt');
 
         expect(await login(baseUrl, email, password)).toBe(200);

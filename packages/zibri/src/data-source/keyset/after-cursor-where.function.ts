@@ -3,6 +3,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { $ts } from '../../localization/translate.function';
+import { BigNumber } from '../../utilities/number.utilities';
 import { BoundedFuzzyLikeFilter, SimilarityBound } from '../models/where/fuzzy-like.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilities';
@@ -11,6 +12,11 @@ import { ScopedWhere, ScopeWhereUtilities } from '../scopes/scope-where.utilitie
  * A value a cursor can carry, which is every ordered property type flattened for transport.
  */
 export type CursorValue = string | number | boolean;
+
+/**
+ * A value of an ordered property, as a store compares it.
+ */
+type KeysetValue = string | number | bigint | BigNumber | Date;
 
 /**
  * One property of the order, and where the cursor sits on it.
@@ -23,18 +29,23 @@ export type KeysetStep = {
     /**
      * The value the row the cursor names holds for it.
      */
-    value: string | number | Date
+    value: KeysetValue
 };
 
 /**
  * The condition object one key of the order contributes to one branch.
  */
-type KeysetCondition = Record<string, string | number | Date | BoundedFuzzyLikeFilter>;
+type KeysetCondition = Record<string, KeysetValue | BoundedFuzzyLikeFilter>;
 
 /**
  * What one branch of the comparison says about each property.
  */
-type KeysetBranch = Record<string, string | number | Date | KeysetCondition>;
+type KeysetBranch = Record<string, KeysetValue | KeysetCondition>;
+
+/**
+ * A whole number as a cursor carries it, sign and digits only.
+ */
+const WHOLE_NUMBER: RegExp = /^-?\d+$/;
 
 /**
  * The value of each ordered property on the given row.
@@ -49,6 +60,14 @@ export function keysetValuesOf<T extends BaseEntity>(entity: T, keys: KeysetOrde
         // happens to render one
         if (value instanceof Date) {
             return value.toISOString();
+        }
+        // a number past what a double holds as its digits, which json carries whole where a number
+        // would lose them - in full rather than in the exponent form a large decimal prints as
+        if (typeof value === 'bigint') {
+            return value.toString();
+        }
+        if (value instanceof BigNumber) {
+            return value.toFixed();
         }
         if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
             return value;
@@ -88,15 +107,36 @@ export function keysetStepsFor(values: CursorValue[], keys: KeysetOrderKey[]): K
  * @param key - The key the value belongs to.
  * @param value - The value as the cursor carried it.
  * @returns The value, comparable against what the store holds.
+ * @throws When a number past what a double holds is not one, which only a cursor edited by hand
+ * carries.
  */
-function valueFor(key: KeysetOrderKey, value: CursorValue): string | number | Date {
-    if (key.type === 'date') {
-        return new Date(String(value));
+function valueFor(key: KeysetOrderKey, value: CursorValue): KeysetValue {
+    switch (key.type) {
+        case 'date': {
+            return new Date(String(value));
+        }
+        case 'number': {
+            return Number(value);
+        }
+        // checked rather than handed on, since BigInt throws on what it cannot read and a decimal
+        // that is not one compares with nothing
+        case 'bigint': {
+            if (!WHOLE_NUMBER.test(String(value))) {
+                throw new BadRequestError($ts`The cursor could not be read.`);
+            }
+            return BigInt(String(value));
+        }
+        case 'bignumber': {
+            const decimal: BigNumber = new BigNumber(String(value));
+            if (!decimal.isFinite()) {
+                throw new BadRequestError($ts`The cursor could not be read.`);
+            }
+            return decimal;
+        }
+        case 'string': {
+            return String(value);
+        }
     }
-    if (key.type === 'number') {
-        return Number(value);
-    }
-    return String(value);
 }
 
 /**
@@ -111,7 +151,7 @@ function pastValue(step: KeysetStep): KeysetCondition {
     // `after`/`before` for the types that read as positions - a date and a string both sort - and
     // `greaterThan`/`lesserThan` for numbers, which is the same comparison under the name that type
     // uses for it
-    if (step.key.type === 'number') {
+    if (step.key.type === 'number' || step.key.type === 'bigint' || step.key.type === 'bignumber') {
         return step.key.direction === 'ASC' ? { greaterThan: step.value } : { lesserThan: step.value };
     }
     return step.key.direction === 'ASC' ? { after: step.value } : { before: step.value };
@@ -122,7 +162,7 @@ function pastValue(step: KeysetStep): KeysetCondition {
  * @param step - The key and the value to be level with.
  * @returns The value itself, or for an order by similarity the condition of being exactly as similar.
  */
-function levelWith(step: KeysetStep): string | number | Date | KeysetCondition {
+function levelWith(step: KeysetStep): KeysetValue | KeysetCondition {
     return step.key.similarTo == undefined ? step.value : similarityTo(step.key.similarTo, String(step.value), 'equal');
 }
 

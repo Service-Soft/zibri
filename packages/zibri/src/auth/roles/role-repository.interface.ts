@@ -1,7 +1,4 @@
-/**
- * Marks the repository roles are read from and written to. `BaseRoleRepository()` sets it.
- */
-export const ROLE_REPOSITORY: unique symbol = Symbol('zibri.role-repository');
+import { ROLE_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 
 /**
  * Interface for a role repository, the one place the roles of an application are read from and

@@ -7,6 +7,7 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { $t } from '../../localization/translate.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { CheckConstraintViolationError } from '../check-constraint-violation.error';
+import { propertyOf } from '../models/where/property-of.function';
 import { whereFor } from '../models/where/where-for.function';
 import { Repository } from '../repository/repository';
 
@@ -29,7 +30,18 @@ import { Repository } from '../repository/repository';
             message: $t`a done chore has a completion date`
         },
         { where: whereFor<Chore>({ estimate: { greaterThanEquals: 1 } }), code: 'estimateTooSmall', message: $t`takes at least 1` },
-        { where: whereFor<Chore>({ label: { notOneOf: ['forbidden'] } }), code: 'labelForbidden', message: $t`this label is forbidden` }
+        { where: whereFor<Chore>({ label: { notOneOf: ['forbidden'] } }), code: 'labelForbidden', message: $t`this label is forbidden` },
+        {
+            where: whereFor<Chore>([{ endsAt: null }, { endsAt: { after: propertyOf('startsAt') } }]),
+            code: 'endsBeforeStart',
+            message: $t`a chore ends after it starts`
+        },
+        {
+            where: whereFor<Chore>([{ startsAt: null }, { startsAt: { afterOrOn: new Date('2000-01-01T00:00:00.000Z') } }]),
+            code: 'startsTooEarly',
+            message: $t`a chore starts in this millennium`
+        },
+        whereFor<Chore>({ status: { not: 'archived' } })
     ]
 })
 export class Chore extends BaseEntity {
@@ -47,6 +59,12 @@ export class Chore extends BaseEntity {
 
     @Property.string({ required: false })
     label?: string | null;
+
+    @Property.date({ required: false })
+    startsAt?: Date | null;
+
+    @Property.date({ required: false })
+    endsAt?: Date | null;
 }
 
 /**
@@ -121,6 +139,65 @@ export function describeEntityChecks(dataSourceName: string, choresOf: () => Rep
             expect((await choresOf().findById(chore.id)).label).toBeNull();
             await expect(choresOf().create({ code: freshCode(), status: 'open', estimate: 2, label: 'forbidden' }))
                 .rejects.toThrow(CheckConstraintViolationError);
+        });
+
+        // 01 §D19: a check compared a property with a value only, and refused a date as that value
+        it('refuses a row whose one property breaks a comparison with another, naming both', async () => {
+            const startsAt: Date = new Date('2026-05-01T08:00:00.000Z');
+            const chore: Chore = await choresOf().create({
+                code: freshCode(),
+                status: 'open',
+                estimate: 2,
+                startsAt,
+                endsAt: new Date('2026-05-01T09:00:00.000Z')
+            });
+
+            const refusal: Promise<Chore> = choresOf().create({ code: freshCode(), status: 'open', estimate: 2, startsAt, endsAt: startsAt });
+            await expect(refusal).rejects.toThrow(CheckConstraintViolationError);
+            await expect(refusal).rejects.toMatchObject({ properties: ['endsAt', 'startsAt'] });
+            // the other property moving is judged the same way
+            await expect(choresOf().updateById(chore.id, { startsAt: new Date('2026-05-01T10:00:00.000Z') }))
+                .rejects.toThrow(CheckConstraintViolationError);
+            expect((await choresOf().findById(chore.id)).startsAt).toEqual(startsAt);
+        });
+
+        it('refuses a date on the wrong side of the one a check names', async () => {
+            await expect(choresOf().create({
+                code: freshCode(),
+                status: 'open',
+                estimate: 2,
+                startsAt: new Date('1999-12-31T23:59:59.999Z')
+            })).rejects.toThrow(CheckConstraintViolationError);
+            const chore: Chore = await choresOf().create({
+                code: freshCode(),
+                status: 'open',
+                estimate: 2,
+                startsAt: new Date('2000-01-01T00:00:00.000Z')
+            });
+            expect((await choresOf().findById(chore.id)).startsAt).toEqual(new Date('2000-01-01T00:00:00.000Z'));
+        });
+
+        // 01 §D20: a write the data source refused answered with the filter alone, without the
+        // code and message the check was declared with
+        it('answers a refused write with the code and message of the check it breaks, under the body', async () => {
+            const chore: Chore = await choresOf().create({ code: freshCode(), status: 'open', estimate: 2 });
+
+            const refusal: Promise<Chore> = choresOf().updateById(chore.id, { status: 'done' });
+
+            await expect(refusal).rejects.toThrow(CheckConstraintViolationError);
+            await expect(refusal).rejects.toMatchObject({
+                code: 'completedAtRequired',
+                problems: [{ key: 'body', code: 'completedAtRequired', message: 'a done chore has a completion date' }]
+            });
+        });
+
+        it('answers a refused write with the code `check` for a check declared as its filter alone', async () => {
+            const refusal: Promise<Chore> = choresOf().create({ code: freshCode(), status: 'archived', estimate: 2 });
+
+            await expect(refusal).rejects.toMatchObject({
+                code: 'check',
+                problems: [{ key: 'body', code: 'check', message: 'breaks the check on "status"' }]
+            });
         });
     });
 }

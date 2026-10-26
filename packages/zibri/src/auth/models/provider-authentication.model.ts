@@ -1,5 +1,5 @@
 /**
- * How the user proved who they are at a provider, as the provider reports it with the sign-in.
+ * How the user proved who they are at a provider, as the provider reports it with the login.
  */
 export type ProviderAuthentication = {
     /**

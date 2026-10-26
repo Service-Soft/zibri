@@ -6,6 +6,22 @@ import { JsonUtilities } from '../../utilities/json.utilities';
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 
 /**
+ * What a guarded write checks before it writes: what each guarded key and each guarded hash held
+ * when it was read.
+ */
+export type ValKeyWriteGuards = {
+    /**
+     * The value each guarded key was read with, by key. An empty string for a key that did not exist.
+     */
+    values: Map<string, string>,
+    /**
+     * The fields each guarded hash was read with, by key. A hash holding anything else by now has
+     * changed, one that is gone included.
+     */
+    hashes: Map<string, Record<string, string>>
+};
+
+/**
  * One write as the script reads it: what it does, the key, and the fields, field values or members.
  */
 type ScriptWrite = [ValKeyBufferedWrite['type'], string, string[]];
@@ -32,9 +48,18 @@ function resolveGuardedWritesScript(): Script {
         + 'for _, guard in ipairs(payload[1]) do '
         + 'if (redis.call("get", guard[1]) or "") ~= guard[2] then return 0 end '
         + 'end '
+        // a hash field by field: as many as it was read with, each holding what it held
+        + 'for _, guard in ipairs(payload[2]) do '
+        // eslint-disable-next-line cspell/spellchecker
+        + 'local stored = redis.call("hgetall", guard[1]) '
+        + 'if #stored ~= #guard[2] then return 0 end '
+        + 'local fields = {} '
+        + 'for i = 1, #stored, 2 do fields[stored[i]] = stored[i + 1] end '
+        + 'for i = 1, #guard[2], 2 do if fields[guard[2][i]] ~= guard[2][i + 1] then return 0 end end '
+        + 'end '
         // eslint-disable-next-line cspell/spellchecker
         + 'local commands = { hashSet = "hset", hashDelete = "hdel", setAdd = "sadd", setRemove = "srem" } '
-        + 'for _, write in ipairs(payload[2]) do '
+        + 'for _, write in ipairs(payload[3]) do '
         + 'if write[1] == "delete" then redis.call("del", write[2]) '
         + 'else for i = 1, #write[3], 1000 do '
         + 'redis.call(commands[write[1]], write[2], unpack(write[3], i, math.min(i + 999, #write[3]))) '
@@ -45,25 +70,30 @@ function resolveGuardedWritesScript(): Script {
 }
 
 /**
- * Applies writes as one atomic step, but only while the guarded keys hold what they were read with.
+ * Applies writes as one atomic step, but only while the guarded keys and hashes hold what they were
+ * read with.
  *
  * What a write needs when some of it was worked out from a value another instance may change at any
  * moment: checked here, the value and the writes derived from it are decided together, where checking
  * it first and writing afterwards would leave a window in which the value changes unseen.
  * @param client - The client to write through.
- * @param guards - The values each guarded key was read with, by key. An empty string for a key that
- * did not exist.
+ * @param guards - What each guarded key and hash was read with.
  * @param writes - The writes, in the order they are applied.
- * @returns True when the writes were applied, false when a guarded key had changed and nothing was.
+ * @returns True when the writes were applied, false when a guarded key or hash had changed and
+ * nothing was.
  * @throws When the script answers with something other than whether it wrote.
  */
 export async function applyGuardedValKeyWrites(
     client: GlideClient,
-    guards: Map<string, string>,
+    guards: ValKeyWriteGuards,
     writes: ValKeyBufferedWrite[]
 ): Promise<boolean> {
-    const payload: [[string, string][], ScriptWrite[]] = [[...guards.entries()], writes.map(w => toScriptWrite(w))];
-    const keys: string[] = [...new Set([...guards.keys(), ...writes.map(w => w.key)])];
+    const payload: [[string, string][], [string, string[]][], ScriptWrite[]] = [
+        [...guards.values.entries()],
+        [...guards.hashes.entries()].map(([key, fields]) => [key, Object.entries(fields).flat()]),
+        writes.map(w => toScriptWrite(w))
+    ];
+    const keys: string[] = [...new Set([...guards.values.keys(), ...guards.hashes.keys(), ...writes.map(w => w.key)])];
     const res: GlideReturnType = await client.invokeScript(resolveGuardedWritesScript(), {
         keys,
         args: [JsonUtilities.stringify(payload)]

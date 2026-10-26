@@ -2,13 +2,15 @@
 import { ChildProcess, ChildProcessByStdio, spawn } from 'node:child_process';
 import { PassThrough, Readable, Writable } from 'node:stream';
 
-import { EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, EntitySubscriberInterface, ColumnType, FindOperator, QueryBuilder, QueryRunner, TableColumn, TransactionStartEvent, ValueTransformer, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError } from 'typeorm';
+import { AfterQueryEvent, BeforeQueryEvent, EntitySchemaColumnOptions, EntitySchemaIndexOptions, EntitySchemaRelationOptions, EntitySubscriberInterface, ColumnType, FindOperator, QueryBuilder, QueryRunner, TableColumn, TransactionStartEvent, ValueTransformer, DataSource as TODataSource, EntityMetadata as TOEntityMetadata, QueryFailedError as TOQueryFailedError } from 'typeorm';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions.js';
 import { OnDeleteType } from 'typeorm/metadata/types/OnDeleteType.js';
 import { OnUpdateType } from 'typeorm/metadata/types/OnUpdateType.js';
 
 import { pgTypeParsers } from './pg-type-parsers.function';
 import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresPooler, PostgresTransactionPooler } from './postgres-pooler.model';
+import { sendPostgresCancelRequest } from './send-postgres-cancel-request.function';
 import { PostgresColumnSql } from './postgres-column-sql.model';
 import { ListeningConnection, PostgresNotificationListener } from './postgres-notification-listener.model';
 import { PostgresValueConversionUtilities } from './postgres-value-conversion.utilities';
@@ -111,8 +113,8 @@ const DEFAULT_TRANSACTION_IDLE_TIMEOUT_IN_MS: number = 10000;
  * What a query runner holds once it has a connection.
  *
  * Written down here because typeorm's own `QueryRunner` does not declare it, and narrowed to the
- * one field this needs: the id of the server process on the other end, which is the only thing a
- * statement can be named by from outside the connection running it.
+ * fields this needs: where the connection was opened to, and the process id and secret key it was
+ * given, which are the only things a statement can be named by from outside the connection running it.
  */
 type ConnectedQueryRunner = {
     /**
@@ -120,9 +122,21 @@ type ConnectedQueryRunner = {
      */
     databaseConnection?: {
         /**
-         * The id of the server process this connection is talking to.
+         * The host the connection was opened to.
          */
-        processID?: number
+        host: string,
+        /**
+         * The port the connection was opened to.
+         */
+        port: number,
+        /**
+         * The process id the connection was given when it started, by the server or by a pooler.
+         */
+        processID?: number | null,
+        /**
+         * The secret key that goes with it.
+         */
+        secretKey?: number | null
     }
 };
 
@@ -405,6 +419,38 @@ const STATEMENT_TIMEOUT_SUBSCRIBER: EntitySubscriberInterface = {
 };
 
 /**
+ * What stops the statements on a connection when the request they belong to ends first.
+ */
+type StatementWatch = {
+    /**
+     * The signal of the request.
+     */
+    signal: AbortSignal,
+    /**
+     * Stops what runs on the connection, once the signal fires.
+     */
+    onAbort: () => void,
+    /**
+     * How many statements on the connection are running or queued.
+     */
+    statements: number,
+    /**
+     * The cancel on its way to the server, once one was sent.
+     */
+    cancelling: Promise<void> | undefined
+};
+
+/**
+ * The statement timeout a connection has, as `pg_settings` holds it.
+ */
+type StatementTimeoutSettingRow = {
+    /**
+     * The value, in milliseconds, as text.
+     */
+    setting: string
+};
+
+/**
  * The statement timeout a connection has right now.
  */
 type StatementTimeoutRow = {
@@ -639,6 +685,11 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     private notificationListener: PostgresNotificationListener | undefined;
 
     /**
+     * The session the subscriptions listen on behind a transaction pooler, once something subscribed.
+     */
+    private listeningSource: Promise<TODataSource> | undefined;
+
+    /**
      * The similarity from which this data source answers a search out of an index.
      *
      * The connection is told to use it, so it is the boundary rather than a guess about one: a
@@ -660,6 +711,12 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * with its own `timeoutInMs`, and a migration runs under `migrationTimeoutInMs` instead.
      */
     protected readonly statementTimeoutInMs: number = 30000;
+
+    /**
+     * What stands between this data source and its server: nothing, a pooler in session mode, or a
+     * pooler in transaction mode together with where the server itself is.
+     */
+    abstract readonly pooler: PostgresPooler;
 
     /**
      * What this server's trigram operator answers, as measured at boot.
@@ -729,10 +786,16 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * on the connection rather than set on the server, so it covers what this application runs and
      * nothing else. Appended to whatever the consumer asked for, since the same string carries every
      * startup setting. The {@link statementTimeoutInMs} travels the same way, for the same reason.
+     *
+     * Behind a transaction pooler neither travels: the pooler refuses startup settings, or drops them,
+     * and a connection carries what its role carries, see {@link resolveRoleSettingsSql}.
      */
     protected override get fullOptions(): ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> {
         const options: ResolvedDataSourceOptions<OmitStrict<PostgresOptions, 'type' | 'entities'>> = super.fullOptions;
         const extra: Record<string, unknown> = { ...options.extra } as Record<string, unknown>;
+        if (this.transactionPooler != undefined) {
+            return { ...options, extra: { ...extra, types: pgTypeParsers() } };
+        }
         const startupOptions: string = typeof extra['options'] === 'string' ? `${extra['options']} ` : '';
         return {
             ...options,
@@ -743,6 +806,32 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                     + ` -c statement_timeout=${this.statementTimeoutInMs}`
             }
         };
+    }
+
+    /**
+     * The pooler handing out a server connection per transaction, when this data source is behind one.
+     * @returns The pooler, or undefined when every connection is a session of its own.
+     */
+    private get transactionPooler(): PostgresTransactionPooler | undefined {
+        return typeof this.pooler === 'object' ? this.pooler : undefined;
+    }
+
+    /**
+     * Resolves the statements that give the role this data source connects as the settings it asks its
+     * connections for: the statement timeout and the similarity a search is answered from.
+     *
+     * Behind a transaction pooler a connection carries what its role carries, so these are run once,
+     * by the role itself or by anybody allowed to alter it. The data source refuses to start until its
+     * connections report them.
+     * @returns The statements.
+     */
+    resolveRoleSettingsSql(): string[] {
+        const username: string | undefined = this.transactionPooler?.direct.username ?? this.options.username;
+        const role: string = username == undefined ? 'CURRENT_USER' : escapeIdentifier(username);
+        return [
+            `ALTER ROLE ${role} SET statement_timeout = ${this.statementTimeoutInMs}`,
+            `ALTER ROLE ${role} SET pg_trgm.similarity_threshold = ${this.searchesFromSimilarity / 100}`
+        ];
     }
 
     /**
@@ -795,24 +884,88 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      *
      * Asked of the server rather than of the client, and on a *different* connection: the one
      * running the statement is busy running it, so there is nothing on it to ask with until it is
-     * done - which is the moment this would no longer be needed.
+     * done - which is the moment this would no longer be needed. Sent where the connection was opened
+     * to, so a pooler in front of the server passes it on to the server connection the statement runs on.
      *
      * The statement fails where it was issued, which is the point: a read that nobody is waiting for
      * any more stops occupying a worker, a plan and whatever it had locked. Refused quietly when
      * the connection has no backend to name, which is what an already finished statement looks like.
      * @param runner - The connection running the statement.
      */
-    async cancelStatementOn(runner: QueryRunner): Promise<void> {
+    private async cancelStatementOn(runner: QueryRunner): Promise<void> {
         // typeorm's own QueryRunner declares no connection, so the shape of what it is holding has
-        // to be written down here. Narrow on purpose: the backend's own id is the whole of what
-        // this needs, and reaching further into the driver's internals is how this breaks on an
-        // upgrade
+        // to be written down here. Narrow on purpose: how the connection is addressed and named is
+        // the whole of what this needs, and reaching further into the driver's internals is how
+        // this breaks on an upgrade
         const connected: ConnectedQueryRunner = runner as unknown as ConnectedQueryRunner;
-        const backendId: number | undefined = connected.databaseConnection?.processID;
-        if (backendId == undefined || !this.ds) {
+        const connection: ConnectedQueryRunner['databaseConnection'] = connected.databaseConnection;
+        if (connection?.processID == undefined || connection.secretKey == undefined) {
             return;
         }
-        await this.ds.query('SELECT pg_cancel_backend($1)', [backendId]);
+        await sendPostgresCancelRequest({
+            host: connection.host,
+            port: connection.port,
+            processId: connection.processID,
+            secretKey: connection.secretKey
+        });
+    }
+
+    /**
+     * Creates what stops a statement when the request it belongs to ends first.
+     *
+     * Every statement the orm sends passes it, the repository's and a query built by hand alike, and
+     * the orm waits for what it does after a statement before it hands the connection back - so a
+     * cancel has landed before the connection can run somebody else's statement.
+     *
+     * A statement stopped inside a transaction takes the transaction with it, which is what it is
+     * for. The request it belonged to has been answered, so nothing it writes is going to be asked
+     * for; holding its rows until whatever it is queued behind lets go is the cost the deadline
+     * exists to refuse.
+     * @returns The subscriber.
+     */
+    private createStatementCancellingSubscriber(): EntitySubscriberInterface {
+        // by connection rather than by statement: the statements a connection runs at once are queued
+        // on it, and the cancel stops whichever of them the server is running
+        const watches: WeakMap<QueryRunner, StatementWatch> = new WeakMap();
+        return {
+            beforeQuery: (event: BeforeQueryEvent<unknown>): void => {
+                const signal: AbortSignal | undefined = AlsUtilities.findCurrentSignal();
+                // an ended request's own cancel is a statement as well, and must not wait on itself
+                if (signal == undefined || signal.aborted) {
+                    return;
+                }
+                const watching: StatementWatch | undefined = watches.get(event.queryRunner);
+                if (watching != undefined) {
+                    watching.statements++;
+                    return;
+                }
+                const watch: StatementWatch = {
+                    signal,
+                    onAbort: () => {
+                        watch.cancelling = this.cancelStatementOn(event.queryRunner);
+                    },
+                    statements: 1,
+                    cancelling: undefined
+                };
+                signal.addEventListener('abort', watch.onAbort, { once: true });
+                watches.set(event.queryRunner, watch);
+            },
+            afterQuery: async (event: AfterQueryEvent<unknown>): Promise<void> => {
+                const watch: StatementWatch | undefined = watches.get(event.queryRunner);
+                if (watch == undefined) {
+                    return;
+                }
+                watch.statements--;
+                if (watch.statements > 0) {
+                    return;
+                }
+                watches.delete(event.queryRunner);
+                watch.signal.removeEventListener('abort', watch.onAbort);
+                // a failed cancel is not this statement's failure to report: it has either stopped or
+                // finished, and the caller is being told about whichever
+                await watch.cancelling?.catch(() => undefined);
+            }
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -840,19 +993,35 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
-     * Takes a connection out of the pool to listen on.
+     * Takes a connection out of the pool to listen on, or behind a transaction pooler, out of a session
+     * of its own: a channel is listened on by one server connection, which the pooler would hand to
+     * somebody else after the statement that started listening.
      * @returns The connection, and how to hand it back.
      */
     private async obtainListeningConnection(): Promise<ListeningConnection> {
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
-        const runner: QueryRunner = this.ds.createQueryRunner();
+        const source: TODataSource = this.transactionPooler == undefined ? this.ds : await this.resolveListeningSource();
+        const runner: QueryRunner = source.createQueryRunner();
         // the runner discards a connection that fails, and hands it back when released
         await runner.connect();
         // typeorm's own QueryRunner declares no connection, for the reason cancelStatementOn gives
         const connected: ListeningQueryRunner = runner as unknown as ListeningQueryRunner;
         return { client: connected.databaseConnection, release: async () => await runner.release() };
+    }
+
+    /**
+     * Resolves the session listening happens on behind a transaction pooler, opening it the first
+     * time. One that failed to open is opened again by the next attempt to listen.
+     * @returns The initialized typeorm data source.
+     */
+    private async resolveListeningSource(): Promise<TODataSource> {
+        this.listeningSource ??= this.openSessionSource().catch((error: unknown) => {
+            this.listeningSource = undefined;
+            throw error;
+        });
+        return await this.listeningSource;
     }
 
     /**
@@ -875,12 +1044,27 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     override async shutDown(): Promise<void> {
         // before the pool closes, which waits for every connection it handed out
         await this.notificationListener?.close();
+        const listening: TODataSource | undefined = await this.listeningSource?.catch(() => undefined);
+        this.listeningSource = undefined;
+        await listening?.destroy();
         await super.shutDown();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async limitStatementsOn(runner: QueryRunner, timeoutInMs: number, inTransaction: boolean): Promise<() => Promise<void>> {
         const value: string = String(timeoutInMs);
+        // a connection of the pool, rather than a session of its own (openSessionSource)
+        if (!inTransaction && this.transactionPooler != undefined && runner.connection === this.ds) {
+            // what is set outside a transaction stays with the server connection the pooler picked for
+            // that one statement, which it hands to somebody else next. A transaction of its own keeps
+            // the limit and the statements together, and ends both with it - committed, so a statement
+            // that wrote stays written as it would have on its own
+            await runner.startTransaction();
+            await runner.query(SET_LOCAL_STATEMENT_TIMEOUT_SQL, [value]);
+            return async () => {
+                await runner.commitTransaction();
+            };
+        }
         if (!inTransaction) {
             await runner.query('SELECT set_config(\'statement_timeout\', $1, false)', [value]);
             // back to what the connection started with, which is this data source's own timeout
@@ -1117,25 +1301,41 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
-     * Reports a connection that kept a similarity other than the one it was asked for.
+     * Refuses connections that do not have the statement timeout and the search similarity this data
+     * source asks for.
      *
-     * The threshold travels in the startup settings of the connection, and something in front of the
-     * server can drop those - a pooler handing out connections it opened itself, most of all. The
-     * searches still answer the right rows, but the similarity a search has to reach before an index
-     * answers it is no longer the one this framework documents, so it is named rather than left to be
-     * measured.
+     * Both travel in the startup settings of a connection, and something in front of the server can
+     * drop those - a pooler handing out connections it opened itself, most of all. Behind a transaction
+     * pooler they are the role's, which nobody may have set yet. Either way a statement would run
+     * without its limit, and a search would be answered from an index at another similarity than the
+     * one this framework documents, so the data source does not start.
+     * @param dataSource - The initialized typeorm data source to ask through.
+     * @throws {InternalError} When a connection reports another value than the one asked for.
      */
-    private warnAboutAnotherSimilarityThreshold(): void {
-        const asked: number = this.searchesFromSimilarity / 100;
-        if (this.trigramSupport.threshold == undefined || this.trigramSupport.threshold === asked) {
+    private async validateConnectionSettings(dataSource: TODataSource): Promise<void> {
+        const [row]: StatementTimeoutSettingRow[] = await dataSource.query<StatementTimeoutSettingRow[]>(
+            'SELECT setting FROM pg_settings WHERE name = \'statement_timeout\''
+        );
+        const statementTimeoutInMs: number = Number(row?.setting);
+        const similarity: number = this.searchesFromSimilarity / 100;
+        const threshold: number | undefined = this.trigramSupport.threshold;
+        if (statementTimeoutInMs === this.statementTimeoutInMs && (threshold == undefined || threshold === similarity)) {
             return;
         }
-        this.logger.warn(
-            `This data source asks its connections to search from a similarity of ${asked} and they report`
-            + ` ${this.trigramSupport.threshold}, so something between it and the server is dropping the setting.`
-            + ` A "fuzzyLike" now reads every row below a "minSimilarity" of ${this.trigramSupport.threshold * 100}`
-            + ` rather than below ${this.searchesFromSimilarity}.`
-        );
+        const reported: string = `a statement timeout of ${statementTimeoutInMs} ms and a search similarity of ${threshold ?? 'none'}`;
+        const asked: string = `a statement timeout of ${this.statementTimeoutInMs} ms and a search similarity of ${similarity}`;
+        throw new InternalError(this.transactionPooler == undefined
+            ? [
+                `The data source "${this.constructor.name}" asks its connections for ${asked}, and they report ${reported}.`,
+                'Something between it and the server drops the settings a connection starts with. A pooler in transaction mode is'
+                + ' declared with "pooler: { mode: \'transaction\', direct }".'
+            ]
+            : [
+                `The data source "${this.constructor.name}" is behind a transaction pooler, where a connection carries what its role`
+                + ` carries. It asks for ${asked}, and its connections report ${reported}.`,
+                `Run, once: ${this.resolveRoleSettingsSql().join('; ')}. Connections the pooler opened before keep what they had until`
+                + ' they are opened again.'
+            ]);
     }
 
     /**
@@ -1348,21 +1548,60 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         ]);
     }
 
+    /**
+     * Opens a connection to the server that is a session of its own, outside the pool, which the
+     * caller destroys once done with it.
+     *
+     * Behind a transaction pooler it goes to the server directly, because what it is for - a lock
+     * held for a while, a channel listened on, a setting kept across statements - belongs to one
+     * server connection, which the pooler would hand to somebody else after each transaction.
+     * @returns The initialized typeorm data source, holding at most one connection.
+     */
+    private async openSessionSource(): Promise<TODataSource> {
+        const source: TODataSource = new TODataSource({
+            ...this.fullOptions,
+            ...this.transactionPooler?.direct,
+            type: this.type,
+            entities: [],
+            synchronize: false,
+            poolSize: 1
+        });
+        await source.initialize();
+        return source;
+    }
+
+    /**
+     * Runs work on a connection that keeps what is set on it until the work is done.
+     *
+     * A connection of the pool does, unless the pool is a transaction pooler's; behind one the work
+     * gets a session of its own, see {@link openSessionSource}.
+     * @param fn - The work, given the connection.
+     * @returns What the work returned.
+     */
+    private async onSession<T>(fn: (runner: QueryRunner) => Promise<T>): Promise<T> {
+        const source: TODataSource | undefined = this.transactionPooler == undefined ? undefined : await this.openSessionSource();
+        try {
+            const runner: QueryRunner = source?.createQueryRunner() ?? this.createQueryRunner();
+            await runner.connect();
+            try {
+                return await fn(runner);
+            }
+            finally {
+                await runner.release();
+            }
+        }
+        finally {
+            await source?.destroy();
+        }
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected async schemaLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
         // a connection of its own, outside the pool, and closed once the setup is done. Holding a
         // pooled one for the whole setup left a pool of one with nothing for the migrations and
         // synchronize to run on, and they waited for it forever. And what the lock sets on its
         // session below would have gone back to the pool with it, for the next statement to run under
-        const lockOptions: PostgresConnectionOptions = {
-            ...this.fullOptions,
-            type: this.type,
-            entities: [],
-            synchronize: false,
-            poolSize: 1
-        };
-        const lockSource: TODataSource = new TODataSource(lockOptions);
-        await lockSource.initialize();
+        const lockSource: TODataSource = await this.openSessionSource();
 
         try {
             // one session for the whole thing: an advisory lock belongs to the session that took it,
@@ -1732,14 +1971,14 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
             throw new DataSourceInitializationError();
         }
         // before anything opens a transaction, the orm's own schema sync included
-        this.ds.subscribers.push(STATEMENT_TIMEOUT_SUBSCRIBER);
+        this.ds.subscribers.push(STATEMENT_TIMEOUT_SUBSCRIBER, this.createStatementCancellingSubscriber());
         await this.validateTextCollation(this.ds);
         // before the schema is set up rather than after, because the trigram indexes that go on it
         // need the operator class this installs, and the converter needs to know what the operator
         // those indexes answer means on this server
         await this.installTrigramExtension(this.ds);
         this.trigramSupport = await this.measureTrigramSupport(this.ds);
-        this.warnAboutAnotherSimilarityThreshold();
+        await this.validateConnectionSettings(this.ds);
         await this.warnAboutAsciiOnlyWords(this.ds);
         this.whereFilterConverter = new PostgresTypeOrmWhereFilterConverter(this.ds, this.logger, this.trigramSupport);
     }
@@ -1760,11 +1999,21 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
     }
 
     /**
+     * The options the server itself is reached with, which the client tools of a backup connect with:
+     * a dump and a restore each hold one session for their whole run, which a transaction pooler
+     * would not keep for them.
+     * @returns The options, with the direct connection of a transaction pooler over them.
+     */
+    private get directOptions(): OmitStrict<PostgresOptions, 'type' | 'entities'> {
+        return { ...this.options, ...this.transactionPooler?.direct };
+    }
+
+    /**
      * The role backups run as - the separate one if configured, otherwise the application's own.
      * @returns The username to connect the client tools with.
      */
     private get backupUsername(): string | undefined {
-        return this.rootUsername ?? this.options.username;
+        return this.rootUsername ?? this.directOptions.username;
     }
 
     /**
@@ -1779,7 +2028,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         if (this.rootPw != undefined) {
             return this.rootPw;
         }
-        const password: PostgresOptions['password'] = this.options.password;
+        const password: PostgresOptions['password'] = this.directOptions.password;
         return typeof password === 'function' ? await password() : password;
     }
 
@@ -1813,7 +2062,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
                 env[key] = process.env[key];
             }
         }
-        env['PGSSLMODE'] ??= this.options.ssl === false ? 'disable' : 'require';
+        env['PGSSLMODE'] ??= this.directOptions.ssl === false ? 'disable' : 'require';
         if (password != undefined) {
             env['PGPASSWORD'] = password;
         }
@@ -1826,7 +2075,7 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
      * @throws When the data source does not carry enough to address a database with.
      */
     private clientConnectionArgs(): string[] {
-        const { host, port, database } = this.options;
+        const { host, port, database } = this.directOptions;
         if (!host || !database || !this.backupUsername) {
             throw new InternalError(
                 'Could not run a postgres client tool, missing host, database or username on the data source'
@@ -2272,27 +2521,27 @@ export abstract class PostgresDataSource extends TypeOrmBaseDataSource<PostgresO
         if (!this.ds) {
             throw new DataSourceInitializationError();
         }
-        // a connection of its own, and no transaction on it: an index is built concurrently, which
+        const ds: TODataSource = this.ds;
+        // a session of its own, and no transaction on it: an index is built concurrently, which
         // cannot happen inside one - and is the point, since writes go on while it is built. The
         // instances still serving the previous version are writing the whole time
-        const runner: QueryRunner = this.createQueryRunner();
-        await runner.connect();
-        // building an index over a large table is the slow work the schema setup's limit is for
-        const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
-        const restore: (() => Promise<void>) | undefined = limit == undefined
-            ? undefined
-            : await this.limitStatementsOn(runner, limit.timeoutInMs, false);
-        try {
-            let changed: boolean = false;
-            for (const entity of this.entities) {
-                changed = await this.reconcileKeysOf(runner, entity, this.ds.getMetadata(entity)) || changed;
+        return await this.onSession(async runner => {
+            // building an index over a large table is the slow work the schema setup's limit is for
+            const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
+            const restore: (() => Promise<void>) | undefined = limit == undefined
+                ? undefined
+                : await this.limitStatementsOn(runner, limit.timeoutInMs, false);
+            try {
+                let changed: boolean = false;
+                for (const entity of this.entities) {
+                    changed = await this.reconcileKeysOf(runner, entity, ds.getMetadata(entity)) || changed;
+                }
+                return changed;
             }
-            return changed;
-        }
-        finally {
-            await restore?.();
-            await runner.release();
-        }
+            finally {
+                await restore?.();
+            }
+        });
     }
 
     /**

@@ -6,6 +6,10 @@ Rate limiting caps how often a piece of code runs, per key such as a user or an 
 |---|---|---|
 | `RateLimiter` | decorator | Registers a class as a rate limiter |
 | `RateLimited` | decorator | Applies a rate limiter to a controller method |
+| `RateLimitedOptions` | type | The options of `@RateLimited`: the key, the count, and whether to reserve capacity when the limit is reached |
+| `RateLimitWrapOptions`, `RateLimitWrapResult`, `RateLimitKeyProvider`, `RateLimitCountProvider` | type, type, type, type | The options of `wrap` on a limiter, what it returns, and the functions giving the key and the count of a call |
+| `RateLimiterInterface`, `isRateLimiter`, `BaseRateLimiter` | interface, function, class | What a rate limiter implements, the check whether a value is one, and the base class of every built-in limiter |
+| `RateLimiterConfig`, `RateLimiterConfigInput`, `SemaphoreConfigInput` | type, type, type | What a limiter is configured with: its name, capacity, store, reservation limits and `onStoreFailure`, and what a `SemaphoreRateLimiter` is configured with |
 | `RateLimitKeys` | class | Helpers for the common ways of saying what a limit is counted per: `perConnection` (the default: an IPv4 address, an IPv6 /64, or a websocket connection), `perUser`, `GLOBAL`. Any key of your own works too |
 | `TokenBucketRateLimiter` | class | Allows bursts up to capacity, refills continuously |
 | `GcraRateLimiter` | class | Token bucket behavior tracked as a single timestamp |
@@ -17,16 +21,26 @@ Rate limiting caps how often a piece of code runs, per key such as a user or an 
 | `SemaphoreRateLimiter` | class | Limits concurrent (not per-time) operations |
 | `InMemoryRateLimiterStore` | class | In-memory `RateLimiterStoreInterface` implementation |
 | `RepositoryRateLimiterStore` | class | `RateLimiterStoreInterface` implementation that keeps its state in any data source, so limits are shared across instances |
+| `InMemoryRateLimiterStoreOptions`, `RepositoryRateLimiterStoreOptions` | type, type | How many keys a store holds at most, as `maxKeys` |
 | `RateLimitStateEntity` | class | The entity that `RepositoryRateLimiterStore` persists, add it to the entities of your data source |
 | `RateLimiterLockInterface` | interface | Guards the read-modify-write cycle of `RepositoryRateLimiterStore` |
 | `InProcessRateLimiterLock` | class | Lock for a single instance app |
 | `ValKeyRateLimiterLock` | class | Lock that lives on a Valkey server, for apps that run more than once |
 | `RateLimiterStoreInterface` | interface | Contract for persisting limiter state |
+| `RateLimiterStoreUpdateResult` | type | What `atomicUpdate` of a store answers: the new state, and whether the number of keys changed |
 | `RateLimitStoreFailurePolicy` | enum | What a limiter does when it cannot reach its store: `REJECT` (the default) or `ALLOW` |
 | `TooManyRequestsError` | error | Thrown when a limit is exceeded and no reservation was made |
 | `RateLimitStoreUnavailableError` | error | Thrown (HTTP 503) when the limiter could not read its state and the policy is `REJECT` |
+| `RateLimitResult`, `SuccessRateLimitResult`, `FailedRateLimitResult` | type, type, type | The outcome of consuming from a limiter: whether it is allowed, the limit, what remains and when it resets, and when to retry once it is not allowed |
+| `RateLimitReservation` | class | Capacity reserved for later: its key, count, when it is ready and when it expires. Resolved once, through `commitReservation` or `cancelReservation` of its limiter |
+| `RateLimitReservationResult`, `SuccessRateLimitReservationResult`, `FailedRateLimitReservationResult`, `RateLimitReservationRejectionReason` | type, class, class, enum | The outcome of reserving, and why a reservation is refused: `EXCEEDS_CAPACITY`, `EXCEEDS_RESERVATION_LIMIT` or `QUEUE_TOO_LONG` |
+| `RateLimitReservationNotFoundError` | error | Thrown when no reservation with the given key and id exists |
+| `RateLimitReservationError` | error | Thrown when taking a reservation from a limit failed |
 | `TokenBucketState` | type | The state a `TokenBucketRateLimiter` keeps per key, which types its store |
+| `BaseRateLimitState`, `FixedWindowState`, `GcraState`, `LeakyBucketMeterState`, `LeakyBucketQueueState`, `ScheduledItem`, `SemaphoreState`, `SlidingWindowCounterState`, `SlidingWindowLogState` | type, type, type, type, type, type, type, type, type | The expiry and reservations every limiter state holds, the state each of the other limiters keeps per key, which types its store, and an item scheduled in a leaky bucket queue |
 | `RateLimitingServiceInterface` | interface | The registered limiters, and `addLimiter` for one built while the application starts |
+| `RateLimitingService` | class | The default `RateLimitingServiceInterface`. Replaceable through `ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE` |
+| `RateLimitingCleanupCronJob` | cron job | Removes the expired limiter state, and refunds the reservations nobody committed or canceled in time, every ten seconds. Registered for you |
 | `ZIBRI_DI_TOKENS.RATE_LIMITING_SERVICE` | DI token | Injects `RateLimitingServiceInterface` |
 
 ## Defining a limiter
@@ -44,14 +58,14 @@ export class TaskRateLimiter extends TokenBucketRateLimiter {
                 name: 'TaskRateLimiter',
                 store: new InMemoryRateLimiterStore<TokenBucketState>(),
                 capacity: 1,
-                maxReservationWaitMs: undefined
+                maxReservationWaitInMs: undefined
             }
         );
     }
 }
 ```
 
-Every algorithm class takes an `intervalInMs`, or a similar argument that defines the rate, followed by a config object. The config needs at least `name`, `capacity`, `store` and `maxReservationWaitMs`.
+Every algorithm class takes an `intervalInMs`, or a similar argument that defines the rate, followed by a config object. The config needs at least `name`, `capacity`, `store` and `maxReservationWaitInMs`.
 
 ## Sharing limits across instances
 `InMemoryRateLimiterStore` keeps its state in the process, so each instance of an application has its own limits. `RepositoryRateLimiterStore` keeps the state in a data source, which every instance shares. It goes through a repository, so it works with any data source, Valkey and Postgres alike:
@@ -98,7 +112,7 @@ export class ThumbnailRateLimiter extends TokenBucketRateLimiter {
             name: 'ThumbnailRateLimiter',
             store: new InMemoryRateLimiterStore<TokenBucketState>(),
             capacity: 20,
-            maxReservationWaitMs: undefined,
+            maxReservationWaitInMs: undefined,
             onStoreFailure: RateLimitStoreFailurePolicy.ALLOW
         });
     }
@@ -253,6 +267,8 @@ The data source that holds the limits declares these entities:
 | Entity | Needed when |
 |---|---|
 | `RateLimitStateEntity` | A rate limiter keeps its state in `RepositoryRateLimiterStore` |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Replication](./replication.md) — why a limiter needs a shared store once there is more than one instance

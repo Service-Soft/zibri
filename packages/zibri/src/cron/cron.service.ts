@@ -101,10 +101,10 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
                     await cronJob.init(
                         this.logger,
                         inject(repositoryTokenFor(CronJobEntity)),
-                        (key: string, ttlMs: number, run: () => Promise<void>) => this.runExecution(key, ttlMs, run)
+                        (key: string, ttlInMs: number, run: () => Promise<void>) => this.runExecution(key, ttlInMs, run)
                     );
                     const state: string = cronJob.state.toLowerCase().replaceAll('_', ' ');
-                    const scope: string = cronJob.distributed ? '' : ', per instance';
+                    const scope: string = cronJob.runsOn === 'oneInstance' ? '' : ', per instance';
                     this.logger.info(`  -  ${cronJob.constructor.name} (${state}${scope})`);
                     this.cronJobs.push(cronJob);
                 }
@@ -129,7 +129,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
      *
      * After `start`, not before: a startup run has already written `lastRun`, so a job that just ran
      * is a job with nothing outstanding and this finds nothing. Only jobs that asked for it take part
-     * at all - see {@link CronJobEntity.catchUpWithinMs}.
+     * at all - see {@link CronJobEntity.catchUpWithinInMs}.
      *
      * The make-up run is the slot's own execution as far as the deployment is concerned: it is run
      * under the slot's key, so if any instance ran it, or is still running it, the key is held and
@@ -137,16 +137,16 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
      * @param cronJob - The job to check.
      */
     private async catchUpMissedRun(cronJob: CronJob): Promise<void> {
-        const withinMs: number | undefined = cronJob.catchUpWithinMs;
+        const withinInMs: number | undefined = cronJob.catchUpWithinInMs;
         const lastRun: Date | undefined = cronJob.lastRun;
         // a job that has never run has missed nothing - there is no point to measure "since" from,
         // and treating its whole schedule as outstanding would fire it on the first boot of every
         // new environment
-        if (!withinMs || !lastRun || !cronJob.active) {
+        if (!withinInMs || !lastRun || !cronJob.active) {
             return;
         }
 
-        const missed: Date | undefined = this.findMissedSlot(d => cronJob.matches(d), new Date(), lastRun, withinMs);
+        const missed: Date | undefined = this.findMissedSlot(d => cronJob.matches(d), new Date(), lastRun, withinInMs);
         if (!missed) {
             return;
         }
@@ -171,16 +171,16 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
      * @param matches - Whether the schedule names the given moment.
      * @param now - The moment to search back from.
      * @param lastRun - When the job last ran. Nothing at or before it was missed.
-     * @param withinMs - How far back to look.
+     * @param withinInMs - How far back to look.
      * @returns The missed scheduled time, or undefined if nothing was missed.
      */
     private findMissedSlot(
         matches: (date: Date) => boolean,
         now: Date,
         lastRun: Date,
-        withinMs: number
+        withinInMs: number
     ): Date | undefined {
-        const earliest: number = Math.max(lastRun.getTime(), now.getTime() - withinMs);
+        const earliest: number = Math.max(lastRun.getTime(), now.getTime() - withinInMs);
         // whole seconds, because no cron expression names a moment between two of them
         const start: number = Math.floor(now.getTime() / Ms.SECOND) * Ms.SECOND;
 
@@ -195,7 +195,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async runExecution(key: string, ttlMs: number, run: () => Promise<void>): Promise<boolean> {
+    async runExecution(key: string, ttlInMs: number, run: () => Promise<void>): Promise<boolean> {
         // the run inside the grant, which is renewed underneath it for as long as it lasts: an
         // instance booting while a nightly job is in its twentieth minute finds the slot held, and
         // does not catch it up beside the run. The lease length therefore only decides how long an
@@ -205,7 +205,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         // been dealt with. Handing it back at the end of the run would let a replica arriving a
         // moment later win the same key and run the job a second time.
         const ran: boolean | undefined = await this.leaseService.withLease(
-            { key: `cron:${key}`, leaseInMs: ttlMs, mode: 'skip', onCompletion: 'retain' },
+            { key: `cron:${key}`, leaseInMs: ttlInMs, mode: 'skip', onCompletion: 'retain' },
             async () => {
                 await run();
                 return true;
@@ -227,7 +227,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         await cronJob.init(
             this.logger,
             inject(repositoryTokenFor(CronJobEntity)),
-            (key: string, ttlMs: number, run: () => Promise<void>) => this.runExecution(key, ttlMs, run)
+            (key: string, ttlInMs: number, run: () => Promise<void>) => this.runExecution(key, ttlInMs, run)
         );
         this.cronJobs.push(cronJob);
         // the two steps run together here, unlike at boot: this is called by an application that is
@@ -248,7 +248,7 @@ export class CronService implements CronServiceInterface, AfterAppInit, AfterApp
         // one read for every job, rather than one per job
         const stored: CronJobEntity[] = await inject(repositoryTokenFor(CronJobEntity)).findAll({
             where: { name: { oneOf: synced.map(j => j.name) } },
-            take: 'all'
+            limit: 'all'
         });
         const byName: Map<string, CronJobEntity> = new Map(stored.map(row => [row.name, row]));
         for (const job of synced) {

@@ -7,9 +7,9 @@ import { type EventServiceInterface, EventSubscriptionInterface } from './event-
 import { EventSubscriberRegistration, EventSubscriberRegistrationCreateData } from './event-subscriber-registration.model';
 import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event, EventStatus } from './event.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
 import { Repository } from '../data-source/repository/repository';

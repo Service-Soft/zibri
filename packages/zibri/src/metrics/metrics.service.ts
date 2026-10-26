@@ -11,7 +11,8 @@ import { MetricType } from './metric-type.enum';
 import { Metric } from './metric.model';
 import { MetricsCollector } from './metrics-collector.model';
 import { MetricsExposition } from './metrics-exposition.model';
-import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
+import { CounterMetricName, GaugeMetricName, HistogramMetricName, MetricsServiceInterface } from './metrics-service.interface';
+import { MetricsSnapshot } from './metrics-snapshot.model';
 import { ZibriApplication } from '../application/application';
 import { type AssetServiceInterface } from '../assets/asset-service.interface';
 import { Inject } from '../di/decorators/inject.decorator';
@@ -27,7 +28,7 @@ import { type LoggerInterface } from '../logging/logger.interface';
 import { optionalPeer } from '../utilities/optional-peer.function';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-class PromCounter implements CounterInterface {
+export class PromCounter implements CounterInterface {
     constructor(private readonly inner: Counter<string>) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -37,7 +38,7 @@ class PromCounter implements CounterInterface {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-class PromGauge implements GaugeInterface {
+export class PromGauge implements GaugeInterface {
     constructor(private readonly inner: Gauge<string>) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -57,7 +58,7 @@ class PromGauge implements GaugeInterface {
 }
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-class PromHistogram implements HistogramInterface {
+export class PromHistogram implements HistogramInterface {
     constructor(private readonly inner: Histogram<string>) {}
 
     // eslint-disable-next-line jsdoc/require-jsdoc

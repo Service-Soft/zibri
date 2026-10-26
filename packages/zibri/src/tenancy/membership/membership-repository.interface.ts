@@ -1,11 +1,6 @@
 import { BaseMembership } from './base-membership.model';
+import { MEMBERSHIP_REPOSITORY } from '../../data-source/repository/repository-kind.model';
 import { Transaction } from '../../data-source/transaction/transaction.model';
-
-/**
- * Marks the repository memberships are read from and written to. `BaseMembershipRepository()` sets
- * it.
- */
-export const MEMBERSHIP_REPOSITORY: unique symbol = Symbol('zibri.membership-repository');
 
 // methods rather than properties holding functions, for the reason UserRepositoryInterface gives
 /* eslint-disable typescript/method-signature-style */

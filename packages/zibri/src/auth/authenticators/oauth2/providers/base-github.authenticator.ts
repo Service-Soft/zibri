@@ -54,9 +54,9 @@ type GitHubEmail = {
 };
 
 /**
- * Authenticates a user by a sign-in with their GitHub account.
+ * Authenticates a user by a login with their GitHub account.
  *
- * Extend it with the client id and secret of the OAuth app registered at GitHub. Who signed in is the
+ * Extend it with the client id and secret of the OAuth app registered at GitHub. Who logged in is the
  * id of their GitHub account, which stays the same when they rename it, and the email is the primary
  * one of the account.
  */
@@ -85,7 +85,7 @@ export abstract class BaseGitHubAuthenticator<
     readonly scopes: string[] = ['read:user', 'user:email'];
 
     // GitHub cannot be told to ask for the password again; letting the user pick the account at least
-    // shows them which one they sign in with
+    // shows them which one they log in with
     override readonly reauthenticationPrompt: string = 'select_account';
 
     protected override async resolveIdentity(accessToken: string): Promise<Pick<FederatedProviderIdentity, 'subject' | 'profile'>> {

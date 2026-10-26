@@ -5,9 +5,9 @@ import type { GlideClient } from '@valkey/valkey-glide';
 
 import { ValKeyDataSource } from './val-key-data-source.model';
 import { valKeyGlide } from './val-key-glide.function';
+import { TestTimeouts } from '../../../__testing__/constants';
 import { createTestDataSource } from '../../../__testing__/test-server/create-test-data-source.function';
 import { createTestValKeyDataSource } from '../../../__testing__/test-server/create-test-val-key-data-source.function';
-import { TestTimeouts } from '../../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../../di/inject.function';
 import { Newable } from '../../../types/newable.type';

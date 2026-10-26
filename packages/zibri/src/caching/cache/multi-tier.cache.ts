@@ -162,7 +162,7 @@ export abstract class MultiTierCache<
                     // Back‑fill earlier tiers. Per‑tier options are NOT used here
                     for (const earlierTier of this.tiers.slice(0, i)) {
                         earlierTier.setDirect(key, cached.value, {
-                            ttl: cached.expiresAt
+                            ttlInMs: cached.expiresAt
                                 ? cached.expiresAt.getTime() - Date.now()
                                 : undefined,
                             tags: cached.tags as CacheTag[]
@@ -187,13 +187,13 @@ export abstract class MultiTierCache<
                 // populate all tiers using per‑tier options
                 await Promise.all(this.tiers.map(async (tier) => {
                     const tierOpt: CacheWrapOptions<V, TArgs, CacheTag> | undefined = options?.[tier.name as TierName<Tiers>];
-                    const ttl: number | undefined = typeof tierOpt?.ttl === 'function'
-                        ? await tierOpt.ttl(value, ...args)
-                        : tierOpt?.ttl;
+                    const ttlInMs: number | undefined = typeof tierOpt?.ttlInMs === 'function'
+                        ? await tierOpt.ttlInMs(value, ...args)
+                        : tierOpt?.ttlInMs;
                     const tags: CacheTag[] | undefined = typeof tierOpt?.tags === 'function'
                         ? await tierOpt.tags(value, ...args)
                         : tierOpt?.tags;
-                    await tier.setDirect(key, value, { ttl, tags }).catch(() => {});
+                    await tier.setDirect(key, value, { ttlInMs, tags }).catch(() => {});
                 }));
                 return value;
             });
@@ -220,13 +220,13 @@ export abstract class MultiTierCache<
                 const tierOpt: CacheWrapWriteOptionsWithResult<V, TArgs, CacheTag>
                     | CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag>
                     | undefined = perTier?.[tier.name as TierName<Tiers>];
-                let ttl: number | undefined;
+                let ttlInMs: number | undefined;
                 let tags: CacheTag[] | undefined;
 
                 if (this._writeResultAvailable) {
                     const o: CacheWrapWriteOptionsWithResult<V, TArgs, CacheTag> | undefined = tierOpt;
-                    ttl = o?.ttl != undefined
-                        ? typeof o.ttl === 'function' ? await o.ttl(value, ...args) : o.ttl
+                    ttlInMs = o?.ttlInMs != undefined
+                        ? typeof o.ttlInMs === 'function' ? await o.ttlInMs(value, ...args) : o.ttlInMs
                         : undefined;
                     tags = o?.tags
                         ? typeof o.tags === 'function' ? await o.tags(value, ...args) : o.tags
@@ -235,15 +235,15 @@ export abstract class MultiTierCache<
                 else {
                     // eslint-disable-next-line stylistic/max-len
                     const o: CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag> | undefined = tierOpt as CacheWrapWriteOptionsArgsOnly<TArgs, CacheTag> | undefined;
-                    ttl = o?.ttl != undefined
-                        ? typeof o.ttl === 'function' ? await o.ttl(...args) : o.ttl
+                    ttlInMs = o?.ttlInMs != undefined
+                        ? typeof o.ttlInMs === 'function' ? await o.ttlInMs(...args) : o.ttlInMs
                         : undefined;
                     tags = o?.tags
                         ? typeof o.tags === 'function' ? await o.tags(...args) : o.tags
                         : undefined;
                 }
 
-                await tier.setDirect(key, value, { ttl, tags }).catch(() => {});
+                await tier.setDirect(key, value, { ttlInMs, tags }).catch(() => {});
             }));
 
             // global tag invalidation

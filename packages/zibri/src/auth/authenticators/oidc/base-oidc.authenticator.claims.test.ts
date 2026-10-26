@@ -49,9 +49,9 @@ import { OAuthClientAuthentication } from '../oauth/oauth-client-authentication.
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';
 const CLIENT_SECRET: string = 'zibri-test-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
-const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
+const ERROR_URL: string = 'https://app.example.com/login-failed';
 const ADMINS_GROUP: string = 'app-admins';
 const BLOCKED_GROUP: string = 'app-blocked';
 const MFA_METHOD: string = 'mfa';
@@ -79,7 +79,7 @@ class GroupsProviderAuthenticator extends BaseOidcAuthenticator<string, JwtUser>
         return groupsProvider.issuer;
     }
 
-    protected override async resolveSignInUser(
+    protected override async resolveLoginUser(
         claims: Record<string, unknown>,
         user: JwtUser,
         transaction: Transaction | undefined
@@ -195,10 +195,10 @@ let server: StartedTestServer;
 let baseUrl: string;
 
 /**
- * Creates the user a first sign-in becomes, links the identity, and answers what the registration read.
- * @param authenticator - The provider the sign-in came through.
+ * Creates the user a first login becomes, links the identity, and answers what the registration read.
+ * @param authenticator - The provider the login came through.
  * @param credentials - The ticket.
- * @returns Who the provider said signed in.
+ * @returns Who the provider said logged in.
  */
 async function register(
     authenticator: typeof GroupsProviderAuthenticator | typeof PairwiseProviderAuthenticator,
@@ -207,13 +207,13 @@ async function register(
     const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
     const registration: FederatedRegistration = await authService.resolveRegistration(authenticator, credentials, undefined);
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: registration.email ?? '', roles: [Roles.USER] });
-    await authService.linkIdentity(authenticator, credentials, user.id, undefined);
+    await authService.linkTicketIdentity(authenticator, credentials, user.id, undefined);
     return { subject: registration.subject, claims: registration.claims };
 }
 
 /**
- * Starts an application signing in through the fake providers.
- * @param strategy - The strategy the sign-ins log in with.
+ * Starts an application logging in through the fake providers.
+ * @param strategy - The strategy the logins log in with.
  * @param controllers - The controllers, which go with that strategy.
  */
 async function startApp(strategy: typeof CookieAuthStrategy | typeof JwtAuthStrategy, controllers: Newable<unknown>[]): Promise<void> {
@@ -264,14 +264,14 @@ function newBrowser(): TestBrowser {
 }
 
 /**
- * Signs in at a provider, the way a browser does, and answers where the callback sent it.
+ * Logs in at a provider, the way a browser does, and answers where the callback sent it.
  * @param browser - The browser.
  * @param authenticator - The provider's name.
  * @returns Where the browser landed.
  */
-async function signIn(browser: TestBrowser, authenticator: string): Promise<string> {
+async function logIn(browser: TestBrowser, authenticator: string): Promise<string> {
     const query: string = new URLSearchParams({ authenticator, redirectTo: REDIRECT_TO }).toString();
-    const atProvider: string = await browser.follow(`${baseUrl}/auth/federated/authorize?${query}`);
+    const atProvider: string = await browser.follow(`${baseUrl}/auth/federated/login/request?${query}`);
     return await browser.follow(await browser.follow(atProvider));
 }
 
@@ -293,16 +293,16 @@ async function isLoggedIn(browser: TestBrowser): Promise<boolean> {
 async function createLinkedUser(subject: string, at: FakeOAuthProvider): Promise<JwtUser> {
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${subject}@example.com`, roles: [Roles.USER] });
     await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-        .create({ issuer: at.issuer, subject, userId: user.id, signIn: true, grantedScopes: [] });
+        .create({ issuer: at.issuer, subject, userId: user.id, forLogin: true, grantedScopes: [] });
     return user;
 }
 
 /**
  * Registers the identity a landing names the ticket of.
- * @param browser - The browser that signed in.
- * @param landing - Where the sign-in landed.
+ * @param browser - The browser that logged in.
+ * @param landing - Where the login landed.
  * @param path - The registration route.
- * @param codeVerifier - The verifier of the sign-in's PKCE challenge, when it was started with one.
+ * @param codeVerifier - The verifier of the login's PKCE challenge, when it was started with one.
  * @returns What it answered.
  */
 async function registerFrom<T>(browser: TestBrowser, landing: string, path: string, codeVerifier?: string): Promise<T> {
@@ -385,22 +385,22 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         const user: JwtUser = await createLinkedUser(subject, groupsProvider);
         groupsProvider.identity = { subject, claims: { groups: [ADMINS_GROUP] } };
 
-        expect(await signIn(newBrowser(), 'groups')).toBe(REDIRECT_TO);
+        expect(await logIn(newBrowser(), 'groups')).toBe(REDIRECT_TO);
         expect(await rolesOf(user)).toEqual([Roles.ADMIN]);
 
         // taken out of the group at the provider
         groupsProvider.identity = { subject, claims: { groups: [] } };
-        expect(await signIn(newBrowser(), 'groups')).toBe(REDIRECT_TO);
+        expect(await logIn(newBrowser(), 'groups')).toBe(REDIRECT_TO);
         expect(await rolesOf(user)).toEqual([Roles.USER]);
     });
 
-    it('turns a linked user away when the authenticator refuses the sign-in', async () => {
+    it('turns a linked user away when the authenticator refuses the login', async () => {
         const subject: string = newSubject();
         await createLinkedUser(subject, groupsProvider);
         groupsProvider.identity = { subject, claims: { groups: [BLOCKED_GROUP] } };
         const browser: TestBrowser = newBrowser();
 
-        expect(await signIn(browser, 'groups')).toBe(`${ERROR_URL}?error=refused`);
+        expect(await logIn(browser, 'groups')).toBe(`${ERROR_URL}?error=refused`);
         expect(await isLoggedIn(browser)).toBe(false);
     });
 
@@ -409,7 +409,7 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         groupsProvider.identity = { subject, email: `${subject}@example.com`, claims: { groups: ['staff'], hd: 'corp.example' } };
         const browser: TestBrowser = newBrowser();
 
-        const registered: Registered = await registerFrom(browser, await signIn(browser, 'groups'), '/register/groups');
+        const registered: Registered = await registerFrom(browser, await logIn(browser, 'groups'), '/register/groups');
 
         expect(registered.subject).toBe(subject);
         expect(registered.claims).toEqual(expect.objectContaining({
@@ -425,20 +425,20 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         pairwiseProvider.identity = { subject: newSubject('web'), claims: { oid } };
         const browser: TestBrowser = newBrowser();
 
-        const registered: Registered = await registerFrom(browser, await signIn(browser, 'pairwise'), '/register/pairwise');
+        const registered: Registered = await registerFrom(browser, await logIn(browser, 'pairwise'), '/register/pairwise');
         expect(registered.subject).toBe(oid);
 
         // the same person, under another sub
         pairwiseProvider.identity = { subject: newSubject('other'), claims: { oid } };
         const again: TestBrowser = newBrowser();
-        expect(await signIn(again, 'pairwise')).toBe(REDIRECT_TO);
+        expect(await logIn(again, 'pairwise')).toBe(REDIRECT_TO);
         expect(await isLoggedIn(again)).toBe(true);
     });
 
-    it('refuses a sign-in whose ID token lacks the claim the identity is known by', async () => {
+    it('refuses a login whose ID token lacks the claim the identity is known by', async () => {
         pairwiseProvider.identity = { subject: newSubject('no-oid') };
 
-        expect(await signIn(newBrowser(), 'pairwise')).toBe(`${ERROR_URL}?error=invalid`);
+        expect(await logIn(newBrowser(), 'pairwise')).toBe(`${ERROR_URL}?error=invalid`);
     });
 
     it('takes the second factor presented at the provider on a route that counts its method, across a refresh', async () => {
@@ -446,7 +446,7 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         const user: JwtUser = await createLinkedUser(subject, groupsProvider);
         groupsProvider.identity = { subject, claims: { amr: ['pwd', MFA_METHOD] } };
         const browser: TestBrowser = newBrowser();
-        expect(await signIn(browser, 'groups')).toBe(REDIRECT_TO);
+        expect(await logIn(browser, 'groups')).toBe(REDIRECT_TO);
 
         expect(await guarded(browser, '/by-method')).toBe(200);
         expect(await guarded(browser, '/by-class')).toBe(401);
@@ -461,7 +461,7 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         await createLinkedUser(subject, groupsProvider);
         groupsProvider.identity = { subject, claims: { acr: MFA_CONTEXT_CLASS } };
         const browser: TestBrowser = newBrowser();
-        expect(await signIn(browser, 'groups')).toBe(REDIRECT_TO);
+        expect(await logIn(browser, 'groups')).toBe(REDIRECT_TO);
 
         expect(await guarded(browser, '/by-class')).toBe(200);
         expect(await guarded(browser, '/by-method')).toBe(401);
@@ -472,17 +472,17 @@ describe('BaseOidcAuthenticator - what the provider proved', () => {
         await createLinkedUser(subject, groupsProvider);
         groupsProvider.identity = { subject, claims: { amr: ['pwd'] } };
         const password: TestBrowser = newBrowser();
-        expect(await signIn(password, 'groups')).toBe(REDIRECT_TO);
+        expect(await logIn(password, 'groups')).toBe(REDIRECT_TO);
         expect(await guarded(password, '/by-method')).toBe(401);
 
         groupsProvider.identity = { subject };
         const silent: TestBrowser = newBrowser();
-        expect(await signIn(silent, 'groups')).toBe(REDIRECT_TO);
+        expect(await logIn(silent, 'groups')).toBe(REDIRECT_TO);
         expect(await guarded(silent, '/by-method')).toBe(401);
     });
 
     it('asks the provider for the classes of authentication the authenticator names', async () => {
-        await newBrowser().follow(`${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: 'groups', redirectTo: REDIRECT_TO }).toString()}`);
+        await newBrowser().follow(`${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: 'groups', redirectTo: REDIRECT_TO }).toString()}`);
 
         expect(groupsProvider.authorizationRequests.at(-1)?.get('acr_values')).toBe(MFA_CONTEXT_CLASS);
     });
@@ -511,13 +511,13 @@ describe('BaseOidcAuthenticator - what the provider proved, logging in with jwts
         const subject: string = newSubject();
         groupsProvider.identity = { subject, email: `${subject}@example.com`, claims: { amr: [MFA_METHOD] } };
         const browser: TestBrowser = newBrowser();
-        // a jwt login is handed over by code, so the sign-in starts with a PKCE challenge and the
+        // a jwt login is handed over by code, so the login starts with a PKCE challenge and the
         // ticket is spent with its verifier
         const codeVerifier: string = randomBytes(32).toString('base64url');
         const codeChallenge: string = createHash('sha256').update(codeVerifier)
             .digest('base64url');
         const query: string = new URLSearchParams({ authenticator: 'groups', redirectTo: REDIRECT_TO, codeChallenge }).toString();
-        const atProvider: string = await browser.follow(`${baseUrl}/auth/federated/authorize?${query}`);
+        const atProvider: string = await browser.follow(`${baseUrl}/auth/federated/login/request?${query}`);
         const landing: string = await browser.follow(await browser.follow(atProvider));
 
         const tokens: JwtAuthData<string> = await registerFrom(browser, landing, '/register-jwt', codeVerifier);

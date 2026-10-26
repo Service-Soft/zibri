@@ -4,6 +4,7 @@ import { type BaseUser } from '../models/base-user.model';
 import { type Permission } from '../roles/permission.type';
 import { type PlatformPermission } from '../roles/platform-permission.type';
 import { AuthStrategies } from '../strategies/auth-strategies.model';
+import { CurrentUserOptions } from './current-user-options.model';
 
 /**
  * The user a request is from, as a handler or a scope is handed it: who they are, and what the
@@ -43,18 +44,17 @@ export type CurrentUserMetadata = {
 
 /**
  * Marks the parameter to be injected as the currently logged in user, a {@link CurrentUser}.
- * @param required - If set to false, the injected user is allowed to be undefined.
- * @param allowedStrategies - The allowed auth strategies to resolve the currently logged in user. If not provided, any strategy is allowed.
+ * @param options - Whether the user is required, and which auth strategies may resolve them.
  */
 // the type of the same name above is what it injects, one a value and the other a type, which
 // typescript keeps apart: a parameter reads `@CurrentUser() user: CurrentUser<User>`
 // eslint-disable-next-line typescript/no-redeclare
-export function CurrentUser(required?: boolean, allowedStrategies?: AuthStrategies): ParameterDecorator {
+export function CurrentUser(options: CurrentUserOptions = {}): ParameterDecorator {
     return (target, propertyKey, index) => {
         const fullMetadata: CurrentUserMetadata = {
-            required: required ?? true,
+            required: options.required ?? true,
             index,
-            allowedStrategies
+            allowedStrategies: options.authStrategies
         };
         const ctor: Function = target.constructor;
         MetadataUtilities.setFilePath(ctor);

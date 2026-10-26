@@ -11,8 +11,8 @@ import { S3BackupTransportOptions } from './s3/s3-backup-transport-options.model
 import { S3Credentials } from './s3/s3-credentials.model';
 import { S3SignatureUtilities } from './s3/s3-signature.utilities';
 import { BaseS3BackupTransport } from './s3.backup-transport';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { inject } from '../../di/inject.function';
 import { BackupEntity } from '../backup-entity.model';

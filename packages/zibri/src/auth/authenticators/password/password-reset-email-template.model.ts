@@ -4,7 +4,7 @@ import { BaseUser } from '../../models/base-user.model';
 /**
  * Properties of a password reset email.
  */
-type PasswordResetEmailTemplateProps<Role extends string, UserType extends BaseUser<Role>> = {
+export type PasswordResetEmailTemplateProps<Role extends string, UserType extends BaseUser<Role>> = {
     /**
      * The link the user follows to set a new password.
      */

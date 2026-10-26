@@ -19,7 +19,7 @@ export type FakeOAuthProviderOptions = {
      */
     algorithm?: 'ES256' | 'RS256' | 'EdDSA',
     /**
-     * Whether the provider answers a sign-in with a page that posts the code to the callback, the way a
+     * Whether the provider answers a login with a page that posts the code to the callback, the way a
      * provider using `response_mode=form_post` does, instead of sending the browser back with it in the
      * query.
      * @default false
@@ -27,12 +27,12 @@ export type FakeOAuthProviderOptions = {
     formPost?: boolean,
     /**
      * Whether the provider issues an ID token with the access token, as an OpenID Connect provider
-     * does. One that issues none speaks plain OAuth2, and says who signed in through its `resources`.
+     * does. One that issues none speaks plain OAuth2, and says who logged in through its `resources`.
      * @default true
      */
     issuesIdToken?: boolean,
     /**
-     * Whether the ID tokens the provider issues say when the user signed in, in `auth_time`. One that
+     * Whether the ID tokens the provider issues say when the user logged in, in `auth_time`. One that
      * does not say is Google, which answers no `max_age` either.
      * @default true
      */
@@ -44,7 +44,7 @@ export type FakeOAuthProviderOptions = {
      */
     resources?: Record<string, (identity: FakeOAuthIdentity) => unknown>,
     /**
-     * The `prompt` values the provider takes. A sign-in asking for another one is answered with an error
+     * The `prompt` values the provider takes. A login asking for another one is answered with an error
      * page, the way Google answers `prompt=login`. Every value, when undefined.
      * @default undefined
      */

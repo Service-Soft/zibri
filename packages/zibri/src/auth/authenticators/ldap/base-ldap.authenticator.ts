@@ -10,6 +10,7 @@ import { LdapIdentity, LdapIdentityCreateData } from './ldap-identity.model';
 import { LdapServiceAccount } from './ldap-service-account.model';
 import { Ldapts } from './ldapts.type';
 import { ZibriApplication } from '../../../application/application';
+import { KeysetPage } from '../../../data-source/models/pagination-result.model';
 import { Repository } from '../../../data-source/repository/repository';
 import { Transaction } from '../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
@@ -21,7 +22,6 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { type LeaseServiceInterface } from '../../../leases/lease-service.interface';
 import { $ts } from '../../../localization/translate.function';
 import { type LoggerInterface } from '../../../logging/logger.interface';
-import { KeysetPage } from '../../../open-api/pagination-result.model';
 import { Newable } from '../../../types/newable.type';
 import { Ms } from '../../../utilities/ms';
 import { optionalPeer } from '../../../utilities/optional-peer.function';
@@ -34,10 +34,10 @@ import { AuthControllerAuthenticatorInterface } from '../auth-controller-authent
 import { RefreshResolvingAuthenticatorInterface } from '../refresh-resolving-authenticator.interface';
 
 /**
- * How long a first sign-in may take to link an entry, before another sign-in as the same entry stops
+ * How long a first login may take to link an entry, before another login as the same entry stops
  * waiting for it.
  */
-const FIRST_SIGN_IN_LEASE_IN_MS: number = 30 * Ms.SECOND;
+const FIRST_LOGIN_LEASE_IN_MS: number = 30 * Ms.SECOND;
 
 /**
  * How many linked entries one search of the job that looks for disabled entries asks for.
@@ -64,9 +64,9 @@ const NO_ATTRIBUTES: string[] = ['1.1'];
  * and a bind as that entry checks the password. The connection is always encrypted: `ldaps://`, or
  * `ldap://` upgraded with StartTLS.
  *
- * An entry is linked to a user by the id the directory gave it. The first sign-in as an entry hands
- * it to `resolveFirstSignIn`, which answers the user it signs in as; every later one hands it to
- * `resolveSignIn` with that user, and so does every refresh of a login of that user.
+ * An entry is linked to a user by the id the directory gave it. The first login as an entry hands
+ * it to `resolveFirstLogin`, which answers the user it logs in as; every later one hands it to
+ * `resolveLogin` with that user, and so does every refresh of a login of that user.
  *
  * A user whose entry is disabled or deleted loses their logins and api keys: at the next refresh, or
  * when `DisabledLdapEntriesCronJob` finds it, every 15 minutes by default.
@@ -86,7 +86,7 @@ export abstract class BaseLdapAuthenticator<
 
     /**
      * The servers of the directory: `ldaps://host:636`, or `ldap://host:389`, which is upgraded with
-     * StartTLS. A sign-in starts at a random one, and moves on to the next when one cannot be reached.
+     * StartTLS. A login starts at a random one, and moves on to the next when one cannot be reached.
      */
     abstract readonly urls: string[];
 
@@ -101,7 +101,7 @@ export abstract class BaseLdapAuthenticator<
     abstract readonly searchBase: string;
 
     /**
-     * What every entry a user signs in as matches, eg. `(objectClass=inetOrgPerson)`.
+     * What every entry a user logs in as matches, eg. `(objectClass=inetOrgPerson)`.
      */
     abstract readonly entryFilter: string;
 
@@ -176,26 +176,26 @@ export abstract class BaseLdapAuthenticator<
     }
 
     /**
-     * Answers the user an entry signs in as, the first time anybody signs in as it: a user created for
-     * it, or one found for it. Throw an http error to refuse the sign-in.
+     * Answers the user an entry logs in as, the first time anybody logs in as it: a user created for
+     * it, or one found for it. Throw an http error to refuse the login.
      *
-     * The entry is linked to the user afterwards, so every later sign-in as it finds the user.
+     * The entry is linked to the user afterwards, so every later login as it finds the user.
      * @param entry - The entry, with the attributes that were read and its groups.
      * @param transaction - The transaction of the login, if any.
      * @returns The user.
      */
-    abstract resolveFirstSignIn(entry: LdapEntry, transaction: Transaction | undefined): Promise<UserType>;
+    abstract resolveFirstLogin(entry: LdapEntry, transaction: Transaction | undefined): Promise<UserType>;
 
     /**
-     * Answers the user of every later sign-in as an entry, from the user it is linked to: updated from
+     * Answers the user of every later login as an entry, from the user it is linked to: updated from
      * the entry, such as its roles from its groups, or as it is. Throw an http error to refuse the
-     * sign-in.
+     * login.
      * @param entry - The entry, with the attributes that were read and its groups.
      * @param user - The user the entry is linked to.
      * @param transaction - The transaction of the login, if any.
-     * @returns The user the sign-in logs in as.
+     * @returns The user the login logs in as.
      */
-    abstract resolveSignIn(entry: LdapEntry, user: UserType, transaction: Transaction | undefined): Promise<UserType>;
+    abstract resolveLogin(entry: LdapEntry, user: UserType, transaction: Transaction | undefined): Promise<UserType>;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     init(app: ZibriApplication): void {
@@ -229,6 +229,16 @@ export abstract class BaseLdapAuthenticator<
         }
     }
 
+    /**
+     * Deletes the identities of the given users in this directory. Called in the transaction that
+     * deletes the users for good.
+     * @param userIds - The users.
+     * @param transaction - The transaction deleting them.
+     */
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.identityRepository.deleteAll({ directory: this.name, userId: { oneOf: userIds } }, { transaction });
+    }
+
     // eslint-disable-next-line jsdoc/require-jsdoc
     async authenticate(credentials: LdapCredentials, transaction: Transaction | undefined): Promise<Authentication<UserType>> {
         // a bind with a name and no password is an unauthenticated bind, which a directory answers with
@@ -242,7 +252,7 @@ export abstract class BaseLdapAuthenticator<
 
     /**
      * Answers the user a refresh continues the login of, from the entries linked to them: refused with
-     * an AccountDeactivatedError when one of them is disabled or deleted, and handed to `resolveSignIn`
+     * an AccountDeactivatedError when one of them is disabled or deleted, and handed to `resolveLogin`
      * otherwise. A user linked to no entry of this directory is answered as they are.
      * @param user - The user of the login.
      * @param transaction - The transaction of the refresh, if any.
@@ -278,7 +288,7 @@ export abstract class BaseLdapAuthenticator<
             for (const link of links) {
                 const entry: LdapEntry | undefined = entries.get(link.entryId);
                 if (entry != undefined) {
-                    res = await this.resolveSignIn(await this.resolveWithGroups(client, entry), res, transaction);
+                    res = await this.resolveLogin(await this.resolveWithGroups(client, entry), res, transaction);
                 }
             }
             return res;
@@ -293,7 +303,7 @@ export abstract class BaseLdapAuthenticator<
      * links, so the next run leaves them be. `DisabledLdapEntriesCronJob` calls it.
      */
     async endAccessOfDisabledEntries(): Promise<void> {
-        // connected once there is something to ask, so a directory nobody signed in at is never asked
+        // connected once there is something to ask, so a directory nobody logged in at is never asked
         let client: Client | undefined;
         try {
             let cursor: string | undefined;
@@ -324,7 +334,7 @@ export abstract class BaseLdapAuthenticator<
     }
 
     /**
-     * Whether an entry may go on signing in, read from the attributes `entryStateAttributes` names: not
+     * Whether an entry may go on logging in, read from the attributes `entryStateAttributes` names: not
      * when 389 Directory Server marks it inactivated, or OpenLDAP's password policy locked it until an
      * administrator unlocks it.
      * @param entry - The entry, with the attributes that were read.
@@ -412,7 +422,7 @@ export abstract class BaseLdapAuthenticator<
      * @returns The module.
      */
     protected resolveLdapts(): Ldapts {
-        return optionalPeer<Ldapts>('ldapts', 'Sign-in through a directory');
+        return optionalPeer<Ldapts>('ldapts', 'Login through a directory');
     }
 
     /**
@@ -468,7 +478,7 @@ export abstract class BaseLdapAuthenticator<
             sizeLimit: 2
         });
         if (searchEntries.length > 1) {
-            this.logger.warn(`${this.constructor.name}: more than one entry has the name a user signed in with.`);
+            this.logger.warn(`${this.constructor.name}: more than one entry has the name a user logged in with.`);
             return undefined;
         }
         return searchEntries[0];
@@ -665,7 +675,7 @@ export abstract class BaseLdapAuthenticator<
     }
 
     /**
-     * Finds the user an entry is linked to, or links it on the first sign-in.
+     * Finds the user an entry is linked to, or links it on the first login.
      * @param entry - The entry.
      * @param transaction - The transaction of the login, if any.
      * @returns The user.
@@ -678,30 +688,30 @@ export abstract class BaseLdapAuthenticator<
                 // eslint-disable-next-line unicorn/no-null
                 await this.identityRepository.updateById(linked.id, { disabledAt: null }, { transaction });
             }
-            return await this.resolveSignIn(entry, await this.findLinkedUser(linked.userId), transaction);
+            return await this.resolveLogin(entry, await this.findLinkedUser(linked.userId), transaction);
         }
-        // two first sign-ins as the same entry at once would each create a user, and only one of them
+        // two first logins as the same entry at once would each create a user, and only one of them
         // could be linked. The second waits, and finds the link the first made - held until the
         // login's transaction ends, since the link only becomes visible once it commits (10 §10.5)
         const user: UserType | undefined = await this.leaseService.withLease(
             {
-                key: `ldap-first-sign-in:${this.name}:${entry.id}`,
-                leaseInMs: FIRST_SIGN_IN_LEASE_IN_MS,
+                key: `ldap-first-login:${this.name}:${entry.id}`,
+                leaseInMs: FIRST_LOGIN_LEASE_IN_MS,
                 mode: 'wait',
                 heldUntil: transaction
             },
             async () => {
                 const linkedMeanwhile: LdapIdentity | undefined = await this.findIdentity(entry, transaction);
                 if (linkedMeanwhile != undefined) {
-                    return await this.resolveSignIn(entry, await this.findLinkedUser(linkedMeanwhile.userId), transaction);
+                    return await this.resolveLogin(entry, await this.findLinkedUser(linkedMeanwhile.userId), transaction);
                 }
-                const created: UserType = await this.resolveFirstSignIn(entry, transaction);
+                const created: UserType = await this.resolveFirstLogin(entry, transaction);
                 await this.identityRepository.create({ directory: this.name, entryId: entry.id, userId: created.id }, { transaction });
                 return created;
             }
         );
         if (user == undefined) {
-            throw new InternalError('The first sign-in as an entry of a directory ended without a user.');
+            throw new InternalError('The first login as an entry of a directory ended without a user.');
         }
         return user;
     }
@@ -717,7 +727,7 @@ export abstract class BaseLdapAuthenticator<
     private async findLinkedUser(userId: string): Promise<UserType> {
         const user: UserType | undefined = await this.userService.findById<RoleType, UserType, false>(userId, { required: false });
         if (user == undefined) {
-            throw new UnauthorizedError($ts`No user is linked to this sign-in.`);
+            throw new UnauthorizedError($ts`No user is linked to this login.`);
         }
         return user;
     }

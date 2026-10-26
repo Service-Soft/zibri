@@ -19,8 +19,8 @@ class TestFixedWindowLimiter extends FixedWindowRateLimiter {
             name: 'test-fixed',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<FixedWindowState>(),
-            maxReservationWaitMs: 5000,
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            maxReservationWaitInMs: 5000,
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY
         });
     }
@@ -94,8 +94,8 @@ describe('FixedWindowRateLimiter', () => {
                         name: 'test-unlimited',
                         capacity: CAPACITY,
                         store: new InMemoryRateLimiterStore<FixedWindowState>(),
-                        maxReservationWaitMs: undefined,
-                        reservationGracePeriodMs: (w) => Math.max(5000, w),
+                        maxReservationWaitInMs: undefined,
+                        reservationGracePeriodInMs: (w) => Math.max(5000, w),
                         maxReservationCount: CAPACITY
                     });
                 }

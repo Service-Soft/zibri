@@ -3,8 +3,8 @@ import { EntityMetadata as TOEntityMetadata } from 'typeorm';
 import { ColumnMetadata } from 'typeorm/metadata/ColumnMetadata.js';
 
 import { TypeOrmUtilities } from './typeorm.utilities';
-import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../__testing__/constants';
+import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { PostgresDataSource } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';

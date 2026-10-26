@@ -120,12 +120,12 @@ export class PartnerClientCertificateAuthStrategy extends IngressClientCertifica
 }
 ```
 
-A request carrying a certificate and another credential, such as a bearer token, is refused with a `401`. The exception is an access token bound to that certificate, see [bound tokens](#bound-tokens). A route that only people may call names the strategies it accepts, as in [what a key may do](./api-keys.md#what-a-key-may-do). A certificate never counts as a recent login.
+A request carrying a certificate and another credential, such as a bearer token, is refused with a `401`. The exception is an access token bound to that certificate, see [bound tokens](#bound-tokens). A route that only people may call names the strategies it accepts, as in [what a key may do](./api-keys.md#what-a-key-may-do). A certificate never counts as a [recent login](./glossary.md#recent-login).
 
 WebSocket messages are never identified by a client certificate.
 
 ## Bound tokens
-A service can also exchange its certificate for an access token at the [authorization server](./authorization-server.md), with an API key whose `clientAuthentication` is `TLS_CLIENT_AUTH` or `SELF_SIGNED_TLS_CLIENT_AUTH`, see [clients without a secret](./api-keys.md#clients-without-a-secret). The token is bound to the certificate: it carries the certificate's thumbprint as `cnf`, and is taken only from a request that presents the same certificate. The request then acts as the token, with the permissions the token may use.
+A service can also exchange its certificate for an access token at the [authorization server](./authorization-server.md), with an [API key](./glossary.md#api-key) whose `clientAuthentication` is `TLS_CLIENT_AUTH` or `SELF_SIGNED_TLS_CLIENT_AUTH`, see [clients without a secret](./api-keys.md#clients-without-a-secret). The token is bound to the certificate: it carries the certificate's thumbprint as `cnf`, and is taken only from a request that presents the same certificate. The request then acts as the token, with the permissions the token may use.
 
 The proxy forwards the certificate on the routes of the authorization server as on every other.
 

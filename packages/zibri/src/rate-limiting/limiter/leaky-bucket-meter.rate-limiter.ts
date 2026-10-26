@@ -16,7 +16,7 @@ export type LeakyBucketMeterState = BaseRateLimitState & {
     /**
      * Timestamp of the last leak calculation in ms.
      */
-    readonly lastLeakMs: number,
+    readonly lastLeakAtMs: number,
     /**
      * Capacity reserved by pending reservations.
      */
@@ -37,7 +37,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
         config: RateLimiterConfigInput<LeakyBucketMeterState>
     ) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config
@@ -48,7 +48,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
     protected initialAlgoState(now: number): LeakyBucketMeterState {
         return {
             water: 0,
-            lastLeakMs: now,
+            lastLeakAtMs: now,
             reservedWater: 0,
             reservations: [],
             expiresAtMs: now + this.intervalInMs
@@ -73,7 +73,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
         now: number
     ): number {
         const leakRate: number = this.config.capacity / this.intervalInMs; // units/ms
-        const elapsed: number = now - state.lastLeakMs;
+        const elapsed: number = now - state.lastLeakAtMs;
         const waterAfterLeak: number = Math.max(0, state.water - (leakRate * elapsed));
         const totalVirtual: number = waterAfterLeak + state.reservedWater + count;
         if (totalVirtual <= this.config.capacity) {
@@ -87,7 +87,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected recomputeReadyTimes(state: LeakyBucketMeterState, now: number): LeakyBucketMeterState {
         const leakRate: number = this.config.capacity / this.intervalInMs;
-        const elapsed: number = now - state.lastLeakMs;
+        const elapsed: number = now - state.lastLeakAtMs;
         const waterAfterLeak: number = Math.max(0, state.water - (leakRate * elapsed));
         let cumulativeReserved: number = 0;
         const newReservations: RateLimitReservation[] = state.reservations.map(r => {
@@ -158,7 +158,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
                 key,
                 (current) => {
                     const state: LeakyBucketMeterState = current ?? this.initialAlgoState(now);
-                    const elapsedMs: number = Math.max(0, now - state.lastLeakMs);
+                    const elapsedMs: number = Math.max(0, now - state.lastLeakAtMs);
                     const leakRate: number = this.config.capacity / this.intervalInMs;
                     const leaked: number = leakRate * elapsedMs;
                     const waterAfterLeak: number = Math.max(0, state.water - leaked);
@@ -176,7 +176,7 @@ export class LeakyBucketMeterRateLimiter extends BaseRateLimiter<LeakyBucketMete
                     const newState: LeakyBucketMeterState = {
                         ...state,
                         water: waterAfterOp,
-                        lastLeakMs: now,
+                        lastLeakAtMs: now,
                         // reservedWater unchanged
                         expiresAtMs: Math.max(state.expiresAtMs, now + this.intervalInMs)
                     };

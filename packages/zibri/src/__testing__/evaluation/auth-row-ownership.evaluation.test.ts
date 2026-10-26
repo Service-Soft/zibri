@@ -9,6 +9,7 @@ import { type HttpRequestContext } from '../../context/request/http-request.cont
 import { ZIBRI_REQUEST_CONTEXT_TOKENS } from '../../context/request/request-context-token.model';
 import { type WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { PostgresDataSource } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
+import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { Repository } from '../../data-source/repository/repository';
 import { InjectRepository, repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
@@ -18,7 +19,6 @@ import { Property } from '../../entity/decorators/property.decorator';
 import { denyAll, scopeFor } from '../../entity/models/entity-scope.model';
 import { UnauthorizedError } from '../../error-handling/errors/unauthorized.error';
 import { $ts } from '../../localization/translate.function';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { Body } from '../../routing/decorators/body.decorator';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Delete } from '../../routing/decorators/delete.decorator';
@@ -395,7 +395,7 @@ beforeAll(async () => {
         ],
         // the posture this is worth testing under: everything requires a login unless it says
         // otherwise, so the only anonymous callers here are the routes that declared themselves public
-        defaultAuth: 'requireLogin'
+        defaultAuth: 'isLoggedIn'
     });
     baseUrl = await server.start();
     userRepository = inject(repositoryTokenFor(JwtUser));

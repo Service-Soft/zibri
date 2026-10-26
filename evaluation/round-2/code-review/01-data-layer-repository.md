@@ -32,6 +32,10 @@ expression (`repository.ts:250-259`) rather than declared, so adding a sixth is 
 > remains open is the two near-duplicate reporters, which an entity-write event would replace, and
 > the chain still being a constructor expression.
 
+> **Closed 2026-10-26 with 09 §Q1:** the validator and both reporters are one
+> `WriteObservingRepositoryDriver` and three observers that the services register. The chain is
+> three wrappers deep, two of them cross-cutting by the user's call.
+
 ### Q3. Service locator in the write hot path — MINOR
 Every write through `RoleValidatingRepositoryDriver` resolves `ROLE_SERVICE` (`role-validating.repository-driver.ts:77-79`),
 and `USER_SERVICE` and `MEMBERSHIP_SERVICE` (312-319) through `inject()` per call; `removeRows` injects
@@ -39,6 +43,11 @@ and `USER_SERVICE` and `MEMBERSHIP_SERVICE` (312-319) through `inject()` per cal
 are built inside `Repository`'s constructor before the container is relevant, which is itself a symptom
 of Q2: the wrappers are not providers. Cheap today, but a container lookup per statement is the kind of
 thing a profiler flags first.
+
+> **Narrowed 2026-10-26 by 09 §Q1:** a write to an entity nobody observes injects nothing once
+> `onAppInit` is over, since the seam keeps the observers it found. An observed write still resolves
+> the role service per write, through the user and membership observers. `removeRows` still asks
+> `USER_SERVICE` per delete: 09 §Q9 closed on runtime imports, and that lookup goes through a token.
 
 ### Q4. Class helpers: semantics nobody wrote down — MINOR
 (09 listed these as unreviewed.) `OmitClass`/`PickClass`/`IntersectionClass` build a fresh class and copy

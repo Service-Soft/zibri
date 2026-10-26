@@ -1,5 +1,6 @@
 import { BaseRelationMetadata } from './base-relation-metadata.model';
 import { Relation } from './relation.enum';
+import { type DeletedRelatedRows } from '../../data-source/models/deleted-related-rows.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { type BaseEntity } from '../base-entity.model';
 
@@ -10,7 +11,13 @@ export type OneToManyPropertyMetadata<T extends BaseEntity> = BaseRelationMetada
     /**
      * The type of the property.
      */
-    type: Relation.ONE_TO_MANY
+    type: Relation.ONE_TO_MANY,
+    /**
+     * What a write does with a soft deleted row it is given by its id. A write's own
+     * `deletedRelatedRows` decides instead.
+     * @default 'refuse'
+     */
+    deletedRows: DeletedRelatedRows
 };
 
 /**

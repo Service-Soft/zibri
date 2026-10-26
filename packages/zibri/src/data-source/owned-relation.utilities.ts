@@ -64,7 +64,8 @@ export class OwnedRelationUtilities {
                 cascadesInsert: hasFlag('insert'),
                 cascadesUpdate: hasFlag('update'),
                 cascadesRemove: hasFlag('remove'),
-                leftOut: keyMetadata.required === true ? 'delete' : 'unlink'
+                leftOut: keyMetadata.required === true ? 'delete' : 'unlink',
+                deletedRows: metadata.deletedRows
             });
         }
         return res;

@@ -116,7 +116,7 @@ describe('UpgradeCommand', () => {
         workDir = await emptyWorkDirectory('upgrade-command');
         CPUtilities['cwd'] = workDir;
         execSpy = jest.spyOn(CPUtilities, 'exec').mockResolvedValue(undefined);
-        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'requireLogin', EVERY_FEATURE]));
+        await quietly(async () => new NewCommand().start(['n', 'api', 'none', 'isLoggedIn', EVERY_FEATURE]));
 
         appDir = path.join(workDir, 'api') as Path;
         CPUtilities['cwd'] = appDir;
@@ -285,7 +285,7 @@ describe('UpgradeCommand', () => {
         commitAll('a project from before "zi upgrade"');
         const promptSpy: jest.SpiedFunction<typeof InquirerUtilities.prompt> = jest.spyOn(InquirerUtilities, 'prompt')
             .mockResolvedValueOnce({ ci: 'none' })
-            .mockResolvedValueOnce({ defaultAuth: 'requireLogin' })
+            .mockResolvedValueOnce({ defaultAuth: 'isLoggedIn' })
             .mockResolvedValueOnce({ features: SCAFFOLD_FEATURES });
 
         await upgrade();
@@ -293,7 +293,7 @@ describe('UpgradeCommand', () => {
         // the name is the package's, and the rest is what only the developer knows
         expect(promptSpy.mock.calls.map(([questions]) => Object.keys(questions))).toStrictEqual([['ci'], ['defaultAuth'], ['features']]);
         const manifest: ScaffoldManifest = await manifestOf();
-        expect(manifest.answers).toEqual({ name: 'api', ci: 'none', defaultAuth: 'requireLogin', features: SCAFFOLD_FEATURES });
+        expect(manifest.answers).toEqual({ name: 'api', ci: 'none', defaultAuth: 'isLoggedIn', features: SCAFFOLD_FEATURES });
         // no record of what was generated, so a file that differs is the project's until somebody looks
         expect(await read('Dockerfile')).toBe(current.replace('EXPOSE 3000', 'EXPOSE 8080'));
         expect(await read(`Dockerfile${ScaffoldUtilities.BESIDE_SUFFIX}`)).toBe(current);

@@ -6,7 +6,7 @@ import { FileToGenerate, generateEntityFilesForProvider } from './generate-entit
 import { EntityGenerationProvider } from './providers/entity-generation-provider.interface';
 import { OpenApiUrlProvider } from './providers/open-api-url.provider';
 import { initDiContainer } from '../../di/init-di-container.function';
-import { OpenApiDefinition } from '../../open-api/open-api.model';
+import type { OpenApiDefinition } from '../../open-api/open-api.model';
 import { toKebabCase } from '../../utilities/to-kebab-case.function';
 import { toPascalCase } from '../../utilities/to-pascal-case.function';
 import { EntityTenant } from '../models/entity-tenant.model';

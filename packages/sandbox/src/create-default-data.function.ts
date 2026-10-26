@@ -38,7 +38,7 @@ export async function createDefaultData(dataSourceClass: Newable<DataSourceInter
 
 async function createDefaultRoles(transaction: Transaction): Promise<void> {
     const roleRepository: RoleRepository = inject(RoleRepository);
-    const existing: Set<string> = new Set((await roleRepository.findAll({ take: 'all', transaction })).map(role => role.name));
+    const existing: Set<string> = new Set((await roleRepository.findAll({ limit: 'all', transaction })).map(role => role.name));
     const missing: RoleCreateData<Role>[] = defaultRoles.filter(role => !existing.has(role.name));
     if (!missing.length) {
         return;

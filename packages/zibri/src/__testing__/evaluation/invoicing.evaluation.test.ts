@@ -18,11 +18,11 @@ import { NumberInvoices } from '../../plugin/invoicing/models/number-invoices.mo
 import { InvoiceNumberService } from '../../plugin/invoicing/services/invoice-number.service';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { TestTimeouts } from '../constants';
 import { companyInfoProvider } from '../mocks/company-info-provider.function';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerPlugins } from '../test-server/plugins';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

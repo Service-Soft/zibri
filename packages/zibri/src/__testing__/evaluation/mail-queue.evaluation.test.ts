@@ -12,9 +12,9 @@ import { EmailPriority } from '../../email/models/email-priority.enum';
 import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
 import { EmailSendResult, EmailTransportInterface } from '../../email/transports/email-transport.interface';
+import { TestTimeouts } from '../constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

@@ -6,6 +6,7 @@ import { text } from 'node:stream/consumers';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { PostgresBackupScope } from './postgres-backup-scope.model';
+import { PostgresPooler } from './postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from './postgres-typeorm-data-source.model';
 import { testFileFolder } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
@@ -65,6 +66,8 @@ class ScopedDataSource extends PostgresDataSource {
     readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
     schemaManagement: SchemaManagement = 'synchronize';
+
+    readonly pooler: PostgresPooler = 'none';
 }
 
 let server: StartedTestServer | undefined;
@@ -123,7 +126,7 @@ describe('a postgres backup of the entity tables', () => {
     it('restores the rows of the entity tables', async () => {
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'backed up' });
-        await backupService.createBackup({ name: 'rows' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'rows' }));
         await itemRepository.deleteAll({});
 
         await backupService.restore(await findBackup('rows'));
@@ -134,7 +137,7 @@ describe('a postgres backup of the entity tables', () => {
     it('leaves a table no entity declares out of the backup, and alone in a restore', async () => {
         await runSql('CREATE TABLE scoped_foreign (entry text)');
         await runSql('INSERT INTO scoped_foreign VALUES (\'before\')');
-        await backupService.createBackup({ name: 'foreign' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'foreign' }));
         await runSql('UPDATE scoped_foreign SET entry = \'after\'');
         await runSql('CREATE TABLE scoped_foreign_later (entry text)');
 
@@ -149,7 +152,7 @@ describe('a postgres backup of the entity tables', () => {
     it('refuses, and changes nothing, when something outside the entity tables depends on one of them', async () => {
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'backed up' });
-        await backupService.createBackup({ name: 'depended-on' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'depended-on' }));
         await itemRepository.deleteAll({});
         await itemRepository.create({ value: 'current' });
         // a reporting view somebody else keeps, which a restore would otherwise drop and never bring back

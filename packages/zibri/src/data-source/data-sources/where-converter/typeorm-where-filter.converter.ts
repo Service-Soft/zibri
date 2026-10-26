@@ -21,6 +21,7 @@ import { Where, WhereFilter, WhereFilterProperty } from '../../models/where/wher
 import { WhereValueUtilities } from '../../models/where/where-value.utilities';
 import { RelatedNarrowingUtilities } from '../../scopes/related-narrowing.utilities';
 import { ScopedWhere, ScopeWhereUtilities } from '../../scopes/scope-where.utilities';
+import { PropertyReferenceUtilities } from '../../where/property-reference.utilities';
 
 // eslint-disable-next-line typescript/typedef
 const lengthWhereFilterKeys = [
@@ -100,14 +101,14 @@ export abstract class TypeOrmWhereFilterConverter {
             // the list holds a null
             return listed.length === value.length ? Or(IsNull(), notListed) : And(Not(IsNull()), notListed);
         },
-        after: (value) => MoreThan(value),
-        before: (value) => LessThan(value),
-        afterOrOn: (value) => MoreThanOrEqual(value),
-        beforeOrOn: (value) => LessThanOrEqual(value),
-        greaterThan: (value) => MoreThan(value),
-        greaterThanEquals: (value) => MoreThanOrEqual(value),
-        lesserThan: (value) => LessThan(value),
-        lesserThanEquals: (value) => LessThanOrEqual(value),
+        after: (value) => this.compareWith('>', value) ?? MoreThan(value),
+        before: (value) => this.compareWith('<', value) ?? LessThan(value),
+        afterOrOn: (value) => this.compareWith('>=', value) ?? MoreThanOrEqual(value),
+        beforeOrOn: (value) => this.compareWith('<=', value) ?? LessThanOrEqual(value),
+        greaterThan: (value) => this.compareWith('>', value) ?? MoreThan(value),
+        greaterThanEquals: (value) => this.compareWith('>=', value) ?? MoreThanOrEqual(value),
+        lesserThan: (value) => this.compareWith('<', value) ?? LessThan(value),
+        lesserThanEquals: (value) => this.compareWith('<=', value) ?? LessThanOrEqual(value),
         iLike: (value) => ILike(value),
         // the complement of like, which `NOT LIKE` alone answers with null for a row holding no value
         notLike: (value) => Or(IsNull(), Not(Like(value))),
@@ -325,6 +326,29 @@ export abstract class TypeOrmWhereFilterConverter {
     }
 
     /**
+     * Compares the filtered column with another column of the same row, for a comparison naming
+     * another property with `propertyOf`.
+     *
+     * A row holding no value in either column matches no comparison, which is what sql answers a
+     * comparison with null with.
+     * @param operator - The sql comparison.
+     * @param value - What the filter compares with.
+     * @returns The operator, or undefined when the filter compares with a value.
+     */
+    private compareWith(operator: string, value: unknown): FindOperator<unknown> | undefined {
+        if (!PropertyReferenceUtilities.isReference(value)) {
+            return undefined;
+        }
+        return Raw(alias => {
+            // the column as the orm names it, and the other one on the same row - the path up to it
+            // is the alias of the row, which a relation read through a join has as well
+            const parts: string[] = alias.split('.').map(part => part.replaceAll('"', ''));
+            const quote: (names: string[]) => string = names => names.map(name => `"${name.replaceAll('"', '')}"`).join('.');
+            return `${quote(parts)} ${operator} ${quote([...parts.slice(0, -1), value.property])}`;
+        });
+    }
+
+    /**
      * The find options no row matches, for a filter nothing can satisfy.
      * @returns The find options.
      */
@@ -417,7 +441,7 @@ export abstract class TypeOrmWhereFilterConverter {
         const extraRawConditions: FindOperator<unknown>[] = [];
 
         for (const key of ObjectUtilities.keys(filter)) {
-            const prop: WhereFilterProperty<T[typeof key]> | WhereFilterProperty<T[typeof key]>[] | undefined = filter[key];
+            const prop: WhereFilterProperty<T[typeof key], T[typeof key], T> | WhereFilterProperty<T[typeof key], T[typeof key], T>[] | undefined = filter[key];
             if (prop === undefined) {
                 continue;
             }
@@ -432,11 +456,11 @@ export abstract class TypeOrmWhereFilterConverter {
                 );
             }
             let nestedProperties: Record<string, PropertyMetadata> | undefined;
-            let condition: WhereFilterProperty<T[typeof key]> | WhereFilterProperty<T[typeof key]>[] = prop;
+            let condition: WhereFilterProperty<T[typeof key], T[typeof key], T> | WhereFilterProperty<T[typeof key], T[typeof key], T>[] = prop;
 
             if (isRelationMetadata(propertyMetadata)) {
                 nestedProperties = MetadataUtilities.getModelProperties(propertyMetadata.target());
-                const remaining: WhereFilterProperty<T[typeof key]> | undefined = this.answerOverRelatedRows(
+                const remaining: WhereFilterProperty<T[typeof key], T[typeof key], T> | undefined = this.answerOverRelatedRows(
                     String(key),
                     prop,
                     propertyMetadata,
@@ -488,16 +512,16 @@ export abstract class TypeOrmWhereFilterConverter {
      * @param extraRawConditions - Where the statements are collected.
      * @returns The condition without the keys answered, or undefined when nothing is left of it.
      */
-    private answerOverRelatedRows<P>(
+    private answerOverRelatedRows<P, Of extends object>(
         key: string,
-        condition: WhereFilterProperty<P> | WhereFilterProperty<P>[],
+        condition: WhereFilterProperty<P, P, Of> | WhereFilterProperty<P, P, Of>[],
         metadata: RelationMetadata<BaseEntity>,
         entityClass: Newable<unknown>,
         extraRawConditions: FindOperator<unknown>[]
-    ): WhereFilterProperty<P> | undefined {
+    ): WhereFilterProperty<P, P, Of> | undefined {
         if (!ScopeWhereUtilities.isConditionObject(condition)) {
             // a value or null, which is asked of the row itself. A list was distributed into branches
-            return condition as WhereFilterProperty<P>;
+            return condition as WhereFilterProperty<P, P, Of>;
         }
         const res: Record<string, unknown> = { ...condition };
         if (metadata.type === Relation.ONE_TO_MANY || metadata.type === Relation.MANY_TO_MANY) {
@@ -524,7 +548,7 @@ export abstract class TypeOrmWhereFilterConverter {
             extraRawConditions.push(this.buildRelationWhereOperator(entityClass, key, metadata, res['where'] as Where<BaseEntity>));
             delete res['where'];
         }
-        return ObjectUtilities.keys(res).length ? res as WhereFilterProperty<P> : undefined;
+        return ObjectUtilities.keys(res).length ? res as WhereFilterProperty<P, P, Of> : undefined;
     }
 
     /**
@@ -536,8 +560,8 @@ export abstract class TypeOrmWhereFilterConverter {
      * @param propertyName - The name the entity declares the property under.
      * @returns A typeorm FindOperator property.
      */
-    protected propertyToFindOperator<T>(
-        property: WhereFilterProperty<T> | WhereFilterProperty<T>[],
+    protected propertyToFindOperator<T, Of extends object = object>(
+        property: WhereFilterProperty<T, T, Of> | WhereFilterProperty<T, T, Of>[],
         propertyMetadata: PropertyMetadata,
         nestedProperties: Record<string, PropertyMetadata> | undefined,
         entityClass: Newable<T>,
@@ -546,7 +570,7 @@ export abstract class TypeOrmWhereFilterConverter {
         if (Array.isArray(property)) {
             return propertyMetadata.type === 'array'
                 ? this.singlePropertyToFindOperator(
-                    property as WhereFilterProperty<T>,
+                    property as WhereFilterProperty<T, T, Of>,
                     propertyMetadata,
                     nestedProperties,
                     entityClass,
@@ -554,8 +578,8 @@ export abstract class TypeOrmWhereFilterConverter {
                 )
                 : Or(
                     ...property.map(
-                        p => this.singlePropertyToFindOperator<T>(
-                            p as WhereFilterProperty<T>,
+                        p => this.singlePropertyToFindOperator<T, Of>(
+                            p as WhereFilterProperty<T, T, Of>,
                             propertyMetadata,
                             nestedProperties,
                             entityClass,
@@ -577,8 +601,8 @@ export abstract class TypeOrmWhereFilterConverter {
      * @returns A typeorm FindOperator.
      * @throws When the where filter property is invalid.
      */
-    protected singlePropertyToFindOperator<T>(
-        property: WhereFilterProperty<T>,
+    protected singlePropertyToFindOperator<T, Of extends object = object>(
+        property: WhereFilterProperty<T, T, Of>,
         propertyMetadata: PropertyMetadata,
         nestedProperties: Record<string, PropertyMetadata> | undefined,
         entityClass: Newable<T>,

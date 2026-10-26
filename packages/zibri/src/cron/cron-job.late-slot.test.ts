@@ -45,7 +45,7 @@ class CatchingUpCronJob extends CountingCronJob {
         name: 'late-catching-up',
         cron: EVERY_FIVE_SECONDS,
         timezone: 'UTC',
-        catchUpWithinMs: 4 * Ms.SECOND
+        catchUpWithinInMs: 4 * Ms.SECOND
     };
 }
 
@@ -99,11 +99,11 @@ describe('A cron job reaching a slot late inside a running process', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('runs the slot while it is no later than catchUpWithinMs', () => {
+    it('runs the slot while it is no later than catchUpWithinInMs', () => {
         expect(catchingUp.ticks).toBe(1);
     });
 
-    it('leaves the slot out without catchUpWithinMs, and warns through the app logger naming the job', () => {
+    it('leaves the slot out without catchUpWithinInMs, and warns through the app logger naming the job', () => {
         expect(notCatchingUp.ticks).toBe(0);
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('late-not-catching-up'));
     });

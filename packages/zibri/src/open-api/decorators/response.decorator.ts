@@ -1,12 +1,15 @@
 
+import { ResponseDecorator } from './response-decorator.type';
+import { type KeysetPage, KeysetPageClass, type PaginationResult, PaginationResultClass } from '../../data-source/models/pagination-result.model';
 import { HttpStatus } from '../../http/http-status.enum';
+import { type RedirectResponse } from '../../http/redirect-response.model';
+import { type FileResponse } from '../../parsing/form-data/file-response.model';
+import { type HtmlResponse } from '../../parsing/html/html-response.model';
 import { ExcludeStrict } from '../../types/exclude-strict.type';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { JsonOpenApiResponse, EmptyOpenApiResponse, ErrorOpenApiResponse, FileOpenApiResponse, OpenApiResponse, HtmlOpenApiResponse, RedirectOpenApiResponse } from '../open-api.model';
-import { KeysetPageClass, PaginationResultClass } from '../pagination-result.model';
-
 /**
  * Bundles decorators for http responses.
  */
@@ -20,10 +23,10 @@ export namespace Response {
      * for a class that is only known once the application has started.
      * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
-    export function object(
-        entityClass: Newable<unknown> | (() => Newable<unknown> | undefined),
+    export function object<T>(
+        entityClass: Newable<T> | (() => Newable<T> | undefined),
         data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
-    ): MethodDecorator {
+    ): ResponseDecorator<T> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -45,10 +48,10 @@ export namespace Response {
      * @param entityClass - The class that defines the items in the response array.
      * @param data - Additional configuration, like status or description.
      */
-    export function array(
-        entityClass: Newable<unknown>,
+    export function array<T>(
+        entityClass: Newable<T>,
         data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls' | 'mimeTypes'>
-    ): MethodDecorator {
+    ): ResponseDecorator<T[]> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -70,10 +73,10 @@ export namespace Response {
      * @param entityClass - The class that defines the paginated items response structure.
      * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
-    export function paginated(
-        entityClass: Newable<unknown>,
+    export function paginated<T>(
+        entityClass: Newable<T>,
         data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
-    ): MethodDecorator {
+    ): ResponseDecorator<PaginationResult<T>> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -97,10 +100,10 @@ export namespace Response {
      * @param entityClass - The class that defines the paginated items response structure.
      * @param data - Additional configuration, like status, description or the formats it can be written in.
      */
-    export function keysetPage(
-        entityClass: Newable<unknown>,
+    export function keysetPage<T>(
+        entityClass: Newable<T>,
         data?: OmitStrict<JsonOpenApiResponse, 'isArray' | 'type' | 'cls'>
-    ): MethodDecorator {
+    ): ResponseDecorator<KeysetPage<T>> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -125,7 +128,7 @@ export namespace Response {
      */
     export function empty(
         data?: OmitStrict<EmptyOpenApiResponse, 'type'>
-    ): MethodDecorator {
+    ): ResponseDecorator<undefined> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -144,7 +147,7 @@ export namespace Response {
      * A response where a file is returned.
      * @param data - Additional data, like mime type or description.
      */
-    export function file(data?: OmitStrict<FileOpenApiResponse, 'type'>): MethodDecorator {
+    export function file(data?: OmitStrict<FileOpenApiResponse, 'type'>): ResponseDecorator<FileResponse> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -162,7 +165,7 @@ export namespace Response {
      * A response that returns html.
      * @param data - Additional data, like status or description.
      */
-    export function html(data?: OmitStrict<HtmlOpenApiResponse, 'type'>): MethodDecorator {
+    export function html(data?: OmitStrict<HtmlOpenApiResponse, 'type'>): ResponseDecorator<HtmlResponse> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);
@@ -182,7 +185,7 @@ export namespace Response {
      * @param data - Additional data, like the status or a description. The status defaults to 303 See Other,
      * which a client follows with a GET.
      */
-    export function redirect(data?: Partial<OmitStrict<RedirectOpenApiResponse, 'type'>>): MethodDecorator {
+    export function redirect(data?: Partial<OmitStrict<RedirectOpenApiResponse, 'type'>>): ResponseDecorator<RedirectResponse> {
         return (target, propertyKey) => {
             const ctor: Function = target.constructor;
             MetadataUtilities.setFilePath(ctor);

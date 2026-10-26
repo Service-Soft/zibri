@@ -5,7 +5,7 @@ import { TsxComponent } from '../../../tsx/tsx-component.model';
 /**
  * Properties of a mailing list preferences page component.
  */
-type MailingListPreferencesPageTemplateProps = {
+export type MailingListPreferencesPageTemplateProps = {
     /**
      * The subscriber to render the page for.
      */

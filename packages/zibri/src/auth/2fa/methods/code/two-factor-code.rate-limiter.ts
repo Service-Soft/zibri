@@ -11,7 +11,7 @@ import { RepositoryRateLimiterStore } from '../../../../rate-limiting/stores/rep
 import { Ms } from '../../../../utilities/ms';
 
 /**
- * How often a user is sent a two factor code by email or text message: once per `resendAfterMs` of
+ * How often a user is sent a two factor code by email or text message: once per `resendAfterInMs` of
  * `TWO_FACTOR_CODE_OPTIONS`, for each user and channel.
  *
  * Counted in the data source, in `RateLimitStateEntity`, so the limit holds across every instance.
@@ -23,7 +23,7 @@ export class TwoFactorCodeRateLimiter extends GcraRateLimiter {
         options: TwoFactorCodeOptions
     ) {
         super(
-            options.resendAfterMs ?? Ms.MINUTE,
+            options.resendAfterInMs ?? Ms.MINUTE,
             {
                 name: 'TwoFactorCodeRateLimiter',
                 // the lock of this process only: every write is compared against the version it read,
@@ -35,7 +35,7 @@ export class TwoFactorCodeRateLimiter extends GcraRateLimiter {
                     'TwoFactorCodeRateLimiter'
                 ),
                 capacity: 1,
-                maxReservationWaitMs: undefined
+                maxReservationWaitInMs: undefined
             }
         );
     }

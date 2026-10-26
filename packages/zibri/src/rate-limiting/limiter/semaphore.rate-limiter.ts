@@ -30,13 +30,13 @@ export type SemaphoreState = BaseRateLimitState & {
 /**
  * The configuration for a semaphore rate limiter.
  */
-export type SemaphoreConfigInput = Omit<RateLimiterConfigInput<SemaphoreState>, 'maxReservationWaitMs'> & {
+export type SemaphoreConfigInput = Omit<RateLimiterConfigInput<SemaphoreState>, 'maxReservationWaitInMs'> & {
     /**
      * How long (ms) an idle key — no held or reserved permits — is kept
      * before being eligible for cleanup. Refreshed on every touch, same as
      * the other limiters' interval-based TTL. Defaults to 24 hours.
      */
-    readonly idleTtlMs?: number,
+    readonly idleTtlInMs?: number,
     /**
      * The maximum number of unexpired reservations that may be queued for a
      * single key at once, regardless of how long each is estimated to wait.
@@ -56,21 +56,21 @@ export type SemaphoreConfigInput = Omit<RateLimiterConfigInput<SemaphoreState>, 
  * - The `wrap` method handles acquire/release automatically.
  */
 export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
-    private readonly idleTtlMs: number;
+    private readonly idleTtlInMs: number;
     private readonly maxPendingReservations: number;
 
     protected constructor(config: SemaphoreConfigInput) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config,
             // A semaphore can't estimate when a held permit will be released, so a
             // time-based wait horizon is meaningless here; see isWithinReservationHorizon
             // and checkAdditionalReservationLimits below for how the queue is actually bounded.
-            maxReservationWaitMs: undefined
+            maxReservationWaitInMs: undefined
         });
-        this.idleTtlMs = config.idleTtlMs ?? (Ms.HOUR * 24);
+        this.idleTtlInMs = config.idleTtlInMs ?? (Ms.HOUR * 24);
         this.maxPendingReservations = config.maxPendingReservations ?? config.capacity;
     }
 
@@ -80,7 +80,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
             current: 0,
             reservedCount: 0,
             reservations: [],
-            expiresAtMs: now + this.idleTtlMs
+            expiresAtMs: now + this.idleTtlInMs
         };
     }
 
@@ -320,7 +320,7 @@ export class SemaphoreRateLimiter extends BaseRateLimiter<SemaphoreState> {
     protected override async doReserve(key: string, count: number): Promise<RateLimitReservationResult> {
         const result: RateLimitReservationResult = await super.doReserve(key, count);
         if (result.allowed) {
-            result.reservation.expiresAtMs = Date.now() + this.idleTtlMs;
+            result.reservation.expiresAtMs = Date.now() + this.idleTtlInMs;
         }
         return result;
     }

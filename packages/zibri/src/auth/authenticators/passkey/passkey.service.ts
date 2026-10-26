@@ -88,9 +88,9 @@ const COMPROMISED_STATUSES: string[] = [
  */
 @Injectable({ register: 'onUse' })
 export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
-    // whether users sign up with a passkey, which is what keeps registration tickets. An application
+    // whether users register with a passkey, which is what keeps registration tickets. An application
     // taking passkeys only as a second factor declares no table for them
-    private signsUp: boolean = false;
+    private registers: boolean = false;
 
     // read when used rather than injected, so that an application without the entities is told to
     // declare them by onAppInit, instead of failing on a repository token while this is built
@@ -112,17 +112,17 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
-        const signsIn: boolean = app.options.authenticators.some(a => this.isOrExtends(a, PasskeyAuthenticator));
+        const logsIn: boolean = app.options.authenticators.some(a => this.isOrExtends(a, PasskeyAuthenticator));
         const secondFactor: boolean = app.options.twoFactorMethods.some(m => this.isOrExtends(m, PasskeyTwoFactorMethod));
         // built in every application, as the default of its token, and only checks anything where
         // passkeys are used
-        if (!signsIn && !secondFactor) {
+        if (!logsIn && !secondFactor) {
             return;
         }
         optionalPeer('@simplewebauthn/server', 'Passkeys');
         validateEntitiesRegistered(PasskeyService.name, app, Passkey, PasskeyChallenge);
-        this.signsUp = signsIn;
-        if (signsIn) {
+        this.registers = logsIn;
+        if (logsIn) {
             validateEntitiesRegistered(PasskeyService.name, app, PasskeyRegistrationTicket);
         }
         if (!app.options.cronJobs.includes(PasskeyCleanupCronJob)) {
@@ -141,7 +141,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSignIn(): Promise<PasskeyRequestOptions> {
+    async requestLogin(): Promise<PasskeyRequestOptions> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const requestOptions: PasskeyRequestOptions = await this.resolveLibrary().generateAuthenticationOptions({
             rpID: options.relyingPartyId,
@@ -149,28 +149,28 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             // the passkey is the whole proof, so the device has to have verified who holds it
             userVerification: 'required'
         });
-        await this.storeChallenge(requestOptions.challenge, { ceremony: PasskeyCeremony.SIGN_IN }, options);
+        await this.storeChallenge(requestOptions.challenge, { ceremony: PasskeyCeremony.LOGIN }, options);
         return requestOptions;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSignUp(name: string): Promise<PasskeyCreationOptions> {
-        return await this.startCreation(PasskeyCeremony.SIGN_UP, name, undefined, new Uint8Array(randomBytes(32)), []);
+    async requestRegistration(name: string): Promise<PasskeyCreationOptions> {
+        return await this.requestCreation(PasskeyCeremony.REGISTRATION, name, undefined, new Uint8Array(randomBytes(32)), []);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startConnection(userId: string, name: string): Promise<PasskeyCreationOptions> {
+    async requestAddition(userId: string, name: string): Promise<PasskeyCreationOptions> {
         const passkeys: Passkey[] = await this.findPasskeys(userId, undefined);
         // the account the device keeps the passkey under. The same for every passkey of the user, so
         // a device that holds one already replaces it rather than listing the account twice
         const userHandle: Uint8Array<ArrayBuffer> = new Uint8Array(
             passkeys[0] == undefined ? randomBytes(32) : Buffer.from(passkeys[0].userHandle, 'base64url')
         );
-        return await this.startCreation(PasskeyCeremony.CONNECTION, name, userId, userHandle, passkeys);
+        return await this.requestCreation(PasskeyCeremony.ADDITION, name, userId, userHandle, passkeys);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSecondFactor(userId: string): Promise<PasskeyRequestOptions> {
+    async requestSecondFactor(userId: string): Promise<PasskeyRequestOptions> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         const passkeys: Passkey[] = await this.findPasskeys(userId, undefined);
         if (!passkeys.length) {
@@ -187,11 +187,11 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async completeSignUp(response: PasskeyRegistrationResponse): Promise<string> {
+    async confirmRegistration(response: PasskeyRegistrationResponse): Promise<string> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
-        const [challenge, registration] = await this.verifyRegistration(response, PasskeyCeremony.SIGN_UP, undefined, options);
+        const [challenge, registration] = await this.verifyRegistration(response, PasskeyCeremony.REGISTRATION, undefined, options);
         if (challenge.userHandle == undefined || challenge.userName == undefined) {
-            throw new InternalError(`The sign-up challenge ${challenge.id} names no account.`);
+            throw new InternalError(`The registration challenge ${challenge.id} names no account.`);
         }
         const ticket: string = randomBytes(32).toString('base64url');
         await this.ticketRepository.create({
@@ -212,11 +212,11 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async completeConnection(userId: string, response: PasskeyRegistrationResponse): Promise<void> {
+    async confirmAddition(userId: string, response: PasskeyRegistrationResponse): Promise<void> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
-        const [challenge, registration] = await this.verifyRegistration(response, PasskeyCeremony.CONNECTION, userId, options);
+        const [challenge, registration] = await this.verifyRegistration(response, PasskeyCeremony.ADDITION, userId, options);
         if (challenge.userHandle == undefined) {
-            throw new InternalError(`The connection challenge ${challenge.id} names no account.`);
+            throw new InternalError(`The addition challenge ${challenge.id} names no account.`);
         }
         await this.passkeyRepository.create({
             userId,
@@ -233,11 +233,11 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async verifySignIn(response: PasskeyAuthenticationResponse, transaction: Transaction | undefined): Promise<Passkey> {
+    async confirmLogin(response: PasskeyAuthenticationResponse, transaction: Transaction | undefined): Promise<Passkey> {
         const options: ResolvedPasskeyOptions = this.resolveOptions();
         // spent outside the login's transaction, so a failed login does not give the challenge back for
         // another answer
-        const challenge: ClaimedChallenge = await this.claimChallenge(response.response.clientDataJSON, PasskeyCeremony.SIGN_IN, undefined);
+        const challenge: ClaimedChallenge = await this.claimChallenge(response.response.clientDataJSON, PasskeyCeremony.LOGIN, undefined);
         return await this.verifyAssertion(response, challenge.value, undefined, options, transaction);
     }
 
@@ -280,7 +280,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             aaguid: found.aaguid,
             userHandle: found.userHandle,
             synced: found.synced,
-            // a sign-up demands a stored passkey, which the browser refuses to create otherwise
+            // a registration demands a stored passkey, which the browser refuses to create otherwise
             discoverable: true,
             createdAt: new Date(found.authenticatedAt)
         }, { transaction });
@@ -299,7 +299,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
                 required: false
             });
         if (passkey == undefined) {
-            throw new UnauthorizedError($ts`No user is linked to this sign-in.`);
+            throw new UnauthorizedError($ts`No user is linked to this login.`);
         }
         await this.claim(async () => await this.ticketRepository.updateById(
             found.id,
@@ -328,16 +328,26 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.passkeyRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        await this.challengeRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        // only an application whose passkeys log in declares the tickets
+        if (this.registers) {
+            await this.ticketRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+        }
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteExpired(): Promise<void> {
         const now: Date = new Date();
         await Promise.all([
             this.challengeRepository.deleteAll({ expirationDate: { before: now } }),
-            ...this.signsUp ? [this.ticketRepository.deleteAll({ expirationDate: { before: now } })] : []
+            ...this.registers ? [this.ticketRepository.deleteAll({ expirationDate: { before: now } })] : []
         ]);
     }
 
-    private async startCreation(
-        ceremony: PasskeyCeremony.SIGN_UP | PasskeyCeremony.CONNECTION,
+    private async requestCreation(
+        ceremony: PasskeyCeremony.REGISTRATION | PasskeyCeremony.ADDITION,
         name: string,
         userId: string | undefined,
         userHandle: Uint8Array<ArrayBuffer>,
@@ -355,13 +365,13 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
             // would only cost users a consent prompt
             attestationType: options.attestation == undefined ? 'none' : 'direct',
             excludeCredentials: excluded.map(p => ({ id: p.credentialId, transports: p.transports })),
-            // a passkey the device keeps for the site can be offered at sign-in without being told the
-            // account. A sign-up has nothing else to sign in with, so it demands one. A user who is logged
-            // in may add a device that stores none, such as an older security key, as a second factor:
-            // signing in with it would mean asking who signs in first, which answers whether an address
-            // holds an account
+            // a passkey the device keeps for the site can be offered at login without being told the
+            // account. A registration has nothing else to log in with, so it demands one. A user who is
+            // logged in may add a device that stores none, such as an older security key, as a second
+            // factor: logging in with it would mean asking who logs in first, which answers whether an
+            // address holds an account
             authenticatorSelection: {
-                residentKey: ceremony === PasskeyCeremony.SIGN_UP ? 'required' : 'preferred',
+                residentKey: ceremony === PasskeyCeremony.REGISTRATION ? 'required' : 'preferred',
                 userVerification: 'required'
             }
         });
@@ -421,7 +431,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
 
     private async verifyRegistration(
         response: PasskeyRegistrationResponse,
-        ceremony: PasskeyCeremony.SIGN_UP | PasskeyCeremony.CONNECTION,
+        ceremony: PasskeyCeremony.REGISTRATION | PasskeyCeremony.ADDITION,
         userId: string | undefined,
         options: ResolvedPasskeyOptions
     ): Promise<[PasskeyChallenge, VerifiedRegistration]> {
@@ -567,7 +577,7 @@ export class PasskeyService implements PasskeyServiceInterface, OnAppInit {
      */
     private findDiscoverable(response: PasskeyRegistrationResponse): boolean | undefined {
         // the browser's word, which the device does not sign. It only tells the user which of their
-        // passkeys sign in, and grants nothing
+        // passkeys log in, and grants nothing
         const properties: unknown = response.clientExtensionResults['credProps'];
         if (typeof properties !== 'object' || properties == undefined || !('rk' in properties) || typeof properties.rk !== 'boolean') {
             return undefined;

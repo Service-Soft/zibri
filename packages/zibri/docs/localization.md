@@ -14,12 +14,24 @@ text.
 | `$ts` | function | Marks a string for translation and resolves it immediately using the automatically resolved locale |
 | `TranslationToken` | class | Represents a marked string; use `.getValue(locale)` to translate it |
 | `TranslatedString` | type | A string that is translated already, as `$ts` and `getValue` return it |
+| `generateSourceXlf`, `SourceTranslationOrigin` | function, type | Writes `source.xlf` from the strings marked for translation in the origins you name, such as your project and Zibri |
 | `defineDateFormat` | function | Defines a date/time/date-time format for a supported locale |
+| `dateFormatTokens`, `DateFormatToken` | constant, type | The tokens a date format is built from, such as `DD` and `YYYY` |
+| `DateFormatString`, `DefinedDateFormatString` | type, type | A format string checked against the tokens, and the format `defineDateFormat` returns |
+| `DateFormatShortcut` | type | The default formats of a locale by name: `'date'`, `'date-time'` and `'time'` |
 | `ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS_INPUT` | DI token | Configures supported locales, default locale and locale resolution |
+| `LocalizeOptions`, `LocalizeOptionsInput`, `LocaleConfiguration` | type, type, type | The localize options in effect, the ones your application sets, and the currency and default formats of one locale |
 | `ZIBRI_DI_TOKENS.LOCALIZE_SERVICE` | DI token | Injects `LocalizeServiceInterface` |
 | `LocalizeServiceInterface` | interface | Contract for `formatPrice`, `getCurrencyMinorUnits`, `formatPercent` and `formatDate` |
+| `LocalizeService` | class | The default `LocalizeServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.LOCALIZE_SERVICE |
+| `TEXT_COLLATOR_OPTIONS` | constant | The collator options text is ordered with, for ordering text in your own code the same way |
+| `FormatPriceOptions`, `FormatDateOptions`, `FormatPercentOptions` | type, type, type | The currency, locale, format and time zone `formatPrice`, `formatDate` and `formatPercent` use |
 | `LocaleCode` | type | Type of a supported locale code (such as `'en-US'`, `'de'`) |
+| `resolveLocaleCode` | function | Finds the best match for a locale among the available ones |
+| `currencyCodes`, `currencyCodeEnum`, `CurrencyCode` | constant, constant, type | The ISO 4217 currency codes as a list, as an enum shaped object for `@Property.string({ enum })`, and as a type |
 | `Timezone` | type | Type of an IANA time zone name (such as `'UTC'`, `'Europe/Berlin'`) |
+| `timezones` | constant | Every name `Timezone` allows, as a list |
+| `Month`, `monthLabels`, `Weekday`, `weekdayLabels` | enum, constant, enum, constant | The months and weekdays as a JavaScript `Date` numbers them, and a translatable label for each |
 
 ## Marking strings for translation
 To mark a string for translation you can use `$t`:

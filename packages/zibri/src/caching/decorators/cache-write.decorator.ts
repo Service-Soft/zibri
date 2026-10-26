@@ -22,7 +22,7 @@ type ExtractWrapWriteOptions<C, TArgs extends unknown[]>
  * Marks the method to write the result to the cache using the provided cache.
  * @param cacheToken - The token of the cache to use.
  * @param keyFn - How to resolve the key under which results should be cached.
- * @param options - Additional options like ttl or tags.
+ * @param options - Additional options like ttlInMs or tags.
  */
 // eslint-disable-next-line jsdoc/require-jsdoc, typescript/no-explicit-any
 export function CacheWrite<C extends { wrapWrite: (...args: any[]) => any }, K, V, TArgs extends unknown[]>(

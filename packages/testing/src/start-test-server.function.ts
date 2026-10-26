@@ -1,14 +1,15 @@
 import { AddressInfo } from 'node:net';
 
 import { ExecResult } from 'testcontainers';
-import { DataSourceInterface, DiProvider, FsPath, initDiContainer, inject, LoggerInterface, Newable, PostgresDataSource, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { DataSourceInterface, DiProvider, FsPath, inject, LoggerInterface, Newable, PostgresDataSource, ZIBRI_DI_TOKENS, ZibriApplication, ZibriApplicationOptions } from 'zibri';
+import { initDiContainer } from 'zibri/internal';
 
 import { createInMemoryDataSource } from './in-memory-data-source/create-in-memory-data-source.function';
 import { registerAheadOfInit } from './register-ahead-of-init.function';
 import { ApplicationOptionsFallback, resolveApplicationOptions } from './resolve-application-options.function';
 import { createScratchDirectory, removeScratchDirectory, scratchProviders } from './scratch-directory.function';
 import { settleAfterFailure } from './settle-after-failure.function';
-import { applyContainerPort, buildDataSources, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers } from './start-data-source-containers.function';
+import { applyContainerPorts, buildDataSources, DataSourcePorts, needsContainer, runAsSuperuser, StartedDataSourceContainer, startDataSourceContainers, stopDataSourceContainer } from './start-data-source-containers.function';
 import { StartTestServerOptions } from './start-test-server-options.model';
 import { defaultTestProviders } from './test-providers';
 
@@ -28,7 +29,9 @@ const testServerFallback: ApplicationOptionsFallback = {
  * A test server that has been initialized, and everything that can be done with it.
  */
 export class StartedTestServer {
-    private readonly containerPorts: Map<Newable<DataSourceInterface>, number>;
+    private readonly containerPorts: Map<Newable<DataSourceInterface>, DataSourcePorts>;
+
+    private readonly postgresDataSources: Map<Newable<DataSourceInterface>, PostgresDataSource>;
 
     constructor(
         private app: ZibriApplication,
@@ -45,17 +48,28 @@ export class StartedTestServer {
          * What the application logged at info while it booted, in order, which the server keeps off
          * the terminal. A `reInit` replaces it with what the restart logged.
          */
-        public bootLog: string[]
+        public bootLog: string[],
+        // what the application was built from, which a reInit inherits. Not `app.options`: the
+        // application adds to those while it starts - the cron jobs a feature registers, what a plugin
+        // contributes - and a restart inheriting them kept a feature's job after the feature was gone
+        private builtFrom: ZibriApplicationOptions
     ) {
-        this.containerPorts = new Map(containers.map(c => [c.dataSourceClass, c.port]));
+        this.containerPorts = new Map(containers.map(c => [c.dataSourceClass, c.ports]));
+        // kept from the boot, for the database and the name a statement run as the superuser needs of
+        // them: a test restores what it broke after a reInit that failed, when the application and
+        // its container are gone and nothing can be injected
+        this.postgresDataSources = new Map(containers.flatMap(c => {
+            const dataSource: DataSourceInterface = inject(c.dataSourceClass);
+            return dataSource instanceof PostgresDataSource ? [[c.dataSourceClass, dataSource]] : [];
+        }));
     }
 
     private async reApplyContainerPorts(): Promise<void> {
         await buildDataSources([...this.containerPorts.keys()]);
-        for (const [dataSourceClass, port] of this.containerPorts) {
+        for (const [dataSourceClass, ports] of this.containerPorts) {
             const dataSource: DataSourceInterface = inject(dataSourceClass);
             if (needsContainer(dataSource)) {
-                applyContainerPort(dataSource, port);
+                applyContainerPorts(dataSource, ports);
             }
         }
     }
@@ -87,8 +101,8 @@ export class StartedTestServer {
      */
     async runAsSuperuser(dataSourceClass: Newable<DataSourceInterface>, statements: string[]): Promise<void> {
         const started: StartedDataSourceContainer | undefined = this.containers.find(c => c.dataSourceClass === dataSourceClass);
-        const dataSource: DataSourceInterface = inject(dataSourceClass);
-        if (started == undefined || !(dataSource instanceof PostgresDataSource)) {
+        const dataSource: PostgresDataSource | undefined = this.postgresDataSources.get(dataSourceClass);
+        if (started == undefined || dataSource == undefined) {
             throw new Error(`${dataSourceClass.name} runs on no postgres container of this server`);
         }
         await runAsSuperuser(started.container, dataSource, statements);
@@ -122,7 +136,7 @@ export class StartedTestServer {
      */
     async shutdown(): Promise<void> {
         await this.app.shutdown();
-        await Promise.all(this.containers.map(c => c.container.stop()));
+        await Promise.all(this.containers.map(c => stopDataSourceContainer(c)));
         removeScratchDirectory(this.scratchPath);
     }
 
@@ -135,19 +149,13 @@ export class StartedTestServer {
      * from the application that is being replaced, or from the `application` named here.
      */
     async reInit(options: StartTestServerOptions = {}): Promise<void> {
-        const previous: ZibriApplicationOptions = {
-            ...this.app.options,
-            // the one thing that cannot be inherited: an application keeps what a plugin registered
-            // rather than the plugin, so a reInit that does not name one starts without it
-            plugins: []
-        };
-
         await this.app.shutdown();
 
         const resolved: ZibriApplicationOptions = resolveApplicationOptions(
-            { ...options, application: options.application ?? previous },
+            { ...options, application: options.application ?? this.builtFrom },
             testServerFallback
         );
+        this.builtFrom = resolved;
         // the same directory, re-registered rather than inherited: a reInit that names its own
         // providers replaces the list these were in, and losing them would point the restart at
         // the application's real folders. Pointing it at a *fresh* directory would be worse
@@ -247,12 +255,12 @@ export async function startTestServer(options: StartTestServerOptions = {}): Pro
         // looking at, and the next run's is a directory of its own.
         logger.info = info;
         await settleAfterFailure('shut the application down', [app.shutdown()]);
-        await settleAfterFailure('stop a container', containers.map(c => c.container.stop()));
+        await settleAfterFailure('stop a container', containers.map(c => stopDataSourceContainer(c)));
         throw error;
     }
 
     logger.info = info;
     logger.info('test server initialized');
 
-    return new StartedTestServer(app, containers, scratchPath, bootLog);
+    return new StartedTestServer(app, containers, scratchPath, bootLog, resolved);
 }

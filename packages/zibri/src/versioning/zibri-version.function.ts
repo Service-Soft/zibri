@@ -1,8 +1,8 @@
-import { SemVerUtilities, SemVerVersion } from './sem-ver.utilities';
 import { InternalError } from '../error-handling/internal-error.model';
 import { FsPath, FsUtilities } from '../utilities/fs.utilities';
 import { JsonUtilities } from '../utilities/json.utilities';
 import { resolveZibriRoot } from '../utilities/resolve-zibri-root.function';
+import { SemVerUtilities, SemVerVersion } from '../utilities/sem-ver.utilities';
 
 /**
  * Read once, because it cannot change while the process runs.

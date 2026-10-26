@@ -19,8 +19,8 @@ class TestLeakyMeterLimiter extends LeakyBucketMeterRateLimiter {
             name: 'test-meter',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<LeakyBucketMeterState>(),
-            maxReservationWaitMs: 5000,
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            maxReservationWaitInMs: 5000,
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY
         });
     }

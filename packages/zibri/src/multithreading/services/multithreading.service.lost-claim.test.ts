@@ -55,8 +55,8 @@ async function startWithClaim(jobClaimInMs: number): Promise<StartedTestServer> 
                 useValue: {
                     maxThreads: 1,
                     maxPriorityThreads: 0,
-                    defaultTimeoutMs: Ms.MINUTE,
-                    defaultTimeoutPriorityMs: Ms.MINUTE,
+                    defaultTimeoutInMs: Ms.MINUTE,
+                    defaultPriorityTimeoutInMs: Ms.MINUTE,
                     jobClaimInMs,
                     maxAttempts: 3,
                     workerResourceLimits: {},

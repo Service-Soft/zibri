@@ -184,7 +184,7 @@ function assemblePage(content: string): AssembledPage {
 
     for (const [blockIndex, block] of blocksIn(content).entries()) {
         const imported: Set<string> = new Set<string>();
-        // `// src/providers.ts - one more entry`, `// src/sign-in.ts, in the browser`
+        // `// src/providers.ts - one more entry`, `// src/login.ts, in the browser`
         const file: string | undefined = /^\/\/\s+(\S+?\.tsx?)(?=[\s,]|$)/.exec(block.code[0] ?? '')?.[1];
         blocks.push({ line: block.line, file, imported });
         for (const [offset, line] of block.code.entries()) {

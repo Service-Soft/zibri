@@ -20,10 +20,10 @@ import { FsUtilities, type FsPath } from '../utilities/fs.utilities';
 import { ObjectUtilities } from '../utilities/object.utilities';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type FileNode = { type: 'file', name: string, route: string };
+export type FileNode = { type: 'file', name: string, route: string };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type DirectoryNode = { type: 'directory', name: string, children: TreeNode[] };
+export type DirectoryNode = { type: 'directory', name: string, children: TreeNode[] };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type TreeNode = FileNode | DirectoryNode;

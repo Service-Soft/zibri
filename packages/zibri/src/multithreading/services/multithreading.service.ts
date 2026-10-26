@@ -343,7 +343,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         await this.validateInputs();
 
         // every instance has its own workers to keep busy, so every instance has to look for work -
-        // which is why this one is not distributed. Electing one would have a single instance poll
+        // which is why this one runs on every instance. Electing one would have a single instance poll
         // on behalf of a pool it cannot reach.
         if (!app.options.cronJobs.includes(RunQueuedThreadJobsCronJob)) {
             app.options.cronJobs.push(RunQueuedThreadJobsCronJob);
@@ -430,7 +430,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             this.threadJobEntityRepository.findAll({
                 where: { status: ThreadJobStatus.IN_QUEUE },
                 order: { queuedAtMs: 'ASC' },
-                take: 1,
+                limit: 1,
                 acrossTenants: true
             })
         ]);
@@ -543,7 +543,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
             progress: 0,
             attempts: 0,
             workerData: threadJobData.workerData,
-            timeout: threadJobData.timeout ?? this.getDefaultTimeout(threadJobData.priority ?? false),
+            timeoutInMs: threadJobData.timeoutInMs ?? this.getDefaultTimeout(threadJobData.priority ?? false),
             ...this.resolveQueuedInTrace()
         };
 
@@ -608,7 +608,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     async run<InputType, ResultType>(
         func: ThreadJobFunction<InputType, ResultType>,
         input: InputType,
-        timeout?: number,
+        timeoutInMs?: number,
         // priority by default: the caller is awaiting the result, so it goes to the reserved workers
         // instead of waiting behind the queued jobs
         priority: boolean = true
@@ -624,7 +624,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
                 func: func.toString(),
                 input
             },
-            timeout: timeout ?? this.getDefaultTimeout(priority),
+            timeoutInMs: timeoutInMs ?? this.getDefaultTimeout(priority),
             ...this.resolveQueuedInTrace()
         };
 
@@ -888,7 +888,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
     }
 
     private getDefaultTimeout(priority: boolean): number {
-        return priority ? this.options.defaultTimeoutPriorityMs : this.options.defaultTimeoutMs;
+        return priority ? this.options.defaultPriorityTimeoutInMs : this.options.defaultTimeoutInMs;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1007,7 +1007,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         >[] = await this.threadJobEntityRepository.findAll({
             where: { status: { oneOf: CLAIMABLE_STATUSES }, priority },
             order: { queuedAtMs: 'ASC' },
-            take: CANDIDATE_BATCH_SIZE,
+            limit: CANDIDATE_BATCH_SIZE,
             // one pool serves every tenant, whichever of them asked for this round
             acrossTenants: true
         });
@@ -1312,7 +1312,7 @@ export class MultithreadingService implements MultithreadingServiceInterface, On
         worker.worker.postMessage(message);
         worker.timeout = setTimeout(
             () => void this.trackWorkerEvent(this.stopOverdueJob(job, worker), worker.threadId),
-            job.timeout
+            job.timeoutInMs
         );
     }
 

@@ -1,7 +1,7 @@
 import { ProviderAuthentication } from '../models/provider-authentication.model';
 
 /**
- * What a token an identity provider issued says, once it is verified: the user it signs in as, and
+ * What a token an identity provider issued says, once it is verified: the user it logs in as, and
  * what a request sending it has to prove on top.
  */
 export type ProviderToken = {
@@ -10,7 +10,7 @@ export type ProviderToken = {
      */
     userId: string,
     /**
-     * When the user signed in at the provider, when the token says.
+     * When the user logged in at the provider, when the token says.
      */
     authenticatedAt: Date | undefined,
     /**

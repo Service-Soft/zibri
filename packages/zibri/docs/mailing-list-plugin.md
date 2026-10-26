@@ -7,7 +7,15 @@
 | `ZibriMailingListPlugin` | class | The plugin for managing mailing lists |
 | `MailingListController` | class | The routes of the mailing lists. Registered by you |
 | `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS` | DI token | The tokens of the plugin, see [configuring the plugin](#configuring-the-plugin) |
+| `MailingListServiceInterface`, `MailingListService` | interface, class | Subscribes, confirms, unsubscribes, deletes a list and queues the emails to a list. Replaceable through `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS.MAILING_LIST_SERVICE` |
+| `MailingListQueueEmailData`, `MailingListSubscriberCreateData` | type, class | What an email to a list is queued with, and what a new subscriber is created with |
+| `UpdateMailingListPreferences` | class | The lists a subscriber chooses on the preferences page |
 | `MailingList`, `MailingListSubscriber`, `MailingListSubscriptionConfirmationToken` | entity | A mailing list, a subscriber to one or more lists, and the token that confirms a subscription. Stored by `ZibriMailingListPlugin` |
+| `MailingListBaseEmailTemplate`, `MailingListBaseEmailTemplateProps`, `MailingListTemplateData` | type, type, type | The frame of every email to a list, its props, and the data about the list it is given |
+| `MailingListSubscribeConfirmationEmailTemplate`, `MailingListSubscribeConfirmationEmailTemplateProps` | type, type | The email that asks a subscriber to confirm, and its props |
+| `MailingListPreferencesPageTemplate`, `MailingListPreferencesPageTemplateProps` | type, type | The page where a subscriber manages their lists, and its props |
+| `MailingListUnsubscribeConfirmationPageTemplate`, `MailingListUnsubscribeConfirmationPageTemplateProps` | type, type | The page an unsubscribe link opens, asking to confirm and then saying it is done, and its props |
+| `MailingListSubscribeSuccessPageTemplate`, `MailingListSubscribeSuccessPageTemplateProps` | type, type | What a subscriber sees after confirming, and its props |
 
 ## Setting it up
 Add `new ZibriMailingListPlugin()` to the `plugins` of your application, see [registering a plugin](./plugin.md#registering-a-plugin), and `MailingList`, `MailingListSubscriber` and `MailingListSubscriptionConfirmationToken` to the `entities` of your data source.
@@ -24,6 +32,7 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     name: 'Task Tracker',
     baseUrl: 'http://localhost:3000',
     version: '1.0.0',
+    environment: 'development',
     plugins: [new ZibriMailingListPlugin()],
     controllers: [MailingListController],
     websocketControllers: [],
@@ -41,6 +50,8 @@ Every subscription is confirmed through the link of a confirmation email, includ
 The links to unsubscribe and to manage preferences carry the subscriber's id and their `secret`, which is generated when the subscriber is created and stored encrypted. A link with any other secret answers `401`. Writing a new `secret` ends every link sent before.
 
 An unsubscribe link opens the `UNSUBSCRIBE_CONFIRMATION_PAGE_TEMPLATE` with `unsubscribed: false`: render a form posting to `unsubscribeUrl`. The post unsubscribes and renders the page again with `unsubscribed: true`. Every mail to a list carries the [one-click unsubscribe headers](./email.md#sending-through-something-other-than-smtp), whose post unsubscribes the same way.
+
+An address is kept only while it is on a list. Leaving its last list deletes the subscriber: by unsubscribing, by choosing no list on the preferences page, or with the list itself. Delete a list with `deleteList` of the mailing list service, which deletes the subscribers it was the last list of. Once a subscriber is deleted, the links of the mails sent to them answer `401`.
 
 ## Configuring the plugin
 The tokens of `ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS`. The plugin checks at startup that the required ones are provided.
@@ -61,6 +72,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `MailingList`, `MailingListSubscriber`, `MailingListSubscriptionConfirmationToken` | The plugin is registered |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Plugins](./plugin.md) — registering a plugin, and writing your own

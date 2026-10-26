@@ -8,13 +8,13 @@ import { Repository } from '../../../data-source/repository/repository';
 import { InjectRepository } from '../../../di/decorators/inject-repository.decorator';
 
 /**
- * Deletes the sign-ins at a provider that expired before they were completed, and the codes and
+ * Deletes the logins at a provider that expired before they were completed, and the codes and
  * tickets that expired before they were spent.
  */
 export class FederatedCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     initialConfig: InitialCronConfig = {
-        name: 'Cleanup sign-ins at providers',
+        name: 'Cleanup logins at providers',
         cron: CronExpression.every(1, 'hours').build(),
         runOnInit: false
     };

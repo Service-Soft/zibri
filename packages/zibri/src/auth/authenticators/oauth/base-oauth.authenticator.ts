@@ -3,7 +3,7 @@ import type { AuthorizationCodeGrantChecks, ClientAuth, Configuration, Discovery
 import { OAuthClientAuthentication, OAuthClientSecret } from './oauth-client-authentication.model';
 import { OAuthCodeExchange } from './oauth-code-exchange.model';
 import { OAuthOfflineAccess } from './oauth-offline-access.model';
-import { OAuthProviderSignIn } from './oauth-provider-sign-in.model';
+import { OAuthProviderLogin } from './oauth-provider-login.model';
 import { OAuthProviderTokens, OAuthProviderTokensCreateData } from './oauth-provider-tokens.model';
 import { OAuthResponseMode } from './oauth-response-mode.type';
 import { OpenIdClient } from './open-id-client.type';
@@ -28,10 +28,10 @@ import { BaseFederatedAuthenticator } from '../federated/base-federated.authenti
 import { FederatedAnswerContext } from '../federated/federated-answer-context.model';
 import { FederatedIdentity } from '../federated/federated-identity.model';
 import { FederatedReauthentication } from '../federated/federated-reauthentication.model';
-import { FederatedSignInFailure } from '../federated/federated-sign-in-failure.enum';
-import { FederatedSignInStart } from '../federated/federated-sign-in-start.model';
-import { FederatedSignInError } from '../federated/federated-sign-in.error';
-import { FederatedSignIn } from '../federated/federated-sign-in.model';
+import { FederatedLoginFailure } from '../federated/federated-login-failure.enum';
+import { FederatedLoginStart } from '../federated/federated-login-start.model';
+import { FederatedLoginError } from '../federated/federated-login.error';
+import { FederatedLogin } from '../federated/federated-login.model';
 import { ProviderTokenGrant } from '../federated/provider-token-grant.model';
 import { ProviderAccessAuthenticatorInterface } from '../provider-access-authenticator.interface';
 import { ProviderAccessFailure } from '../provider-access-failure.enum';
@@ -44,11 +44,11 @@ import { ProviderAccessError } from '../provider-access.error';
 const ACCESS_TOKEN_REFRESH_MARGIN_IN_MS: number = 60000;
 
 /**
- * Authenticates a user by a sign-in at an OAuth provider: the browser is sent there, and comes back with
+ * Authenticates a user by a login at an OAuth provider: the browser is sent there, and comes back with
  * a code the application exchanges for the provider's tokens.
  *
  * Extend `BaseOidcAuthenticator` for an OpenID Connect provider, or `BaseOAuth2Authenticator` for one
- * that speaks plain OAuth2. The sign-in itself runs through the routes of `AuthController`.
+ * that speaks plain OAuth2. The login itself runs through the routes of `AuthController`.
  */
 export abstract class BaseOAuthAuthenticator<
     RoleType extends string,
@@ -75,12 +75,12 @@ export abstract class BaseOAuthAuthenticator<
     readonly responseMode: OAuthResponseMode = 'query';
 
     /**
-     * The `prompt` that has the provider ask the user to sign in again, rather than reuse its session.
+     * The `prompt` that has the provider ask the user to log in again, rather than reuse its session.
      */
     readonly reauthenticationPrompt: string = 'login';
 
     /**
-     * How the provider is asked for a refresh token, when a sign-in or a connection asks for scopes of
+     * How the provider is asked for a refresh token, when a login or a connection asks for scopes of
      * its apis. Nothing by default, since plain OAuth2 has no standard way to ask.
      */
     readonly offlineAccess: OAuthOfflineAccess = { scopes: [], prompts: [], parameters: {} };
@@ -88,8 +88,8 @@ export abstract class BaseOAuthAuthenticator<
     /**
      * How the provider is talked to, set up once and kept.
      *
-     * The promise rather than the value, so two sign-ins starting together set it up once. Dropped when
-     * setting it up failed, so the next sign-in tries again rather than failing for as long as the
+     * The promise rather than the value, so two logins starting together set it up once. Dropped when
+     * setting it up failed, so the next login tries again rather than failing for as long as the
      * process lives.
      */
     private configuration: Promise<Configuration> | undefined;
@@ -116,7 +116,7 @@ export abstract class BaseOAuthAuthenticator<
 
     override init(app: ZibriApplication): void {
         super.init(app);
-        // only where tokens can be kept, so an application that only signs in declares nothing more
+        // only where tokens can be kept, so an application that only logs in declares nothing more
         if (this.apiScopes.length) {
             validateEntitiesRegistered(this.constructor.name, app, OAuthProviderTokens);
         }
@@ -133,7 +133,26 @@ export abstract class BaseOAuthAuthenticator<
     }
 
     /**
-     * Unlinks an identity at the provider from a user, so a sign-in through it no longer logs in as them
+     * Deletes the identities of the given users at the provider, as the base does, and the tokens kept
+     * for them first. Called in the transaction that deletes the users for good. Unlike an unlink, the
+     * tokens are not handed back to the provider: that is a request to it, which a delete waits for
+     * inside its transaction.
+     * @param userIds - The users.
+     * @param transaction - The transaction deleting them.
+     */
+    override async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        // only where tokens can be kept, as init declares them
+        if (this.apiScopes.length) {
+            const identities: FederatedIdentity[] = await this.findOwnIdentitiesOf(userIds, transaction);
+            if (identities.length) {
+                await this.tokensRepository.deleteAll({ identityId: { oneOf: identities.map(identity => identity.id) } }, { transaction });
+            }
+        }
+        await super.deleteUserRows(userIds, transaction);
+    }
+
+    /**
+     * Unlinks an identity at the provider from a user, so a login through it no longer logs in as them
      * and its apis are no longer called for them. The tokens kept for it are handed back to the provider.
      * @param userId - The user.
      * @param identityId - The id of the identity, as `findIdentities` answers with it.
@@ -192,7 +211,7 @@ export abstract class BaseOAuthAuthenticator<
 
     /**
      * Stops keeping the tokens of an identity of a user, and hands them back to the provider. An
-     * identity that does not sign in is unlinked, since it is linked for nothing else.
+     * identity that does not log in is unlinked, since it is linked for nothing else.
      *
      * The tokens are removed whether or not the provider can be reached to take them back.
      * @param userId - The user.
@@ -202,7 +221,7 @@ export abstract class BaseOAuthAuthenticator<
      */
     async revokeAccess(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
-        if (!identity.signIn) {
+        if (!identity.forLogin) {
             await this.unlinkUnusedIdentity(identity, transaction);
             return;
         }
@@ -213,26 +232,26 @@ export abstract class BaseOAuthAuthenticator<
     }
 
     /**
-     * Stops an identity of a user from signing in as them, and keeps the tokens of its apis. An identity
+     * Stops an identity of a user from logging in as them, and keeps the tokens of its apis. An identity
      * without api access is unlinked, since it is linked for nothing else.
      *
-     * Signing in is turned on again by connecting the identity again to sign in.
+     * Logging in is turned on again by connecting the identity again to log in.
      * @param userId - The user.
      * @param identityId - The id of the identity, as `findIdentities` answers with it.
      * @param transaction - The transaction to change it in, if any.
      * @throws NotFoundError when the user has no identity of that id at the provider.
      */
-    async revokeSignIn(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
+    async revokeLogin(userId: string, identityId: string, transaction: Transaction | undefined): Promise<void> {
         const identity: FederatedIdentity = await this.findOwnIdentity(userId, identityId, transaction);
         if (!identity.grantedScopes.length) {
             await this.unlinkUnusedIdentity(identity, transaction);
             return;
         }
-        if (!identity.signIn) {
+        if (!identity.forLogin) {
             return;
         }
-        await this.identityRepository.updateById(identity.id, { signIn: false }, { transaction });
-        this.auditService.record({ action: AuditAction.IDENTITY_SIGN_IN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
+        await this.identityRepository.updateById(identity.id, { forLogin: false }, { transaction });
+        this.auditService.record({ action: AuditAction.IDENTITY_LOGIN_REVOKED, outcome: AuditOutcome.SUCCESS, userId: identity.userId });
     }
 
     /**
@@ -251,18 +270,18 @@ export abstract class BaseOAuthAuthenticator<
     ): Configuration | Promise<Configuration>;
 
     /**
-     * Has the provider prove who signed in, from its answer to a sign-in this browser started.
+     * Has the provider prove who logged in, from its answer to a login this browser started.
      * @param answer - Everything the provider sent the browser back with.
      * @param exchange - What the answer is checked and exchanged with.
-     * @returns Who signed in and when, and the tokens the code was exchanged for. Or that the user
-     * signed in at the provider longer ago than `maxAgeInSeconds` allows, which starts the sign-in
+     * @returns Who logged in and when, and the tokens the code was exchanged for. Or that the user
+     * logged in at the provider longer ago than `maxAgeInSeconds` allows, which starts the login
      * again asking the provider for a fresh one.
-     * @throws FederatedSignInError when the provider cannot be reached or does not prove who signed in.
+     * @throws FederatedLoginError when the provider cannot be reached or does not prove who logged in.
      */
-    protected abstract resolveSignIn(
+    protected abstract resolveLogin(
         answer: URLSearchParams,
         exchange: OAuthCodeExchange
-    ): Promise<OAuthProviderSignIn | FederatedReauthentication>;
+    ): Promise<OAuthProviderLogin | FederatedReauthentication>;
 
     /**
      * Hands tokens back to the provider, so they stop working there as well.
@@ -282,7 +301,7 @@ export abstract class BaseOAuthAuthenticator<
     }
 
     /**
-     * What a sign-in asks the provider for on top of what every provider is asked: the code, the state,
+     * What a login asks the provider for on top of what every provider is asked: the code, the state,
      * the PKCE challenge, the scopes and the callback.
      * @param exchange - What the answer will be checked with.
      * @returns The parameters of the authorization request.
@@ -301,7 +320,7 @@ export abstract class BaseOAuthAuthenticator<
      * @param exchange - What the answer is checked and exchanged with.
      * @param checks - What is checked on top, such as an ID token's nonce.
      * @returns The tokens.
-     * @throws FederatedSignInError when the provider cannot be reached or the exchange is refused.
+     * @throws FederatedLoginError when the provider cannot be reached or the exchange is refused.
      */
     protected async exchangeCode(
         answer: URLSearchParams,
@@ -314,11 +333,11 @@ export abstract class BaseOAuthAuthenticator<
             configuration = await this.resolveConfiguration();
         }
         catch (error) {
-            throw new FederatedSignInError(FederatedSignInFailure.PROVIDER_ERROR, { cause: error, action: exchange.action });
+            throw new FederatedLoginError(FederatedLoginFailure.PROVIDER_ERROR, { cause: error, action: exchange.action });
         }
         try {
             // the callback url the application is configured with rather than the one the request
-            // names: it is what the provider compares with the one the sign-in started with
+            // names: it is what the provider compares with the one the login started with
             return await client.authorizationCodeGrant(
                 configuration,
                 new URL(`${this.getCallbackUrl()}?${answer.toString()}`),
@@ -326,7 +345,7 @@ export abstract class BaseOAuthAuthenticator<
             );
         }
         catch (error) {
-            throw new FederatedSignInError(FederatedSignInFailure.INVALID, { cause: error, action: exchange.action });
+            throw new FederatedLoginError(FederatedLoginFailure.INVALID, { cause: error, action: exchange.action });
         }
     }
 
@@ -350,11 +369,11 @@ export abstract class BaseOAuthAuthenticator<
      * @throws When it is not installed.
      */
     protected resolveOpenIdClient(): OpenIdClient {
-        return optionalPeer<OpenIdClient>('openid-client', 'Sign-in through a provider');
+        return optionalPeer<OpenIdClient>('openid-client', 'Login through a provider');
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    protected async createSignInUrl(start: FederatedSignInStart): Promise<string> {
+    protected async createLoginUrl(start: FederatedLoginStart): Promise<string> {
         const client: OpenIdClient = this.resolveOpenIdClient();
         const configuration: Configuration = await this.resolveConfiguration();
         // a refresh token is what lets the apis be called while the user is away, so it is asked for
@@ -365,7 +384,7 @@ export abstract class BaseOAuthAuthenticator<
             ...asksForApis ? this.offlineAccess.prompts : []
         ];
         // the verifier and the nonce are worked out from the cookie rather than stored, so the stored
-        // attempt holds nothing a reader of the database could finish the sign-in with
+        // attempt holds nothing a reader of the database could finish the login with
         return client.buildAuthorizationUrl(configuration, {
             ...this.getAuthorizationParameters({
                 nonce: this.deriveFromBinding(start.binding, 'nonce'),
@@ -386,21 +405,21 @@ export abstract class BaseOAuthAuthenticator<
     protected async verifyAnswer(
         answer: URLSearchParams,
         context: FederatedAnswerContext
-    ): Promise<FederatedSignIn | FederatedReauthentication> {
-        const signIn: OAuthProviderSignIn | FederatedReauthentication = await this.resolveSignIn(answer, {
+    ): Promise<FederatedLogin | FederatedReauthentication> {
+        const login: OAuthProviderLogin | FederatedReauthentication = await this.resolveLogin(answer, {
             state: context.state,
             codeVerifier: this.deriveFromBinding(context.binding, 'pkce'),
             nonce: this.deriveFromBinding(context.binding, 'nonce'),
             maxAgeInSeconds: Math.floor(context.maxAuthenticationAgeInMs / 1000),
             action: context.action
         });
-        if ('reauthenticate' in signIn) {
-            return signIn;
+        if ('reauthenticate' in login) {
+            return login;
         }
         return {
-            identity: signIn.identity,
-            tokens: context.apiScopes.length ? this.toKeptTokens(signIn.tokens, context.apiScopes) : undefined,
-            session: signIn.session
+            identity: login.identity,
+            tokens: context.apiScopes.length ? this.toKeptTokens(login.tokens, context.apiScopes) : undefined,
+            session: login.session
         };
     }
 
@@ -409,12 +428,12 @@ export abstract class BaseOAuthAuthenticator<
         return this.responseMode === 'form_post';
     }
 
-    protected override findProviderFailure(answer: URLSearchParams): FederatedSignInFailure | undefined {
+    protected override findProviderFailure(answer: URLSearchParams): FederatedLoginFailure | undefined {
         const error: string | null = answer.get('error');
         if (error == undefined) {
             return undefined;
         }
-        return error === 'access_denied' ? FederatedSignInFailure.CANCELLED : FederatedSignInFailure.PROVIDER_ERROR;
+        return error === 'access_denied' ? FederatedLoginFailure.CANCELLED : FederatedLoginFailure.PROVIDER_ERROR;
     }
 
     /**
@@ -442,7 +461,7 @@ export abstract class BaseOAuthAuthenticator<
     }
 
     /**
-     * The scopes a sign-in asks the provider for.
+     * The scopes a login asks the provider for.
      * @param apiScopes - The scopes of the provider's apis it asks for on top.
      * @returns The authenticator's scopes, and with api scopes those and the scopes of offline access.
      */
@@ -512,7 +531,7 @@ export abstract class BaseOAuthAuthenticator<
      * @returns The tokens that were kept, to hand back to the provider. None when none were.
      */
     /**
-     * Unlinks an identity left linked for nothing: neither signing in nor any api.
+     * Unlinks an identity left linked for nothing: neither logging in nor any api.
      * @param identity - The identity.
      * @param transaction - The transaction to unlink it in, if any.
      */

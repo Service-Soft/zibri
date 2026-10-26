@@ -6,9 +6,9 @@ import { createInMemoryDataSource } from 'zibri-testing';
 import { type EventServiceInterface } from './event-service.interface';
 import { EventSubscriberRun, EventSubscriberRunStatus } from './event-subscriber-run.model';
 import { Event } from './event.model';
+import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../__testing__/wait-until.function';
 import { Repository } from '../data-source/repository/repository';
@@ -66,12 +66,12 @@ describe('EventService - events waiting for a retry', () => {
         await eventService.subscribe('backlog.failing', () => {
             throw new Error('the upstream is down');
         }, { subscriberId: 'backlog-failing', attempts: 2 });
-        let release: () => void = () => undefined;
+        let release: (() => void) | undefined;
         await eventService.subscribe('backlog.blocking', async () => {
             await new Promise<void>(resolve => {
                 release = resolve;
             });
-        }, { subscriberId: 'backlog-blocking', timeout: Ms.MINUTE });
+        }, { subscriberId: 'backlog-blocking', timeoutInMs: Ms.MINUTE });
         let recorded: number = 0;
         await eventService.subscribe('backlog.recorded', () => {
             recorded++;
@@ -86,9 +86,11 @@ describe('EventService - events waiting for a retry', () => {
 
         // the one hook slot is taken, so the next emit is not run in process and is left to the poll
         await eventService.emit('backlog.blocking', { n: 2 });
+        // its hook holds the slot once its claim is taken and its run read
+        await waitUntil(() => release != undefined);
         await eventService.emit('backlog.recorded', { n: 3 });
         expect(recorded).toBe(0);
-        release();
+        release?.();
         await waitUntil(async () => (await runRepo.findAll({ where: { subscriberId: 'backlog-blocking' } }))[0]?.status
             === EventSubscriberRunStatus.SUCCEEDED);
 

@@ -12,10 +12,15 @@ Zibri exposes hooks that run at specific points while the app boots up and shuts
 | `BeforeAppShutdown` | interface | Runs before the app shuts down, while most services are still operational |
 | `OnAppShutdown` | interface | Runs when the app shuts down |
 | `AfterAppShutdown` | interface | Runs just after the app shuts down, for services that need to stay available longest (such as the data source) |
+| `implementsBeforeAppInit`, `implementsOnAppInit`, `implementsAfterAppInit`, `implementsOnAppStart`, `implementsAfterAppStart`, `implementsBeforeAppShutdown`, `implementsOnAppShutdown`, `implementsAfterAppShutdown` | function, function, function, function, function, function, function, function | Check whether a value implements the lifecycle interface of the same name |
+| `LifecyclePhase` | enum | The phases an app runs through on its way up, in order, each named after the hook that runs in it |
+| `BeforeAppShutdownError`, `OnAppShutdownError`, `AfterAppShutdownError` | error, error, error | What a shutdown hook that threw something other than an error is logged as |
 | `GlobalRegistry` | class | Static registry holding global app state and shared app data |
+| `AppData` | type | What `GlobalRegistry` holds about the app: its `state`, `baseUrl`, `name` and `version` |
 | `AppState` | enum | The possible states an app can be in |
 | `MiddlewarePhase` | enum | Where a middleware sits in the request pipeline |
 | `ShutdownSignal` | type | The signal that started a shutdown: `SIGTERM`, `SIGINT` or `SIGHUP` |
+| `SHUTDOWN_SIGNALS` | constant | The signals the app shuts down on, as a list |
 | `HttpServerLimits` | type | How long a request may take to arrive and to be handled, and how many headers it may carry, via `ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS` |
 
 ## Implementing a lifecycle hook
@@ -115,24 +120,24 @@ import { defineProvider, HttpServerLimits, Ms, ZIBRI_DI_TOKENS } from 'zibri';
 defineProvider({
     token: ZIBRI_DI_TOKENS.HTTP_SERVER_LIMITS,
     useFactory: (): HttpServerLimits => ({
-        requestInMs: Ms.SECOND * 60,
-        headersInMs: Ms.SECOND * 15,
-        keepAliveInMs: Ms.SECOND * 5,
-        handlerInMs: Ms.SECOND * 30,
+        requestTimeoutInMs: Ms.SECOND * 60,
+        headersTimeoutInMs: Ms.SECOND * 15,
+        keepAliveTimeoutInMs: Ms.SECOND * 5,
+        handlerTimeoutInMs: Ms.SECOND * 30,
         maxHeaderCount: 100,
         maxHeaderSizeInBytes: 16 * 1024
     })
 })
 ```
 
-`requestInMs` is how long a request may take to arrive in full, and `headersInMs` how long its headers alone may. Keep the headers timeout shorter: a body can be large and slow, a set of headers cannot. It has to be at most the request timeout.
+`requestTimeoutInMs` is how long a request may take to arrive in full, and `headersTimeoutInMs` how long its headers alone may. Keep the headers timeout shorter: a body can be large and slow, a set of headers cannot. It has to be at most the request timeout.
 
-`keepAliveInMs` is how long an idle connection is kept.
+`keepAliveTimeoutInMs` is how long an idle connection is kept.
 
 > [!WARNING]
-> Set `keepAliveInMs` above the idle timeout of whatever sits in front of the application. Otherwise a proxy can reuse a connection the server closed in the same moment, and reports a gateway error that no log of the application explains.
+> Set `keepAliveTimeoutInMs` above the idle timeout of whatever sits in front of the application. Otherwise a proxy can reuse a connection the server closed in the same moment, and reports a gateway error that no log of the application explains.
 
-`handlerInMs` is how long a route handler has to produce a result, for every route that does not say otherwise. It runs from the handler being called to it returning, so it is independent of the three above: they are all satisfied the moment the request has arrived. Set it to `'none'` to leave handlers unbounded unless a route asks for a deadline itself. A route declares its own with `timeoutInMs`, see [creating endpoints](./creating-endpoints.md#deadlines).
+`handlerTimeoutInMs` is how long a route handler has to produce a result, for every route that does not say otherwise. It runs from the handler being called to it returning, so it is independent of the three above: they are all satisfied the moment the request has arrived. Set it to `'none'` to leave handlers unbounded unless a route asks for a deadline itself. A route declares its own with `timeoutInMs`, see [creating endpoints](./creating-endpoints.md#deadlines).
 
 `maxHeaderCount` is how many headers a request may carry and `maxHeaderSizeInBytes` how many bytes they may take up together. A request over either is answered `431` before any middleware or route sees it. Both are whole numbers of at least one.
 
@@ -165,7 +170,7 @@ A shutdown does not begin with `beforeAppShutdown`. First:
 1. **The signal handlers are removed**, so a second SIGTERM is not swallowed by a shutdown already in progress.
 2. **The HTTP server stops accepting and waits for the requests still running**, for up to `ZIBRI_DI_TOKENS.HTTP_DRAIN_TIMEOUT_IN_MS` (ten seconds by default). Anything still open after that is ended, and the shutdown carries on. A websocket is ended as the drain begins, and its client reconnects to an instance that is staying.
 
-Your hooks, handing back leases and closing the data sources all wait for this drain. Set it low enough that the whole shutdown fits inside whatever grace period you are given:
+Your hooks, handing back [leases](./glossary.md#lease) and closing the data sources all wait for this drain. Set it low enough that the whole shutdown fits inside whatever grace period you are given:
 
 ```ts
 // src/providers.ts
@@ -223,7 +228,7 @@ The phases, in the order they run:
 `use()` throws once the application is running, since the pipeline is already assembled. The error handler is not a middleware: an application has exactly one, `ZIBRI_DI_TOKENS.GLOBAL_ERROR_HANDLER`. See [error handling](./error-handling.md).
 
 ## Reading and sharing global app data
-`GlobalRegistry` is a static class that tracks the app's current `AppState` and a small set of app-wide data (`state`, `baseUrl`, `name`, `version`). It's already populated by the time any `BeforeAppInit`/`OnAppInit`/`AfterAppInit` hook runs, so it's a convenient place to read the app's name or version without injecting the whole `ZibriApplication`:
+`GlobalRegistry` is a static class that tracks the app's current `AppState` and a small set of app-wide data (`state`, `baseUrl`, `name`, `version`, `environment`). It's already populated by the time any `BeforeAppInit`/`OnAppInit`/`AfterAppInit` hook runs, so it's a convenient place to read the app's name or version without injecting the whole `ZibriApplication`:
 
 ```ts
 // src/index.ts

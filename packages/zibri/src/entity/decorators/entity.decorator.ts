@@ -2,12 +2,11 @@ import { type PropertyMetadata } from './property.decorator';
 // a leaf module on purpose: it reads metadata and imports the class it recognizes as a type only, so
 // asking whether an entity can be soft deleted does not pull the change set entities in - they are
 // decorated with @Entity themselves, which would evaluate this module from inside its own loading
-import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
+import { isSoftDeleteEntityNewable } from '../../data-source/change-sets/models/is-soft-delete-entity.function';
 import { CheckConstraintViolationError } from '../../data-source/check-constraint-violation.error';
 import { keyWhereToSql } from '../../data-source/where/key-where-to-sql.function';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { GlobalRegistry } from '../../global/global-registry';
-import { $t } from '../../localization/translate.function';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { JsonUtilities } from '../../utilities/json.utilities';
@@ -15,7 +14,6 @@ import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { toSnakeCase } from '../../utilities/to-snake-case.function';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
-import { ValidationProblemCode } from '../../validation/validation-problem-code.enum';
 import { type BaseEntity } from '../base-entity.model';
 import { type EntityCheck } from '../models/entity-check.model';
 import { type EntityOrder, type OrderDirection } from '../models/entity-order.model';
@@ -129,7 +127,7 @@ type NestedRelationsInput = {
 };
 
 // eslint-disable-next-line jsdoc/require-jsdoc
-type EntityMetadataInput<
+export type EntityMetadataInput<
     TOrderKey extends string = never,
     TRelationKey extends string = never,
     TUniqueKey extends string = never,
@@ -223,7 +221,7 @@ export function Entity<
     // every store that reads them back
     const uniqueGroups: UniqueGroup[] | undefined = uniques
         ?.map(group => Array.isArray(group) ? { properties: group } : { properties: group.properties, where: group.where });
-    const entityChecks: EntityCheck[] | undefined = checks?.map(check => isEntityCheck(check) ? check : checkOf(check));
+    const entityChecks: EntityCheck[] | undefined = checks?.map(check => isEntityCheck(check) ? check : CheckConstraintViolationError.resolveFilterCheck(check));
     return <T extends ConstrainKeys<T, TOrderKey | TRelationKey | TUniqueKey | TIndexKey | TenantKeyOf<TTenant>>>(
         target: Newable<T>
     ): void => {
@@ -234,7 +232,7 @@ export function Entity<
         // turned into what the schema would hold, which refuses a filter no store could check alike -
         // here rather than while a schema is built, which a store judging the filter itself never does
         for (const check of entityChecks ?? []) {
-            keyWhereToSql({ name: target.name, properties: Object.keys(MetadataUtilities.getModelProperties(target)) }, check.where);
+            keyWhereToSql({ name: target.name, properties: MetadataUtilities.getModelProperties(target) }, check.where);
         }
         const metadata: EntityMetadata = {
             tableName: tableName ?? toSnakeCase(target.name),
@@ -266,16 +264,6 @@ function isEntityCheck(check: KeyWhere | EntityCheck): check is EntityCheck {
     // a filter is an array of branches or an object of property names, and `where` is a filter key
     // of nested values, never a property of its own - so the two cannot be mistaken for each other
     return !Array.isArray(check) && 'code' in check && 'message' in check && 'where' in check;
-}
-
-/**
- * Writes out a check declared as its filter alone.
- * @param where - The filter.
- * @returns The check, answered with the code `check` and a message naming what it compares.
- */
-function checkOf(where: KeyWhere): EntityCheck {
-    const properties: string = CheckConstraintViolationError.resolveProperties(where).join(', ');
-    return { where, code: ValidationProblemCode.CHECK, message: $t`breaks the check on "${properties}"` };
 }
 
 /**
@@ -463,7 +451,7 @@ type DeclaredIndex = {
  * Both answers are ordinary. An address a deleted account no longer occupies is what lets somebody
  * register again; an address that stays taken is how a deletion stops being a way to shed a history.
  * Nothing in the declaration distinguishes them, and picking one silently makes the other into a bug
- * that only surfaces the first time a real user tries to sign up again - so the entity has to say.
+ * that only surfaces the first time a real user tries to register again - so the entity has to say.
  *
  * Only soft delete entities are asked, because only they have rows that are present and gone at once.
  * @param target - The class being decorated.

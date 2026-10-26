@@ -25,7 +25,7 @@ export class EmailRateLimiter extends TokenBucketRateLimiter {
                 name: 'EmailRateLimiter',
                 store: new InMemoryRateLimiterStore<TokenBucketState>(),
                 capacity: config.maxEmailsPerHour,
-                maxReservationWaitMs: undefined
+                maxReservationWaitInMs: undefined
             }
         );
     }

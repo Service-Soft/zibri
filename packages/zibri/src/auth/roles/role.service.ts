@@ -11,6 +11,8 @@ import { RoleServiceInterface } from './role-service.interface';
 import { RoleUpdateData } from './role-update-data.model';
 import { RoleUtilities } from './role.utilities';
 import { TenantRoleIndex } from './tenant-role-index.model';
+import { RoleEventWriteObserver } from './role-event.write-observer';
+import { RoleWriteObserver } from './role.write-observer';
 import { WrittenRole } from './written-role.model';
 import { ZibriPermissions, ZibriPlatformPermissions } from './zibri-permissions.model';
 import { ZibriApplication } from '../../application/application';
@@ -19,6 +21,7 @@ import { type CacheServiceInterface } from '../../caching/cache-service.interfac
 import { InMemoryCacheStore } from '../../caching/store/in-memory.cache-store';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
+import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -27,12 +30,13 @@ import { getRegisteredProvidersOfVariant } from '../../di/get-registered-provide
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiVariants } from '../../di/models/di-variant.model';
-import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { type EventTypeFor } from '../../event/event-type-for.type';
+import { type RolesChangedEventData } from '../../event/roles-changed-event-data.model';
 import { AfterAppInit } from '../../global/after-app-init.interface';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
@@ -42,7 +46,6 @@ import { type LoggerInterface } from '../../logging/logger.interface';
 import { BaseMembership } from '../../tenancy/membership/base-membership.model';
 import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
-import { Newable } from '../../types/newable.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { type CurrentUser } from '../decorators/current-user.decorator';
 import { BaseUser } from '../models/base-user.model';
@@ -179,6 +182,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         const repository: unknown = inject(provider.token);
         // registered under the variant by its data source, which lists repository classes only
         if (!(repository instanceof Repository) || !isRoleRepository(repository)) {
+            // eslint-disable-next-line stylistic/max-len
             throw new InternalError(`Invalid role repository: ${getDiTokenName(provider.token)} needs to extend BaseRoleRepository<Role>().`);
         }
         const metadata: EntityMetadata | undefined = MetadataUtilities.getEntityMetadata(repository.entityClass);
@@ -189,6 +193,12 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             ]);
         }
         this.repository = repository;
+        inject(EntityWriteObserverRegistry).register(repository.entityClass, new RoleWriteObserver(this));
+        // only when the application named it, since it costs every write to roles an event
+        const rolesChanged: EventTypeFor<RolesChangedEventData> | undefined = inject(ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES).rolesChanged;
+        if (rolesChanged != undefined) {
+            inject(EntityWriteObserverRegistry).register(repository.entityClass, new RoleEventWriteObserver(rolesChanged));
+        }
         this.cacheService.registerInvalidationListener(app, RoleService.name, ROLES_TAG, async () => await this.readRoles());
         this.cacheService.registerInvalidationListener(
             app,
@@ -208,6 +218,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
                 throw new InternalError([
                     'No role repository is listed.',
                     'The roles users and memberships hold are rows: declare a role entity, eg. one extending BaseRoleEntity, and its',
+                    // eslint-disable-next-line stylistic/max-len
                     'repository with @RepositoryFor(Role) extending BaseRoleRepository<Role>(), and list it in the repositories of the data source.'
                 ]);
             }
@@ -376,7 +387,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         const stored: BaseRole[] = await this.getRepository().findAll({
             where: { name: { oneOf: [...new Set(roles.map(role => role.name))] } },
             acrossTenants: true,
-            take: 'all',
+            limit: 'all',
             transaction
         });
         const named: RoleIdentity[] = [
@@ -409,11 +420,6 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    isRoleEntity(entityClass: Newable<BaseEntity>): boolean {
-        return this.repository?.entityClass === entityClass;
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
     async handleRolesChanged(tenantIds: (string | null)[]): Promise<void> {
         // through the invalidation, whose listeners read the roles again here first and then on every
         // other instance
@@ -427,7 +433,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findRoles<T extends BaseRole>(transaction?: Transaction): Promise<T[]> {
-        const roles: BaseRole[] = await this.getRepository().findAll({ order: { name: 'ASC' }, take: 'all', transaction });
+        const roles: BaseRole[] = await this.getRepository().findAll({ order: { name: 'ASC' }, limit: 'all', transaction });
         // the caller names the type of its roles: the rows are theirs, read through their repository
         return roles as T[];
     }
@@ -543,7 +549,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
         // a tenant permission, of the caller's membership in that tenant: whoever manages the roles of
         // a tenant does it there, those of its own as well as those every tenant shares
         this.validateMayUse(caller.permissions, this.findGuard(operation, 'tenant'), role.permissions, caller.permissions);
-        const membership: BaseMembership<string> | undefined = await this.membershipService.findMembership(userId, tenantId);
+        const membership: BaseMembership<string> | undefined = await this.membershipService.findActiveMembership(userId, tenantId);
         if (membership == undefined) {
             throw new NotFoundError($ts`The user is no member of the tenant "${tenantId}".`);
         }
@@ -775,7 +781,7 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
             // eslint-disable-next-line unicorn/no-null
             where: { tenantId: null },
             acrossTenants: true,
-            take: 'all',
+            limit: 'all',
             transaction
         });
         return RoleUtilities.resolveRoleIndex(roles);
@@ -837,7 +843,12 @@ export class RoleService implements RoleServiceInterface, OnAppInit, AfterAppIni
      * @returns The roles, indexed.
      */
     private async readTenantRoles(tenantId: string, transaction: Transaction | undefined): Promise<TenantRoleIndex> {
-        const roles: BaseRole[] = await this.getRepository().findAll({ where: { tenantId }, acrossTenants: true, take: 'all', transaction });
+        const roles: BaseRole[] = await this.getRepository().findAll({
+            where: { tenantId },
+            acrossTenants: true,
+            limit: 'all',
+            transaction
+        });
         return RoleUtilities.resolveTenantRoleIndex(roles);
     }
 

@@ -1,6 +1,6 @@
 import { AuthControllerAuthenticatorClass } from './auth-controller-authenticator-class.type';
 import { AuthControllerOptions } from './auth-controller-options.model';
-import { AuthControllerConnectionCompletingRoutes, AuthControllerConnectionRoutes, AuthControllerCsrfTokenRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLoginRoutes, AuthControllerPasswordResetRoutes, AuthControllerSignInOptionsRoutes, AuthControllerSignUpRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
+import { AuthControllerCsrfTokenRoutes, AuthControllerFederatedRoutes, AuthControllerIdentityRoutes, AuthControllerLinkIdentityConfirmingRoutes, AuthControllerLinkIdentityRoutes, AuthControllerLoginRoutes, AuthControllerPasswordResetRoutes, AuthControllerLoginOptionsRoutes, AuthControllerRegistrationRoutes, AuthControllerTwoFactorRoutes } from './auth-controller-routes.model';
 import { AuthControllerStrategyClass } from './auth-controller-strategy-class.type';
 import { Newable } from '../../types/newable.type';
 import { TwoFactorMethods } from '../2fa/two-factor-methods.model';
@@ -18,18 +18,18 @@ type RoutesIf<Instances, Key extends PropertyKey, Routes> = AnyHas<Instances, Ke
 /**
  * The routes `AuthController` defines for the given strategies, authenticators and two factor methods.
  */
-type AuthControllerRoutes<
+export type AuthControllerRoutes<
     Strategies extends AuthControllerStrategyClass[],
     Authenticators extends AuthControllerAuthenticatorClass[],
     Methods extends TwoFactorMethods
 > = AuthControllerLoginRoutes
     & RoutesIf<InstanceType<Strategies[number]>, 'resolveCsrfToken', AuthControllerCsrfTokenRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'confirmPasswordReset', AuthControllerPasswordResetRoutes>
-    & RoutesIf<InstanceType<Authenticators[number]>, 'resolveSignInOptions', AuthControllerSignInOptionsRoutes>
-    & RoutesIf<InstanceType<Authenticators[number]>, 'completeSignUp', AuthControllerSignUpRoutes>
-    & RoutesIf<InstanceType<Authenticators[number]>, 'completeSignIn', AuthControllerFederatedRoutes>
-    & RoutesIf<InstanceType<Authenticators[number]>, 'startConnection', AuthControllerConnectionRoutes>
-    & RoutesIf<InstanceType<Authenticators[number]>, 'completeConnection', AuthControllerConnectionCompletingRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'resolveLoginOptions', AuthControllerLoginOptionsRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'confirmRegistration', AuthControllerRegistrationRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'confirmProviderLogin', AuthControllerFederatedRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'requestLinkIdentity', AuthControllerLinkIdentityRoutes>
+    & RoutesIf<InstanceType<Authenticators[number]>, 'confirmLinkIdentity', AuthControllerLinkIdentityConfirmingRoutes>
     & RoutesIf<InstanceType<Authenticators[number]>, 'findIdentities', AuthControllerIdentityRoutes>
     & ([Methods[number]] extends [never] ? unknown : AuthControllerTwoFactorRoutes);
 

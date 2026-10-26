@@ -9,7 +9,7 @@ import { AnyEnum } from '../../types/any-enum.type';
  * because a runtime resolves a retired name to the zone that replaced it.
  */
 // eslint-disable-next-line typescript/typedef
-const timezones = [
+export const timezones = [
     'UTC',
     'Africa/Abidjan',
     'Africa/Accra',

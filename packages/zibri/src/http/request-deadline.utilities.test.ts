@@ -185,7 +185,7 @@ class UpstreamController {
         try {
             // no timeout of its own and no signal passed: the deadline of the request this runs in
             // is what has to end it
-            await client.get(`${upstreamUrl}/slow`, { timeoutMs: 10_000 });
+            await client.get(`${upstreamUrl}/slow`, { timeoutInMs: 10_000 });
             records.set('upstream', { signalAborted: currentSignal().aborted, finished: true });
             return { ok: true };
         }
@@ -255,10 +255,10 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
 });
 
 const limits: HttpServerLimits = {
-    requestInMs: 60000,
-    headersInMs: 15000,
-    keepAliveInMs: 5000,
-    handlerInMs: 80,
+    requestTimeoutInMs: 60000,
+    headersTimeoutInMs: 15000,
+    keepAliveTimeoutInMs: 5000,
+    handlerTimeoutInMs: 80,
     maxHeaderCount: 100,
     maxHeaderSizeInBytes: 16 * 1024
 };

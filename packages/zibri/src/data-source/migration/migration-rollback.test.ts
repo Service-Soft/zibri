@@ -11,7 +11,7 @@ import { inject } from '../../di/inject.function';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { Newable } from '../../types/newable.type';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../repository/repository';
 import { Transaction } from '../transaction/transaction.model';

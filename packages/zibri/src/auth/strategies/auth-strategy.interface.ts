@@ -1,8 +1,10 @@
 import { AuthStrategies } from './auth-strategies.model';
+import { CredentialEntity } from './credential-entity.model';
 import { CredentialLimits } from './credential-limits.model';
 import { ZibriApplication } from '../../application/application';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { OpenApiSecuritySchemeObject } from '../../open-api/open-api.model';
 import { BaseUser } from '../models/base-user.model';
 import { ProviderAuthentication } from '../models/provider-authentication.model';
@@ -67,7 +69,7 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      *
      * Read by \@Auth.require2fa on a route that takes a second factor presented at the provider in
      * place of one presented here. Optional: leave it out for a credential that never comes from a
-     * provider's sign-in. Answer undefined when the login went through none, or the provider did not say.
+     * provider's login. Answer undefined when the login went through none, or the provider did not say.
      */
     resolveProviderAuthentication?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<ProviderAuthentication | undefined>,
     /**
@@ -86,6 +88,19 @@ export interface AuthStrategyInterface<RoleType extends string, UserType extends
      * and may be bound to one tenant.
      */
     resolveCredentialLimits?: (context: HttpRequestContext | WebsocketRequestContext) => Promise<CredentialLimits | undefined>,
+    /**
+     * Deletes every row the strategy keeps for the given users, such as their sessions or refresh
+     * tokens. Called in the transaction that deletes the users for good; a soft deleted user keeps
+     * them. Optional: leave it out for a strategy that keeps nothing per user.
+     */
+    deleteUserRows?: (userIds: string[], transaction: Transaction) => Promise<void>,
+    /**
+     * The entities the credentials of the strategy are checked against, such as the sessions of its
+     * logins. A websocket connection that connected with a credential of the strategy is checked again
+     * once a write ending one of their rows is committed. Empty for a strategy that stores nothing a
+     * credential is checked against.
+     */
+    credentialEntities: CredentialEntity[],
     /**
      * The security scheme object to be used by open api.
      */
@@ -110,6 +125,7 @@ export function isAuthStrategy(value: unknown): value is InstanceType<AuthStrate
     }
 
     const keys: (keyof InstanceType<AuthStrategies[number]>)[] = [
+        'credentialEntities',
         'hasCredential',
         'name',
         'resolveAuthenticatedAt',

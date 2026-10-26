@@ -97,6 +97,9 @@ describe('the published package', () => {
         expect(files).toContain('dist/cjs/webpack/index.js');
         expect(files).toContain('dist/cjs/webpack/index.d.ts');
         expect(files).toContain('tsconfig.application.json');
+        // what the sibling packages and data source drivers import, apart from the public api
+        expect(files).toContain('dist/cjs/internal.js');
+        expect(files).toContain('dist/cjs/internal.d.ts');
     });
 
     it('ships the sources its maps point at', () => {
@@ -164,6 +167,8 @@ describe('the published package', () => {
             'dist/cjs/index.d.ts',
             'dist/cjs/webpack/index.js',
             'dist/cjs/webpack/index.d.ts',
+            'dist/cjs/internal.js',
+            'dist/cjs/internal.d.ts',
             'tsconfig.application.json'
         ];
 
@@ -208,4 +213,34 @@ describe('the published package', () => {
         // everything registered on the other.
         expect(res.sameClass).toBe(true);
     }, 60000);
+
+    it('answers an import of its internals with the modules the main entry point loads', () => {
+        const res: { registries: number, typeofContainer: string } = inConsumerProcess(`
+            import { createRequire } from 'node:module';
+            const require = createRequire(process.cwd() + '/index.cjs');
+            require('zibri');
+            const internal = require('zibri/internal');
+            console.log(JSON.stringify({
+                registries: Object.keys(require.cache).filter(file => file.endsWith('global-registry.js')).length,
+                typeofContainer: typeof internal.DiContainer
+            }));
+        `);
+
+        expect(res.typeofContainer).toBe('function');
+        // a second copy of the module level singletons behind the second entry point would leave
+        // whatever registers through one of them invisible to the other
+        expect(res.registries).toBe(1);
+    }, 60000);
+});
+
+describe('the packages released together', () => {
+    // 08 §X6: npm shows a package's README as its page, and the repository's README links each one,
+    // so an empty one is the first thing a reader of the package meets
+    it.each(['zibri', 'cli', 'tsx', 'testing'])('give %s a README saying how to install it and where its documentation is', name => {
+        const readme: string = readFileSync(path.join(repoRoot, 'packages', name, 'README.md'), 'utf8');
+
+        expect(readme).toMatch(/^# /m);
+        expect(readme).toMatch(/npm i(nstall)? /);
+        expect(readme).toContain('https://service-soft.github.io/zibri');
+    });
 });

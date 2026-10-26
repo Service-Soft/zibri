@@ -45,7 +45,7 @@ export interface RateLimiterInterface<TState extends BaseRateLimitState> {
     /**
      * Waits for the given reservation to be available.
      */
-    waitForReservation: (reservation: RateLimitReservation, timeoutMs: number) => void | Promise<void>,
+    waitForReservation: (reservation: RateLimitReservation, timeoutInMs: number) => void | Promise<void>,
     /**
      * Commits the reservation with the given id and key.
      */

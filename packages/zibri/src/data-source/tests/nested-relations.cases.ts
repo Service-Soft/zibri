@@ -192,7 +192,7 @@ export function describeNestedRelations(
                 where: { batch },
                 relations: { album: true },
                 order: { album: { title: 'ASC' } },
-                take: 'all'
+                limit: 'all'
             });
 
             expect(tracks.map(t => t.title)).toEqual([FROM_NOCTURNES, FROM_PRELUDES]);
@@ -205,7 +205,7 @@ export function describeNestedRelations(
                 where: { batch },
                 relations: { album: { artist: true } },
                 order: { album: { artist: { name: 'ASC' } } },
-                take: 'all'
+                limit: 'all'
             });
 
             // the opposite of the album title order, which is the whole point of the two disagreeing
@@ -218,7 +218,7 @@ export function describeNestedRelations(
             const tracks: Track[] = await tracksOf().findAll({
                 where: { batch },
                 order: { album: { title: 'DESC' } },
-                take: 'all'
+                limit: 'all'
             });
 
             // ordering by a relation reads it, because there is no other way to compare by it - but
@@ -232,7 +232,7 @@ export function describeNestedRelations(
 
             const tracks: Track[] = await tracksOf().findAll({
                 where: { batch, album: { where: { title: NOCTURNES } } },
-                take: 'all'
+                limit: 'all'
             });
 
             // the same rule as the order: a relation is read because the filter cannot be answered
@@ -249,11 +249,11 @@ export function describeNestedRelations(
             const either: Track[] = await tracksOf().findAll({
                 where: { batch, album: { where: [{ title: NOCTURNES }, { title: PRELUDES }] } },
                 order: { title: 'ASC' },
-                take: 'all'
+                limit: 'all'
             });
             const byArtist: Track[] = await tracksOf().findAll({
                 where: { batch, album: { where: { artist: { where: [{ name: 'Ada' }, { name: 'nobody' }] } } } },
-                take: 'all'
+                limit: 'all'
             });
 
             expect(either.map(t => t.title)).toEqual([FROM_NOCTURNES, FROM_PRELUDES]);
@@ -271,7 +271,7 @@ export function describeNestedRelations(
             const tracks: Track[] = await tracksOf().findAll({
                 where: { batch },
                 order: { album: { title: 'ASC' }, title: 'ASC' },
-                take: 'all'
+                limit: 'all'
             });
 
             // one album, so the first key decides nothing and the second decides everything

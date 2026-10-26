@@ -14,13 +14,16 @@ cache that missed an invalidation.
 | `ZIBRI_DI_TOKENS.WEBSOCKET_OPTIONS_INPUT` | DI token | Names the `adapterDataSource` that carries websocket messages between instances |
 | `ZIBRI_DI_TOKENS.MULTITHREADING_OPTIONS` | DI token | Sets `maxThreads`. Defaults to a full machine's worth per instance |
 | `ZIBRI_DI_TOKENS.HTTP_DRAIN_TIMEOUT_IN_MS` | DI token | How long open requests may take to finish on shutdown. Defaults to ten seconds |
-| `ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS` | DI token | How long work holding a lease may take to finish on shutdown. Defaults to ten seconds |
+| `ZIBRI_DI_TOKENS.LEASE_DRAIN_TIMEOUT_IN_MS` | DI token | How long work holding a [lease](./glossary.md#lease) may take to finish on shutdown. Defaults to ten seconds |
 | `EventSubscriberRun` | entity | The claim of one subscriber on one event |
 | `CacheInvalidation` | entity | A tag invalidation every instance applies to its local cache tier |
 | `TransactionDeadlockError` | error | Thrown at one of two transactions that wait for each other |
 | `PromiseUtilities` | class | Runs work over many rows in chunks of `chunkSize`. Defaults to fifty |
+| `ChunkingOptions` | type | The `chunkSize` `PromiseUtilities` works in |
+| `TimeoutError` | error | Thrown when work given to `PromiseUtilities.withTimeout` runs out of time |
 | `defineProvider` | function | Provides a value under a DI token |
 | `Ms` | class | Durations in milliseconds, such as `Ms.DAY` |
+| `nowInNs` | function | The current time in nanoseconds, for measuring how long something took |
 
 ## The one requirement
 
@@ -113,7 +116,7 @@ See [polling for work](./cron.md#polling-for-work) to poll for rows of your own 
 
 ## What stays per instance
 
-These jobs run on every replica, and are declared `distributed: false`:
+These jobs run on every replica, and are declared `runsOn: 'everyInstance'`:
 
 | Job | What it works on |
 |---|---|
@@ -125,11 +128,11 @@ These jobs run on every replica, and are declared `distributed: false`:
 | `RunQueuedThreadJobsCronJob` | Its own worker pool, which only it sees the free workers of |
 
 For a job of your own, look at what the work touches. Work that changes shared state keeps the
-default `distributed: true`. Work that maintains this process uses `distributed: false`.
+default `runsOn: 'oneInstance'`. Work that maintains this process uses `runsOn: 'everyInstance'`.
 
 > [!NOTE]
-> `distributed: true` runs each **scheduled execution** on one replica. Two executions can still
-> overlap, when `onTick` outlives its own interval. A job like that claims each work item it
+> `runsOn: 'oneInstance'` runs each **scheduled execution** on one replica. Two executions can
+> still overlap, when `onTick` outlives its own interval. A job like that claims each work item it
 > processes, see [leases.md](./leases.md).
 
 ## Defaults that assume one process per machine
@@ -145,7 +148,8 @@ Set it explicitly when you scale out.
 
 The `poolSize` of a `PostgresDataSource` is per process, so the database sees the pool times the
 number of replicas. It defaults to twenty. For more concurrency than the database has cores, put a
-connection pooler in front of the database, and leave the pool of each instance as it is.
+connection pooler in front of the database, leave the pool of each instance as it is, and declare the
+pooler on the data source, see [connecting through a pooler](./data-source.md#connecting-through-a-pooler).
 
 Work spread across many rows runs in chunks, fifty by default in `PromiseUtilities`, and a query in a
 chunk waits on the pool like any other. Keep the chunk size at or a little above the pool size.
@@ -194,5 +198,5 @@ in opposite orders, one of them fails with a `TransactionDeadlockError` and the 
 - [Deployment](./deployment.md) — what one instance is made of, and the endpoints an orchestrator
   polls to decide where to send traffic
 - [Leases](./leases.md) — the tool all of the above is built on, and how to take one of your own
-- [Cron](./cron.md) — `distributed`, and how an execution is elected
+- [Cron](./cron.md) — `runsOn`, and how an execution is elected
 - [Events](./events.md) — claims, retries and the dispatch poll

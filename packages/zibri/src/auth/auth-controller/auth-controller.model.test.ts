@@ -62,13 +62,13 @@ class PinAuthenticator implements AuthControllerAuthenticatorInterface<string, J
 }
 
 /**
- * Has the method that calls for the sign-up routes, and none of the models those read.
+ * Has the method that calls for the registration routes, and none of the models those read.
  */
-class HalfSignUpAuthenticator extends PinAuthenticator {
+class HalfRegistrationAuthenticator extends PinAuthenticator {
     override readonly name: string = 'half';
 
-    async completeSignUp(): Promise<void> {
-        // nothing to sign up with
+    async confirmRegistration(): Promise<void> {
+        // nothing to register with
     }
 }
 
@@ -109,9 +109,9 @@ class NoTwoFactorAuthController extends AuthController({
     }) {}
 
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
-class HalfSignUpAuthController extends AuthController({
+class HalfRegistrationAuthController extends AuthController({
         strategies: [JwtAuthStrategy, CookieAuthStrategy],
-        authenticators: [PasswordAuthenticator, HalfSignUpAuthenticator],
+        authenticators: [PasswordAuthenticator, HalfRegistrationAuthenticator],
         twoFactorMethods: [OtpTwoFactorMethod]
     }) {}
 
@@ -171,7 +171,7 @@ describe('AuthController — the routes it defines', () => {
         });
 
         expect(['login', 'refreshLogin', 'logout', 'requestPasswordReset'].filter(key => !(key in jwtOnly.prototype))).toEqual([]);
-        expect(['csrfToken', 'authorize', 'signInOptions', 'startConnection', 'findIdentities', 'startSecondFactor']
+        expect(['csrfToken', 'requestProviderLogin', 'loginOptions', 'requestLinkIdentity', 'findIdentities', 'requestSecondFactor']
             .filter(key => key in jwtOnly.prototype)).toEqual([]);
 
         const cookies: Newable<object> = AuthController({
@@ -180,7 +180,7 @@ describe('AuthController — the routes it defines', () => {
             twoFactorMethods: [OtpTwoFactorMethod]
         });
         expect('csrfToken' in cookies.prototype).toBe(true);
-        expect('startSecondFactor' in cookies.prototype).toBe(true);
+        expect('requestSecondFactor' in cookies.prototype).toBe(true);
     });
 
     it('types the routes it leaves out as absent, so they cannot be left out again', () => {
@@ -189,7 +189,7 @@ describe('AuthController — the routes it defines', () => {
         // @ts-expect-error - a jwt login issues no csrf token
         OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [] }), ['csrfToken']);
         // @ts-expect-error - without a two factor method there is nothing to enrol
-        OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [] }), ['startSecondFactor']);
+        OmitClass(AuthController({ strategies: [JwtAuthStrategy], authenticators: [PasswordAuthenticator], twoFactorMethods: [] }), ['requestSecondFactor']);
         expect(true).toBe(true);
     });
 
@@ -216,8 +216,8 @@ describe('AuthController — starting', () => {
     }, TestTimeouts.inMemory.start);
 
     it('refuses an authenticator that does not declare what a route given it reads', async () => {
-        await expect(startThenShutDown([HalfSignUpAuthController], HalfSignUpAuthenticator))
-            .rejects.toThrow(/HalfSignUpAuthenticator[\S\s]*register route[\S\s]*SignUpAuthenticatorInterface/);
+        await expect(startThenShutDown([HalfRegistrationAuthController], HalfRegistrationAuthenticator))
+            .rejects.toThrow(/HalfRegistrationAuthenticator[\S\s]*confirmRegistration route[\S\s]*RegistrationAuthenticatorInterface/);
     }, TestTimeouts.inMemory.start);
 });
 
@@ -300,30 +300,30 @@ describe('AuthController — a login of several strategies and authenticators', 
     });
 
     it('leaves out the routes none of its classes call for', async () => {
-        // neither the password nor the pin links identities, signs in at a provider or hands out a challenge
+        // neither the password nor the pin links identities, logs in at a provider or hands out a challenge
         expect((await fetch(`${baseUrl}/auth/identities`)).status).toBe(404);
-        expect((await fetch(`${baseUrl}/auth/federated/authorize`)).status).toBe(404);
-        expect((await post('/auth/sign-in-options', {})).status).toBe(404);
+        expect((await fetch(`${baseUrl}/auth/federated/login/request`)).status).toBe(404);
+        expect((await post('/auth/login-options', {})).status).toBe(404);
     });
 
     it('enrols the first second factor on a recent login, and then asks for the factor itself', async () => {
         const accessToken: string = await logIn();
         const authorization: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
 
-        const registered: Response = await post('/auth/2fa/register', {}, authorization);
+        const registered: Response = await post('/auth/2fa/registration/request', {}, authorization);
         expect(registered.status).toBe(200);
         // eslint-disable-next-line typescript/no-unsafe-assignment
         const { secret }: { secret: string } = await registered.json();
         // the code of the step before, so the one of this step is still unspent afterwards
         const previous: string = new TOTP({ secret }).generate({ timestamp: Date.now() - 30_000 });
-        expect((await post('/auth/2fa/confirm', { token: previous }, authorization)).status).toBe(204);
-        expect((await post('/auth/2fa/start', {}, authorization)).status).toBe(204);
+        expect((await post('/auth/2fa/registration/confirm', { token: previous }, authorization)).status).toBe(204);
+        expect((await post('/auth/2fa/request', {}, authorization)).status).toBe(204);
 
         // a recent login is no longer enough once the user holds a factor
-        expect((await post('/auth/2fa/register', {}, authorization)).status).toBe(401);
-        const withoutCode: Response = await fetch(`${baseUrl}/auth/2fa/otp`, { method: 'DELETE', headers: authorization });
+        expect((await post('/auth/2fa/registration/request', {}, authorization)).status).toBe(401);
+        const withoutCode: Response = await fetch(`${baseUrl}/auth/2fa/registration/otp`, { method: 'DELETE', headers: authorization });
         expect(withoutCode.status).toBe(401);
-        const removed: Response = await fetch(`${baseUrl}/auth/2fa/otp`, {
+        const removed: Response = await fetch(`${baseUrl}/auth/2fa/registration/otp`, {
             method: 'DELETE',
             headers: { ...authorization, [inject(ZIBRI_DI_TOKENS.OTP_HEADER)]: new TOTP({ secret }).generate() }
         });
@@ -344,7 +344,7 @@ describe('AuthController — a login of several strategies and authenticators', 
         expect(JsonUtilities.stringify(login.requestBody)).toMatch(/anyOf[\S\s]*email[\S\s]*pin/);
         expect(JsonUtilities.stringify(login.responses)).toMatch(/oneOf[\S\s]*accessToken[\S\s]*csrfToken/);
         expect(spec.paths?.['/auth/csrf-token']?.get).toBeDefined();
-        expect(spec.paths?.['/auth/federated/authorize']).toBeUndefined();
+        expect(spec.paths?.['/auth/federated/login/request']).toBeUndefined();
     });
 });
 

@@ -1,8 +1,8 @@
-import { MailingListController, OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { MailingListController, OmitStrict, SemVerUtilities, ZIBRI_ENVIRONMENTS, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
 
 import { AppAuthController, CronController, FileController, HealthController, MetricsController, PageController, TemplateController, TestController, TestCrudController, TestWebsocketController } from './controllers';
 import { StatusCronJob } from './cron';
-import { requireEnv } from './env';
+import { requireEnv, requireOneOfEnv } from './env';
 import { version } from '../package.json';
 import { providers } from './providers';
 
@@ -37,7 +37,8 @@ export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSo
     websocketControllers: [TestWebsocketController],
     cronJobs: [StatusCronJob],
     version,
-    // what an endpoint with no @Auth decorator requires. Switch to 'requireLogin' to have
+    environment: requireOneOfEnv('ENVIRONMENT', ZIBRI_ENVIRONMENTS),
+    // what an endpoint with no @Auth decorator requires. Switch to 'isLoggedIn' to have
     // a forgotten decorator answer 401 instead of serving anyone, and mark the endpoints
     // that really are public with @Auth.skip(). See the auth docs.
     defaultAuth: 'public',

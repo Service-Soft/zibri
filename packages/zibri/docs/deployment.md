@@ -35,7 +35,12 @@ is the committed list of what a deployment sets, and `src/env.ts` reads it:
 
 - `requireEnv` stops the application at startup when a variable is unset, naming the one that is
   missing.
+- `requireOneOfEnv` does the same, and also when a variable holds none of the values it may hold.
 - `optionalEnv` answers with an empty string, for what the application runs without.
+
+A deployment sets `ENVIRONMENT=production`, and `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and
+`SMTP_PASSWORD` for the mail server. In production the application does not start without a mail
+server, see [saying where the application runs](./architecture.md#saying-where-the-application-runs).
 
 A `.env` file is read when there is one beside the application, which is how a development machine
 supplies these. A deployment usually sets them directly, and `.dockerignore` keeps the local file out
@@ -67,7 +72,7 @@ Services that call your API with a client certificate show it to the proxy, whic
 
 Both routes carry `versions: 'all'`, so the probe URL stays the same across a version bump. Both carry
 `@Auth.skip({ allowRedundant: true })`, so the probe keeps answering when the application switches
-its default to `'requireLogin'`.
+its default to `'isLoggedIn'`.
 
 An application with dependencies of its own checks them in the readiness half:
 
@@ -105,7 +110,7 @@ check that reads it takes every instance out of rotation at once.
 ## Shutting down
 
 A stop signal starts an orderly shutdown: the application runs its shutdown hooks, releases the
-leases it holds and closes its data sources. Send the signal to the process itself. In a container
+[leases](./glossary.md#lease) it holds and closes its data sources. Send the signal to the process itself. In a container
 image, use the exec form of `CMD`, so the signal reaches Node and not a shell.
 
 The readiness endpoint answers `503` for the whole of that window, so an orchestrator polling it

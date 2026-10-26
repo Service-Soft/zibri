@@ -11,8 +11,8 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { KeysetPage, PaginationResult } from '../../open-api/pagination-result.model';
 import { FindAllPaginatedOptions } from '../models/options/find-all-paginated-options.model';
+import { KeysetPage, PaginationResult } from '../models/pagination-result.model';
 
 // ==================== ENTITIES ====================
 

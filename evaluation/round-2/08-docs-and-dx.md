@@ -43,12 +43,12 @@ application must register before it boots is nowhere written down as a list.
 | `testing.md:65-86` | The block titled "`src/application-options.base.ts` — everything the application is" imports `DbDataSource` and `entities` (`:70-71`) | The section's own point (`:135-138`) is that the base module must *not* reach the production data source, and the scaffold's base file does not (`new.command.ts:668-711`). The imports are there because the test harness merges a page's imports into its first block, see X13 | MINOR, closed 2026-10-23 with X13 |
 | `di.md:27-29`, `creating-endpoints.md:40-43`, `auth.md:139-143`, 15 more pages | The first example of the page imports 10-20 names and one or two of the reader's own files | The example uses two or three of them. 18 pages carry an import line with ten or more names (`grep -E "^import \{ ([^}]*,){9,}" docs/*.md`), all produced by `docs-examples.test.ts:98-133` merging imports per page. A reader copying the first example of `di.md` gets `import { … } from './example-setup'` for a file that does not exist | MAJOR (as DX, see X13), closed 2026-10-23 with X13 |
 | `auth.md:369-371` | The csrf token "is also reissued whenever the session rotates, which includes the rotation that happens inside an ordinary request once the session cookie expires" | The cookie's `maxAge` is `sessionExpiresInMs` (`src/auth/strategies/cookie/cookie-auth.auth-strategy.ts:165`) and the row lives five minutes longer (`:658`), so a browser stops sending the cookie before the row expires and never presents the expired session this sentence describes. Pointed out by the auth reviewer; verified at those two lines | MINOR, closed 2026-10-23 with the structure pass, in the code: the renewal the sentence describes was the intent (`hasCredential`'s comment, `setCsrfTokenHeader`'s JSDoc) and unreachable from a browser, which answered `401` instead. `resolveAndValidateSessions` now renews when the refresh cookie arrives alone, and still refuses a session cookie naming no row. Tests in `cookie-auth.auth-strategy.reuse-grace.test.ts` (in memory), "a lapsed session cookie": *renews the session inside a request that carries the refresh cookie alone* (red before: 401) and *refuses a session cookie that names no session* (green before and after). The page says what happens |
-| `auth.md:722-734`, `tenancy.md:205-214`, `roles-and-permissions.md:74-84`, scaffold `new.command.ts:1133-1143` | The documented way to write a repository of your own: `class UserRepository extends Repository<User>` wrapping the injected `Repository<User>` through the six-argument `super(...)` | A `Repository` built on another repository keeps only `repo.driver` (`src/data-source/repository/repository.ts:248-249`). The injected repository is a `ChangeSetRepository` or `SoftDeleteRepository` whenever the entity declares `changeSets` or `deleted` (`data-source.md:1680`), and the documented subclass is a plain `Repository`, so soft deletes and change sets are silently gone for that entity. No page says so. Round-2 01 §D6 has the mechanism; the documentation half is this row | MAJOR |
+| `auth.md:722-734`, `tenancy.md:205-214`, `roles-and-permissions.md:74-84`, scaffold `new.command.ts:1133-1143` | The documented way to write a repository of your own: `class UserRepository extends Repository<User>` wrapping the injected `Repository<User>` through the six-argument `super(...)` | A `Repository` built on another repository keeps only `repo.driver` (`src/data-source/repository/repository.ts:248-249`). The injected repository is a `ChangeSetRepository` or `SoftDeleteRepository` whenever the entity declares `changeSets` or `deleted` (`data-source.md:1680`), and the documented subclass is a plain `Repository`, so soft deletes and change sets are silently gone for that entity. No page says so. Round-2 01 §D6 has the mechanism; the documentation half is this row | MAJOR, closed with 01 §D6 (2026-10-21: a repository built on one it does not extend is refused as it is built, and the pages use `super(User, repo)`) and X16 (2026-10-25: `@RepositoryFor` replaces the pattern; the framework builds the class over the data source's repository, and its type rejects a plain `Repository` for a soft-delete entity). No page, scaffold file or sandbox file shows the wrapping subclass any more |
 | `src/tenancy/membership/membership-repo.decorator.ts:20` (published JSDoc) | `super(Membership, repo);` | The constructor takes six arguments (`repository.ts:233-243`); the two-argument call does not compile. Every docs page shows six. Typedoc publishes this JSDoc | MINOR, closed with X16's two-argument constructor (`repository.ts:299`), which this example now matches |
 | `di.md:160-163` and `:240-243` | `CurrentTenantService` (request scoped, field initializer calling `inject`) and `SecretReadingReportService` (field initializer `inject(vaultSecret)` of an awaited provider) as the patterns to copy | The capture check reads only the top construction frame (`src/di/di-container.ts:480`, `this.constructing.at(0)`), and a field-initializer `inject()` of an async provider in a hooked class fails at boot — round-2 07 §T3 and §T4 show both examples failing. Not re-run here; cited on the DI reviewer's finding | MAJOR, closed 2026-10-23 with 07 §T3 and §T4: both shapes work or are refused as the page says |
 | `deployment.md:115-120` | "Two paths are written while the application runs" — `versions` and `.zibri/uploads` | A third, `.zibri/backups`, is the default `BACKUP_TEMP_FOLDER` (`src/di/default/zibri-di-providers.default.ts:234`). See 02 §S18 | MINOR, closed 2026-10-23 with the structure pass: three paths. Found on the way: the generated Dockerfile gave the run user `package.json`, `node_modules` and `dist` too, against its own comment. Only `versions` and `.zibri` are its now (`new.command.test.ts`, *gives the user running the image only the paths the application writes*, red before), and the sandbox Dockerfile follows |
 | `data-source.md:132-203` | `ValKeyDataSource` "is configured the same way and exposes the exact same repositories" | It connects with `GlideClient` only (`src/data-source/data-sources/val-key/val-key-data-source.model.ts:300`), i.e. a standalone server; a cluster is not supported and the page does not say so (02 §S9). `:173` says `createBackupData` "dumps exactly the keys below that prefix" without saying it is a key walk (`:856`, `scanValKeyKeys`) and not a point-in-time snapshot (02 §S6) | MINOR |
-| `releases.md:5-14` | "The public API is what you can import from a package's entry points … follow semantic versioning" | The entry point exports `DiContainer` (`index.ts:380`), `GlobalRegistry` (`:502`), `AlsUtilities` (`:440`), `MetadataUtilities` (`:1134`), `InternalError` (`:456`), `WriteDataUtilities` ("needed by a driver", `:668`), `ValueConversionUtilities` ("for the in memory data source", `:722`), `DoublyLinkedList` (`:1121`), every cleanup cron job and both where-filter converters. Under the stated rule each of them is a semver promise. 07 §T16 has the mutable-state half; X20 below has the surface | MAJOR |
+| `releases.md:5-14` | "The public API is what you can import from a package's entry points … follow semantic versioning" | The entry point exports `DiContainer` (`index.ts:380`), `GlobalRegistry` (`:502`), `AlsUtilities` (`:440`), `MetadataUtilities` (`:1134`), `InternalError` (`:456`), `WriteDataUtilities` ("needed by a driver", `:668`), `ValueConversionUtilities` ("for the in memory data source", `:722`), `DoublyLinkedList` (`:1121`), every cleanup cron job and both where-filter converters. Under the stated rule each of them is a semver promise. 07 §T16 has the mutable-state half; X20 below has the surface | MAJOR, closed 2026-10-25 with X20: `zibri` is the documented surface and the rest is on `zibri/internal`, which `releases.md` says any release can change |
 | `cron.md:39` | `await inject(ZIBRI_DI_TOKENS.LOGGER).info(...)` | `info` returns `void` (`src/logging/logger.interface.ts:21`); the `await` compiles and misleads about the logger being asynchronous | MINOR, closed 2026-10-23 with X8 |
 | `backup.md:81` | "The `FsBackupTransport` simply writes…" | The export is `BaseFsBackupTransport` (`src/backup/transports/fs.backup-transport.ts:18`), as the page's own table at `:9` says | MINOR, closed 2026-10-23 with X8 |
 | `packages/zibri/README.md:47` | "body parsers for json and form-data" | Four ship: json, xml, form-data and form-url-encoded (`index.ts:583-597`) | MINOR, closed 2026-10-23 with X12 |
@@ -183,6 +183,16 @@ others.
 **Verify:** pick `WebsocketMessage`, `FederatedLoginAttempt` and `EncryptionRotationFailure`, and
 find on their pages what deletes their rows.
 
+> **Closed 2026-10-26 (user: one page).** `docs/framework-tables.md` says of every entity the framework
+> stores rows in what its table grows with and what ends its rows (a cleanup job with its retention,
+> an expiry, deletion with what owns it, or nothing); every Requirements section links it. Test:
+> `docs-style.test.ts` "says of every entity the framework stores rows in how its table grows and what
+> ends its rows", red without the page. The research found three tables that grow without anything
+> deleting them, filed for the user: a deleted user's credentials, second factors, passkeys, API keys,
+> federated and LDAP identities, provider tokens, reset token and failure streaks stay behind;
+> `MailingListSubscriber` rows outlive every list; an expired, unused `PasswordResetToken` is never
+> deleted.
+
 ### X28. `BaseTenantEntity` does not combine with `SoftDeleteEntity` or `ChangeSetEntity` — MINOR
 *Filed 2026-10-24, split out of X15.*
 
@@ -201,6 +211,16 @@ parts.
 > base can add it. A soft deleting user entity declares its columns and `[USER_ENTITY]` by hand, as
 > `repository-for.decorator.test.ts`'s `ArchivedUser` does. `BaseUserRepository<T>(SoftDeleteRepository)`
 > works over it.
+
+> **Closed 2026-10-26 (user: bases take a base).** `BaseTenantEntity(base?)` is a function like the
+> other two, and all three take `SoftDeleteEntity` or `ChangeSetEntity`. On a soft-deleting base,
+> `BaseUserEntity` requires `{ deletedUserKeepsEmail }`, which decides its email's unique filter
+> (`ChangeSetOnlyEntityClass` keeps a bare `SoftDeleteEntity` from matching the change set overload);
+> the membership base declares no unique and takes none. Tests: `base-tenant-entity.model.test.ts`,
+> `base-user.model.test.ts`, `base-membership.model.test.ts` (type tests with `@ts-expect-error`, and
+> a soft-deleted tenant row end to end on the in-memory source), `repository-for.decorator.test.ts`'s
+> `ArchivedUser` built from the base, registering again with a soft-deleted user's address. The docs'
+> `Account` and `Note` use the composed bases.
 
 ### X4. No OpenAPI page — MAJOR
 *Filed 2026-10-21.*
@@ -279,6 +299,14 @@ comparison set, and a page would make it visible instead of discovered.
 ### X6. Release notes and the cli README are empty — MINOR
 *Filed 2026-10-21.*
 
+> **Closed 2026-10-25.** `packages/cli/README.md` says what the cli does, how to install it, its
+> commands and where the docs are; `packages/tsx/README.md`, which held a heading only, says the same
+> for the compiler. `published-package.test.ts` "the packages released together" holds each of the
+> four READMEs to a title, an install command and a link to the docs site; red for cli and tsx when
+> written. The empty `## 3.0.0` section stays empty until the release: the notes are written by a
+> person, and the release refuses to publish without them (`release-notes.mjs`, tested in
+> `ci-workflows.test.ts` "reads the notes of one version out of the changelog").
+
 `CHANGELOG.md` has a `## 3.0.0` heading and nothing under it (`CHANGELOG.md:5`); `CONTRIBUTING.md:45`
 says the release refuses to publish while that is so, which is fine for a tree in progress but
 means the adopter reading the repository today sees a changelog with no entry. `packages/cli/README.md`
@@ -288,6 +316,16 @@ is tracked and empty while the root README (`README.md:9`) points at it.
 
 ### X7. No glossary — MINOR
 *Filed 2026-10-21.*
+
+> **Closed 2026-10-25 (user: link on first use).** `docs/glossary.md` defines 28 terms, one heading
+> each, with every meaning a word has across the pages (provider: DI, identity, plugin; scope: row,
+> OAuth2, DI) and a link to the owning page; `unscoped`, `restrictedTo` and `acrossTenants` are
+> explained under Scope and Tenant. Every other page links a term's first prose use to its entry, or
+> to a page the entry names (about 105 links on 45 pages). Test: `docs-style.test.ts` "links each term
+> of the glossary the first time a page uses it", which reads the terms from the glossary's headings;
+> words the pages use in more than one sense (login, session, provider, claim, grant, identity,
+> credential, scope) are defined but left out of the check (`UNCHECKED_TERMS`). Red with no glossary
+> when written. DOCS_STYLE's "link it to the glossary" now links the page.
 
 The auth pages use *authenticator*, *strategy*, *provider*, *identity*, *credential*, *login* and
 *session* with precise, different meanings (`auth.md:51-60` is the only place two of them are
@@ -950,6 +988,21 @@ application uses the feature at all", CODE_STYLE:98).
 ### X18. Permissions, roles and the one-permission-per-route rule — MINOR
 *Filed 2026-10-21.*
 
+> **Closed 2026-10-25.** Found on the way: a second `@Auth.hasPermission` (or
+> `@Auth.hasPlatformPermission`) on the same route or controller replaced the first without a word,
+> so "A and B" written as two decorators checked one of them. The second is refused with an
+> `InvalidDecoratorCombinationError` as the class is declared (`MetadataUtilities`, the setters the
+> two decorators go through; a subclass's own still replaces what it inherits). Test:
+> `has-permission.decorator.test.ts`, red for the three stacked cases when written. The user kept
+> "a route names one permission": a route needing what two allow gets a permission of its own, which
+> covers "A or B" (both roles carry it) and "A and B". The rest, checked: a route naming an undeclared
+> permission already fails the start (`AuthService.validateRoutePermissionIsDeclared`, run as each
+> route's metadata resolves), which is the decorator side of the user's todo; a platform role never
+> makes a user a member is a documented decision (`tenancy.md`); `.with_any_permission` is part of
+> permission values, which are dotted snake case everywhere (`invoices.read`), not API names. The
+> scaffold's two `typescript/typedef` disables stay (user): the `as const` is the type, and the rule
+> has no option for it.
+
 The permission model is sound and well typed (`definePermissions([...] as const)`,
 `roles-and-permissions.md:26-54`). Costs met on the way: the scaffold ships two
 `// eslint-disable-next-line typescript/typedef` lines in `permissions.ts` (`new.command.ts:1066-1068`)
@@ -1023,8 +1076,88 @@ names they are meant to use.
 **Verify:** `grep -c "^export \* from" packages/zibri/src/index.ts`; diff the names against the
 union of every "Key exports" table.
 
+> **Closed 2026-10-25 (user's design, classified by hand).** `zibri` is the public API and every name
+> on it has a Key exports row; everything else is on a new `zibri/internal` entry point
+> (`package.json` export, built from `src/internal.ts`), which `releases.md` says any release can
+> change and which zibri-testing imports from. The user's rule: public is what an application writes
+> (extends, implements, decorates, injects, calls, catches) and every type a public signature reaches;
+> internal is what only building a custom version of an extension point needs (a data source or
+> driver's machinery, the parser, the router, a two-factor method, SCIM, the tracer, the error
+> handler, decorator metadata, the container). By the user's decisions per batch: default
+> implementations, self-registered cron jobs, `is…` guards and every error class are public; create
+> data of entities only the framework writes is internal unless a public method takes it; writing a
+> driver or a data source of your own is public, its helper kit internal; utilities are public unless
+> they serve such a custom build. Three guards keep it so:
+> - `docs-style.test.ts`, *lists every name the zibri entry point exports in the Key exports of some
+>   page*: names read through the compiler, types included (`__testing__/entry-point.utilities.ts`).
+>   Red with 1,041 names when written.
+> - `entry-points.test.ts`: every name a file behind either barrel exports is on exactly one of them,
+>   so a name added to a file split by named re-exports cannot fall through.
+> - typedoc builds the reference from `src/index.ts` alone and treats validation warnings as errors
+>   (`typedoc.json`, CI's `build:prod`): a type a public signature reaches has to be public, or be
+>   listed in `intentionallyNotExported` (stored decorator metadata, the bases public types derive
+>   from, type-level machinery). 196 such types were found; the user settled them in one batch.
+>
+> Found and fixed on the way: templates were meant to `import { createContext, provideContext,
+> useContext } from 'zibri'`, but nothing declared the two hooks, so a template using a context did
+> not typecheck (zibri-tsx exports them now; `templating.md` "Passing a value to nested components",
+> red in `docs-examples.test.ts`). `StreamBodyParser` was a built-in parser nothing exported, so an
+> application setting `bodyParsers` could not keep stream bodies (`stream.body-parser.test.ts`, red in
+> the typecheck). Two pages linked into the generated reference by file path and pointed at nothing on
+> a clean build (`backup.md`, `data-source.md`, now `{@link}`); `auth.md` still listed the removed
+> `@UserRepo`; `Bytes`' JSDoc was copied from `Ms` and `MaskUtilities.mask` documented the wrong
+> characters; `KnownHeader.IIF_MODIFIED_SINCE`. Six unused names were deleted, and the barrel's
+> duplicate line and commented-out export went with the split. Filed from it: 01 §D21 (configurable
+> repository hooks); 04 §A15 gained `API_KEY_PREFIX` and the OTP period. Closes 07 §T16 and 09 §Q10.
+>
+> **Follow-up 2026-10-26.** The split broke every cluster suite: the instance entry imports
+> `initDiContainer` from `zibri/internal`, and `clusterModulePaths` handed an instance the parent's
+> copy of `zibri` and `zibri-testing` only, so `zibri/internal` resolved through `node_modules` to the
+> built package and the instance refused the second copy at boot (`DuplicateFrameworkCopyError`). It
+> hands over `zibri/internal` as well now; `cluster-module-paths.test.ts` gained the case (red before).
+
 ### X21. Naming is consistent inside a subsystem and inconsistent across them — MAJOR
 *Filed 2026-10-21.*
+
+> **Closed 2026-10-25.** The user settled one rule per item; every rename is breaking and none keeps
+> an alias.
+> - Durations: every public duration ends in `InMs` (`_IN_MS` for tokens), every point in time in
+>   `AtMs`, nothing leaves the unit out. The sweep was wider than the finding: about 55 public names,
+>   such as `timeoutMs`, `openForMs`, `lockForMs`, `restartAfterMs`, the cache's `ttl`/`defaultTtl`,
+>   thread jobs' and events' `timeout`, and the limiter state (`lastRefillAtMs`, `windowStartedAtMs`).
+>   The server limits say what they limit: `requestTimeoutInMs`, `headersTimeoutInMs`,
+>   `keepAliveTimeoutInMs`, `handlerTimeoutInMs`. pg's `connectTimeoutMS`, Valkey's `requestTimeout`
+>   and WebAuthn's `timeout` are other specs' names and stay. The 2.x column `ThreadJobEntity.timeout`
+>   is renamed to `timeoutInMs` by the upgrade migration; `catchUpWithinInMs` and
+>   `nextReservationExpiresAtMs` are 3.x columns and change in it directly.
+> - Page size: `findAll({ limit, offset })`, with `limit: 'all'`, the words of the http query and of
+>   `findAllPaginated`/`findAllAfter`. The TypeORM driver translates to `take`/`skip` at its boundary.
+> - Login: identifiers and prose say login/logout, `defaultAuth: 'isLoggedIn'` matches
+>   `@Auth.isLoggedIn()`, and the `FederatedSignIn*`/`SignInOptions*` names, the `/login-options`
+>   route and the two `login-through-a-*.md` pages follow. Account creation says registration
+>   (`RegistrationAuthenticatorInterface`). "Sign in with Apple" and "single sign-on" stay.
+> - Two-step flows say request/confirm, routes included: `requestLinkIdentity`/`confirmLinkIdentity`
+>   (was `startConnection`/`completeConnection`), `requestProviderLogin`/`confirmProviderLogin`,
+>   `requestRegistration`/`confirmRegistration`, `requestSecondFactorAtLogin`/
+>   `confirmSecondFactorAtLogin` (was `completeLogin`), `requestSecondFactor`, `requestPayment`,
+>   `requestSubscription`, and one spelling for 2FA registration (`requestTwoFactorRegistration`,
+>   `removeTwoFactorRegistration`). `linkIdentity`, the step after a first login that has no request
+>   before it, is `linkTicketIdentity`; FederatedIdentity's `signIn` flag is `forLogin`.
+> - `@CurrentUser({ required: false, authStrategies })` replaces the positional boolean.
+> - `MembershipService.findActiveMembership(s)`: the service leaves deactivated memberships out, the
+>   repository's `findMembership` does not, and the names now say so.
+> - Kept on purpose: the `allow*` flags (one prefix, one meaning: permit what is refused by default),
+>   `@Cache`/`@Cached` and `@RateLimiter`/`@RateLimited` (declare/apply, the same pattern in both),
+>   `AuthController({ strategies })`. `@UserRepo()` and its siblings were already gone.
+>
+> Tests: `entry-points.test.ts` walks every name the public signatures declare
+> (`EntryPointUtilities.resolveMemberNames`) and fails on a duration or point in time without its
+> unit and on `take`/`skip` in the data layer; red with 54 names when written. The other renames went
+> red in the typecheck first (`@CurrentUser(false)` is an `@ts-expect-error` in
+> `current-user.decorator.test.ts`). Found and fixed on the way: `configuration.md` had no
+> `REPOSITORY_HOOKS` row (01 §D21); the upgrade guide's "Entra ID identities are known by the object
+> id" described identities linked under 2.x, which has no federated login (removed); a JSDoc typo in
+> `MailingListServiceInterface`.
 
 Verified against the source, not the pages:
 
@@ -1062,6 +1195,27 @@ not read, which is what consistency is for.
 ### X22. What a controller cannot say, and what fails quietly — MINOR
 *Filed 2026-10-21.*
 
+> **Closed 2026-10-25 (user: types + send declared only).**
+> - A response declared twice: the `@Response` decorators now compile only on a method that can
+>   return what they declare (`ResponseDecorator<Declared>`, unions member-wise, `JsonResponse`
+>   unwrapped; `response.decorator.test.ts`, red with six unused `@ts-expect-error`). It found a real
+>   one: the metrics route declared `Metric[]` and returned `MetricsSnapshot[]`, now a class model.
+>   Types cannot see extra properties (a stored row is assignable to a narrower class), so the router
+>   writes a JSON response with what its declaration names, nested models, arrays, pages, relations and
+>   the shape a oneOf names included; an object allowing additional properties, an `unknown` property,
+>   a class declaring no property (`ScimBody`) and a route declaring no class are written as returned
+>   (`DeclaredResponseUtilities`; `router-declared-response.test.ts`, red with the password hash, a
+>   nested street and a oneOf's chip id in the body). It caught a test declaring one of the two
+>   classes its route returns (`form-url-encoded.body-parser.test.ts`). The two-declarations-match
+>   rule was already on the page (`creating-endpoints.md`, "Response statuses").
+> - `@CurrentUser({ required: false })` under `defaultAuth: 'isLoggedIn'`: behavior kept (it says
+>   what the handler is given, not who may call), the page says the route needs `@Auth.skip()`, and
+>   `default-auth.test.ts` pins both cases.
+> - `findAll` without `limit`: the runtime bound stays (user); most reads are bounded by their `where`.
+> - `versions: ['^latest']`: raising the version reports every endpoint that supported only `latest`
+>   (`versioning.md`), so a controller disappearing for old clients cannot ship unnoticed.
+> - `OmitClass`/`IntersectionClass`: open as code-review 01 §Q4, not re-filed.
+
 Declaring a CRUD controller is the strong part: one `@Property` per field feeds validation,
 OpenAPI and storage; `CrudController(Test, CreateDTO, UpdateDTO)` gives five routes in one line;
 `OmitClass`/`PickClass` work on controllers and models alike. What the walk-through hit:
@@ -1086,6 +1240,15 @@ OpenAPI and storage; `CrudController(Test, CreateDTO, UpdateDTO)` gives five rou
 
 ### X23. Testing: the best part of the DX, with two rough edges — MINOR
 *Filed 2026-10-21.*
+
+> **Closed 2026-10-25 (user: createJestConfig helper).** The jose transform had already moved from
+> every project into the shipped preset; what was left is that a project's own ES-module-only package
+> meant restating the preset's `transformIgnorePatterns`, jose included, since jest replaces that
+> array. `zibri-testing/jest-config` exports `createJestConfig({ rootDir, esmPackages, ...jest })`,
+> which the preset is built from; `zi new` and the sandbox call it (`create-jest-config.test.ts`, red
+> without the function; `new.command.test.ts` "takes its test configuration from zibri-testing"; the
+> sandbox's own suites ran green under it). `testing.md` opens with the first test, says why both
+> hooks get 30 seconds, and explains the three option modules after it.
 
 `startTestServer({ application: testApplicationOptions })` with an in-process data source and the
 scaffold's first test (`new.command.ts:754-787`) is a better starting point than any framework in
@@ -1120,6 +1283,19 @@ two systems and no bridge; the Handlebars explanation is then repeated on `templ
 ### X25. Deployment and configuration — MINOR
 *Filed 2026-10-21.*
 
+> **Closed 2026-10-26 (user: a framework environment option).** `SmtpEmailTransport` refuses an empty
+> host and a port outside 1-65535 when it is built (`smtp.email-transport.test.ts`, red for four
+> cases). So that a new project still runs before it has a mail server, the application options take
+> a required `environment: 'development' | 'production'` (`ZibriEnvironment`, checked at startup,
+> `GlobalRegistry.getAppData('environment')`): in development an application without a transport
+> gets a `LoggingEmailTransport`, which logs each mail with its links; in production it does not
+> start (`email.service.environment.test.ts`, red for development and an unknown value). The
+> scaffold reads a required `ENVIRONMENT` (`requireOneOfEnv`), `development` in `.env` and blank in
+> `.env.example`, so a deployment copying the example has to choose; its providers log in
+> development and build the SMTP transport in production; the CI workflow and the docker heavy test
+> set it. `getting-started.md` now says the `versions` folder is committed. The schema half of the
+> finding stays with 07 Part 2.
+
 The Dockerfile is good (multi-stage, `npm prune`, non-root, exec-form `CMD`, a `HEALTHCHECK` that
 needs nothing installed, `new.command.ts:819-876`) and `deployment.md` describes it in the right
 voice. Residue: configuration is a hand-written `env.ts` with `requireEnv`/`optionalEnv`/
@@ -1133,6 +1309,12 @@ and `getting-started.md` does not.
 
 ### X26. No `llms.txt` — MINOR
 *Filed 2026-10-23.*
+
+> **Closed 2026-10-26.** `build:prod` runs `scripts/llms-txt.mjs` after typedoc, which writes
+> `llms.txt` (every page in the site's order with its title, address and the first sentence of its
+> intro) and `llms-full.txt` (every page whole) into `docs/generated`, the published site's root;
+> the README points an assistant at both. Test: `ci-workflows.test.ts` "the docs build", red without
+> the script.
 
 `DOCS_STYLE.md` writes the pages for a developer and for the assistant that developer asks. The
 docs build (`typedoc.json`) emits HTML only. An assistant asked about Zibri has no index of the pages

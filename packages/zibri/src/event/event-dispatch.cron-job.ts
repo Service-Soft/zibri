@@ -16,7 +16,7 @@ import { Newable } from '../types/newable.type';
  * Emitting an event only reaches subscribers in the process that emitted it. This picks up the
  * events whose instance died halfway through, so an event survives a restart and is retried.
  *
- * Deliberately `distributed: false`. Every instance polls, so any of them can take over abandoned
+ * Deliberately `runsOn: 'everyInstance'`. Every instance polls, so any of them can take over abandoned
  * work; which one actually runs a given subscriber is decided by the claim in EventService, not by
  * electing a single poller. Electing one would make recovery depend on that instance being alive
  * and having the subscriber registered.
@@ -32,7 +32,7 @@ export class EventDispatchCronJob extends PollingCronJob {
         // the emitting instance already delivers in process, so a boot time sweep would only
         // duplicate work the claim would then reject anyway
         runOnInit: false,
-        distributed: false,
+        runsOn: 'everyInstance',
         syncToDataSource: false
     };
 
@@ -74,7 +74,11 @@ export class EventDispatchCronJob extends PollingCronJob {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     protected async poll(): Promise<boolean> {
-        // before dispatching, so this instance's subscribers are still on record when the events it
+        // one pass a tick rather than passes until one finds nothing, as QueuePollCronJob runs them:
+        // a pass hands the events to the hooks without waiting for them, so the next pass would read
+        // the same page while its hooks still run.
+        //
+        // Before dispatching, so this instance's subscribers are still on record when the events it
         // is about to hand out are reconciled against them
         if (this.isRefreshDue) {
             await this.eventService.refreshSubscriberRegistrations();

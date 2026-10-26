@@ -3,9 +3,9 @@ import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -76,7 +76,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
 const websocketOptions: WebsocketOptionsInput = {
     messageRetentionInMs: Ms.DAY,
     timeoutInMs: 5000,
-    handlerInMs: 5000,
+    handlerTimeoutInMs: 5000,
     isAllowedToConnect: () => true
 };
 

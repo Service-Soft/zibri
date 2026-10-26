@@ -19,7 +19,7 @@ class TestSemaphoreLimiter extends SemaphoreRateLimiter {
             name: 'test-semaphore',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<SemaphoreState>(),
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY,
             maxPendingReservations
         });
@@ -174,7 +174,7 @@ describe('SemaphoreRateLimiter', () => {
                         name: 'strict-sem',
                         capacity: CAPACITY,
                         store: new InMemoryRateLimiterStore<SemaphoreState>(),
-                        reservationGracePeriodMs: (w) => Math.max(5000, w),
+                        reservationGracePeriodInMs: (w) => Math.max(5000, w),
                         maxReservationCount: 2 // only allow small reservations
                     });
                 }

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { InvalidTwoFactorCodeError } from '../../invalid-two-factor-code.error';
-import { NoRegisterData } from '../no-register-data.model';
+import { NoRegistrationRequestData } from '../no-registration-request-data.model';
 import { TwoFactorMethod } from '../two-factor-method.interface';
 import { base32Encode } from './base32-encode.function';
 import { OtpCodeAlreadyUsedError } from './otp-code-already-used.error';
@@ -11,6 +11,7 @@ import { ZibriApplication } from '../../../../application/application';
 import { HttpRequestContext } from '../../../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../../../context/request/websocket-request.context';
 import { Repository } from '../../../../data-source/repository/repository';
+import { Transaction } from '../../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../../di/default/zibri-di-tokens.default';
@@ -29,7 +30,7 @@ import { UserAccount } from '../../../models/user-account.model';
 /**
  * The data for confirming the registration of the otp two factor method.
  */
-export class OtpConfirmRegisterData {
+export class OtpRegistrationConfirmData {
     /**
      * The token to validate.
      */
@@ -61,21 +62,21 @@ export class OtpRegistration {
 /**
  * One Time Password Two Factor Method.
  */
-export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegisterData, OtpRegistration> {
+export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpRegistrationConfirmData, OtpRegistration> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'otp';
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly requestRegisterModel: Newable<void> = NoRegisterData;
+    readonly registrationRequestModel: Newable<void> = NoRegistrationRequestData;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly confirmRegisterModel: Newable<OtpConfirmRegisterData> = OtpConfirmRegisterData;
+    readonly registrationConfirmModel: Newable<OtpRegistrationConfirmData> = OtpRegistrationConfirmData;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly registrationModel: Newable<OtpRegistration> = OtpRegistration;
+    readonly registrationRequestResultModel: Newable<OtpRegistration> = OtpRegistration;
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    readonly secondFactorStartModel: undefined = undefined;
+    readonly secondFactorRequestModel: undefined = undefined;
 
     // read when used rather than injected, so that an application without the entity is told to
     // declare it by init, instead of failing on a repository token while this is built
@@ -136,7 +137,7 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterForUser<UserType extends UserAccount>(
+    async requestRegistration<UserType extends UserAccount>(
         user: UserType
     ): Promise<OtpRegistration> {
         // asking for a new enrollment gives up on any that was never finished. Without this every
@@ -156,14 +157,14 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSecondFactor(): Promise<void> {
-        // the app shows the code by itself, so there is nothing to start
+    async requestSecondFactor(): Promise<void> {
+        // the app shows the code by itself, so there is nothing to request
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterForUser<UserType extends UserAccount>(
+    async confirmRegistration<UserType extends UserAccount>(
         user: UserType,
-        data: OtpConfirmRegisterData
+        data: OtpRegistrationConfirmData
     ): Promise<void> {
         // only the enrollment that is waiting to be finished. Confirming is the step that proves the
         // authenticator holds this secret, so a code from one that is already confirmed proves
@@ -187,12 +188,17 @@ export class OtpTwoFactorMethod implements TwoFactorMethod<void, OtpConfirmRegis
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterForUser<UserType extends UserAccount>(user: UserType): Promise<void> {
+    async removeRegistration<UserType extends UserAccount>(user: UserType): Promise<void> {
         await this.otpCredentialsRepository.deleteAll({ userId: user.id });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async isRegisteredForUser<UserType extends UserAccount>(user: UserType): Promise<boolean> {
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        await this.otpCredentialsRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async isRegistered<UserType extends UserAccount>(user: UserType): Promise<boolean> {
         // confirmed only, for the reason validate gives: an unconfirmed secret is one nobody has
         // proven they hold, so a user with nothing but that has no second factor to present
         const credentials: OtpCredentials | undefined = await this.otpCredentialsRepository.findOne({

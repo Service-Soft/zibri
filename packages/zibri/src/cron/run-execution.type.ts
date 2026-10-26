@@ -13,9 +13,9 @@
  * @param key - Identifies one execution of one job, as `<job name>:<scheduled time>`. Not the job
  * as a whole, so an instance delayed into the next second still competes for the tick it was
  * scheduled for rather than colliding with the following one.
- * @param ttlMs - How long the claim is held without being renewed before another instance may take
+ * @param ttlInMs - How long the claim is held without being renewed before another instance may take
  * the execution over, which is what recovers one whose instance died halfway through.
  * @param run - The execution, run only on the instance that holds the claim.
  * @returns Whether this instance ran it.
  */
-export type RunExecution = (key: string, ttlMs: number, run: () => Promise<void>) => Promise<boolean>;
+export type RunExecution = (key: string, ttlInMs: number, run: () => Promise<void>) => Promise<boolean>;

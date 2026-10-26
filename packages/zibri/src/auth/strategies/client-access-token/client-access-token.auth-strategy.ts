@@ -24,6 +24,7 @@ import { AuthorizationToken } from '../authorization-token.model';
 import { ClientAccessTokenGrant } from '../client-access-token-grant.model';
 import { ClientAccessTokenIssuingAuthStrategyInterface } from '../client-access-token-issuing-auth-strategy.interface';
 import { ClientCertificateUtilities } from '../client-certificate/client-certificate.utilities';
+import { CredentialEntity } from '../credential-entity.model';
 import { CredentialLimits } from '../credential-limits.model';
 import { IssuedClientAccessToken } from '../issued-client-access-token.model';
 import { type AccessTokenRevocation } from '../jwt/access-token-revocation.type';
@@ -67,6 +68,13 @@ export class ClientAccessTokenAuthStrategy<
 > implements ClientAccessTokenIssuingAuthStrategyInterface<RoleType, UserType> {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly name: string = 'client-access-token';
+
+    // a token stops working with its api key, or once it is revoked
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    readonly credentialEntities: CredentialEntity[] = [
+        { entityClass: ApiKey, endedBy: 'remove' },
+        { entityClass: JwtRevokedAccessToken, endedBy: 'insert' }
+    ];
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly securityScheme: OpenApiSecuritySchemeObject = {
@@ -228,11 +236,9 @@ export class ClientAccessTokenAuthStrategy<
         }
         await this.revokedAccessTokenRepository.create({
             tokenId: found.payload.jti,
+            userId: found.payload.sub,
             expirationDate: new Date(found.verified.expiresAt * Ms.SECOND)
         });
-        // a socket that connected with the token is closed, the way a request with it is now refused
-        await inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE)
-            .disconnectEndedLogins([found.payload.sub], undefined);
     }
 
     /**

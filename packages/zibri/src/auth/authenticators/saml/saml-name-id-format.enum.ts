@@ -1,6 +1,6 @@
 /**
  * Which NameID a SAML identity provider is asked for, which names the user and links them to an
- * account. A transient one, new for every sign-in, could never find the user again, and is refused.
+ * account. A transient one, new for every login, could never find the user again, and is refused.
  */
 export enum SamlNameIdFormat {
     /**

@@ -1,10 +1,11 @@
 import { ForwardingRepositoryDriver } from './forwarding.repository-driver';
+import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions } from './repository-driver.interface';
 import { AlsUtilities } from '../../context/als.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { AggregateRow } from '../models/aggregate.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
@@ -72,9 +73,9 @@ export class DeadlineAwareRepositoryDriver<T extends BaseEntity> extends Forward
         return await super.findAndCount(options);
     }
 
-    override async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+    override async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         this.validateStillWanted();
-        await super.remove(ids, transaction);
+        return await super.remove(ids, reach, transaction);
     }
 
     override async findIds(options: DriverFindOptions<T>): Promise<string[]> {

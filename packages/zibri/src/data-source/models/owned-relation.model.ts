@@ -1,3 +1,4 @@
+import { DeletedRelatedRows } from './deleted-related-rows.type';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 
@@ -39,5 +40,9 @@ export type OwnedRelation = {
      * What happens to a row of an owner that is saved with a value for the relation that leaves the
      * row out: deleted when its foreign key is required, unlinked otherwise.
      */
-    leftOut: 'delete' | 'unlink'
+    leftOut: 'delete' | 'unlink',
+    /**
+     * What a write does with a soft deleted row it is given by its id, unless the write itself says.
+     */
+    deletedRows: DeletedRelatedRows
 };

@@ -20,7 +20,7 @@ import { inject } from '../di/inject.function';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
 import { AuditAction, AuditEvent, AuditOutcome, AuditReason } from '../logging/audit-event.model';
 import { type LoggerInterface } from '../logging/logger.interface';
-import { MetricsSnapshot } from '../metrics/metrics-service.interface';
+import { MetricsSnapshot } from '../metrics/metrics-snapshot.model';
 import { RateLimitStoreFailurePolicy } from '../rate-limiting/limiter/rate-limiter-config.model';
 import { TenantServiceInterface } from '../tenancy/tenant-service.interface';
 import { JsonUtilities } from '../utilities/json.utilities';

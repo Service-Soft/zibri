@@ -21,7 +21,8 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { inject } from '../di/inject.function';
 import { defineProvider } from '../di/models/di-provider.model';
 import { BaseEntity } from '../entity/base-entity.model';
-import { MetricsServiceInterface, MetricsSnapshot } from '../metrics/metrics-service.interface';
+import { MetricsServiceInterface } from '../metrics/metrics-service.interface';
+import { MetricsSnapshot } from '../metrics/metrics-snapshot.model';
 import { Newable } from '../types/newable.type';
 import { PromiseUtilities } from '../utilities/promise.utilities';
 

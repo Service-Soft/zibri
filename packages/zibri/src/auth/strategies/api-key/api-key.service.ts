@@ -153,7 +153,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findForUser(userId: string, transaction: Transaction | undefined): Promise<ApiKey[]> {
-        return await this.apiKeyRepository.findAll({ where: { userId }, order: { createdAt: 'ASC' }, take: 'all', transaction });
+        return await this.apiKeyRepository.findAll({ where: { userId }, order: { createdAt: 'ASC' }, limit: 'all', transaction });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -191,13 +191,22 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        // a user of an application without api keys holds none
+        if (!this.read) {
+            return;
+        }
+        await this.apiKeyRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
     async recordUse(apiKey: ApiKey): Promise<void> {
         const now: Date = new Date();
         // written down once in a while rather than on every request: the time only has to tell a key
         // nobody uses from one an integration depends on, and a write per request is what it would cost
         if (
             apiKey.lastUsedAt != undefined
-            && now.getTime() - new Date(apiKey.lastUsedAt).getTime() < this.resolveOptions().recordUseAfterMs
+            && now.getTime() - new Date(apiKey.lastUsedAt).getTime() < this.resolveOptions().recordUseAfterInMs
         ) {
             return;
         }
@@ -207,7 +216,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async deleteExpired(): Promise<void> {
-        const expiredBefore: Date = new Date(Date.now() - this.resolveOptions().deleteExpiredAfterMs);
+        const expiredBefore: Date = new Date(Date.now() - this.resolveOptions().deleteExpiredAfterInMs);
         await this.apiKeyRepository.deleteAll({ expiresAt: { before: expiredBefore } });
     }
 
@@ -218,8 +227,8 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     private resolveOptions(): Required<ApiKeyOptions> {
         const options: ApiKeyOptions = inject(ZIBRI_DI_TOKENS.API_KEY_OPTIONS);
         return {
-            recordUseAfterMs: options.recordUseAfterMs ?? Ms.HOUR,
-            deleteExpiredAfterMs: options.deleteExpiredAfterMs ?? Ms.DAY * 30
+            recordUseAfterInMs: options.recordUseAfterInMs ?? Ms.HOUR,
+            deleteExpiredAfterInMs: options.deleteExpiredAfterInMs ?? Ms.DAY * 30
         };
     }
 
@@ -268,7 +277,7 @@ export class ApiKeyService implements ApiKeyServiceInterface {
     private async validateMembership(userId: string, tenantId: string): Promise<void> {
         // the caller's mistake, the same as a request naming such a tenant
         validateRequestTenant(tenantId);
-        if (await this.membershipService.findMembership(userId, tenantId) == undefined) {
+        if (await this.membershipService.findActiveMembership(userId, tenantId) == undefined) {
             throw new BadRequestError($ts`The user is no member of the tenant "${tenantId}".`);
         }
     }

@@ -5,7 +5,7 @@ import { Inject } from '../../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 
 /**
- * Deletes the api keys that expired longer ago than `deleteExpiredAfterMs` of `API_KEY_OPTIONS`.
+ * Deletes the api keys that expired longer ago than `deleteExpiredAfterInMs` of `API_KEY_OPTIONS`.
  */
 export class ApiKeyCleanupCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -15,14 +15,14 @@ export type HttpServerLimits = {
      * Node's own default is five minutes, which is a long time to hold a socket for a body that may
      * never come.
      */
-    requestInMs: number,
+    requestTimeoutInMs: number,
     /**
      * How long the headers alone may take to arrive.
      *
-     * Shorter than `requestInMs` on purpose: a body can legitimately be large and slow, a set of
+     * Shorter than `requestTimeoutInMs` on purpose: a body can legitimately be large and slow, a set of
      * headers cannot. This is the one that ends a client sending a header every few seconds forever.
      */
-    headersInMs: number,
+    headersTimeoutInMs: number,
     /**
      * How long an idle keep alive connection is kept before it is closed.
      *
@@ -30,7 +30,7 @@ export type HttpServerLimits = {
      * reuses a connection the server closed in the same moment has nothing to answer the request
      * with, and reports it as a gateway error that no log on this side explains.
      */
-    keepAliveInMs: number,
+    keepAliveTimeoutInMs: number,
     /**
      * How long a route handler has to produce a result, for every route that does not say otherwise.
      *
@@ -41,7 +41,7 @@ export type HttpServerLimits = {
      * A route declares its own with `timeoutInMs`, and `'none'` - here or on a route - means the
      * handler is given as long as it needs.
      */
-    handlerInMs: HandlerTimeout,
+    handlerTimeoutInMs: HandlerTimeout,
     /**
      * How many headers a request may carry. One with more is answered `431`.
      */

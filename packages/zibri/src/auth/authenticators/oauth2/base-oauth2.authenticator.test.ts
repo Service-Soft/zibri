@@ -44,7 +44,7 @@ import { FederatedRegistration } from '../federated/federated-registration.model
 import type { FederatedRouteEndpoint } from '../federated/federated-route-endpoint.model';
 import type { FederatedRoute } from '../federated/federated-route.type';
 import { FederatedRouteUtilities } from '../federated/federated-route.utilities';
-import { FederatedSignInResult } from '../federated/federated-sign-in-result.model';
+import { FederatedLoginResult } from '../federated/federated-login-result.model';
 import { OAuthClientAuthentication } from '../oauth/oauth-client-authentication.model';
 import { OAuthProviderTokens } from '../oauth/oauth-provider-tokens.model';
 import type { OAuthResponseMode } from '../oauth/oauth-response-mode.type';
@@ -53,9 +53,9 @@ import { ProviderAccessFailure } from '../provider-access-failure.enum';
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-oauth2-client';
 const CLIENT_SECRET: string = 'zibri-oauth2-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
-const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
+const ERROR_URL: string = 'https://app.example.com/login-failed';
 
 let provider: FakeOAuthProvider;
 
@@ -120,7 +120,7 @@ class ProfileController {
 }
 
 /**
- * Signs in through the plain provider at routes the application writes itself, rather than the ones of
+ * Logs in through the plain provider at routes the application writes itself, rather than the ones of
  * a federated controller.
  */
 class HandWrittenRoutesAuthenticator extends PlainOAuth2Authenticator {
@@ -161,7 +161,7 @@ class ElsewhereAuthenticator extends PlainOAuth2Authenticator {
 
 @Auth.skip({ allowRedundant: true })
 @Controller('/login', { allowOrphan: true })
-class HandWrittenSignInController {
+class HandWrittenLoginController {
     @RouteResponse.redirect()
     @Get('/plain')
     async start(
@@ -171,16 +171,16 @@ class HandWrittenSignInController {
         codeChallenge: string
     ): Promise<RedirectResponse> {
         const url: string = await inject(HandWrittenRoutesAuthenticator)
-            .startSignIn({ redirectTo, codeChallenge, strategy: undefined, reauthenticate: false, apiScopes: [] });
+            .requestProviderLogin({ redirectTo, codeChallenge, strategy: undefined, reauthenticate: false, apiScopes: [] });
         return RedirectResponse.to(url);
     }
 
     @RouteResponse.redirect()
     @Get('/plain-callback')
     async callback(): Promise<RedirectResponse> {
-        const result: FederatedSignInResult = await inject(HandWrittenRoutesAuthenticator).completeSignIn(FederatedRouteUtilities.resolveCallbackQuery());
+        const result: FederatedLoginResult = await inject(HandWrittenRoutesAuthenticator).confirmProviderLogin(FederatedRouteUtilities.resolveCallbackQuery());
         if (result.type !== 'handover') {
-            throw new Error(`The sign-in ended in a ${result.type} rather than a handover.`);
+            throw new Error(`The login ended in a ${result.type} rather than a handover.`);
         }
         return FederatedRouteUtilities.toRedirect(result.redirectTo, result.code);
     }
@@ -212,8 +212,8 @@ class JwtPlainAuthController extends AuthController({
     }) {}
 
 /**
- * Starts an application signing in through the plain OAuth2 provider.
- * @param controllers - The controllers, which decide which strategy the sign-in logs in with.
+ * Starts an application logging in through the plain OAuth2 provider.
+ * @param controllers - The controllers, which decide which strategy the login logs in with.
  * @param strategy - That strategy.
  * @param authenticator - The authenticator of the provider, which decides where its routes are.
  * @returns The server and the url it listens at.
@@ -272,7 +272,7 @@ async function startApp(
  * Starts an application a case expects to be refused, and ends it again when it starts anyway, so the
  * case fails rather than leaving it running.
  * @param controllers - The controllers.
- * @param strategy - The strategy the sign-in logs in with.
+ * @param strategy - The strategy the login logs in with.
  * @param authenticator - The authenticator of the provider.
  */
 async function startThenShutDown(
@@ -285,7 +285,7 @@ async function startThenShutDown(
 }
 
 /**
- * Creates a user, linked to the identity the provider signs in next when a subject is given.
+ * Creates a user, linked to the identity the provider logs in next when a subject is given.
  * @param subject - Who the user is at the provider, if they are linked.
  * @returns The user.
  */
@@ -293,18 +293,18 @@ async function createUser(subject: string | undefined): Promise<JwtUser> {
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${randomBytes(6).toString('hex')}@example.com`, roles: [Roles.USER] });
     if (subject != undefined) {
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: provider.issuer, subject, userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: provider.issuer, subject, userId: user.id, forLogin: true, grantedScopes: [] });
     }
     return user;
 }
 
 /**
- * Signs in at the provider, the way a browser does.
+ * Logs in at the provider, the way a browser does.
  * @param browser - The browser.
  * @param authorizeUrl - The application's authorize route, with its query.
  * @returns Where the callback sends the browser.
  */
-async function signIn(browser: TestBrowser, authorizeUrl: string): Promise<string> {
+async function logIn(browser: TestBrowser, authorizeUrl: string): Promise<string> {
     return await browser.follow(await browser.follow(await browser.follow(authorizeUrl)));
 }
 
@@ -325,7 +325,7 @@ afterAll(async () => {
     await provider?.stop();
 });
 
-describe('BaseOAuth2Authenticator — signing in to cookies', () => {
+describe('BaseOAuth2Authenticator — logging in to cookies', () => {
     let server: StartedTestServer;
     let baseUrl: string;
 
@@ -337,7 +337,7 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    const authorizeUrl: (query?: Record<string, string>) => string = query => `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, ...query }).toString()}`;
+    const authorizeUrl: (query?: Record<string, string>) => string = query => `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, ...query }).toString()}`;
 
     it('signs a linked user in with the identity its api names, and never counts it as a recent login', async () => {
         const subject: string = `plain-${randomBytes(6).toString('hex')}`;
@@ -345,11 +345,11 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
         provider.identity = { subject };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        expect(await signIn(browser, authorizeUrl())).toBe(REDIRECT_TO);
+        expect(await logIn(browser, authorizeUrl())).toBe(REDIRECT_TO);
 
         const sessions: CookieAuthRefreshSession[] = await inject(repositoryTokenFor(CookieAuthRefreshSession))
             .findAll({ where: { userId: user.id } });
-        // the provider does not say when the user signed in there, so a route that would take a recent
+        // the provider does not say when the user logged in there, so a route that would take a recent
         // login in place of a second factor does not take this one
         expect(sessions.map(session => new Date(session.authenticatedAt).getTime())).toStrictEqual([0]);
     });
@@ -369,7 +369,7 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
         provider.identity = { subject, email: `${subject}@example.com`, emailVerified: true, name: 'Ada Lovelace' };
         const browser: TestBrowser = new TestBrowser(baseUrl, PUBLIC_URL);
 
-        const landing: string = await signIn(browser, authorizeUrl());
+        const landing: string = await logIn(browser, authorizeUrl());
         expect(landing.startsWith(`${REGISTRATION_URL}?ticket=`)).toBe(true);
         const res: Response = await browser.open(`${baseUrl}/register/profile`, {
             method: 'POST',
@@ -389,12 +389,12 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
         });
     });
 
-    it('keeps the access token a sign-in asked for, and has none once it expires without a refresh token', async () => {
+    it('keeps the access token a login asked for, and has none once it expires without a refresh token', async () => {
         const subject: string = `plain-${randomBytes(6).toString('hex')}`;
         const user: JwtUser = await createUser(subject);
         provider.identity = { subject };
 
-        expect(await signIn(new TestBrowser(baseUrl, PUBLIC_URL), authorizeUrl({ scopes: 'repo' }))).toBe(REDIRECT_TO);
+        expect(await logIn(new TestBrowser(baseUrl, PUBLIC_URL), authorizeUrl({ scopes: 'repo' }))).toBe(REDIRECT_TO);
         const [linked] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findIdentities(user.id, undefined, [PlainOAuth2Authenticator]);
 
         expect(linked?.identity.grantedScopes).toStrictEqual(['user', 'repo']);
@@ -407,7 +407,7 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
         const subject: string = `plain-${randomBytes(6).toString('hex')}`;
         const user: JwtUser = await createUser(subject);
         provider.identity = { subject };
-        await signIn(new TestBrowser(baseUrl, PUBLIC_URL), authorizeUrl({ scopes: 'repo' }));
+        await logIn(new TestBrowser(baseUrl, PUBLIC_URL), authorizeUrl({ scopes: 'repo' }));
         const [linked] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).findIdentities(user.id, undefined, [PlainOAuth2Authenticator]);
         const revokedBefore: number = provider.revokedTokens.length;
 
@@ -416,11 +416,11 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
         expect(provider.revokedTokens).toHaveLength(revokedBefore + 1);
     });
 
-    it('goes to the error url when the provider\'s api does not answer who signed in', async () => {
+    it('goes to the error url when the provider\'s api does not answer who logged in', async () => {
         const authenticator: PlainOAuth2Authenticator = inject(PlainOAuth2Authenticator);
         authenticator.userPath = '/not-there';
         try {
-            expect(await signIn(new TestBrowser(baseUrl, PUBLIC_URL), authorizeUrl())).toBe(`${ERROR_URL}?error=provider_error`);
+            expect(await logIn(new TestBrowser(baseUrl, PUBLIC_URL), authorizeUrl())).toBe(`${ERROR_URL}?error=provider_error`);
         }
         finally {
             authenticator.userPath = '/user';
@@ -428,7 +428,7 @@ describe('BaseOAuth2Authenticator — signing in to cookies', () => {
     });
 });
 
-describe('BaseOAuth2Authenticator — signing in to jwt', () => {
+describe('BaseOAuth2Authenticator — logging in to jwt', () => {
     let server: StartedTestServer;
     let baseUrl: string;
 
@@ -448,9 +448,9 @@ describe('BaseOAuth2Authenticator — signing in to jwt', () => {
         const codeChallenge: string = createHash('sha256').update(verifier)
             .digest('base64url');
 
-        const landing: string = await signIn(
+        const landing: string = await logIn(
             new TestBrowser(baseUrl, PUBLIC_URL),
-            `${PUBLIC_URL}/auth/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
+            `${PUBLIC_URL}/auth/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
         );
         const res: Response = await fetch(`${baseUrl}/auth/login`, {
             method: 'POST',
@@ -470,7 +470,7 @@ describe('BaseOAuth2Authenticator — signing in to jwt', () => {
 /**
  * Serves the auth routes at a path of the application's own.
  */
-@Controller('/sign-in', { allowOrphan: true, versions: 'all' })
+@Controller('/account', { allowOrphan: true, versions: 'all' })
 class CompanyAuthController extends AuthController({
         strategies: [JwtAuthStrategy],
         authenticators: [PlainOAuth2Authenticator],
@@ -497,12 +497,12 @@ describe('BaseOAuth2Authenticator — routes at a path of the application\'s own
         const codeChallenge: string = createHash('sha256').update(verifier)
             .digest('base64url');
 
-        expect(inject(PlainOAuth2Authenticator).getCallbackUrl()).toBe(`${PUBLIC_URL}/sign-in/federated/plain/callback`);
-        const landing: string = await signIn(
+        expect(inject(PlainOAuth2Authenticator).getCallbackUrl()).toBe(`${PUBLIC_URL}/account/federated/plain/callback`);
+        const landing: string = await logIn(
             new TestBrowser(baseUrl, PUBLIC_URL),
-            `${PUBLIC_URL}/sign-in/federated/authorize?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
+            `${PUBLIC_URL}/account/federated/login/request?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
         );
-        const res: Response = await fetch(`${baseUrl}/sign-in/login`, {
+        const res: Response = await fetch(`${baseUrl}/account/login`, {
             method: 'POST',
             headers: { [KnownHeader.CONTENT_TYPE]: 'application/json' },
             body: JsonUtilities.stringify({ code: new URL(landing).searchParams.get('code'), codeVerifier: verifier })
@@ -520,7 +520,7 @@ describe('BaseOAuth2Authenticator — routes the application writes itself', () 
     let baseUrl: string;
 
     beforeAll(async () => {
-        [server, baseUrl] = await startApp([HandWrittenSignInController], JwtAuthStrategy, HandWrittenRoutesAuthenticator);
+        [server, baseUrl] = await startApp([HandWrittenLoginController], JwtAuthStrategy, HandWrittenRoutesAuthenticator);
     }, TestTimeouts.inMemory.start);
 
     afterAll(async () => {
@@ -536,7 +536,7 @@ describe('BaseOAuth2Authenticator — routes the application writes itself', () 
             .digest('base64url');
 
         expect(inject(HandWrittenRoutesAuthenticator).getCallbackUrl()).toBe(`${PUBLIC_URL}/login/plain-callback`);
-        const landing: string = await signIn(
+        const landing: string = await logIn(
             new TestBrowser(baseUrl, PUBLIC_URL),
             `${PUBLIC_URL}/login/plain?${new URLSearchParams({ redirectTo: REDIRECT_TO, codeChallenge }).toString()}`
         );
@@ -556,21 +556,21 @@ describe('BaseOAuth2Authenticator — routes the application writes itself', () 
 describe('BaseOAuth2Authenticator — starting', () => {
     it('refuses to start without a controller the provider sends the browser back to, naming the routes it needs', async () => {
         await expect(startThenShutDown([ProfileController], JwtAuthStrategy))
-            .rejects.toThrow(/PlainOAuth2Authenticator[\S\s]*callback, connect[\S\s]*AuthController[\S\s]*resolveRouteUrl/);
+            .rejects.toThrow(/PlainOAuth2Authenticator[\S\s]*callback, link-identity[\S\s]*AuthController[\S\s]*resolveRouteUrl/);
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start when a url the authenticator gives out reaches no route of the application', async () => {
-        await expect(startThenShutDown([HandWrittenSignInController], JwtAuthStrategy, MisroutedAuthenticator))
+        await expect(startThenShutDown([HandWrittenLoginController], JwtAuthStrategy, MisroutedAuthenticator))
             .rejects.toThrow(/MisroutedAuthenticator[\S\s]*http:\/\/zibri\.test\/login\/nowhere\/callback/);
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start when a route answers a url the authenticator gives out, but not the method the browser requests it with', async () => {
-        await expect(startThenShutDown([HandWrittenSignInController], JwtAuthStrategy, FormPostingAuthenticator))
+        await expect(startThenShutDown([HandWrittenLoginController], JwtAuthStrategy, FormPostingAuthenticator))
             .rejects.toThrow(/FormPostingAuthenticator[\S\s]*http:\/\/zibri\.test\/login\/plain-callback[\S\s]*POST[\S\s]*GET/);
     }, TestTimeouts.inMemory.start);
 
     it('refuses to start when a url the authenticator gives out is not one of the application', async () => {
-        await expect(startThenShutDown([HandWrittenSignInController], JwtAuthStrategy, ElsewhereAuthenticator))
+        await expect(startThenShutDown([HandWrittenLoginController], JwtAuthStrategy, ElsewhereAuthenticator))
             .rejects.toThrow(/ElsewhereAuthenticator[\S\s]*https:\/\/elsewhere\.example\.com\/login\/plain-callback[\S\s]*baseUrl/);
     }, TestTimeouts.inMemory.start);
 });

@@ -20,7 +20,7 @@ export type OtlpTraceExporterOptions = {
     /**
      * How long one export may take before it is given up on. Ten seconds when nothing says.
      */
-    timeoutMs?: number,
+    timeoutInMs?: number,
     /**
      * How many exports may be in flight at once. Thirty when nothing says.
      */
@@ -48,7 +48,7 @@ export function otlpTraceExporter(options: OtlpTraceExporterOptions): OpenTeleme
     return new otlp.OTLPTraceExporter({
         url: options.url,
         headers: options.headers,
-        timeoutMillis: options.timeoutMs,
+        timeoutMillis: options.timeoutInMs,
         concurrencyLimit: options.concurrencyLimit
     });
 }

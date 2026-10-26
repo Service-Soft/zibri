@@ -2,9 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/glob
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
+import { TestTimeouts } from '../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { AlsUtilities } from '../../context/als.utilities';
 import { HttpRequestContext } from '../../context/request/http-request.context';
@@ -118,7 +118,7 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
 const websocketOptions: WebsocketOptionsInput = {
     messageRetentionInMs: Ms.DAY,
     timeoutInMs: 5000,
-    handlerInMs: 120,
+    handlerTimeoutInMs: 120,
     isAllowedToConnect: () => true
 };
 

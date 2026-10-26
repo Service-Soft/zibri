@@ -14,21 +14,6 @@ export type FsPath = string & {
 };
 
 /**
- * Definition for a line in a file.
- * Contains its index, as well as its content.
- */
-export type FileLine = {
-    /**
-     * The index of the line inside the file lines.
-     */
-    index: number,
-    /**
-     * The content of the line.
-     */
-    content: string
-};
-
-/**
  * Definition of a glob pattern. Can either be a string/string array or an object that also defines "excludes".
  */
 export type GlobPattern = string | string[] | {

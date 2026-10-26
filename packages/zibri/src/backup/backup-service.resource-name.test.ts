@@ -77,7 +77,8 @@ describe('BackupService — a resource with a name of its own', () => {
 
     it('is backed up and restored under that name', async () => {
         inject(NamedSettingsStore).value = 'backed up';
-        await getBackupService().createBackup({ name: 'named' });
+        const backupService: BackupServiceInterface = getBackupService();
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'named' }));
         const [backup]: BackupEntity[] = await inject(repositoryTokenFor(BackupEntity)).findAll({
             where: { name: 'named' },
             relations: ['resources']

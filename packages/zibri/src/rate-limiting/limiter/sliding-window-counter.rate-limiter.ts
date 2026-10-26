@@ -57,7 +57,7 @@ export class SlidingWindowCounterRateLimiter extends BaseRateLimiter<SlidingWind
         config: RateLimiterConfigInput<SlidingWindowCounterState>
     ) {
         super({
-            reservationGracePeriodMs: (waitMs) => Math.max(5000, waitMs),
+            reservationGracePeriodInMs: (waitInMs) => Math.max(5000, waitInMs),
             onStoreFailure: RateLimitStoreFailurePolicy.REJECT,
             maxReservationCount: config.capacity,
             ...config

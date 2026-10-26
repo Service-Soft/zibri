@@ -1,22 +1,28 @@
 # Two factor
-A second factor is a further proof a user presents beside their login, such as a code from their phone. You require one on the operations that need it. TOTP, the six digit codes an authenticator app shows, is built in, as are [passkeys](./passkeys.md#as-a-second-factor) and codes sent by [email or text message](#codes-by-email-or-text-message).
+A [second factor](./glossary.md#second-factor) is a further proof a user presents beside their login, such as a code from their phone. You require one on the operations that need it. TOTP, the six digit codes an [authenticator](./glossary.md#authenticator) app shows, is built in, as are [passkeys](./passkeys.md#as-a-second-factor) and codes sent by [email or text message](#codes-by-email-or-text-message).
 
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
 | `TwoFactorServiceInterface` | interface | Enrolling, confirming and removing a user's second factor |
+| `TwoFactorService` | class | Enrolls, confirms, checks and removes a user's second factors. Replaceable through `ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE` |
 | `TwoFactorMethod` | interface | The contract a method implements. Implement it to add your own |
+| `isTwoFactorMethod`, `TwoFactorMethods` | function, type | Tells a two factor method apart, and a list of two factor method classes |
+| `NoRegistrationRequestData` | class | What enrolling a method takes when it takes nothing, such as an authenticator app |
+| `Require2faFn`, `Require2faMetadata` | interface, type | The type of `@Auth.require2fa`, with its `skip`, and what it declares: the methods allowed, `reauth` and `providerFactors` |
 | `OtpTwoFactorMethod` | class | The TOTP method. Registered by default when you configure none |
-| `PasskeyTwoFactorMethod` | class | A passkey as the second factor, see [passkeys](./passkeys.md#as-a-second-factor) |
+| `PasskeyTwoFactorMethod` | class | A [passkey](./glossary.md#passkey) as the second factor, see [passkeys](./passkeys.md#as-a-second-factor) |
 | `EmailTwoFactorMethod` | class | A code mailed to the user's address, see [codes by email or text message](#codes-by-email-or-text-message) |
 | `SmsTwoFactorMethod` | class | A code sent as a text message |
 | `CodeTwoFactorMethod` | class | What the two above are built on. Extend it for another way of sending a code, see [another way of sending](#another-way-of-sending) |
 | `SmsServiceInterface` | interface | What sends a text message. You provide it |
 | `SendSmsData` | type | A text message: the number and the text |
 | `ZIBRI_DI_TOKENS.SMS_SERVICE` | DI token | Injects `SmsServiceInterface`. Required by `SmsTwoFactorMethod` |
-| `SmsRegisterData` | class | What enrolling by text message needs: the phone number |
+| `SmsRegistrationRequestData` | class | What enrolling by text message needs: the phone number |
+| `CodeRegistrationConfirmData` | class | What confirming the enrollment of a method sending codes takes: the code that was sent |
 | `TwoFactorCodeCredentials` | entity | Where a user receives codes, and whether they confirmed it |
 | `TwoFactorCode` | entity | A code that was sent and not yet entered. Kept encrypted |
+| `TwoFactorCodeCleanupCronJob` | cron job | Deletes the codes that expired before they were entered. Registered for you |
 | `TwoFactorCodeOptions` | type | How many digits a code has, how long it lasts, how often one can be sent, how many wrong ones it takes |
 | `ZIBRI_DI_TOKENS.TWO_FACTOR_CODE_OPTIONS` | DI token | Configures the codes |
 | `ZIBRI_DI_TOKENS.EMAIL_CODE_HEADER` | DI token | Which header carries a mailed code. Defaults to `x-authorization-email-code` |
@@ -28,6 +34,7 @@ A second factor is a further proof a user presents beside their login, such as a
 | `SmsCodeNumberRateLimiter` | class | How many codes one number is texted in a day, counted across instances |
 | `OtpCredentials` | entity | A user's TOTP secret and whether it has been confirmed |
 | `OtpRegistration` | class | What enrolling answers: the qr code url and the secret, to show once |
+| `OtpRegistrationConfirmData` | class | What confirming a TOTP enrollment takes: a code the authenticator app shows |
 | `OtpCodeAlreadyUsedError` | error | Thrown when a code is presented a second time |
 | `InvalidTwoFactorCodeError` | error | Thrown when a presented code is wrong. Throw it from your own method for the same |
 | `TwoFactorThrottledError` | error | Thrown while a user has to wait after wrong codes. Answers `429` |
@@ -39,12 +46,14 @@ A second factor is a further proof a user presents beside their login, such as a
 | `AccountLockedError` | error | Thrown when a user whose account is locked logs in. Answers `403` |
 | `RecoveryCodeTwoFactorMethod` | class | Recovery codes, each presented once in place of a second factor, see [recovery codes](#recovery-codes) |
 | `RecoveryCodeRegistration` | class | What enrolling recovery codes answers: the codes, to show once |
+| `RecoveryCodeRegistrationConfirmData` | class | What confirming recovery codes takes: one code of the set, with or without its dash |
 | `TwoFactorRecoveryCode` | entity | One recovery code of a user. Kept hashed |
 | `ZIBRI_DI_TOKENS.RECOVERY_CODE_HEADER` | DI token | Which header carries a recovery code. Defaults to `x-authorization-recovery-code` |
 | `OtpValidationWindowInMs` | type | The clock skew a code may be accepted across |
 | `ZIBRI_DI_TOKENS.OTP_HEADER` | DI token | Which header carries the code. Defaults to `x-authorization-otp` |
 | `ZIBRI_DI_TOKENS.OTP_VALIDATION_WINDOW_IN_MS` | DI token | How much skew to allow. Defaults to 30 seconds |
-| `Require2faReauth` | type | Whether a route accepts a recent login in place of a second factor |
+| `Require2faReauth` | type | Whether a route accepts a [recent login](./glossary.md#recent-login) in place of a second factor |
+| `Require2faReauthOptions`, `Require2faReauthAllow` | type, type | Accepting a recent login together with how recent it has to be, and whose: `true` for every user, `'onlyAsFallback'` for a user without a second factor the route allows |
 | `ReauthenticationRequiredError` | error | Thrown when the route accepts a recent login and the user's is too old |
 | `ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH` | DI token | What a route that says nothing about `reauth` accepts. Defaults to `false` |
 | `ZIBRI_DI_TOKENS.REQUIRE_2FA_REAUTH_WINDOW_IN_MS` | DI token | How recent a login has to be. Defaults to 5 minutes |
@@ -52,8 +61,9 @@ A second factor is a further proof a user presents beside their login, such as a
 | `ZIBRI_DI_TOKENS.REQUIRE_2FA_PROVIDER_FACTORS` | DI token | What a route that says nothing about `providerFactors` counts. Defaults to `false` |
 | `ProviderAuthentication` | type | How a user proved who they are at the provider: the methods and the class of the authentication, as a login keeps them |
 | `TwoFactorAtLogin` | type | The `twoFactorAtLogin` app option: whether a login asks for a second factor, see [asking for a second factor at login](#asking-for-a-second-factor-at-login) |
-| `SecondFactorRequiredError` | error | What a login that waits for its second factor answers. `401`, with the ticket the login continues with |
+| `SecondFactorRequiredError` | error | What a login that waits for its second factor answers. `401`, with the [ticket](./glossary.md#ticket) the login continues with |
 | `LoginTicket` | entity | A login that waits for its second factor. Kept hashed |
+| `LoginTicketCleanupCronJob` | cron job | Deletes the tickets of logins never completed with their second factor. Registered for you when `twoFactorAtLogin` is not `'never'` |
 | `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER` | DI token | Which header carries the ticket. Defaults to `x-login-ticket` |
 
 ## What a second factor is for
@@ -127,18 +137,18 @@ Only logging in counts. Refreshing a login keeps the time of the login it contin
 
 > Log in again to access this route.
 
-The time comes from `resolveAuthenticatedAt` of the auth strategy that resolved the user, see [auth](./auth.md). A strategy that cannot say when its user logged in, such as one for api keys, never counts as recent.
+The time comes from `resolveAuthenticatedAt` of the [auth strategy](./glossary.md#auth-strategy) that resolved the user, see [auth](./auth.md). A strategy that cannot say when its user logged in, such as one for api keys, never counts as recent.
 
 With `'onlyAsFallback'`, a user who removes their second factor is back to the login. Guard the route that removes it with `@Auth.require2fa()` without `reauth`.
 
 A recent login proves the password and nothing else. Guard these routes with `'onlyAsFallback'` at most, so a user with a second factor has to present it:
 
-- the routes that enroll a second factor, or a password would be enough to add one of the attacker's own. `POST /2fa/register` of the [auth routes](./auth-routes.md) takes `'onlyAsFallback'`
+- the routes that enroll a second factor, or a password would be enough to add one of the attacker's own. `POST /2fa/registration/request` of the [auth routes](./auth-routes.md) takes `'onlyAsFallback'`
 - with [codes by email](#codes-by-email-or-text-message), the route that changes the account's email address, or a password would be enough to send every code to another mailbox
 
 ## Accepting the provider's second factor
 
-A user who signs in [through a provider](./sign-in-through-a-provider.md) may have presented a second factor there. The provider says so with the sign-in: an OpenID Connect provider in the `amr` and `acr` claims of the ID token, a SAML identity provider in the AuthnContextClassRef of the assertion. The login keeps it, refreshes included. Say which of them a route counts in place of a second factor presented here, with `providerFactors`:
+A user who logs in [through a provider](./login-through-a-provider.md) may have presented a second factor there. The provider says so with the login: an [OpenID Connect](./glossary.md#openid-connect) provider in the `amr` and `acr` claims of the ID token, a [SAML](./glossary.md#saml) identity provider in the AuthnContextClassRef of the assertion. The login keeps it, refreshes included. Say which of them a route counts in place of a second factor presented here, with `providerFactors`:
 
 ```ts
 // src/controllers/payment.controller.ts
@@ -165,7 +175,7 @@ import { defineProvider, Require2faProviderFactors, ZIBRI_DI_TOKENS } from 'zibr
 defineProvider({ token: ZIBRI_DI_TOKENS.REQUIRE_2FA_PROVIDER_FACTORS, useFactory: (): Require2faProviderFactors => ({ methods: ['mfa'] }) })
 ```
 
-Ask the provider for the factor with `acrValues` on an OpenID Connect authenticator, or `requestedAuthnContext` on a SAML one, see [sign-in through a provider](./sign-in-through-a-provider.md#other-providers). A user whose login does not count then [signs in again](./sign-in-through-a-provider.md#signing-in-again) and presents the factor at the provider.
+Ask the provider for the factor with `acrValues` on an OpenID Connect authenticator, or `requestedAuthnContext` on a SAML one, see [login through a provider](./login-through-a-provider.md#other-providers). A user whose login does not count then [logs in again](./login-through-a-provider.md#logging-in-again) and presents the factor at the provider.
 
 The factor comes from the strategy the request addresses, through `resolveProviderAuthentication` of `AuthStrategyInterface`. A strategy that does not implement it, such as one for api keys, never counts. A [token of the provider](./provider-tokens.md) counts by its own `amr` and `acr`.
 
@@ -202,31 +212,31 @@ POST /auth/login
 The client sends the ticket in the `x-login-ticket` header to the routes the login continues at, see the [auth routes](./auth-routes.md):
 
 ```txt
-POST /auth/login/2fa/start?method=email
+POST /auth/login/2fa/request?method=email
                                 sends the code, or answers the challenge for a passkey
 
-POST /auth/login/2fa/complete
+POST /auth/login/2fa/confirm
 x-authorization-email-code: 123456
                                 answers what the login route answers
 ```
 
-`complete` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes.
+`confirm` takes the second factor in its header, exactly as a guarded route does, and names the strategy in `strategy` like the login route. A wrong code is refused as on any guarded route, and the ticket stays. The ticket is spent by the login it completes, and expires after 5 minutes.
 
-An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/register` and `POST /auth/login/2fa/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`.
+An empty `methods` list means the user has no second factor, and `twoFactorAtLogin` is `'required'`: the ticket enrolls their first, at `POST /auth/login/2fa/registration/request` and `POST /auth/login/2fa/registration/confirm`, which take what [enrolling](#enrolling-a-user) takes. A user who has a second factor is refused there with `403`.
 
 Rename the header through `ZIBRI_DI_TOKENS.LOGIN_TICKET_HEADER`. CORS follows the token.
 
-A login that waits is recorded as `auth.login.pending`, and the completed one as `auth.login`. In a route of your own, `login` of `AuthServiceInterface` throws the `SecondFactorRequiredError`, which answers as above. A sign-in at a provider that logs in on the redirect back is refused when it waits for a second factor: hand it over by code, see [signing in at a provider](./auth-routes.md#signing-in-at-a-provider).
+A login that waits is recorded as `auth.login.pending`, and the completed one as `auth.login`. In a route of your own, `login` of `AuthServiceInterface` throws the `SecondFactorRequiredError`, which answers as above. A login at a provider that logs in on the redirect back is refused when it waits for a second factor: hand it over by code, see [logging in at a provider](./auth-routes.md#logging-in-at-a-provider).
 
 ## Enrolling a user
 
-Enrolling takes two steps, and only the second one enables the second factor. The [auth routes](./auth-routes.md) take them at `POST /auth/2fa/register` and `POST /auth/2fa/confirm`, naming the method in `method` when there is more than one:
+Enrolling takes two steps, and only the second one enables the second factor. The [auth routes](./auth-routes.md) take them at `POST /auth/2fa/registration/request` and `POST /auth/2fa/registration/confirm`, naming the method in `method` when there is more than one:
 
 ```txt
-POST /auth/2fa/register?method=otp
+POST /auth/2fa/registration/request?method=otp
 200 { "qrCodeUrl": "otpauth://totp/...", "secret": "..." }
 
-POST /auth/2fa/confirm?method=otp
+POST /auth/2fa/registration/confirm?method=otp
 { "token": "123456" }
 ```
 
@@ -241,8 +251,8 @@ export async function enroll(
     user: UserAccount,
     otpMethod: OtpTwoFactorMethod
 ): Promise<void> {
-    const registration: OtpRegistration = await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
-    await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, { token: '123456' });
+    const registration: OtpRegistration = await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
+    await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, { token: '123456' });
 }
 ```
 
@@ -331,10 +341,10 @@ Every lock is recorded as `auth.2fa.locked`. Setting `twoFactorFailureLimit` bac
 Register `RecoveryCodeTwoFactorMethod` beside your other methods to give users a way back when they lose their device. Enrolling answers 10 codes, which are shown once:
 
 ```txt
-POST /auth/2fa/register?method=recovery-code
+POST /auth/2fa/registration/request?method=recovery-code
 200 { "codes": ["K3QZD-7XWPA", "..."] }
 
-POST /auth/2fa/confirm?method=recovery-code
+POST /auth/2fa/registration/confirm?method=recovery-code
 { "code": "K3QZD-7XWPA" }
 ```
 
@@ -427,10 +437,10 @@ Each is counted across all instances of your application.
 The same two steps as for an authenticator app, at the same routes. The first sends a code, the second confirms it:
 
 ```txt
-POST /auth/2fa/register?method=sms
+POST /auth/2fa/registration/request?method=sms
 { "phoneNumber": "+4915112345678" }
 
-POST /auth/2fa/confirm?method=sms
+POST /auth/2fa/registration/confirm?method=sms
 { "code": "654321" }
 ```
 
@@ -446,19 +456,19 @@ export async function enrollByCode(
     emailMethod: EmailTwoFactorMethod,
     smsMethod: SmsTwoFactorMethod
 ): Promise<void> {
-    await twoFactorService.requestRegisterTwoFactorMethodForUser(user, emailMethod, undefined);
-    await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, emailMethod, { code: '123456' });
+    await twoFactorService.requestTwoFactorRegistration(user, emailMethod, undefined);
+    await twoFactorService.confirmTwoFactorRegistration(user, emailMethod, { code: '123456' });
 
-    await twoFactorService.requestRegisterTwoFactorMethodForUser(user, smsMethod, { phoneNumber: '+4915112345678' });
-    await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, smsMethod, { code: '654321' });
+    await twoFactorService.requestTwoFactorRegistration(user, smsMethod, { phoneNumber: '+4915112345678' });
+    await twoFactorService.confirmTwoFactorRegistration(user, smsMethod, { code: '654321' });
 }
 ```
 
-The email code goes to the address of the account, the text message to the number, which is kept encrypted. An enrollment that was not confirmed satisfies nothing. Asking again gives up on it; a confirmed one stays until the new one is confirmed. `SmsTwoFactorMethod` takes the number in international format and refuses anything else, and so does `SmsRegisterData` as a request body.
+The email code goes to the address of the account, the text message to the number, which is kept encrypted. An enrollment that was not confirmed satisfies nothing. Asking again gives up on it; a confirmed one stays until the new one is confirmed. `SmsTwoFactorMethod` takes the number in international format and refuses anything else, and so does `SmsRegistrationRequestData` as a request body.
 
 ### Asking for a code
 
-`POST /auth/2fa/start?method=email` sends the code to a logged in user who enrolled. In a route of your own, `startSecondFactor` of `TwoFactorServiceInterface` does the same:
+`POST /auth/2fa/request?method=email` sends the code to a logged in user who enrolled. In a route of your own, `requestSecondFactor` of `TwoFactorServiceInterface` does the same:
 
 ```ts
 // src/controllers/account.controller.ts
@@ -477,7 +487,7 @@ class AccountCodeController {
     @Response.empty()
     @Post('/email-code')
     async sendEmailCode(@CurrentUser() user: CurrentUser): Promise<void> {
-        await this.twoFactorService.startSecondFactor(user, this.emailMethod);
+        await this.twoFactorService.requestSecondFactor(user, this.emailMethod);
     }
 }
 ```
@@ -500,7 +510,7 @@ import { defineProvider, Ms, TwoFactorCodeOptions, ZIBRI_DI_TOKENS } from 'zibri
 
 defineProvider({
     token: ZIBRI_DI_TOKENS.TWO_FACTOR_CODE_OPTIONS,
-    useFactory: (): TwoFactorCodeOptions => ({ digits: 8, expiresInMs: Ms.MINUTE * 5, resendAfterMs: Ms.MINUTE * 2 })
+    useFactory: (): TwoFactorCodeOptions => ({ digits: 8, expiresInMs: Ms.MINUTE * 5, resendAfterInMs: Ms.MINUTE * 2 })
 })
 ```
 
@@ -518,20 +528,20 @@ import { CodeTwoFactorMethod, Newable, Property, UserAccount } from 'zibri';
 
 import { messenger } from './messenger';
 
-export class MessengerRegisterData {
+export class MessengerRegistrationRequestData {
     @Property.string()
     handle!: string;
 }
 
-export class MessengerTwoFactorMethod extends CodeTwoFactorMethod<MessengerRegisterData> {
-    readonly requestRegisterModel: Newable<MessengerRegisterData> = MessengerRegisterData;
+export class MessengerTwoFactorMethod extends CodeTwoFactorMethod<MessengerRegistrationRequestData> {
+    readonly registrationRequestModel: Newable<MessengerRegistrationRequestData> = MessengerRegistrationRequestData;
     protected readonly channel: string = 'messenger';
 
     protected async deliver(user: UserAccount, destination: string | undefined, code: string): Promise<void> {
         await messenger.send(destination ?? '', `Your code is ${code}`);
     }
 
-    protected resolveDestination(data: MessengerRegisterData): string {
+    protected resolveDestination(data: MessengerRegistrationRequestData): string {
         return data.handle;
     }
 
@@ -548,11 +558,11 @@ A method that sends no code implements `TwoFactorMethod`. The [auth routes](./au
 | Member | What it is |
 |---|---|
 | `name` | What the routes name the method by. Unique |
-| `requestRegisterModel` | The body `POST /2fa/register` takes |
-| `confirmRegisterModel` | The body `POST /2fa/confirm` takes |
-| `registrationModel` | What `POST /2fa/register` answers with. Undefined when it answers nothing |
-| `secondFactorStartModel` | What `POST /2fa/start` answers with. Undefined when it answers nothing |
-| `startSecondFactor` | What `POST /2fa/start` does, such as sending a code |
+| `registrationRequestModel` | The body `POST /2fa/registration/request` takes |
+| `registrationConfirmModel` | The body `POST /2fa/registration/confirm` takes |
+| `registrationRequestResultModel` | What `POST /2fa/registration/request` answers with. Undefined when it answers nothing |
+| `secondFactorRequestModel` | What `POST /2fa/request` answers with. Undefined when it answers nothing |
+| `requestSecondFactor` | What `POST /2fa/request` does, such as sending a code |
 
 `unlocksLockedFactors` marks a method as the way back from a [lock](#locking-after-too-many-wrong-codes), as recovery codes are: while a user is locked, only such a method is checked.
 
@@ -574,6 +584,8 @@ Your data source declares these entities:
 | `OtpCredentials` | `OtpTwoFactorMethod` is registered |
 | `TwoFactorCodeCredentials`, `TwoFactorCode`, `RateLimitStateEntity` | `EmailTwoFactorMethod` or `SmsTwoFactorMethod` is registered |
 | `TwoFactorRecoveryCode` | `RecoveryCodeTwoFactorMethod` is registered |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Auth](./auth.md) — who the user is, which this builds on

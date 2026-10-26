@@ -23,7 +23,7 @@ export class CronSyncCronJob extends PollingCronJob {
         runOnInit: false,
         // every instance holds a schedule of its own to bring in line, so every instance runs this,
         // as the cache invalidation job does
-        distributed: false,
+        runsOn: 'everyInstance',
         // kept out of the data source, so it never applies a stored change to itself from inside its
         // own tick
         syncToDataSource: false

@@ -79,8 +79,8 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 0,
-                        defaultTimeoutMs: Ms.HOUR,
-                        defaultTimeoutPriorityMs: Ms.MINUTE * 5,
+                        defaultTimeoutInMs: Ms.HOUR,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE * 5,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},
@@ -135,7 +135,7 @@ describe('MultithreadingService, when a thread job row cannot be written', () =>
         // still running when the assertion gives up on it
         const overdue: string = await multithreadingService.queueThreadJob({
             workerData: { filePath: computingWorker, amount: 45 },
-            timeout: 1
+            timeoutInMs: 1
         });
 
         await waitUntil(async () => await resolveStatus(overdue) === ThreadJobStatus.FAILED, Ms.SECOND * 3);

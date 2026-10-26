@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { OpenApiFileProvider } from './open-api-file.provider';
 import { testFileFolder } from '../../../__testing__/constants';
-import { OpenApiDefinition } from '../../../open-api/open-api.model';
+import type { OpenApiDefinition } from '../../../open-api/open-api.model';
 import { FsPath, FsUtilities } from '../../../utilities/fs.utilities';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 

@@ -250,10 +250,10 @@ describe('ApiKeyAuthStrategy — starting', () => {
     }, TestTimeouts.inMemory.start);
 
     it('refuses API_KEY_OPTIONS that are no whole number of milliseconds', async () => {
-        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterMs: -1 })]))
-            .rejects.toThrow('API_KEY_OPTIONS.recordUseAfterMs must be a whole number of milliseconds, got -1.');
-        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ deleteExpiredAfterMs: 1.5 })]))
-            .rejects.toThrow('API_KEY_OPTIONS.deleteExpiredAfterMs must be a whole number of milliseconds, got 1.5.');
+        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterInMs: -1 })]))
+            .rejects.toThrow('API_KEY_OPTIONS.recordUseAfterInMs must be a whole number of milliseconds, got -1.');
+        await expect(startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ deleteExpiredAfterInMs: 1.5 })]))
+            .rejects.toThrow('API_KEY_OPTIONS.deleteExpiredAfterInMs must be a whole number of milliseconds, got 1.5.');
     }, TestTimeouts.inMemory.start);
 
     it('schedules deleting expired keys', async () => {
@@ -578,7 +578,7 @@ describe('ApiKeyAuthStrategy', () => {
 
 describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
     beforeAll(async () => {
-        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterMs: 0, deleteExpiredAfterMs: Ms.DAY })]);
+        server = await startApp([JwtAuthStrategy, ApiKeyAuthStrategy], [apiKeyOptions({ recordUseAfterInMs: 0, deleteExpiredAfterInMs: Ms.DAY })]);
         baseUrl = await server.start();
     });
 
@@ -586,7 +586,7 @@ describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
         await server?.shutdown();
     });
 
-    it('writes down every use when recordUseAfterMs is 0', async () => {
+    it('writes down every use when recordUseAfterInMs is 0', async () => {
         const user: JwtUser = await createUser('nora', [Roles.USER]);
         const { key, apiKey }: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
         const aSecondAgo: Date = new Date(Date.now() - Ms.SECOND);
@@ -597,7 +597,7 @@ describe('ApiKeyAuthStrategy — with API_KEY_OPTIONS', () => {
         expect(await findLastUse(apiKey.id)).toBeGreaterThan(aSecondAgo.getTime());
     });
 
-    it('deletes a key once deleteExpiredAfterMs has passed since it expired', async () => {
+    it('deletes a key once deleteExpiredAfterInMs has passed since it expired', async () => {
         const user: JwtUser = await createUser('otto', [Roles.USER]);
         const expiredLong: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);
         const expiredRecently: CreatedApiKey = await createKey(user, [TestPlatformPermissions.USER]);

@@ -37,7 +37,7 @@ export class LoginTicket extends BaseEntity {
     authenticatedAt!: Date;
 
     /**
-     * The name of the provider the user signed in at. Null for a login started some other way.
+     * The name of the provider the user logged in at. Null for a login started some other way.
      */
     @Property.string({ required: false })
     federatedProvider: string | undefined | null;

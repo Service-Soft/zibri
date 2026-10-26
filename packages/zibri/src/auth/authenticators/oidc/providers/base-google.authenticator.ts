@@ -4,7 +4,7 @@ import { BaseOidcAuthenticator } from '../base-oidc.authenticator';
 import { OidcAuthenticationTime } from '../oidc-authentication-time.type';
 
 /**
- * Authenticates a user by a sign-in with their Google account.
+ * Authenticates a user by a login with their Google account.
  *
  * Extend it with the client id and secret of the OAuth client created in the Google Cloud console.
  */
@@ -18,13 +18,13 @@ export abstract class BaseGoogleAuthenticator<
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly issuer: string = 'https://accounts.google.com';
 
-    // Google puts no auth_time into its ID tokens and documents no max_age, so a sign-in through it
-    // never says when the user signed in
+    // Google puts no auth_time into its ID tokens and documents no max_age, so a login through it
+    // never says when the user logged in
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly authenticationTime: OidcAuthenticationTime = 'none';
 
     // Google refuses `prompt=login` with an error page, and has no prompt that asks for the password
-    // again; letting the user pick the account at least shows them which one they sign in with
+    // again; letting the user pick the account at least shows them which one they log in with
     override readonly reauthenticationPrompt: string = 'select_account';
 
     // Google's own way rather than the offline_access scope, which it does not know. It issues a refresh

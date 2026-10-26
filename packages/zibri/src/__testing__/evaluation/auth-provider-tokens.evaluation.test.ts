@@ -24,11 +24,11 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
 import { Newable } from '../../types/newable.type';
+import { TestTimeouts } from '../constants';
 import { JwtUser } from '../mocks/entities/jwt-user.entity';
 import { Roles } from '../mocks/entities/roles.enum';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../test-server/providers';
-import { TestTimeouts } from '../constants';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 const PUBLIC_URL: string = 'http://zibri.test';
@@ -104,7 +104,7 @@ describe('evaluation/03-auth-and-security H14 - an identity provider\'s tokens a
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: 'https://app.example.com/register',
-                        errorUrl: 'https://app.example.com/sign-in-failed',
+                        errorUrl: 'https://app.example.com/login-failed',
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -121,7 +121,7 @@ describe('evaluation/03-auth-and-security H14 - an identity provider\'s tokens a
     it('verifies a token the provider issued against the keys the provider publishes', async () => {
         const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: 'mobile@example.com', roles: [Roles.USER] });
         await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-            .create({ issuer: provider.issuer, subject: 'mobile-subject', userId: user.id, signIn: true, grantedScopes: [] });
+            .create({ issuer: provider.issuer, subject: 'mobile-subject', userId: user.id, forLogin: true, grantedScopes: [] });
         provider.identity = { subject: 'mobile-subject' };
 
         // what a mobile app holds from the company's provider, and calls the api with

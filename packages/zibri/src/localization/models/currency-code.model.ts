@@ -5,7 +5,7 @@ import { AnyEnum } from '../../types/any-enum.type';
  * Snapshot of the active list (List One).
  */
 // eslint-disable-next-line typescript/typedef
-const currencyCodes = [
+export const currencyCodes = [
     'AED',
     'AFN',
     'ALL',

@@ -102,7 +102,7 @@ describe('evaluation/04-infrastructure-subsystems 3.4 - a log storm must not bec
             level: LogLevel.ERROR,
             recipients: () => ['throttled@example.com'],
             emailTemplate: template,
-            minIntervalMs: 60000
+            minIntervalInMs: 60000
         });
 
         await transport.send([createLog('first storm')], transport.config);
@@ -122,7 +122,7 @@ describe('evaluation/04-infrastructure-subsystems 3.4 - a log storm must not bec
             level: LogLevel.ERROR,
             recipients: () => ['recovered@example.com'],
             emailTemplate: template,
-            minIntervalMs: 500
+            minIntervalInMs: 500
         });
 
         await transport.send([createLog('before')], transport.config);

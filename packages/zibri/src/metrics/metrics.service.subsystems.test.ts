@@ -4,7 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 
 import { MetricsExposition } from './metrics-exposition.model';
-import { MetricsServiceInterface, MetricsSnapshot } from './metrics-service.interface';
+import { MetricsServiceInterface } from './metrics-service.interface';
+import { MetricsSnapshot } from './metrics-snapshot.model';
 import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
@@ -113,8 +114,8 @@ describe('PrometheusMetricsService — the queues', () => {
                     useValue: {
                         maxThreads: 1,
                         maxPriorityThreads: 0,
-                        defaultTimeoutMs: Ms.MINUTE,
-                        defaultTimeoutPriorityMs: Ms.MINUTE,
+                        defaultTimeoutInMs: Ms.MINUTE,
+                        defaultPriorityTimeoutInMs: Ms.MINUTE,
                         jobClaimInMs: Ms.SECOND * 30,
                         maxAttempts: 3,
                         workerResourceLimits: {},
@@ -163,7 +164,7 @@ describe('PrometheusMetricsService — the queues', () => {
             progress: 0,
             attempts: 0,
             priority: false,
-            timeout: Ms.MINUTE,
+            timeoutInMs: Ms.MINUTE,
             workerData: { filePath: FsUtilities.getPath('nowhere.js') }
         };
         await jobs.create({ ...job, status: ThreadJobStatus.IN_QUEUE });

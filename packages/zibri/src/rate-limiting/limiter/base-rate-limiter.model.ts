@@ -106,10 +106,10 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async waitForReservation(reservationInput: RateLimitReservation, timeoutMs: number): Promise<void> {
+    async waitForReservation(reservationInput: RateLimitReservation, timeoutInMs: number): Promise<void> {
         const now: number = Date.now();
         // calculate point in time that the timeout will happen
-        const timeoutPointMs: number = Math.min(now + timeoutMs, reservationInput.expiresAtMs);
+        const timeoutPointMs: number = Math.min(now + timeoutInMs, reservationInput.expiresAtMs);
 
         if (timeoutPointMs <= now) {
             throw new InternalError('The given reservation is expired');
@@ -135,7 +135,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                 timeout({
                     first: Math.max(0, timeoutPointMs - Date.now()),
                     with: () => throwError(
-                        () => new TimeoutError($ts`Timed out after ${timeoutMs} ms waiting for reservation ${reservation.id}`)
+                        () => new TimeoutError($ts`Timed out after ${timeoutInMs} ms waiting for reservation ${reservation.id}`)
                     )
                 })
             );
@@ -198,7 +198,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
      * store-independent preconditions (`count <= capacity` and
      * `count <= maxReservationCount`) have already passed. Implementations
      * own the full lifecycle: computing `readyAtMs`, rejecting with
-     * `QUEUE_TOO_LONG` if it would exceed `maxReservationWaitMs`, and
+     * `QUEUE_TOO_LONG` if it would exceed `maxReservationWaitInMs`, and
      * constructing the returned reservation's `getReadyAtMs`/`waitUntilReady`/
      * `commit`/`cancel` closures. Resolving those closures (including TTL
      * expiry) must call recordReservationClosed exactly once.
@@ -246,7 +246,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                         key,
                         count,
                         readyAtMs: readyAt,
-                        expiresAtMs: readyAt + this.resolveGracePeriodMs(readyAt - now)
+                        expiresAtMs: readyAt + this.resolveGracePeriodInMs(readyAt - now)
                     };
 
                     return {
@@ -269,7 +269,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
                 return {
                     allowed: false,
                     reason: error.reason,
-                    estimatedWaitMs: error.estimatedWaitMs
+                    estimatedWaitInMs: error.estimatedWaitInMs
                 };
             }
             throw error;
@@ -466,7 +466,7 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
 
     /**
      * Checks whether a candidate ready time falls within the configured
-     * `maxReservationWaitMs`. Pure and synchronous — safe to call from within
+     * `maxReservationWaitInMs`. Pure and synchronous — safe to call from within
      * a store's atomic updater.
      * @param candidateReadyAtMs - The ready time a reservation attempt computed.
      * @param now - The current time (ms since epoch), as captured by the caller.
@@ -476,12 +476,12 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
         if (!Number.isFinite(candidateReadyAtMs)) {
             return false;
         }
-        return this.config.maxReservationWaitMs === undefined || candidateReadyAtMs - now <= this.config.maxReservationWaitMs;
+        return this.config.maxReservationWaitInMs === undefined || candidateReadyAtMs - now <= this.config.maxReservationWaitInMs;
     }
 
     /**
      * Hook for algorithm-specific reservation limits beyond the shared
-     * `maxReservationWaitMs` horizon check. Eg. Bounding how many
+     * `maxReservationWaitInMs` horizon check. Eg. Bounding how many
      * reservations may be queued for a key regardless of estimated wait
      * time. Pure and synchronous — safe to call from within a store's
      * atomic updater. No-op by default.
@@ -507,13 +507,13 @@ export abstract class BaseRateLimiter<TState extends BaseRateLimitState> impleme
     /**
      * Resolves the grace period to add on top of a reservation's `readyAtMs`
      * to determine its `expiresAtMs`.
-     * @param waitMs - The reservation's own expected wait time (`readyAtMs - now`).
+     * @param waitInMs - The reservation's own expected wait time (`readyAtMs - now`).
      * @returns The grace period, in ms.
      */
-    protected resolveGracePeriodMs(waitMs: number): number {
-        return typeof this.config.reservationGracePeriodMs === 'function'
-            ? this.config.reservationGracePeriodMs(waitMs)
-            : this.config.reservationGracePeriodMs;
+    protected resolveGracePeriodInMs(waitInMs: number): number {
+        return typeof this.config.reservationGracePeriodInMs === 'function'
+            ? this.config.reservationGracePeriodInMs(waitInMs)
+            : this.config.reservationGracePeriodInMs;
     }
 
     /**

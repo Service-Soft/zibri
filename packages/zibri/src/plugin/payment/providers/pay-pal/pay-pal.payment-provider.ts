@@ -274,7 +274,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startPayment<M extends SupportedMethods[number]>(
+    async requestPayment<M extends SupportedMethods[number]>(
         method: M,
         data: ValidatedPaymentDataMap[M]
     ): Promise<Payment<M, ProviderPaymentDataMap[M]>> {
@@ -332,7 +332,7 @@ export class PayPalPaymentProvider implements PaymentProviderInterface<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startPaymentReservation<
+    async requestPaymentReservation<
         M extends {
             [K in SupportedMethods[number]]: ReservationSupport[K] extends true ? K : never
         }[SupportedMethods[number]]

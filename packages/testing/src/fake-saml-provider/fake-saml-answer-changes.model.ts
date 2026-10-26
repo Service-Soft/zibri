@@ -12,7 +12,7 @@ export type FakeSamlAnswerChanges = {
      */
     audience?: string,
     /**
-     * Whether the response answers no request, the way a sign-in the provider starts on its own does.
+     * Whether the response answers no request, the way a login the provider starts on its own does.
      */
     unsolicited?: boolean,
     /**
@@ -20,7 +20,7 @@ export type FakeSamlAnswerChanges = {
      */
     notOnOrAfter?: Date,
     /**
-     * Whether the assertion leaves out when the user signed in.
+     * Whether the assertion leaves out when the user logged in.
      */
     omitAuthnStatement?: boolean,
     /**

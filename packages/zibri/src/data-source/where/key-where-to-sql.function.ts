@@ -1,4 +1,6 @@
+import { PropertyReferenceUtilities } from './property-reference.utilities';
 import { BaseEntity } from '../../entity/base-entity.model';
+import { PropertyMetadata } from '../../entity/decorators/property.decorator';
 import { KeyWhere } from '../../entity/models/unique-declaration.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Newable } from '../../types/newable.type';
@@ -21,9 +23,10 @@ type KeyWhereOwner = {
      */
     name: string,
     /**
-     * The properties a filter may compare.
+     * The properties a filter may compare: their names, or everything known of them, which lets a
+     * comparison of two of them be checked for comparing the same kind of value.
      */
-    properties: string[]
+    properties: string[] | Record<string, PropertyMetadata>
 };
 
 /**
@@ -36,13 +39,17 @@ const KEY_WHERE_OPERATORS: Set<string> = new Set([
     'greaterThan',
     'greaterThanEquals',
     'lesserThan',
-    'lesserThanEquals'
+    'lesserThanEquals',
+    'after',
+    'afterOrOn',
+    'before',
+    'beforeOrOn'
 ]);
 
 /**
- * The sql of each comparison a key's filter may make.
+ * The sql of each comparison of numbers a key's filter may make.
  */
-const KEY_WHERE_COMPARISONS: Record<string, string> = {
+const KEY_WHERE_NUMBER_COMPARISONS: Record<string, string> = {
     greaterThan: '>',
     greaterThanEquals: '>=',
     lesserThan: '<',
@@ -50,10 +57,21 @@ const KEY_WHERE_COMPARISONS: Record<string, string> = {
 };
 
 /**
+ * The sql of each comparison of dates a key's filter may make.
+ */
+const KEY_WHERE_DATE_COMPARISONS: Record<string, string> = {
+    after: '>',
+    afterOrOn: '>=',
+    before: '<',
+    beforeOrOn: '<='
+};
+
+/**
  * Turns the filter a key or a check was declared with into the predicate the schema holds.
  *
  * Deliberately narrow: a property compared against a literal - equal to it, `not` it, one of a list
- * or none of it, and a number greater or lesser than it - and nothing else. A predicate lives in the
+ * or none of it, a number greater or lesser than it, and a date after or before it - or a number or a
+ * date compared with another property of the same row, and nothing else. A predicate lives in the
  * schema rather than in a query, so it cannot carry a parameter and has to be written into the
  * statement - and everything a richer filter would add (a subquery, a function, a value decided at
  * boot) is something the database has to be able to prove immutable before it will index or check
@@ -71,14 +89,16 @@ const KEY_WHERE_COMPARISONS: Record<string, string> = {
  * @throws When the filter asks for something a schema predicate cannot express.
  */
 export function keyWhereToSql<T extends BaseEntity>(owner: Newable<T> | KeyWhereOwner, where: KeyWhere): string {
-    const properties: Set<string> = new Set(
-        typeof owner === 'function' ? Object.keys(MetadataUtilities.getModelProperties(owner)) : owner.properties
-    );
+    // what is known of the properties: everything of an entity, the names alone of a table a
+    // migration describes
+    const declared: Record<string, PropertyMetadata> | ReadonlySet<string> = typeof owner === 'function'
+        ? MetadataUtilities.getModelProperties(owner)
+        : Array.isArray(owner.properties) ? new Set(owner.properties) : owner.properties;
     const branches: object[] = Array.isArray(where) ? where : [where];
 
     const parts: string[] = branches.map(branch => {
         const conditions: string[] = Object.entries(branch).map(
-            ([key, value]) => conditionToSql(owner.name, properties, key, value)
+            ([key, value]) => conditionToSql(owner.name, declared, key, value)
         );
         return conditions.length > 1 ? `(${conditions.join(' AND ')})` : conditions.join(' AND ');
     });
@@ -88,14 +108,15 @@ export function keyWhereToSql<T extends BaseEntity>(owner: Newable<T> | KeyWhere
 /**
  * Turns one property and the value it is compared against into sql.
  * @param ownerName - The entity the key is declared on, named in what it refuses.
- * @param properties - The entity's properties.
+ * @param declared - The entity's properties, or their names alone.
  * @param key - The property being compared.
  * @param value - The value it is compared against.
  * @returns The condition as sql.
  * @throws When the property is not one the entity stores, or the value is not a literal.
  */
-function conditionToSql(ownerName: string, properties: Set<string>, key: string, value: unknown): string {
-    if (!properties.has(key)) {
+function conditionToSql(ownerName: string, declared: Record<string, PropertyMetadata> | ReadonlySet<string>, key: string, value: unknown): string {
+    const metadata: PropertyMetadata | undefined = declared instanceof Set ? undefined : Reflect.get(declared, key);
+    if (declared instanceof Set ? !declared.has(key) : metadata == undefined) {
         throw new InternalError([
             `${ownerName}: The filter of a unique or check declaration names "${key}",`,
             'which the entity does not declare as a property.'
@@ -113,10 +134,11 @@ function conditionToSql(ownerName: string, properties: Set<string>, key: string,
     if (!operators.length || operators.some(([operator]) => !KEY_WHERE_OPERATORS.has(operator))) {
         throw new InternalError([
             `${ownerName}.${key}: The filter of a unique or check declaration can only compare a property against a string,`,
-            'number, boolean or null - as it is, or with "not", "oneOf", "notOneOf" or a comparison of numbers.',
+            'number, boolean or null - as it is, or with "not", "oneOf", "notOneOf", a comparison of numbers or of dates.',
             `Received ${JsonUtilities.stringify(value)}, which a schema predicate cannot be built from.`
         ]);
     }
+    PropertyReferenceUtilities.validateReferences(`${ownerName}.${key}`, metadata, value, declared);
     const conditions: string[] = operators.map(([operator, operand]) => operatorToSql(`${ownerName}.${key}`, column, operator, operand));
     return conditions.length > 1 ? `(${conditions.join(' AND ')})` : conditions.join('');
 }
@@ -131,12 +153,19 @@ function conditionToSql(ownerName: string, properties: Set<string>, key: string,
  * @throws When the operand is not one the operator can be written with.
  */
 function operatorToSql(name: string, column: string, operator: string, operand: unknown): string {
-    const comparison: string | undefined = KEY_WHERE_COMPARISONS[operator];
+    const numberComparison: string | undefined = KEY_WHERE_NUMBER_COMPARISONS[operator];
+    const dateComparison: string | undefined = KEY_WHERE_DATE_COMPARISONS[operator];
+    const comparison: string | undefined = numberComparison ?? dateComparison;
     if (comparison != undefined) {
-        if (typeof operand !== 'number') {
+        // the other column of the same row, which a comparison with null answers as one with a literal
+        if (PropertyReferenceUtilities.isReference(operand)) {
+            return `${column} ${comparison} "${operand.property}"`;
+        }
+        const fits: boolean = numberComparison == undefined ? operand instanceof Date : typeof operand === 'number';
+        if (!fits) {
             throw new InternalError([
-                `${name}: "${operator}" in the filter of a unique or check declaration compares numbers only.`,
-                `Received ${JsonUtilities.stringify(operand)}.`
+                `${name}: "${operator}" in the filter of a unique or check declaration compares ${numberComparison == undefined ? 'dates' : 'numbers'} only,`,
+                `or another property of the row. Received ${JsonUtilities.stringify(operand)}.`
             ]);
         }
         return `${column} ${comparison} ${literalToSql(operand)}`;

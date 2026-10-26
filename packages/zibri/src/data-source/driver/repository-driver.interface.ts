@@ -1,12 +1,13 @@
+import { type RemovalReach } from './removal-reach.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { type RelationTree } from '../../entity/models/entity-relations.model';
 import { type SelectionTree } from '../../entity/models/entity-selection.utilities';
-import { PaginationResult } from '../../open-api/pagination-result.model';
 import { DeepPartial } from '../../types/deep-partial.type';
 import { OmitStrict } from '../../types/omit-strict.type';
 import { AggregateFunction, AggregateRow } from '../models/aggregate.model';
 import { FindAllOptions } from '../models/options/find-all-options.model';
 import { type StreamOptions } from '../models/options/stream-options.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { type RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where } from '../models/where/where-filter.model';
@@ -52,13 +53,13 @@ export type DriverFindOptions<T extends BaseEntity> = {
      */
     select?: SelectionTree,
     /**
-     * The amount of entities to skip.
+     * The amount of entities to pass over before the first one that is returned.
      */
-    skip?: number,
+    offset?: number,
     /**
      * The maximum amount of entities to return.
      */
-    take?: number,
+    limit?: number,
     /**
      * The transaction to run the operation in.
      */
@@ -66,10 +67,10 @@ export type DriverFindOptions<T extends BaseEntity> = {
 };
 
 /**
- * The resolved options for streaming, which are the find options minus everything a stream has no
- * answer for. See {@link StreamOptions} for why each one is absent.
+ * The resolved options for streaming, which are the find options minus the window a stream has no
+ * answer for. See {@link StreamOptions} for why.
  */
-export type DriverStreamOptions<T extends BaseEntity> = OmitStrict<DriverFindOptions<T>, 'take' | 'skip' | 'order'>;
+export type DriverStreamOptions<T extends BaseEntity> = OmitStrict<DriverFindOptions<T>, 'limit' | 'offset'>;
 
 /**
  * The resolved options for taking a value over the rows a filter matches.
@@ -204,7 +205,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
 
     /**
      * Counts all entities that match the given options.
-     * @param options - The resolved find options. Relations, skip and take are ignored.
+     * @param options - The resolved find options. Relations, offset and limit are ignored.
      * @returns The amount of matching entities.
      */
     count: (options: DriverFindOptions<T>) => Promise<number>,
@@ -232,7 +233,7 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * How the two are read as of one moment is the store's business. A driver that can offer a
      * consistent read takes one; one that cannot reads as closely together as it can, and says so
      * here rather than leaving the repository above it to believe otherwise.
-     * @param options - The resolved find options. `skip` and `take` window the page; the total
+     * @param options - The resolved find options. `offset` and `limit` window the page; the total
      * counts everything the filter matches, whatever the window is.
      * @returns The window, and the total the filter matches.
      */
@@ -249,22 +250,29 @@ export interface RepositoryDriverInterface<T extends BaseEntity> {
      * How is the store's own business and a caller cannot tell which ran - a server side cursor
      * where there is one, a page at a time where there is not. What every implementation owes is
      * that only a bounded part of the result is in memory at once, and that stopping early stops the
-     * reading.
-     * @param options - The resolved stream options. There is no `take`, `skip` or `order`: a stream
-     * is the whole of what matched, and ordering it would mean holding all of it.
-     * @returns The matching entities, one at a time.
+     * reading. An `order` is given out in that order. A store that orders in this process may hold
+     * what it orders by of every matching row, the way it may hold their ids, never the rows.
+     * @param options - The resolved stream options. There is no `limit` or `offset`: a stream is the
+     * whole of what matched.
+     * @returns The matching entities, one at a time, in the order asked for if there is one.
      */
     stream: (options: DriverStreamOptions<T>) => AsyncIterable<T>,
 
     /**
-     * Removes the rows with the given ids.
+     * Removes the rows with the given ids that are within a reach, and says which those were.
      *
-     * The ids are all a store is handed: whatever else it needs to remove a row, such as the values
-     * the row holds in an index, it reads itself, as the row is stored.
+     * The reach is judged in the same window as the removal, so a row that left it after somebody
+     * read it - another caller handing it to someone else - is not removed. Rows removed wholly go
+     * every one or none: a row gone or out of reach by then keeps the others as well. Whatever else
+     * a store needs to remove a row, such as the values the row holds in an index, it reads itself,
+     * as the row is stored.
      * @param ids - The ids of the rows to remove.
+     * @param reach - What a row has to match to be removed, and whether the rows go wholly, or
+     * undefined for every row with one of the ids.
      * @param transaction - The transaction to run the operation in.
+     * @returns The ids of the rows it removed.
      */
-    remove: (ids: string[], transaction: Transaction | undefined) => Promise<void>,
+    remove: (ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined) => Promise<string[]>,
 
     /**
      * Finds the ids of the matching entities, without handing back the entities.

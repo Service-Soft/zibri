@@ -29,10 +29,12 @@ class LonelyUserRepository extends BaseUserRepository<LonelyUser>() {}
 describe('MembershipService - starting', () => {
     it('refuses to start an application with users and nowhere to read their memberships from', async () => {
         const start: Promise<StartedTestServer> = startTestServer({
-            dataSources: [createInMemoryDataSource({
-                entities: [LonelyUser, LonelyRole, CacheInvalidation],
-                repositories: [LonelyUserRepository, LonelyRoleRepository]
-            })]
+            dataSources: [
+                createInMemoryDataSource({
+                    entities: [LonelyUser, LonelyRole, CacheInvalidation],
+                    repositories: [LonelyUserRepository, LonelyRoleRepository]
+                })
+            ]
         });
 
         await expect(start).rejects.toThrow(/No membership repository is listed/);

@@ -6,9 +6,9 @@ import { createInMemoryDataSource } from 'zibri-testing';
 
 import { HttpServerLimits } from './http-server-limits.model';
 import { HttpStatus } from './http-status.enum';
+import { TestTimeouts } from '../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../__testing__/test-server/providers';
-import { TestTimeouts } from '../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
 import { defineProvider, DiProvider } from '../di/models/di-provider.model';
@@ -32,10 +32,10 @@ const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMem
  * Limits small enough to reach with a handful of headers.
  */
 const ownLimits: HttpServerLimits = {
-    requestInMs: 60000,
-    headersInMs: 15000,
-    keepAliveInMs: 5000,
-    handlerInMs: 30000,
+    requestTimeoutInMs: 60000,
+    headersTimeoutInMs: 15000,
+    keepAliveTimeoutInMs: 5000,
+    handlerTimeoutInMs: 30000,
     maxHeaderCount: 10,
     maxHeaderSizeInBytes: 2048
 };

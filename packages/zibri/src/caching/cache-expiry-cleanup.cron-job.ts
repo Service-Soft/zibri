@@ -12,7 +12,7 @@ import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
  * somebody asks for that exact key again - and a key nobody asks for twice is the ordinary case, so
  * a cache would slowly fill up with values it can no longer use and evict live ones to make room.
  *
- * Deliberately `distributed: false`, for the same reason the invalidation job is: a local cache
+ * Deliberately `runsOn: 'everyInstance'`, for the same reason the invalidation job is: a local cache
  * lives in the memory of the process holding it, so every instance has its own to sweep. A shared
  * store is swept by all of them, which costs a little and is harmless - an entry that is already
  * gone is dropped once, whichever instance gets there first.
@@ -25,7 +25,7 @@ export class CacheExpiryCleanupCronJob extends CronJob {
         // room, and reclaiming it a minute later than possible is not worth a scan a second
         cron: CronExpression.every(1, 'minutes').build(),
         runOnInit: false,
-        distributed: false
+        runsOn: 'everyInstance'
     };
 
     constructor(

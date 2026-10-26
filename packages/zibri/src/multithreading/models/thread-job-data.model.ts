@@ -40,5 +40,5 @@ export type ThreadJobData<T extends BaseThreadJobWorkerData | BaseFunctionThread
      * The timeout after which the job should exit with an error.
      * @default one hour in ms.
      */
-    timeout?: number
+    timeoutInMs?: number
 };

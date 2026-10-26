@@ -1,9 +1,9 @@
 import { CounterInterface } from './counter.interface';
 import { GaugeInterface } from './gauge.interface';
 import { HistogramInterface } from './histogram.interface';
-import { Metric } from './metric.model';
 import { MetricsCollector } from './metrics-collector.model';
 import { MetricsExposition } from './metrics-exposition.model';
+import { MetricsSnapshot } from './metrics-snapshot.model';
 import { HttpRequest } from '../http/http-request.model';
 import { HttpResponse } from '../http/http-response.model';
 
@@ -21,20 +21,6 @@ export type GaugeMetricName = string;
  * The name of a histogram metric.
  */
 export type HistogramMetricName = 'http_request_duration_ms' | string & {};
-
-/**
- * A collected snapshot of all metrics.
- */
-export type MetricsSnapshot = {
-    /**
-     * The time at which the snapshot was taken.
-     */
-    timestamp: Date,
-    /**
-     * All metrics at the timestamp.
-     */
-    metrics: Metric[]
-};
 
 /**
  * Interface for a metrics service.

@@ -20,8 +20,8 @@ class TestGcraLimiter extends GcraRateLimiter {
             name: 'test-gcra',
             capacity: CAPACITY,
             store: new InMemoryRateLimiterStore<GcraState>(),
-            maxReservationWaitMs: 5000,
-            reservationGracePeriodMs: (w) => Math.max(5000, w),
+            maxReservationWaitInMs: 5000,
+            reservationGracePeriodInMs: (w) => Math.max(5000, w),
             maxReservationCount: CAPACITY
         });
     }
@@ -91,7 +91,7 @@ describe('GcraRateLimiter', () => {
             await limiter.commitReservation(res.reservation);
             // After commit, TAT should have moved forward by 500ms (5 tokens)
             const state: GcraState | undefined = await limiter.config.store.get('k');
-            expect(state?.theoreticalArrivalTimeMs).toBe(NOW + 500);
+            expect(state?.theoreticalArrivalAtMs).toBe(NOW + 500);
             expect(state?.reservedCount).toBe(0);
             // Only 5 tokens left in the current window
             const consumeRes: RateLimitResult = await limiter.consume('k', 5);

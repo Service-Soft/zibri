@@ -1,7 +1,9 @@
 import { InternalError } from '../../error-handling/internal-error.model';
 
-// eslint-disable-next-line jsdoc/require-jsdoc
-type InvalidClassReason = 'cronJob' | 'plugin' | 'twoFactorMethod' | 'authStrategy';
+/**
+ * What a class marked with `@Injectable` was meant to be instead.
+ */
+export type InvalidClassReason = 'cronJob' | 'plugin' | 'twoFactorMethod' | 'authStrategy';
 
 const messageForReason: Record<InvalidClassReason, string> = {
     cronJob: 'Cron jobs should be registered by the cron service.',

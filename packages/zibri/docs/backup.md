@@ -5,18 +5,31 @@ A backup copies the data of a resource, such as a data source, to one or more tr
 | Export | Kind | Purpose |
 |---|---|---|
 | `Backup` | decorator | Marks a class as a backup resource, defining what should be backed up |
+| `BackupResourceMetadataInput` | type | What `@Backup` takes: the `transports` to back the resource up to, whether to `encrypt` it, and its `name` |
 | `BackupResourceInterface` | interface | Contract for extracting and restoring a resource's data |
+| `isBackupResource` | function | Checks whether a value implements `BackupResourceInterface` |
 | `BackupTransport` | decorator | Marks a class as a backup transport, listed in `backupTransports` of the application options |
+| `BackupTransportInterface`, `isBackupTransport` | interface, function | Contract for storing, listing, retrieving and deleting backups, and the check whether a value implements it |
 | `PostgresBackupScope` | type | What a backup of a Postgres data source covers: `'schema'` or `'entity-tables'`. Required with `@Backup` |
+| `ValKeyBackupMode` | type | How a backup of a Valkey data source is taken, its `backupMode`: `'snapshot'` or `'walk'`. Required with `@Backup` |
 | `BaseFsBackupTransport` | class | Backup transport that writes/reads backup data to/from the local file system |
 | `BaseS3BackupTransport` | class | Backup transport that stores backups in a bucket of an S3 compatible object storage |
 | `S3BackupTransportOptions` | interface | Where and how `BaseS3BackupTransport` stores backups |
+| `S3Credentials` | type | What requests to the bucket are signed with: an access key and its secret |
+| `S3ServerSideEncryption` | type | How the storage encrypts the backups it holds: `'bucket-default'`, `AES256` or `aws:kms` |
 | `BaseSftpBackupTransport` | class | Backup transport that stores backups in a folder on a server reached over SFTP |
 | `SftpBackupTransportOptions` | interface | Where and how `BaseSftpBackupTransport` stores backups |
 | `SftpAuthentication` | type | How `BaseSftpBackupTransport` logs in: a password, or a private key |
 | `BackupServiceInterface` | interface | Service for creating and restoring backups |
+| `BackupCreateData` | type | What `queueBackup` takes |
+| `BackupService` | class | Default implementation of `BackupServiceInterface`. Replaceable through ZIBRI_DI_TOKENS.BACKUP_SERVICE |
 | `BackupEntity` | class | Entity representing a created backup |
-| `BackupResourceEntity` | class | Entity representing a resource's data within a backup |
+| `BackupStatus` | enum | `RUNNING`, `COMPLETED` or `FAILED`: where a backup stands |
+| `BackupResourceEntity` | class | Entity representing a resource's data within a backup, with the attempts spent storing it |
+| `BackupFailedError` | error | What `waitForBackup` fails with when a resource of the backup spent its attempts. Names the resource and what it failed with |
+| `RunQueuedBackupsCronJob` | cron job | Stores the resources of queued backups that are due on this instance. Registered for you |
+| `ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS` | DI token | How many times a resource is tried before its backup fails. Defaults to 3 |
+| `ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS` | DI token | How long the first retry of a resource waits, doubling for each one after it. Defaults to one minute |
 | `ZIBRI_DI_TOKENS.BACKUP_SERVICE` | DI token | Injects `BackupServiceInterface` |
 | `BACKUP_FORMAT_VERSION` | constant | The shape backups are written in by this build |
 | `READABLE_BACKUP_FORMAT_VERSIONS` | constant | The shapes this build restores from |
@@ -32,7 +45,7 @@ A resource implements `BackupResourceInterface`, which says how its data is extr
 ### One or more backup transports
 A backup transport stores the extracted data, and fetches it again for a restore. It is a class decorated with `@BackupTransport`, listed in `ZibriApplicationOptions.backupTransports`.
 
-To write a transport of your own, see [backup transports](./generated/interfaces/backup_transports_backup-transport.interface.BackupTransportInterface.html).
+To write a transport of your own, see {@link BackupTransportInterface | backup transports}.
 
 ### The backup service
 The backup service creates and restores backups of the resources, through their transports.
@@ -42,7 +55,7 @@ This Postgres data source is backed up:
 
 ```ts
 // src/data-sources/db/db.data-source.ts
-import { Backup, BackupEntity, BackupResourceEntity, BackupTransport, BaseEntity, BaseFsBackupTransport, DataSource, FsPath, FsUtilities, Newable, OmitStrict, PostgresBackupScope, PostgresDataSource, PostgresOptions, RepositoryClass, SchemaManagement } from 'zibri';
+import { Backup, BackupEntity, BackupResourceEntity, BackupTransport, BaseEntity, BaseFsBackupTransport, DataSource, FsPath, FsUtilities, Newable, OmitStrict, PostgresBackupScope, PostgresDataSource, PostgresOptions, PostgresPooler, RepositoryClass, SchemaManagement } from 'zibri';
 
 @BackupTransport()
 class DiskBackupTransport extends BaseFsBackupTransport {
@@ -61,6 +74,7 @@ class DbDataSource extends PostgresDataSource {
         ssl: true
     };
     schemaManagement: SchemaManagement = 'synchronize';
+    pooler: PostgresPooler = 'none';
     backupScope: PostgresBackupScope = 'schema';
     entities: Newable<BaseEntity>[] = [
         BackupEntity,
@@ -220,17 +234,22 @@ ssh-keyscan -t ed25519 backups.example.com | ssh-keygen -lf -
 When the server presents a different key, the error names the key it presented, so you can compare the two.
 
 ## Creating and restoring backups
-`createBackup` takes a backup of every resource:
+`queueBackup` queues a backup of every resource and starts storing it on this instance. It answers with the backup, `RUNNING`. `waitForBackup` waits until it is `COMPLETED`:
 
 ```ts
 // src/services/backup.service.ts
-import { BackupServiceInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
+import { BackupEntity, BackupServiceInterface, inject, ZIBRI_DI_TOKENS } from 'zibri';
 
-export async function createBackup(): Promise<void> {
+export async function createBackup(): Promise<BackupEntity> {
     const backupService: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-    await backupService.createBackup();
+    const backup: BackupEntity = await backupService.queueBackup();
+    return await backupService.waitForBackup(backup);
 }
 ```
+
+Each resource is stored on its own, by whichever instance claims it. One whose transport fails is tried again after `ZIBRI_DI_TOKENS.BACKUP_RETRY_DELAY_IN_MS`, one minute by default, twice as long after each further attempt. Once a resource spent `ZIBRI_DI_TOKENS.BACKUP_MAX_ATTEMPTS`, 3 by default, the backup is `FAILED`, the resource keeps what it failed with as its `error`, and `waitForBackup` fails with a `BackupFailedError` naming it. A failed backup stays recorded until you `delete` it.
+
+A backup is taken on whichever instance claims each resource, so a resource of your own reads the same data on every instance, as a data source does.
 
 `restore` restores one:
 
@@ -314,8 +333,10 @@ and start them again once it is done.
 When the application stops while a backup or restore is running, it waits for it for
 `ZIBRI_DI_TOKENS.BACKUP_SHUTDOWN_WAIT_IN_MS`, 0 by default, and then stops it:
 
-- A backup stops and is deleted, from every transport and from the database. `createBackup` fails
-  with an error saying so.
+- A backup hands the resource it is storing back, without counting the attempt, and another instance
+  stores it and what is left. `waitForBackup` on the stopping instance fails with an error saying so.
+  An instance that is killed hands nothing back: another instance takes its resource over once its
+  claim lapses, a minute later.
 - A restore stops before its next resource and puts back every resource it already applied, the same
   way as when one of them fails to apply. `restore` fails with an error saying so.
 
@@ -374,6 +395,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `BackupEntity`, `BackupResourceEntity` | A backup resource is registered |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Data sources](./data-source.md) — `PostgresDataSource` and other data sources that back up automatically

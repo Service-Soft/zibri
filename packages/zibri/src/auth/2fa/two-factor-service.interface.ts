@@ -3,6 +3,7 @@ import { TwoFactorLock } from './two-factor-failure-limit.model';
 import { TwoFactorMethods } from './two-factor-methods.model';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { UserAccount } from '../models/user-account.model';
 
 /**
@@ -16,51 +17,51 @@ export interface TwoFactorServiceInterface {
     /**
      * Requests the registration of the given two factor method for the given user.
      */
-    requestRegisterTwoFactorMethodForUser: <
+    requestTwoFactorRegistration: <
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        TwoFactorRequestRegisterResult
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        TwoFactorRegistrationRequestResult
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult, unknown>,
-        data: TwoFactorRequestRegisterData
-    ) => Promise<TwoFactorRequestRegisterResult>,
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        data: TwoFactorRegistrationRequestData
+    ) => Promise<TwoFactorRegistrationRequestResult>,
     /**
-     * Starts the second factor of an operation of the given user with the given method: sends them a
+     * Requests the second factor of an operation of the given user with the given method: sends them a
      * code, or answers with a challenge for their device.
      */
-    startSecondFactor: <
+    requestSecondFactor: <
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        SecondFactorStartType
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        SecondFactorRequestType
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, SecondFactorStartType>
-    ) => Promise<SecondFactorStartType>,
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, SecondFactorRequestType>
+    ) => Promise<SecondFactorRequestType>,
     /**
      * Confirms the registration of the given two factor method for the given user.
      */
-    confirmRegisterTwoFactorMethodForUser: <
+    confirmTwoFactorRegistration: <
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>,
-        data: TwoFactorConfirmRegisterData
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>,
+        data: TwoFactorRegistrationConfirmData
     ) => Promise<void>,
     /**
-     * Removes the given two factor method from the given user.
+     * Removes the registration of the given two factor method from the given user.
      */
-    unregisterTwoFactorMethodForUser: <
+    removeTwoFactorRegistration: <
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>
     ) => Promise<void>,
     /**
      * Whether the given user has a confirmed registration of any of the allowed methods.
@@ -109,5 +110,10 @@ export interface TwoFactorServiceInterface {
      * What an application's support or admin route calls for a user who lost their device or locked
      * themselves out.
      */
-    resetSecondFactors: (user: UserAccount) => Promise<void>
+    resetSecondFactors: (user: UserAccount) => Promise<void>,
+    /**
+     * Deletes every row of the given users' second factors, of every method, and their failure
+     * streaks. Called in the transaction that deletes the users for good.
+     */
+    deleteUserRows: (userIds: string[], transaction: Transaction) => Promise<void>
 }

@@ -45,7 +45,7 @@ export class WebsocketMessageCleanupCronJob extends CronJob {
         const [newestExpired] = await this.repository.findAll({
             where: { createdAt: { before: new Date(Date.now() - this.retentionInMs) } },
             order: { seq: 'DESC' },
-            take: 1,
+            limit: 1,
             acrossTenants: true
         });
         if (newestExpired == undefined) {

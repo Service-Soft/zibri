@@ -9,21 +9,26 @@ The default implementation uses OpenTelemetry.
 | Export | Kind | Purpose |
 |---|---|---|
 | `TracingUtilities` | class | `trace` to record your own work as a span, `getCurrentSpan` and `getCurrentTraceContext` to read what is running |
+| `TraceOptions` | type | What `trace` takes besides the name: the span's `kind`, its `attributes`, its `parent`, or `root` to start a trace of its own |
 | `TracerInterface` | interface | What records spans. Implement it to record through something other than OpenTelemetry |
 | `TraceSpanInterface` | interface | One piece of work: `recordAttribute`, `recordAttributes`, `recordError`, `updateName`, `end` |
 | `TraceSpanContext` | type | What identifies a span and the trace it belongs to |
 | `TraceSpanKind` / `TraceSpanStatus` | enum | What kind of work a span covers and how it ended |
 | `TraceSpanAttributes` | type | What a span records besides its name and duration |
+| `TraceSpanAttributeName`, `TraceSpanAttributeValue` | type, type | The name of an attribute, with the ones the framework records suggested, and what it holds: a string, number or boolean, or an array of one of them |
 | `TraceSpanRecord` | class | One finished span, as it is read back |
 | `TraceBufferInterface` | interface | Holds the spans recorded most recently: `findRecentSpans`, `findSpansOfTrace` |
 | `InMemoryTraceBuffer` | class | The buffer registered by default |
 | `ZIBRI_DI_TOKENS.TRACE_BUFFER` | DI token | Holds more or fewer spans |
 | `ZIBRI_DI_TOKENS.TRACE_EXPORTER` | DI token | Sends finished spans somewhere |
+| `OpenTelemetrySpanExporter` | type | What `ZIBRI_DI_TOKENS.TRACE_EXPORTER` holds, as `otlpTraceExporter` returns it |
 | `otlpTraceExporter` | function | An exporter that sends them to a collector |
+| `OtlpTraceExporterOptions` | type | Where `otlpTraceExporter` sends spans and how: the collector `url`, its `headers`, `timeoutInMs` and `concurrencyLimit` |
 | `OpenTelemetryTracer` | class | The tracer registered by default |
 | `StartSpanOptions` | type | What a tracer is handed to start a span: its `kind`, its `parent` and its `attributes` |
 | `ZIBRI_DI_TOKENS.TRACER` | DI token | Overrides the tracer |
 | `TraceContextUtilities` | class | Reads and writes the `traceparent` and `tracestate` headers |
+| `TraceContextHeaders` | type | The headers of a request as `TraceContextUtilities` reads them, a header sent twice as an array |
 
 ## Where spans go
 Into memory, and nowhere else until you say otherwise. The trace buffer keeps the most recent thousand spans, so an application answers what it has been doing out of a bounded amount of its own memory, with nothing deployed beside it.
@@ -100,8 +105,8 @@ npm i @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources
 | Option | Holds |
 |---|---|
 | `url` | The collector endpoint, including its path |
-| `headers` | Sent with each export, which is where a hosted collector's API key goes |
-| `timeoutMs` | How long one export may take. 10 seconds by default |
+| `headers` | Sent with each export, which is where the key of a hosted collector goes |
+| `timeoutInMs` | How long one export may take. 10 seconds by default |
 | `concurrencyLimit` | How many exports may be in flight at once. 30 by default |
 
 Exported spans are reported under the application's own `name` and `version`, so a backend holding several services tells them apart.
@@ -117,7 +122,7 @@ Sampling and batching are set through the OpenTelemetry SDK's own environment va
 | A websocket message it handles | `SERVER` | `ChatController.onMessage` | Per message, as its own trace |
 | A cron tick | `INTERNAL` | the job's name | Per run, as its own trace |
 | A pass over the email queue | `PRODUCER` | `sendQueuedEmails` | Per pass that found something, as its own trace |
-| A backup or a restore | `INTERNAL` | `createBackup` | Per run, as its own trace |
+| A backup or a restore | `INTERNAL` | `runQueuedBackups`, `restore` | Per run, as its own trace |
 | A thread job | `CONSUMER` | `runThreadJob` | Per run, under the trace it was queued in |
 
 Background work starts a trace of its own. A cron tick that fires while a request is in flight is not part of that request's trace.

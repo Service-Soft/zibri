@@ -6,17 +6,17 @@ import { TestTimeouts } from '../../__testing__/constants';
 import { createTestDataSource, defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { type HashString } from '../../auth/hash/hash.utilities';
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { ChangeSetType } from '../../change-sets/models/change-set-type.enum';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { inject } from '../../di/inject.function';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
 import { JsonUtilities } from '../../utilities/json.utilities';
+import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
+import { ChangeSetType } from '../change-sets/models/change-set-type.enum';
+import { ChangeSet } from '../change-sets/models/change-set.model';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { PostgresDataSource } from '../data-sources/postgres/postgres-typeorm-data-source.model';
 import { Repository } from '../repository/repository';
 
@@ -190,10 +190,9 @@ describe('before‑save hooks', () => {
                 password: 'a-password'
             });
 
-            // a delete loads the row and passes it through beforeSave, so that excluded properties
-            // are restored and encryption is put back for the beforeReturn that follows. What it
-            // must not do is hash: the loaded password is already a hash, and hashing has no read
-            // half to undo it.
+            // a delete loads the row and passes it through beforeDelete, so that excluded properties
+            // are restored for the beforeReturn that follows. What it must not do is hash: the
+            // loaded password is already a hash, and hashing has no read half to undo it.
             const deleted: HookTestEntity = await repo.deleteById(entity.id);
             // decrypted on the way out, which only works because the delete path re-encrypted first
             expect(deleted.secretValue).toBe('a-secret');

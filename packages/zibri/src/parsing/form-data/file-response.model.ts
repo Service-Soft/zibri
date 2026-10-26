@@ -35,7 +35,7 @@ type BaseFileResponseData = {
 /**
  * Data of a FileResponse that returns a file from a path.
  */
-type PathFileResponseData = BaseFileResponseData & {
+export type PathFileResponseData = BaseFileResponseData & {
     /**
      * The path of the file to return.
      */
@@ -50,7 +50,7 @@ type PathFileResponseData = BaseFileResponseData & {
 /**
  * Data of a file response that returns a file from a stream.
  */
-type StreamFileResponseData = BaseFileResponseData & {
+export type StreamFileResponseData = BaseFileResponseData & {
     /**
      * The stream that provides the file content.
      */

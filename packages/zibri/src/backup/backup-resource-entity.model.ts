@@ -1,15 +1,17 @@
 import { BackupEntity } from './backup-entity.model';
 import { type EncryptionString } from '../auth/encryption/encryption.utilities';
-import { BaseEntity } from '../entity/base-entity.model';
 import { Entity } from '../entity/decorators/entity.decorator';
 import { Property } from '../entity/decorators/property.decorator';
+import { QueuedWorkEntity } from '../queue/queued-work-entity.model';
 import { OmitStrict } from '../types/omit-strict.type';
 
 /**
- * A single resource entity.
+ * A single resource entity: one resource of a backup, stored by whichever instance claims it. Its
+ * `attempts` count the stores that failed, `nextAttemptAt` says when the next is due, and `error`
+ * holds what the last one failed with.
  */
 @Entity({ tenant: 'shared', allowOrphan: true })
-export class BackupResourceEntity extends BaseEntity {
+export class BackupResourceEntity extends QueuedWorkEntity {
     /**
      * The name of the resource.
      */
@@ -65,5 +67,5 @@ export class BackupResourceEntity extends BaseEntity {
  */
 export type BackupResourceEntityCreateData = OmitStrict<
     BackupResourceEntity,
-    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'checksum' | 'encryptedKey'
+    'id' | 'completed' | 'backup' | 'backupId' | 'size' | 'checksum' | 'encryptedKey' | 'attempts' | 'nextAttemptAt' | 'error'
 >;

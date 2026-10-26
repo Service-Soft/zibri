@@ -11,6 +11,7 @@ import { BaseFsBackupTransport } from './transports/fs.backup-transport';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { PostgresBackupScope } from '../data-source/data-sources/postgres/postgres-backup-scope.model';
+import { PostgresPooler } from '../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../data-source/models/schema-management.model';
@@ -64,6 +65,7 @@ class DbDataSource extends PostgresDataSource {
     entities: Newable<BaseEntity>[] = [...defaultTestServerEntities, Item, BackupResourceEntity, BackupEntity];
     repositories: RepositoryClass[] = defaultTestServerRepositories;
     schemaManagement: SchemaManagement = 'synchronize';
+    readonly pooler: PostgresPooler = 'none';
 }
 
 describe('Create and restore postgres backup', () => {
@@ -90,7 +92,7 @@ describe('Create and restore postgres backup', () => {
 
     it('should create and restore a backup', async () => {
         expect((await itemRepository.findAll()).length).toEqual(1);
-        await backupService.createBackup();
+        await backupService.waitForBackup(await backupService.queueBackup());
         expect((await itemRepository.findAll()).length).toEqual(1);
         await itemRepository.deleteAll({});
         expect((await itemRepository.findAll()).length).toEqual(0);
@@ -105,7 +107,7 @@ describe('Create and restore postgres backup', () => {
     }, 15000);
 
     it('deletes the stored resource file for a given backup', async () => {
-        await backupService.createBackup({ name: 'delete-test-backup' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'delete-test-backup' }));
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'delete-test-backup' },
             relations: ['resources']
@@ -123,7 +125,7 @@ describe('Create and restore postgres backup', () => {
 
     it('deletes the whole backup, so that syncing does not bring it back', async () => {
         const backupResourceRepository: Repository<BackupResourceEntity> = inject(repositoryTokenFor(BackupResourceEntity));
-        await backupService.createBackup({ name: 'deleted-for-good' });
+        await backupService.waitForBackup(await backupService.queueBackup({ name: 'deleted-for-good' }));
         const [backup]: BackupEntity[] = await backupRepository.findAll({
             where: { name: 'deleted-for-good' },
             relations: ['resources']

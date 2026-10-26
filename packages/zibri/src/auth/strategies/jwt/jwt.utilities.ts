@@ -4,7 +4,7 @@ import { createHash, createPrivateKey, createPublicKey, createSecretKey, JsonWeb
 // loaded through optionalPeer where a token is signed or verified
 import type { JWK, JWTPayload, JWTVerifyResult } from 'jose';
 
-import { EncodedJwt } from './encoded-jwt-access-token.model';
+import { EncodedJwt } from './encoded-jwt.model';
 import { Jwk } from './jwk.model';
 import { JwtAssertionVerifyOptions } from './jwt-assertion-verify-options.model';
 import { JwtAsymmetricAlgorithm } from './jwt-asymmetric-algorithm.type';
@@ -258,7 +258,7 @@ export abstract class JwtUtilities {
                 algorithms: options.algorithms,
                 issuer: options.issuer,
                 audience: options.audiences,
-                // the subject is who the token signs in as, which a token without one names nobody
+                // the subject is who the token logs in as, which a token without one names nobody
                 requiredClaims: ['exp', 'sub']
             });
             return {

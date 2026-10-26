@@ -1,5 +1,5 @@
 /**
- * The account the application binds to a directory with, to find the entry a user signs in as.
+ * The account the application binds to a directory with, to find the entry a user logs in as.
  */
 export type LdapServiceAccount = {
     /**

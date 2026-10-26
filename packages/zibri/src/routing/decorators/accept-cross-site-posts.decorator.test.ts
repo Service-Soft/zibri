@@ -16,7 +16,7 @@ describe('AcceptCrossSitePosts', () => {
     });
 
     it('refuses an entry that is not an origin', () => {
-        expect(() => AcceptCrossSitePosts({ acceptedOrigins: ['https://provider.example.com/sign-in'] })).toThrow(/is not an origin/);
+        expect(() => AcceptCrossSitePosts({ acceptedOrigins: ['https://provider.example.com/login'] })).toThrow(/is not an origin/);
         expect(() => AcceptCrossSitePosts({ acceptedOrigins: ['*'] })).toThrow(/is not an origin/);
         expect(() => AcceptCrossSitePosts({ acceptedOrigins: ['null'] })).toThrow(/is not an origin/);
     });

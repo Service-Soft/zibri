@@ -568,8 +568,8 @@
         <source>A code was sent a moment ago. Wait before asking for another one.</source>
         <note>../zibri/src/auth/2fa/methods/code/code.two-factor-method.ts:287</note>
       </trans-unit>
-      <trans-unit id="A connection that does not sign in has to ask for scopes." xml:space="preserve">
-        <source>A connection that does not sign in has to ask for scopes.</source>
+      <trans-unit id="A connection that does not log in has to ask for scopes." xml:space="preserve">
+        <source>A connection that does not log in has to ask for scopes.</source>
         <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:314</note>
       </trans-unit>
       <trans-unit id="A currency code is required." xml:space="preserve">
@@ -980,8 +980,8 @@
         <source>No item matches the filter of the path.</source>
         <note>../zibri/src/auth/scim/scim-patch.utilities.ts:245</note>
       </trans-unit>
-      <trans-unit id="No user is linked to this sign-in." xml:space="preserve">
-        <source>No user is linked to this sign-in.</source>
+      <trans-unit id="No user is linked to this login." xml:space="preserve">
+        <source>No user is linked to this login.</source>
         <note>../zibri/src/auth/authenticators/passkey/passkey.authenticator.ts:177, ../zibri/src/auth/authenticators/passkey/passkey.service.ts:302, ../zibri/src/auth/authenticators/ldap/base-ldap.authenticator.ts:720, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:519, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1160</note>
       </trans-unit>
       <trans-unit id="No valid context" xml:space="preserve">
@@ -1292,9 +1292,17 @@
         <source>The JSON Web Key Set of an api key has to be at an https url.</source>
         <note>../zibri/src/auth/strategies/api-key/api-key.service.ts:332</note>
       </trans-unit>
+      <trans-unit id="The login could not be completed." xml:space="preserve">
+        <source>The login could not be completed.</source>
+        <note>../zibri/src/auth/authenticators/federated/federated-login.error.ts:35</note>
+      </trans-unit>
       <trans-unit id="The login is bound to a DPoP key, which the request proves no hold of." xml:space="preserve">
         <source>The login is bound to a DPoP key, which the request proves no hold of.</source>
         <note>../zibri/src/auth/strategies/jwt/jwt.auth-strategy.ts:469</note>
+      </trans-unit>
+      <trans-unit id="The login was started in another browser." xml:space="preserve">
+        <source>The login was started in another browser.</source>
+        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1132</note>
       </trans-unit>
       <trans-unit id="The logout could not be verified." xml:space="preserve">
         <source>The logout could not be verified.</source>
@@ -1468,14 +1476,6 @@
         <source>The scopes <x id="notAllowed.join(', ')" equiv-text="{notAllowed.join(', ')}"/> cannot be asked for.</source>
         <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:283, ../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:311</note>
       </trans-unit>
-      <trans-unit id="The sign-in could not be completed." xml:space="preserve">
-        <source>The sign-in could not be completed.</source>
-        <note>../zibri/src/auth/authenticators/federated/federated-sign-in.error.ts:35</note>
-      </trans-unit>
-      <trans-unit id="The sign-in was started in another browser." xml:space="preserve">
-        <source>The sign-in was started in another browser.</source>
-        <note>../zibri/src/auth/authenticators/federated/base-federated.authenticator.ts:1132</note>
-      </trans-unit>
       <trans-unit id="The sortOrder is ascending or descending." xml:space="preserve">
         <source>The sortOrder is ascending or descending.</source>
         <note>../zibri/src/auth/scim/scim-where.utilities.ts:704</note>
@@ -1600,8 +1600,8 @@
         <source>Timed out</source>
         <note>../zibri/src/utilities/promise.utilities.ts:22, ../zibri/src/utilities/promise.utilities.ts:22</note>
       </trans-unit>
-      <trans-unit id="Timed out after {timeoutMs} ms waiting for reservation {reservation.id}" xml:space="preserve">
-        <source>Timed out after <x id="timeoutMs" equiv-text="{timeoutMs}"/> ms waiting for reservation <x id="reservation.id" equiv-text="{reservation.id}"/></source>
+      <trans-unit id="Timed out after {timeoutInMs} ms waiting for reservation {reservation.id}" xml:space="preserve">
+        <source>Timed out after <x id="timeoutInMs" equiv-text="{timeoutInMs}"/> ms waiting for reservation <x id="reservation.id" equiv-text="{reservation.id}"/></source>
         <note>../zibri/src/rate-limiting/limiter/base-rate-limiter.model.ts:138</note>
       </trans-unit>
       <trans-unit id="Tokens are issued for the client_credentials grant only." xml:space="preserve">
@@ -1688,8 +1688,8 @@
         <source>Whether a user is active is true or false.</source>
         <note>../zibri/src/auth/scim/scim.service.ts:1453</note>
       </trans-unit>
-      <trans-unit id="Without a codeChallenge the sign-in logs in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">
-        <source>Without a codeChallenge the sign-in logs in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.</source>
+      <trans-unit id="Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code." xml:space="preserve">
+        <source>Without a codeChallenge the user is logged in on the redirect back from the provider, which only a strategy whose login goes out with the response can do, such as cookies. Send a codeChallenge to have the login handed over by code.</source>
         <note>../zibri/src/auth/auth-controller/auth-controller.model.ts:932</note>
       </trans-unit>
       <trans-unit id="Wrong pin." xml:space="preserve">

@@ -5,8 +5,8 @@ import { RateLimitStateEntity } from './rate-limit-state-entity.model';
 import { InProcessRateLimiterLock } from './rate-limiter-lock.interface';
 import { BaseRateLimitState } from './rate-limiter-store.interface';
 import { RepositoryRateLimiterStore, RepositoryRateLimiterStoreOptions } from './repository.rate-limiter-store';
-import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { TestTimeouts } from '../../__testing__/constants';
+import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
@@ -103,12 +103,12 @@ describe('RepositoryRateLimiterStore', () => {
 
         it('refuses a key it has never seen once it holds maxKeys, says so once, and keeps counting the keys it holds', async () => {
             // a caller cycling addresses used to grow the table at request rate, a row per address
-            const store: RepositoryRateLimiterStore<CountingState> = createStore('sign-ups', { maxKeys: 2 });
+            const store: RepositoryRateLimiterStore<CountingState> = createStore('registrations', { maxKeys: 2 });
             const logged: jest.Spied<LoggerInterface['error']> = jest.spyOn(inject(ZIBRI_DI_TOKENS.LOGGER), 'error');
             await countOn(store, 'address:1');
             await countOn(store, 'address:2');
 
-            await expect(countOn(store, 'address:3')).rejects.toThrow('The rate limiter store "sign-ups" is full at 2 keys.');
+            await expect(countOn(store, 'address:3')).rejects.toThrow('The rate limiter store "registrations" is full at 2 keys.');
             await expect(countOn(store, 'address:4')).rejects.toThrow('is full at 2 keys');
 
             expect(logged).toHaveBeenCalledTimes(1);

@@ -2,8 +2,8 @@ import { PasskeyAuthenticationResponse } from './passkey-authentication-response
 import { Property } from '../../../entity/decorators/property.decorator';
 
 /**
- * The ticket a sign-up with a passkey continues with, which the login it ends in spends. A body the
- * application's own sign-up route can take as it is.
+ * The ticket a registration with a passkey continues with, which the login it ends in spends. A body
+ * the application's own registration route can take as it is.
  */
 export class PasskeyTicketCredentials {
     /**
@@ -14,7 +14,7 @@ export class PasskeyTicketCredentials {
 }
 
 /**
- * What logs in with a passkey: the browser's answer to a sign-in challenge, or the ticket of a sign-up.
+ * What logs in with a passkey: the browser's answer to a login challenge, or the ticket of a registration.
  */
 export type PasskeyCredentials = {
     /**

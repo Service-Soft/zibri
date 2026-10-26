@@ -32,5 +32,5 @@ export interface SftpBackupTransportOptions {
     /**
      * How long connecting and logging in may take, in milliseconds. Defaults to 20 seconds.
      */
-    readonly connectTimeoutMs?: number
+    readonly connectTimeoutInMs?: number
 }

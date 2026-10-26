@@ -40,7 +40,7 @@ export type HttpClientOptions = {
      * line of the response does not end it.
      * @default 5000
      */
-    defaultTimeoutMs: number,
+    defaultTimeoutInMs: number,
     /**
      * The most a response body may buffer when the request declared no response model to derive a
      * size from.
@@ -70,7 +70,7 @@ export type HttpClientOptions = {
     dispatcher?: HttpClientDispatcher,
     /**
      * When requests to an origin that keeps failing stop being sent, or false to always send them.
-     * @default { failuresToOpen: 5, openForMs: 30000 }
+     * @default { failuresToOpen: 5, openForInMs: 30000 }
      */
     circuitBreaker: HttpClientCircuitBreakerOptions | false
 };

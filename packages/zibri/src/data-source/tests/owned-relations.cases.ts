@@ -2,10 +2,6 @@
 import { afterEach, describe, expect, it } from '@jest/globals';
 import { type Relation } from 'typeorm';
 
-import { ChangeSetType } from '../../change-sets/models/change-set-type.enum';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
@@ -14,6 +10,10 @@ import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { ForbiddenError } from '../../error-handling/errors/forbidden.error';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { ChangeSetType } from '../change-sets/models/change-set-type.enum';
+import { ChangeSet } from '../change-sets/models/change-set.model';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { Repository } from '../repository/repository';
 
 /**
@@ -48,8 +48,9 @@ export class Household extends BaseEntity {
     @Property.oneToMany({ target: () => Guest, inverseSide: 'household' })
     guests!: Guest[];
 
-    // a soft deleting entity not removed along with the household
-    @Property.oneToMany({ target: () => Lodger, inverseSide: 'household', cascade: ['insert', 'update'] })
+    // a soft deleting entity not removed along with the household, whose deleted rows a write giving
+    // them restores
+    @Property.oneToMany({ target: () => Lodger, inverseSide: 'household', cascade: ['insert', 'update'], deletedRows: 'restore' })
     lodgers!: Lodger[];
 }
 
@@ -492,6 +493,59 @@ export function describeOwnedRelations(dataSourceName: string, repositoriesOf: (
             expect(stops.map(s => s.name)).toEqual(['Rome']);
             expect(await repositoriesOf().tickets.count({ where: { stopId: rome?.id } })).toBe(1);
             expect(await repositoriesOf().stops.count({ where: { id: paris?.id }, deleted: 'only' })).toBe(1);
+        });
+
+        // 01 §D12: a soft deleted row given by its id answered a 404 that named no reason
+        it('refuses a soft deleted row given by its id, naming it, and writes nothing of the save', async () => {
+            const trip: Trip = await repositoriesOf().trips.create({ name: 'refused', stops: [{ name: 'Rome' }, { name: 'Paris' }] });
+            const rome: Stop | undefined = trip.stops.find(s => s.name === 'Rome');
+            const paris: Stop | undefined = trip.stops.find(s => s.name === 'Paris');
+            await repositoriesOf().stops.deleteById(paris?.id ?? '');
+
+            const refused: Promise<Trip> = repositoriesOf().trips.updateById(trip.id, {
+                name: 'renamed',
+                stops: [{ id: rome?.id, name: 'Roma' }, { id: paris?.id }]
+            });
+            await expect(refused).rejects.toThrow(ConflictError);
+            await expect(refused).rejects.toThrow(`The Stop with id "${paris?.id}" is deleted.`);
+
+            expect((await repositoriesOf().trips.findById(trip.id)).name).toBe('refused');
+            expect((await repositoriesOf().stops.findById(rome?.id ?? '')).name).toBe('Rome');
+            expect((await repositoriesOf().stops.findById(paris?.id ?? '', { deleted: 'include' })).deleted).toBe(true);
+        });
+
+        it('restores a soft deleted row given by its id when the write says so, with the rows deleted along with it', async () => {
+            const trip: Trip = await repositoriesOf().trips.create({ name: 'restoring', stops: [{ name: 'Paris', tickets: [{ seat: '2B' }] }] });
+            const [paris] = trip.stops;
+            await repositoriesOf().stops.deleteById(paris?.id ?? '');
+
+            await repositoriesOf().trips.updateById(
+                trip.id,
+                { stops: [{ id: paris?.id, name: 'Paris again' }] },
+                { deletedRelatedRows: 'restore' }
+            );
+
+            const stops: Stop[] = await repositoriesOf().stops.findAll({ where: { tripId: trip.id } });
+            expect(stops.map(s => [s.name, s.deleted, s.deletedWith])).toEqual([['Paris again', false, null]]);
+            expect(await repositoriesOf().tickets.count({ where: { stopId: paris?.id } })).toBe(1);
+        });
+
+        it('restores a soft deleted row given by its id to a relation declaring so, unless the write refuses it', async () => {
+            const household: Household = await repositoriesOf().households.create({ name: 'returning', lodgers: [{ name: 'Ada' }] });
+            const [ada] = household.lodgers;
+            await repositoriesOf().lodgers.deleteById(ada?.id ?? '');
+
+            const refused: Promise<Household> = repositoriesOf().households.updateById(
+                household.id,
+                { lodgers: [{ id: ada?.id }] },
+                { deletedRelatedRows: 'refuse' }
+            );
+            await expect(refused).rejects.toThrow(ConflictError);
+            await expect(refused).rejects.toThrow(`The Lodger with id "${ada?.id}" is deleted.`);
+            await repositoriesOf().households.updateById(household.id, { lodgers: [{ id: ada?.id }] });
+
+            const restored: Lodger = await repositoriesOf().lodgers.findById(ada?.id ?? '');
+            expect([restored.deleted, restored.householdId]).toEqual([false, household.id]);
         });
 
         it('deletes the rows of its relations for good along with a row that soft deletes, when it is hard deleted', async () => {

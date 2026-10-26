@@ -6,19 +6,35 @@ A cache keeps what a method returned, so a repeated call is answered without run
 |---|---|---|
 | `CacheInvalidation` | entity | How instances tell each other about an invalidation |
 | `ZIBRI_DI_TOKENS.CACHE_INVALIDATION_RETENTION_IN_MS` | DI token | How long those rows are kept. Defaults to one minute |
+| `CacheInvalidationCronJob` | cron job | Applies the invalidations other instances published to the caches of this one. Registered for you |
 | `Cache` | decorator | Registers a class as a cache |
 | `Cached` | decorator | Reads from (and fills) a cache around a method |
 | `CacheDelete` | decorator | Deletes a cache entry after a method runs |
 | `CacheInvalidate` | decorator | Invalidates cache entries after a method runs |
 | `CacheWrite` | decorator | Writes through a cache around a method |
+| `CacheOperation` | enum | The operations of a cache: `WRAP`, `WRITE`, `DELETE` and `INVALIDATE` |
+| `CacheInterface`, `AnyCache`, `isCache` | interface, type, function | What a cache implements, any cache, and the check whether a value is one |
 | `WriteThroughReadThroughCache` | class | Cache base class combining write-through and read-through strategies |
+| `WriteAroundReadThroughCache`, `WriteBehindReadThroughCache`, `WriteInvalidateReadThroughArgsOnlyCache`, `WriteInvalidateReadThroughWithResultCache` | class, class, class, class | Cache base classes that read through the cache and, on a write, bypass it, fill it after answering, or delete the entry keyed by the arguments or by the result |
+| `WriteThroughReadAsideCache`, `WriteAroundReadAsideCache`, `WriteBehindReadAsideCache`, `WriteInvalidateReadAsideArgsOnlyCache`, `WriteInvalidateReadAsideWithResultCache` | class, class, class, class, class | Cache base classes whose reads check the cache without filling it, and whose writes fill it, bypass it, fill it after answering, or delete the entry keyed by the arguments or by the result |
+| `CacheWrapOptions`, `CacheWrapWriteOptionsWithResult`, `CacheWrapWriteOptionsArgsOnly`, `CacheWrapDeleteOptions`, `CacheWrapInvalidateOptions`, `CacheSetDirectOptions` | type, type, type, type, type, type | The options of a read, of a write with or without its result, of a delete, of an invalidation, and of a value set directly |
+| `CacheKeyProvider`, `ResultCacheKeyProvider`, `CacheTtlProvider`, `ResultCacheTtlProvider`, `CacheTagsProvider`, `ResultCacheTagsProvider` | type, type, type, type, type, type | The key, time to live and tags of an entry, from the arguments of a method or from its result and arguments |
+| `OnInvalidationFailure` | type | What a cache does when an invalidation fails: `'bestEffort'` or `'throw'`. Defaults to `'bestEffort'` |
+| `CacheTagMatcher`, `matchesTag`, `matchesAnyTag` | type, function, function | A tag as a string, a regular expression or a function, and the checks whether it matches a tag or any of several |
 | `MultiTierCache` | class | Combines multiple caches into tiers, checked in order |
+| `MultiWrapOptions`, `MultiWrapWriteOptions` | type, type | The options of a read and of a write through a `MultiTierCache`, per tier |
+| `CacheStoreInterface`, `CacheStoreConfig`, `RemoveOnOverflowStrategy` | interface, type, type | What a cache store implements, its `maxEntries` and `maxBytes`, and which entry it removes on overflow: the least or most recently used, the least frequently used, or the first in |
+| `CachedValue` | class | An entry of a store: the value, its tags, when it was created and when it expires |
 | `InMemoryCacheStore` | class | In-memory cache store implementation |
+| `Bytes` | class | Sizes in bytes, such as `5 * Bytes.MB`, for a store's `maxBytes` |
+| `DoublyLinkedList`, `LinkedListNode` | class, class | A list that removes any node and moves one to its end at constant cost, the order an in-memory store evicts in |
 | `ValKeyCacheStore` | class | Cache store shared by every instance of an app |
+| `ValKeyCacheStoreConfig`, `CacheModel` | type, type | What a `ValKeyCacheStore` is built with. Its `model` is the class the values are read back as, or `'plain'` for values without one, and is required |
 | `CacheExpiryCleanupCronJob` | cron job | Gives back the room held by values whose time to live has run out. Registered for you |
-| `cacheKeyOf` | function | The value a store keys an entry by, holding the active tenant |
+| `cacheKeyOf` | function | The value a store keys an entry by, holding the active [tenant](./glossary.md#tenant) |
 | `SelfDescribing` | type | A value that names its class in a `className` property, so a shared store can read it back as that class |
 | `CacheServiceInterface` | interface | Service tracking the registered caches |
+| `CacheService` | class | The default `CacheServiceInterface`. Replaceable through `ZIBRI_DI_TOKENS.CACHE_SERVICE` |
 | `ZIBRI_DI_TOKENS.CACHE_SERVICE` | DI token | Injects `CacheServiceInterface` |
 | `ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT` | DI token | Injects the current request context, for building cache keys for example |
 
@@ -88,7 +104,7 @@ property.
 import { BaseTenantEntity, BigNumber, Entity, Property, SelfDescribing } from 'zibri';
 
 @Entity()
-export class Invoice extends BaseTenantEntity implements SelfDescribing {
+export class Invoice extends BaseTenantEntity() implements SelfDescribing {
     @Property.string({ exclude: true })
     readonly className: 'Invoice' = 'Invoice';
 
@@ -249,6 +265,8 @@ Your data source declares these entities:
 | Entity | Needed when |
 |---|---|
 | `CacheInvalidation` | A cache is registered, or the application has roles |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Replication](./replication.md) — keeping a local cache tier coherent across instances

@@ -5,7 +5,7 @@ import { TsxComponent } from '../../../tsx/tsx-component.model';
 /**
  * Properties of a mailing list unsubscribe confirmation page component.
  */
-type MailingListUnsubscribeConfirmationPageTemplateProps = {
+export type MailingListUnsubscribeConfirmationPageTemplateProps = {
     /**
      * The subscriber the unsubscribe link was sent to.
      */

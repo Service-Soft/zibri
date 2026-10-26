@@ -1,8 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
-import { createInMemoryDataSource } from 'zibri-testing';
+import { createInMemoryDataSource, RoundTripCounter } from 'zibri-testing';
 
 import { type WebsocketServiceInterface } from './websocket-service.interface';
+import { TestTimeouts } from '../../__testing__/constants';
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
 import { MemberRoles } from '../../__testing__/mocks/entities/member-roles.enum';
 import { Roles } from '../../__testing__/mocks/entities/roles.enum';
@@ -10,7 +11,6 @@ import { TestMembership } from '../../__testing__/mocks/entities/test-membership
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../__testing__/test-server/create-test-data-source.function';
 import { DefaultTestServerMembershipRepository } from '../../__testing__/test-server/membership-repository';
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
-import { TestTimeouts } from '../../__testing__/constants';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
@@ -43,16 +43,19 @@ class TenancyWsController {
     }
 }
 
+const roundTrips: RoundTripCounter = new RoundTripCounter();
+
 // in memory, so that what the websockets do across tenants can be watched without a container
 const dataSourceClass: ReturnType<typeof createInMemoryDataSource> = createInMemoryDataSource({
     entities: defaultTestServerEntities,
-    repositories: defaultTestServerRepositories
+    repositories: defaultTestServerRepositories,
+    roundTrips
 });
 
 const websocketOptions: WebsocketOptionsInput = {
     messageRetentionInMs: Ms.DAY,
     timeoutInMs: 5000,
-    handlerInMs: 5000,
+    handlerTimeoutInMs: 5000,
     isAllowedToConnect: () => true
 };
 
@@ -196,6 +199,16 @@ async function askChannel(channel: WebsocketChannel, event: string): Promise<str
         persist: false
     });
     return answers.map(a => a.connectionId);
+}
+
+/**
+ * Runs some work and collects the calls it made on the store.
+ * @param work - The work.
+ * @returns The calls, as `Entity.method`.
+ */
+async function resolveCallsOf(work: () => Promise<unknown>): Promise<string[]> {
+    await roundTrips.resolveCountOf(work);
+    return roundTrips.trips.map(t => t.statement);
 }
 
 /**
@@ -376,6 +389,29 @@ describe('websockets across tenants', () => {
         expect(await askChannel(lobby, 'asked-after-closing')).toEqual([]);
     }, 15000);
 
+    // 01 §D11: such a write read each membership back for the users and tenants it belongs to
+    it('moves the connections of both users when a write to every membership a filter matches moves memberships between them', async () => {
+        const tenantA: string = UUIDUtilities.generate();
+        const from: { user: JwtUser, accessToken: string } = await logIn('moved-from');
+        const to: { user: JwtUser, accessToken: string } = await logIn('moved-to');
+        await Promise.all(Array.from({ length: 5 }, async () => await addMember(from.user.id, UUIDUtilities.generate())));
+        await addMember(from.user.id, tenantA);
+        const fromClient: RecordingClient = await connectClient(from.accessToken);
+        const toClient: RecordingClient = await connectClient(to.accessToken);
+
+        const calls: string[] = await resolveCallsOf(async () => await memberships.updateAll(
+            { userId: from.user.id },
+            { userId: to.user.id },
+            { acrossTenants: true }
+        ));
+
+        // as the pairs of user and tenant, rather than as rows
+        expect(calls.slice(0, calls.indexOf('TestMembership.updateAll'))).toEqual(['TestMembership.aggregate']);
+        await tenants.runAs(tenantA, async () => await broadcast('after-moving'));
+        expect(await hasReceived(toClient, 'after-moving')).toBe(true);
+        expect(await hasReceived(fromClient, 'after-moving')).toBe(false);
+    });
+
     it('takes the connections of a deleted user out of the broadcasts of every tenant', async () => {
         const tenantA: string = UUIDUtilities.generate();
         const leaving: { user: JwtUser, accessToken: string } = await logIn('leaving');
@@ -412,7 +448,7 @@ describe('websockets across tenants', () => {
         const tenantB: string = UUIDUtilities.generate();
         const returning: { user: JwtUser, accessToken: string } = await logIn('returning');
         await addMember(returning.user.id, tenantA);
-        const [last] = await messages.findAll({ order: { seq: 'DESC' }, take: 1, acrossTenants: true });
+        const [last] = await messages.findAll({ order: { seq: 'DESC' }, limit: 1, acrossTenants: true });
 
         await tenants.runAs(tenantA, async () => await broadcast('missed-in-a', true));
         await tenants.runAs(tenantB, async () => await broadcast('missed-in-b', true));

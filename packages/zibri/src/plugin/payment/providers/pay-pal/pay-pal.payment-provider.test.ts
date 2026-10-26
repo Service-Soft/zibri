@@ -177,15 +177,15 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
         });
     });
 
-    // ── Direct payment: startPayment → confirmPayment ───────────────────────
+    // ── Direct payment: requestPayment → confirmPayment ─────────────────────
 
-    describe('startPayment + confirmPayment', () => {
+    describe('requestPayment + confirmPayment', () => {
         it('creates a CAPTURE-intent order and captures it after buyer approval', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
 
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.startPayment(METHOD, data);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.requestPayment(METHOD, data);
 
             expect(payment.status).toBe(PaymentStatus.CREATED);
             expect(payment.data?.orderId).toBeTruthy();
@@ -226,7 +226,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate()
             });
 
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.startPayment(METHOD, data);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.requestPayment(METHOD, data);
             expect(payment.status).toBe(PaymentStatus.CREATED);
 
             await paymentService.cancelPayment(payment);
@@ -237,16 +237,16 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
         }));
     });
 
-    // ── Reservation: startPaymentReservation → confirmPaymentReservation
+    // ── Reservation: requestPaymentReservation → confirmPaymentReservation
     //                → collectPaymentFromReservation ─────────────────────────
 
-    describe('startPaymentReservation + confirmPaymentReservation + collectPaymentFromReservation', () => {
+    describe('requestPaymentReservation + confirmPaymentReservation + collectPaymentFromReservation', () => {
         it('creates an AUTHORIZE-intent order, reserves funds, then collects payment', async () => await inTenant(async () => {
             const data: PayPalValidatedPaymentData = await paymentService.validatePaymentData(METHOD, {
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
 
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.startPaymentReservation(METHOD, data);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.requestPaymentReservation(METHOD, data);
 
             expect(payment.status).toBe(PaymentStatus.CREATED);
             expect(payment.data?.orderId).toBeTruthy();
@@ -280,7 +280,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
 
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.startPaymentReservation(METHOD, data);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.requestPaymentReservation(METHOD, data);
 
             assert(payment.data?.orderId && payment.data.approvalUrl && buyerEmail && buyerPassword);
             await simulateBuyerApproval(payment.data.approvalUrl, buyerEmail, buyerPassword);
@@ -303,7 +303,7 @@ const hasSandboxCredentials: boolean = Boolean(clientId && clientSecret && buyer
                 amount: AMOUNT, currencyCode: CURRENCY, transactionId: UUIDUtilities.generate(), ...URLS
             });
 
-            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.startPayment(METHOD, data);
+            const payment: Payment<KnownPaymentMethod.PAY_PAL, PayPalPaymentProviderPaymentData> = await paymentService.requestPayment(METHOD, data);
 
             assert(payment.data?.orderId && payment.data.approvalUrl && buyerEmail && buyerPassword);
             await simulateBuyerApproval(payment.data.approvalUrl, buyerEmail, buyerPassword);

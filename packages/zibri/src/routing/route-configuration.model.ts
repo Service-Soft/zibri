@@ -235,7 +235,7 @@ export type RouteConfiguration<
     /**
      * How long the handler has to produce a result.
      *
-     * Undefined leaves it to the application's `handlerInMs`, which is what a controller route
+     * Undefined leaves it to the application's `handlerTimeoutInMs`, which is what a controller route
      * declaring nothing does.
      */
     timeoutInMs: HandlerTimeout | undefined
@@ -268,7 +268,7 @@ export type RouteConfigurationInput<
     /**
      * How long the handler has to produce a result.
      *
-     * Leave it out to let the application's `handlerInMs` decide. Use `'none'` for a route that
+     * Leave it out to let the application's `handlerTimeoutInMs` decide. Use `'none'` for a route that
      * legitimately runs for as long as it takes.
      */
     timeoutInMs?: HandlerTimeout,

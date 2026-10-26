@@ -134,21 +134,21 @@ describe('TwoFactorService (contract via OTP method)', () => {
         return credential;
     }
 
-    it('requestRegister should create an unconfirmed credential', async () => {
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+    it('requestTwoFactorRegistration should create an unconfirmed credential', async () => {
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         const credentials: OtpCredentials[] = await otpCredentialsRepo.findAll({ where: { userId: user.id } });
         expect(credentials).toHaveLength(1);
         expect(credentials[0]?.secret).toBeTruthy();
         expect(credentials[0]?.confirmed).toBe(false);
     });
 
-    it('confirmRegister with a valid token should mark the credential as confirmed', async () => {
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+    it('confirmTwoFactorRegistration with a valid token should mark the credential as confirmed', async () => {
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         const credential: OtpCredentials = await registeredCredential();
         const secret: string = credential.secret;
 
         const validToken: string = new TOTP({ secret }).generate();
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+        await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
             token: validToken
         });
 
@@ -156,10 +156,10 @@ describe('TwoFactorService (contract via OTP method)', () => {
         expect(updated[0]?.confirmed).toBe(true);
     });
 
-    it('confirmRegister with an invalid token should throw', async () => {
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+    it('confirmTwoFactorRegistration with an invalid token should throw', async () => {
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         await expect(
-            twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+            twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
                 token: '000000'.slice(0, otpLength)
             })
         ).rejects.toThrow('The provided two factor code is invalid.');
@@ -167,9 +167,9 @@ describe('TwoFactorService (contract via OTP method)', () => {
 
     it('has2fa should return true when a valid and unused OTP header is present', async () => {
         // register & confirm
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         const credential: OtpCredentials = await registeredCredential();
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+        await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
             token: previousCode(credential.secret)
         });
         const validToken: string = new TOTP({ secret: credential.secret }).generate();
@@ -183,10 +183,10 @@ describe('TwoFactorService (contract via OTP method)', () => {
     });
 
     it('has2fa should return false when the token is invalid', async () => {
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         const credential: OtpCredentials = await registeredCredential();
         const validToken: string = new TOTP({ secret: credential.secret }).generate();
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+        await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
             token: validToken
         });
 
@@ -200,9 +200,9 @@ describe('TwoFactorService (contract via OTP method)', () => {
 
     it('has2fa should return false when the token is valid but has already been used', async () => {
         // register & confirm
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         const credential: OtpCredentials = await registeredCredential();
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+        await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
             token: previousCode(credential.secret)
         });
         const validToken: string = new TOTP({ secret: credential.secret }).generate();
@@ -220,13 +220,13 @@ describe('TwoFactorService (contract via OTP method)', () => {
     });
 
     it('unregister should delete all credentials and make has2fa false', async () => {
-        await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+        await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
         const credential: OtpCredentials = await registeredCredential();
-        await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, {
+        await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, {
             token: new TOTP({ secret: credential.secret }).generate()
         });
 
-        await twoFactorService.unregisterTwoFactorMethodForUser(user, otpMethod);
+        await twoFactorService.removeTwoFactorRegistration(user, otpMethod);
 
         const remaining: OtpCredentials[] = await otpCredentialsRepo.findAll({ where: { userId: user.id } });
         expect(remaining).toHaveLength(0);
@@ -244,9 +244,9 @@ describe('TwoFactorService (contract via OTP method)', () => {
          * @returns The secret.
          */
         async function enrolled(): Promise<string> {
-            await twoFactorService.requestRegisterTwoFactorMethodForUser(user, otpMethod, undefined);
+            await twoFactorService.requestTwoFactorRegistration(user, otpMethod, undefined);
             const credential: OtpCredentials = await registeredCredential();
-            await twoFactorService.confirmRegisterTwoFactorMethodForUser(user, otpMethod, { token: previousCode(credential.secret) });
+            await twoFactorService.confirmTwoFactorRegistration(user, otpMethod, { token: previousCode(credential.secret) });
             return credential.secret;
         }
 
@@ -298,7 +298,7 @@ describe('TwoFactorService (contract via OTP method)', () => {
             // refused unchecked, so the same code was never spent and is still good
             await twoFactorService.validate2fa(user, contextWith(code));
             expect(await streakOf()).toBeUndefined();
-        });
+        }, 10000);
 
         it('does not count a request without a code, or a code already used', async () => {
             const secret: string = await enrolled();

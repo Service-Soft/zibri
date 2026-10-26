@@ -37,8 +37,8 @@ import { OAuthClientAuthentication } from '../oauth/oauth-client-authentication.
 const PUBLIC_URL: string = 'http://zibri.test';
 const CLIENT_ID: string = 'zibri-test-client';
 const CLIENT_SECRET: string = 'zibri-test-secret';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
-const SIGNED_OUT_URL: string = 'https://app.example.com/signed-out';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
+const LOGGED_OUT_URL: string = 'https://app.example.com/logged-out';
 const LOGOUT_ROUTE: string = `${PUBLIC_URL}/auth/federated/fake/logout`;
 
 let provider: FakeOAuthProvider;
@@ -77,13 +77,13 @@ function newBrowser(): TestBrowser {
 }
 
 /**
- * Signs a browser in at the provider as a linked user, the way a browser does.
+ * Logs a browser in at the provider as a linked user, the way a browser does.
  * @param browser - The browser.
- * @returns The id of the session the sign-in started at the provider.
+ * @returns The id of the session the login started at the provider.
  */
-async function signIn(browser: TestBrowser): Promise<string> {
+async function logIn(browser: TestBrowser): Promise<string> {
     const query: string = new URLSearchParams({ authenticator: 'fake', redirectTo: REDIRECT_TO }).toString();
-    const atProvider: string = await browser.follow(`${baseUrl}/auth/federated/authorize?${query}`);
+    const atProvider: string = await browser.follow(`${baseUrl}/auth/federated/login/request?${query}`);
     expect(await browser.follow(await browser.follow(atProvider))).toBe(REDIRECT_TO);
     return provider.sessionIds.at(-1) ?? '';
 }
@@ -98,14 +98,14 @@ async function isLoggedIn(browser: TestBrowser): Promise<boolean> {
 }
 
 /**
- * Creates a user linked to a fresh identity at the provider, which signs in as them from now on.
+ * Creates a user linked to a fresh identity at the provider, which logs in as them from now on.
  * @returns The user.
  */
 async function createLinkedUser(): Promise<JwtUser> {
     const subject: string = `subject-${randomBytes(6).toString('hex')}`;
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${subject}@example.com`, roles: [Roles.USER] });
     await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-        .create({ issuer: provider.issuer, subject, userId: user.id, signIn: true, grantedScopes: [] });
+        .create({ issuer: provider.issuer, subject, userId: user.id, forLogin: true, grantedScopes: [] });
     provider.identity = { subject, email: user.email };
     return user;
 }
@@ -189,8 +189,8 @@ describe('BaseOidcAuthenticator - logging out', () => {
                     useValue: {
                         allowedRedirects: ['https://app.example.com'],
                         registrationUrl: 'https://app.example.com/register',
-                        errorUrl: 'https://app.example.com/sign-in-failed',
-                        signedOutUrl: SIGNED_OUT_URL,
+                        errorUrl: 'https://app.example.com/login-failed',
+                        loggedOutUrl: LOGGED_OUT_URL,
                         maxAuthenticationAgeInMs: 3600000
                     }
                 })
@@ -205,10 +205,10 @@ describe('BaseOidcAuthenticator - logging out', () => {
         await otherProvider?.stop();
     }, TestTimeouts.inMemory.shutdown);
 
-    it('answers where to log out at the provider, with the ID token of the login and the way back, and lands on the signed-out page', async () => {
+    it('answers where to log out at the provider, with the ID token of the login and the way back, and lands on the logged-out page', async () => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        await signIn(browser);
+        await logIn(browser);
 
         const { providerLogoutUrl } = await logOut(browser);
 
@@ -217,19 +217,19 @@ describe('BaseOidcAuthenticator - logging out', () => {
         expect(asked.get('id_token_hint')).toMatch(/^(?:[\w-]+\.){2}[\w-]+$/);
         expect(asked.get('client_id')).toBe(CLIENT_ID);
         expect(asked.get('post_logout_redirect_uri')).toBe(LOGOUT_ROUTE);
-        // the provider ends its session and sends the browser back, which lands on the signed-out page
+        // the provider ends its session and sends the browser back, which lands on the logged-out page
         const back: string = await browser.follow(providerLogoutUrl ?? '');
         expect(back).toBe(LOGOUT_ROUTE);
-        expect(await browser.follow(back)).toBe(SIGNED_OUT_URL);
+        expect(await browser.follow(back)).toBe(LOGGED_OUT_URL);
     });
 
     it('ends exactly the login of the session a logout token names, refreshed or not', async () => {
         const user: JwtUser = await createLinkedUser();
         const loggedOut: TestBrowser = newBrowser();
-        const sessionId: string = await signIn(loggedOut);
+        const sessionId: string = await logIn(loggedOut);
         await rotateLogin(loggedOut, user.id);
         const stillIn: TestBrowser = newBrowser();
-        await signIn(stillIn);
+        await logIn(stillIn);
 
         expect(await postLogoutToken(provider.createLogoutToken({ sessionId }))).toBe(204);
 
@@ -240,12 +240,12 @@ describe('BaseOidcAuthenticator - logging out', () => {
     it('ends every login of the user a logout token names without a session, and nobody else\'s', async () => {
         await createLinkedUser();
         const somebodyElse: TestBrowser = newBrowser();
-        await signIn(somebodyElse);
+        await logIn(somebodyElse);
         const user: JwtUser = await createLinkedUser();
         const first: TestBrowser = newBrowser();
-        await signIn(first);
+        await logIn(first);
         const second: TestBrowser = newBrowser();
-        await signIn(second);
+        await logIn(second);
         const subject: string = provider.identity.subject;
 
         expect(await postLogoutToken(provider.createLogoutToken({ subject }))).toBe(204);
@@ -259,7 +259,7 @@ describe('BaseOidcAuthenticator - logging out', () => {
     it('refuses a logout token another provider signed, one without the event, one with a nonce, one naming nobody, and one presented before', async () => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        const sessionId: string = await signIn(browser);
+        const sessionId: string = await logIn(browser);
         otherProvider.identity = provider.identity;
 
         expect(await postLogoutToken(otherProvider.createLogoutToken({ sessionId, claims: { iss: provider.issuer } }))).toBe(401);
@@ -276,16 +276,16 @@ describe('BaseOidcAuthenticator - logging out', () => {
     it('ends the login of the session a front-channel logout names, and refuses one naming another provider or no session', async () => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        const sessionId: string = await signIn(browser);
+        const sessionId: string = await logIn(browser);
 
         // loaded in a frame of the provider's logout page, in whichever browser the user logged out at
         const landing: string = await newBrowser().follow(`${LOGOUT_ROUTE}?${new URLSearchParams({ iss: provider.issuer, sid: sessionId }).toString()}`);
 
-        expect(landing).toBe(SIGNED_OUT_URL);
+        expect(landing).toBe(LOGGED_OUT_URL);
         expect(await isLoggedIn(browser)).toBe(false);
 
         const other: TestBrowser = newBrowser();
-        const otherSessionId: string = await signIn(other);
+        const otherSessionId: string = await logIn(other);
         const elsewhere: Response = await newBrowser().open(`${LOGOUT_ROUTE}?${new URLSearchParams({ iss: otherProvider.issuer, sid: otherSessionId }).toString()}`);
         expect(elsewhere.status).toBe(400);
         const nobody: Response = await newBrowser().open(`${LOGOUT_ROUTE}?${new URLSearchParams({ iss: provider.issuer }).toString()}`);

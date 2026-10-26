@@ -19,7 +19,7 @@ function spanRecord(name: string, traceId: string = 'a'.repeat(32)): TraceSpanRe
         name,
         kind: TraceSpanKind.INTERNAL,
         startedAt: new Date('2026-09-20T10:00:00.000Z'),
-        durationMs: 1.5,
+        durationInMs: 1.5,
         status: TraceSpanStatus.UNSET,
         statusMessage: undefined,
         attributes: { 'code.function': name }

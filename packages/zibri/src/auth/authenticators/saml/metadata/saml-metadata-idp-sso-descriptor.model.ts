@@ -15,16 +15,16 @@ export class SamlMetadataIdpSsoDescriptor {
     keys?: SamlMetadataKeyDescriptor[];
 
     /**
-     * Where the identity provider signs users out, one per binding.
+     * Where the identity provider logs users out, one per binding.
      */
     @XmlElement('SingleLogoutService')
     @Property.array({ items: { type: 'object', cls: () => SamlMetadataEndpoint, allowAdditionalProperties: true }, required: false })
     logoutServices?: SamlMetadataEndpoint[];
 
     /**
-     * Where the identity provider signs users in, one per binding.
+     * Where the identity provider logs users in, one per binding.
      */
     @XmlElement('SingleSignOnService')
     @Property.array({ items: { type: 'object', cls: () => SamlMetadataEndpoint, allowAdditionalProperties: true } })
-    signInServices!: SamlMetadataEndpoint[];
+    loginServices!: SamlMetadataEndpoint[];
 }

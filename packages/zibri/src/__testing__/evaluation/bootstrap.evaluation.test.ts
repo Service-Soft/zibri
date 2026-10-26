@@ -5,6 +5,7 @@ import { describe, expect, it } from '@jest/globals';
 import { CronExpression } from '../../cron/cron-expression.utilities';
 import { CronJob, InitialCronConfig } from '../../cron/cron-job.model';
 import { CronService } from '../../cron/cron.service';
+import { PostgresPooler } from '../../data-source/data-sources/postgres/postgres-pooler.model';
 import { PostgresDataSource, PostgresOptions } from '../../data-source/data-sources/postgres/postgres-typeorm-data-source.model';
 import { DataSource } from '../../data-source/decorators/data-source.decorator';
 import { SchemaManagement } from '../../data-source/models/schema-management.model';
@@ -46,16 +47,16 @@ class EvalLifecycleService {}
  * A job that fires as soon as it is scheduled.
  *
  * `runOnInit` is what makes this observable at all: it turns "the job was scheduled" into "the job
- * ran", so the timing can be read off an array rather than out of internal state. Not distributed and
- * not synced to a data source, because neither coordination nor persistence is what is being tested
- * here - only when it happens.
+ * ran", so the timing can be read off an array rather than out of internal state. Runs on every
+ * instance and is not synced to a data source, because neither coordination nor persistence is what
+ * is being tested here - only when it happens.
  */
 class EvalStartupCronJob extends CronJob {
     initialConfig: InitialCronConfig = {
         name: 'evaluation startup marker',
         cron: CronExpression.every(1, 'hours').build(),
         runOnInit: true,
-        distributed: false,
+        runsOn: 'everyInstance',
         syncToDataSource: false
     };
 
@@ -254,11 +255,13 @@ describe('evaluation - application bootstrap', () => {
             // the relation into postgres options. allowOrphan because the data source class this
             // declares stays registered, and every case after this one would find it unused
             await expect(startTestServer({
-                dataSources: [createTestDataSource({
-                    entities: [...defaultTestServerEntities, EvalShelf, EvalBook],
-                    repositories: defaultTestServerRepositories,
-                    allowOrphan: true
-                })]
+                dataSources: [
+                    createTestDataSource({
+                        entities: [...defaultTestServerEntities, EvalShelf, EvalBook],
+                        repositories: defaultTestServerRepositories,
+                        allowOrphan: true
+                    })
+                ]
             })).rejects.toThrow(/EvalShelf\.books names "shelf", which EvalBook does not declare/);
         }, 90000);
     });
@@ -285,6 +288,8 @@ describe('evaluation - application bootstrap', () => {
                 readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
                 schemaManagement: SchemaManagement = 'synchronize';
+
+                readonly pooler: PostgresPooler = 'none';
             }
 
             // never passed to the application, and never used - it only exists. A shared module
@@ -313,6 +318,8 @@ describe('evaluation - application bootstrap', () => {
                 readonly repositories: RepositoryClass[] = defaultTestServerRepositories;
 
                 schemaManagement: SchemaManagement = 'synchronize';
+
+                readonly pooler: PostgresPooler = 'none';
             }
 
             expect(EvalForgottenDataSource).toBeDefined();

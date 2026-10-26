@@ -1,7 +1,10 @@
 import { isUserRepository, UserRepositoryInterface } from './user-repository.interface';
 import { FindUserOptions, UserServiceInterface } from './user-service.interface';
+import { UserEventWriteObserver } from './user-event.write-observer';
+import { UserWriteObserver } from './user.write-observer';
 import { Repository } from '../../data-source/repository/repository';
 import { Transaction } from '../../data-source/transaction/transaction.model';
+import { EntityWriteObserverRegistry } from '../../data-source/write-observers/entity-write-observer.registry';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -15,6 +18,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { ErrorUtilities } from '../../error-handling/error.utilities';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { InternalError } from '../../error-handling/internal-error.model';
+import { FrameworkEventNames } from '../../event/framework-event-names.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
 import { type LoggerInterface } from '../../logging/logger.interface';
@@ -69,6 +73,7 @@ export class UserService implements UserServiceInterface, OnAppInit {
             this.logger.info(`configures ${repoProviders.length} user ${repoProviders.length > 1 ? 'repositories' : 'repository'}:`);
         }
 
+        const names: FrameworkEventNames = inject(ZIBRI_DI_TOKENS.FRAMEWORK_EVENT_NAMES);
         for (const provider of repoProviders) {
             const repo: unknown = inject(provider.token);
             // registered under the variant by its data source, which lists repository classes only
@@ -79,6 +84,11 @@ export class UserService implements UserServiceInterface, OnAppInit {
             }
             this.userRepositories.push(repo);
             this.userEntityRepositories.push(repo);
+            inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserWriteObserver());
+            // only when the application named one, since each costs the writes of its kind an event
+            if (names.userDeleted != undefined || names.userDeactivated != undefined || names.userReactivated != undefined) {
+                inject(EntityWriteObserverRegistry).register(repo.entityClass, new UserEventWriteObserver(names));
+            }
             this.logger.info(`  - ${getDiTokenName(provider.token)}`);
         }
 
@@ -164,6 +174,11 @@ export class UserService implements UserServiceInterface, OnAppInit {
     // eslint-disable-next-line jsdoc/require-jsdoc
     isUserEntity(entityClass: Newable<BaseEntity>): boolean {
         return this.userEntityRepositories.some(repository => repository.entityClass === entityClass);
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    getUserEntityClasses(): Newable<BaseUser<string>>[] {
+        return this.userEntityRepositories.map(repository => repository.entityClass);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

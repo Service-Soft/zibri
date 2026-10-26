@@ -4,6 +4,7 @@ import type { Batch, GlideClient, GlideReturnType, GlideString, Script } from '@
 
 import { RelatedRowsReader } from './related-rows-reader.interface';
 import { RelationResolutionUtilities } from './relation-resolution.utilities';
+import { RemovalReach } from './removal-reach.model';
 import { DriverAggregateOptions, DriverFindAndCountOptions, DriverFindOptions, DriverStreamOptions, DriverUpdateAllOptions, RepositoryDriverInterface } from './repository-driver.interface';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
@@ -11,14 +12,15 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { EntityMetadata } from '../../entity/decorators/entity.decorator';
 import { PropertyMetadata, RelationMetadata } from '../../entity/decorators/property.decorator';
 import { EntityMetadataMissingError } from '../../entity/entity-metadata-missing.error';
-import { EntityOrderUtilities, OrderComparator, OrderKey } from '../../entity/models/entity-order.utilities';
+import { EntityOrderUtilities, OrderComparator } from '../../entity/models/entity-order.utilities';
 import { RelationTree, RelationTreeByRowId } from '../../entity/models/entity-relations.model';
 import { EntityRelationsUtilities } from '../../entity/models/entity-relations.utilities';
 import { Relation } from '../../entity/models/relation.enum';
 import { coversEveryRow, KeyWhere, UniqueGroup } from '../../entity/models/unique-declaration.model';
+import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { ModelRegistry } from '../../global/model-registry/model.registry';
-import { PaginationResult } from '../../open-api/pagination-result.model';
+import { $ts } from '../../localization/translate.function';
 import { parseArray } from '../../parsing/functions/parse-array.function';
 import { parseNumber } from '../../parsing/functions/parse-number.function';
 import { parseObject } from '../../parsing/functions/parse-object.function';
@@ -38,6 +40,7 @@ import { type ValKeyDataSource } from '../data-sources/val-key/val-key-data-sour
 import { valKeyGlide } from '../data-sources/val-key/val-key-glide.function';
 import { WhereFilterEvaluator } from '../data-sources/where-converter/where-filter.evaluator';
 import { AggregateRow } from '../models/aggregate.model';
+import { PaginationResult } from '../models/pagination-result.model';
 import { RelatedNarrowing } from '../models/related-narrowing.model';
 import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
@@ -88,6 +91,34 @@ type PendingUpsert<T extends BaseEntity> = {
      * What the row holding its identity has to match for the changes to apply, if anything.
      */
     where: Where<T> | undefined
+};
+
+/**
+ * One key of an order: where its value is in a row, and how two of them compare.
+ */
+type OrderSort = {
+    /**
+     * The properties the value is reached through.
+     */
+    path: string[],
+    /**
+     * Compares two values in the direction of the key.
+     */
+    compare: OrderComparator
+};
+
+/**
+ * What a stream in an order keeps of a matching row until it hands the rows out.
+ */
+type OrderedId = {
+    /**
+     * The id of the row.
+     */
+    id: string,
+    /**
+     * The values the order compares, one per key.
+     */
+    values: unknown[]
 };
 
 /**
@@ -574,7 +605,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         for (const { after } of changes) {
             const broken: KeyWhere | undefined = after == undefined ? undefined : this.findBrokenCheck(after, checks);
             if (broken != undefined) {
-                throw new CheckConstraintViolationError(this.entityClass.name, broken);
+                throw new CheckConstraintViolationError(this.entityClass, broken);
             }
         }
     }
@@ -685,8 +716,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             : entities;
         const ordered: T[] = this.applyOrder(filtered, options.order);
 
-        const skip: number = options.skip ?? 0;
-        const window: T[] = options.take == undefined ? ordered.slice(skip) : ordered.slice(skip, skip + options.take);
+        const offset: number = options.offset ?? 0;
+        const window: T[] = options.limit == undefined ? ordered.slice(offset) : ordered.slice(offset, offset + options.limit);
         await this.resolveRelationsOf(
             window,
             new Map([...resolved].filter(([key]) => !forReading.has(key))),
@@ -701,7 +732,7 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findOne(options: DriverFindOptions<T>): Promise<T | undefined> {
-        return (await this.find({ ...options, skip: undefined, take: 1 })).at(0);
+        return (await this.find({ ...options, offset: undefined, limit: 1 })).at(0);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -714,8 +745,8 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         const counted: T[] = await this.find({
             ...options,
             where: options.totalWhere ?? options.where,
-            skip: undefined,
-            take: undefined
+            offset: undefined,
+            limit: undefined
         });
         // the window is a narrowing of what was just counted, so it is taken out of that rather than
         // read again - which is what keeps the two halves describing the same moment
@@ -723,9 +754,9 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             ? counted
             : counted.filter(e => this.evaluator.matches(e, options.where as Where<T>, this.entityClass));
 
-        const skip: number = options.skip ?? 0;
+        const offset: number = options.offset ?? 0;
         return {
-            items: options.take == undefined ? matching.slice(skip) : matching.slice(skip, skip + options.take),
+            items: options.limit == undefined ? matching.slice(offset) : matching.slice(offset, offset + options.limit),
             totalAmount: counted.length
         };
     }
@@ -737,13 +768,17 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         // gain from one: valkey answers a filter in this process anyway, so what a stream saves is
         // holding every *row* at once, and the id set is the small half. It is read once, so which
         // rows the stream covers is decided when it starts - the same thing a cursor decides.
-        const ids: string[] = this.idsFromFilter(options.where)
+        const candidates: string[] = this.idsFromFilter(options.where)
             ?? await this.idsFromUniqueFilter(options.where, valKeyTransaction)
             ?? await this.idsFromIndexFilter(options.where, valKeyTransaction)
             ?? await this.readIds(valKeyTransaction);
+        // an order reads the rows twice: once for what it compares, once to hand them out
+        const ids: string[] = options.order == undefined ? candidates : await this.resolveIdsInOrder(candidates, options, valKeyTransaction);
+        // without the order, which is decided already, so no row carries a relation it was only ordered by
+        const reading: DriverStreamOptions<T> = { ...options, order: undefined };
 
         for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
-            const entities: T[] = await this.findByIds(ids.slice(i, i + STREAM_BATCH_SIZE), options, valKeyTransaction);
+            const entities: T[] = await this.findByIds(ids.slice(i, i + STREAM_BATCH_SIZE), reading, valKeyTransaction);
             for (const entity of entities) {
                 if (options.where && !this.evaluator.matches(entity, options.where, this.entityClass)) {
                     continue;
@@ -1066,51 +1101,146 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async remove(ids: string[], transaction: Transaction | undefined): Promise<void> {
+    async remove(ids: string[], reach: RemovalReach<T> | undefined, transaction: Transaction | undefined): Promise<string[]> {
         if (!ids.length) {
-            return;
+            return [];
         }
-        const valKeyTransaction: ValKeyTransaction | undefined = this.toValKeyTransaction(transaction);
-        // one claim for every row, rather than one per delete
-        await valKeyTransaction?.claimKeys(ids.map(id => this.rowKey(id)));
+        // judged on the rows as the removal reads them anyway, so a reach costs no round trip. A
+        // filter through a relation is judged on the related rows, which only a read resolves: those
+        // are held from the read to the removal, as an update holds its rows
+        if (reach == undefined || !this.reachesThroughRelation(reach.where)) {
+            return await this.removeByIds(ids, this.toValKeyTransaction(transaction), reach);
+        }
+        return await this.inTransaction(transaction, async valKeyTransaction => {
+            const wanted: Set<string> = new Set(ids);
+            const within: string[] = (await this.holdRowsMatching(reach.where, reach.related, valKeyTransaction))
+                .map(row => String(row.id))
+                .filter(id => wanted.has(id));
+            if (reach.wholly && within.length < ids.length) {
+                return [];
+            }
+            return await this.removeByIds(within, valKeyTransaction, undefined);
+        });
+    }
 
-        // the values a row gives up in its indexes are read off the row as it is stored, which is the
-        // only form that names the entries: an encrypted value never encrypts to the same text twice.
-        // Read for every row, since which indexes and uniques there are is the store's to say
-        const [stored, keys]: [Map<string, Record<string, string>>, StoredKeys] = await this.readRowsAndKeys(ids, valKeyTransaction);
+    /**
+     * Whether a filter asks anything of the rows an entity's relations hold.
+     * @param where - The filter.
+     * @returns True when one of its conditions names a relation.
+     */
+    private reachesThroughRelation(where: Where<T>): boolean {
+        const branches: WhereFilter<T>[] = Array.isArray(where) ? where : [where];
+        return branches.some(branch => Object.keys(branch).some(key => this.isRelation(this.properties[key])));
+    }
 
+    /**
+     * Removes the rows with the given ids that are within a reach, with what they hold in the indexes
+     * and uniques.
+     *
+     * The reach is judged on each row as it is read for the removal, which reads every row anyway for
+     * what it holds in the indexes. Inside a transaction the rows are held from that read on. Outside
+     * one, the write is guarded on the rows as they were read, so a row written in between - moved out
+     * of the reach, or holding other values in an index by now - is read and judged again rather than
+     * removed as it was.
+     * @param ids - The ids of the rows to remove.
+     * @param valKeyTransaction - The transaction to run the operation in, if any.
+     * @param reach - What a row has to match to be removed, and whether the rows go wholly, or
+     * undefined for every row that is stored.
+     * @returns The ids of the rows that were stored and within the reach, and are removed.
+     * @throws KeyDeclarationsChangedError when the indexes and uniques kept changing, and a
+     * ConflictError when the rows did.
+     */
+    private async removeByIds(ids: string[], valKeyTransaction: ValKeyTransaction | undefined, reach: RemovalReach<T> | undefined): Promise<string[]> {
+        if (!ids.length) {
+            return [];
+        }
+        if (valKeyTransaction) {
+            // one claim for every row, rather than one per delete, and before the read that judges them
+            await valKeyTransaction.claimKeys(ids.map(id => this.rowKey(id)));
+            const [stored, keys]: [Map<string, Record<string, string>>, StoredKeys] = await this.readRowsAndKeys(ids, valKeyTransaction);
+            const removing: string[] = this.resolveRowsWithinReach(ids, stored, reach);
+            if (!removing.length) {
+                return [];
+            }
+            valKeyTransaction.guardKey(this.keysKey(), keys.stored);
+            await this.writeAll(await this.resolveRemovalWrites(removing, stored, keys, valKeyTransaction), valKeyTransaction);
+            return removing;
+        }
+
+        let keysBefore: string | undefined;
+        for (let attempt: number = 1; attempt <= KEY_CHANGE_ATTEMPTS; attempt++) {
+            const [stored, keys]: [Map<string, Record<string, string>>, StoredKeys] = await this.readRowsAndKeys(ids, undefined);
+            // the keys are retried over, as a save retries over them, where a row written under
+            // every attempt is contention this will not wait out
+            if (keysBefore != undefined && keysBefore === keys.stored) {
+                throw new ConflictError($ts`A row to delete was written while it was being deleted. Run the delete again.`);
+            }
+            keysBefore = keys.stored;
+            const removing: string[] = this.resolveRowsWithinReach(ids, stored, reach);
+            if (!removing.length) {
+                return [];
+            }
+            const writes: ValKeyBufferedWrite[] = await this.resolveRemovalWrites(removing, stored, keys, undefined);
+            const rows: Map<string, Record<string, string>> = new Map(removing.map(id => [this.rowKey(id), stored.get(id) ?? {}]));
+            if (await this.writeGuarded(writes, keys, rows)) {
+                return removing;
+            }
+        }
+        throw new KeyDeclarationsChangedError();
+    }
+
+    /**
+     * The rows among the given ids that are stored and within a reach, as they were read.
+     * @param ids - The ids of the rows to remove.
+     * @param stored - The rows by id, as they are stored.
+     * @param reach - What a row has to match, and whether the rows go wholly, or undefined for every
+     * stored row.
+     * @returns The ids of the rows to remove: none of them when they go wholly and one is gone or
+     * out of reach.
+     */
+    private resolveRowsWithinReach(ids: string[], stored: Map<string, Record<string, string>>, reach: RemovalReach<T> | undefined): string[] {
+        const within: string[] = ids.filter(id => {
+            const fields: Record<string, string> | undefined = stored.get(id);
+            return fields != undefined
+                && (reach == undefined || this.evaluator.matches(this.fromFields(fields), reach.where, this.entityClass));
+        });
+        return reach?.wholly === true && within.length < ids.length ? [] : within;
+    }
+
+    /**
+     * The writes that remove the given rows: the rows, their sides of many to many relations, their
+     * ids, and what they hold in the indexes and uniques.
+     *
+     * The values a row gives up in its indexes are read off the row as it is stored, which is the
+     * only form that names the entries: an encrypted value never encrypts to the same text twice.
+     * @param ids - The ids of the rows.
+     * @param stored - The rows by id, as they are stored.
+     * @param keys - The indexes and uniques the store keeps.
+     * @param valKeyTransaction - The transaction the removal runs in, if any, which holds the values
+     * given up until it ends.
+     * @returns The writes.
+     */
+    private async resolveRemovalWrites(
+        ids: string[],
+        stored: Map<string, Record<string, string>>,
+        keys: StoredKeys,
+        valKeyTransaction: ValKeyTransaction | undefined
+    ): Promise<ValKeyBufferedWrite[]> {
         // every write of every row in one go: nothing has to happen in order, since each row knows its
         // own id and the one key they share - the id set - only ever has members removed from it
         const writes: ValKeyBufferedWrite[] = await this.resolveManyToManyRemovals(ids, valKeyTransaction);
         writes.push(...ids.map((id): ValKeyBufferedWrite => ({ type: 'delete', key: this.rowKey(id) })));
         writes.push({ type: 'setRemove', key: this.idsKey(), members: ids });
-        // giving a value up outside a transaction is applied at once, so it needs nothing held and
-        // never needs a transaction of its own
-        const uniqueRemovals: (current: StoredKeys) => ValKeyBufferedWrite[] = current => ids.flatMap(
-            id => this.resolveUniqueIndexRemovals(id, stored.get(id), current.uniques)
-        );
-        const withKeys: (current: StoredKeys) => ValKeyBufferedWrite[] = current => [
+        const uniqueRemovals: ValKeyBufferedWrite[] = ids.flatMap(id => this.resolveUniqueIndexRemovals(id, stored.get(id), keys.uniques));
+        // inside a transaction, the values are only free once it commits: held until then, for the
+        // reason a save holds the values it gives up. Given up outside one, a value is applied at
+        // once, so nothing is held
+        await valKeyTransaction?.claimKeys(uniqueRemovals.map(w => w.key));
+        return [
             ...writes,
-            ...uniqueRemovals(current),
-            ...this.resolveIndexWrites(ids.map(id => ({ id, before: stored.get(id), after: undefined })), current.indexes)
+            ...uniqueRemovals,
+            ...this.resolveIndexWrites(ids.map(id => ({ id, before: stored.get(id), after: undefined })), keys.indexes)
         ];
-
-        if (valKeyTransaction) {
-            valKeyTransaction.guardKey(this.keysKey(), keys.stored);
-            // inside one, the values are only free once it commits: held until then, for the reason a
-            // save holds the values it gives up
-            await valKeyTransaction.claimKeys(uniqueRemovals(keys).map(w => w.key));
-            await this.writeAll(withKeys(keys), valKeyTransaction);
-            return;
-        }
-        let current: StoredKeys = keys;
-        for (let attempt: number = 1; attempt <= KEY_CHANGE_ATTEMPTS; attempt++) {
-            if (await this.writeGuarded(withKeys(current), current)) {
-                return;
-            }
-            current = await this.readStoredKeys();
-        }
-        throw new KeyDeclarationsChangedError();
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -2458,22 +2588,10 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     private applyOrder(entities: T[], order: DriverFindOptions<T>['order']): T[] {
-        if (order == undefined) {
+        const sorts: OrderSort[] = this.resolveSorts(order);
+        if (!sorts.length) {
             return entities;
         }
-        // a property of one of the entities this reached through is compared exactly as a property
-        // of the entity is - the only difference is how far the value is reached through, which the
-        // key carries
-        const keys: OrderKey[] = EntityOrderUtilities.resolveKeys(order, this.entityClass);
-        if (!keys.length) {
-            return entities;
-        }
-
-        // eslint-disable-next-line jsdoc/require-jsdoc
-        const sorts: { path: string[], compare: OrderComparator }[] = keys.map(key => ({
-            path: key.path,
-            compare: EntityOrderUtilities.resolveComparator(key, (a, b) => this.compareValues(a, b))
-        }));
         return [...entities].sort((a, b) => {
             for (const { path, compare } of sorts) {
                 const comparison: number = compare(EntityOrderUtilities.valueAt(a, path), EntityOrderUtilities.valueAt(b, path));
@@ -2483,6 +2601,64 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
             }
             return 0;
         });
+    }
+
+    /**
+     * Resolves what an order compares, key by key.
+     * @param order - The order, if any.
+     * @returns Each key with where its value is and how two of them compare, none without an order.
+     */
+    private resolveSorts(order: DriverFindOptions<T>['order']): OrderSort[] {
+        if (order == undefined) {
+            return [];
+        }
+        // a property of one of the entities this reached through is compared exactly as a property
+        // of the entity is - the only difference is how far the value is reached through, which the
+        // key carries
+        return EntityOrderUtilities.resolveKeys(order, this.entityClass).map(key => ({
+            path: key.path,
+            compare: EntityOrderUtilities.resolveComparator(key, (a, b) => this.compareValues(a, b))
+        }));
+    }
+
+    /**
+     * Resolves the ids of the rows a stream hands out, in its order.
+     *
+     * The rows are read a batch at a time, with the relations the filter and the order need and no
+     * others, and of each match only its id and the values the order compares are kept: the order
+     * is decided over every match before the first row is handed out, and those are all it needs.
+     * @param ids - The ids of the rows the stream may hand out.
+     * @param options - The stream options, with the filter and the order.
+     * @param transaction - The transaction to read through.
+     * @returns The ids of the matching rows, in the order.
+     */
+    private async resolveIdsInOrder(
+        ids: string[],
+        options: DriverStreamOptions<T>,
+        transaction: ValKeyTransaction | undefined
+    ): Promise<string[]> {
+        const sorts: OrderSort[] = this.resolveSorts(options.order);
+        const reading: DriverFindOptions<T> = { ...options, relations: this.relationsForReading(options) };
+        const matched: OrderedId[] = [];
+        for (let i: number = 0; i < ids.length; i += STREAM_BATCH_SIZE) {
+            for (const entity of await this.findByIds(ids.slice(i, i + STREAM_BATCH_SIZE), reading, transaction)) {
+                if (options.where && !this.evaluator.matches(entity, options.where, this.entityClass)) {
+                    continue;
+                }
+                matched.push({ id: String(entity.id), values: sorts.map(s => EntityOrderUtilities.valueAt(entity, s.path)) });
+            }
+        }
+        return matched
+            .sort((a, b) => {
+                for (const [i, { compare }] of sorts.entries()) {
+                    const comparison: number = compare(a.values[i], b.values[i]);
+                    if (comparison !== 0) {
+                        return comparison;
+                    }
+                }
+                return 0;
+            })
+            .map(m => m.id);
     }
 
     // eslint-disable-next-line sonar/cognitive-complexity
@@ -2746,13 +2922,19 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
 
     /**
      * Applies writes as one step, but only while the indexes and uniques the store keeps are still the
-     * ones they were worked out from.
+     * ones they were worked out from, and the rows they were worked out from are still as read.
      * @param writes - The writes, in the order they are applied.
      * @param keys - The indexes and uniques the writes were worked out from.
-     * @returns True when the writes were applied, false when the list had changed and nothing was.
+     * @param rows - The rows the writes were worked out from, by key, as they were read.
+     * @returns True when the writes were applied, false when the list or a row had changed and
+     * nothing was.
      */
-    private async writeGuarded(writes: ValKeyBufferedWrite[], keys: StoredKeys): Promise<boolean> {
-        return await applyGuardedValKeyWrites(this.client, new Map([[this.keysKey(), keys.stored]]), writes);
+    private async writeGuarded(
+        writes: ValKeyBufferedWrite[],
+        keys: StoredKeys,
+        rows: Map<string, Record<string, string>> = new Map()
+    ): Promise<boolean> {
+        return await applyGuardedValKeyWrites(this.client, { values: new Map([[this.keysKey(), keys.stored]]), hashes: rows }, writes);
     }
 
     /**

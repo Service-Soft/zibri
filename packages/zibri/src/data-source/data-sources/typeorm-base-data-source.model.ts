@@ -9,19 +9,14 @@ import { RelationMetadata as TORelationMetadata } from 'typeorm/metadata/Relatio
 import { DataSourceInitializationError } from './data-source-initialization.error';
 import { DataSourceInterface, RepositoryTypeForEntity, SCHEMA_LOCK_KEY, StartTransactionOptions } from './data-source.interface';
 import { checkConstraintName } from '../check-constraint-name.function';
+import { limitsStatements } from './statement-limiting-data-source.model';
 import { RepositoryDriverInterface } from '../driver/repository-driver.interface';
 import { TypeOrmRepositoryDriver } from '../driver/typeorm.repository-driver';
 import { ParameterizedSql } from './where-converter/parameterized-sql.model';
 import { TypeOrmWhereFilterConverter } from './where-converter/typeorm-where-filter.converter';
 import { type AuthServiceInterface } from '../../auth/auth-service.interface';
-import { ChangeSetRepository } from '../../change-sets/change-set-repository';
-import { ChangeSetEntity } from '../../change-sets/models/change-set-entity.model';
-import { ChangeSet } from '../../change-sets/models/change-set.model';
-import { isChangeSetEntityNewable } from '../../change-sets/models/is-change-set-entity.function';
-import { isSoftDeleteEntityNewable } from '../../change-sets/models/is-soft-delete-entity.function';
-import { SoftDeleteEntity } from '../../change-sets/models/soft-delete-entity.model';
-import { SoftDeleteRepository } from '../../change-sets/soft-delete-repository';
 import { AlsUtilities } from '../../context/als.utilities';
+import { OperationLimit } from '../../context/operation-limit.model';
 import { OperationLimitUtilities } from '../../context/operation-limit.utilities';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
@@ -41,10 +36,16 @@ import { OmitStrict } from '../../types/omit-strict.type';
 import { MetadataUtilities } from '../../utilities/metadata.utilities';
 import { ObjectUtilities } from '../../utilities/object.utilities';
 import { PromiseUtilities } from '../../utilities/promise.utilities';
+import { SemVerVersion } from '../../utilities/sem-ver.utilities';
 import { TypeOrmUtilities } from '../../utilities/typeorm.utilities';
-import { SemVerVersion } from '../../versioning/sem-ver.utilities';
+import { ChangeSetRepository } from '../change-sets/change-set-repository';
+import { ChangeSetEntity } from '../change-sets/models/change-set-entity.model';
+import { ChangeSet } from '../change-sets/models/change-set.model';
+import { isChangeSetEntityNewable } from '../change-sets/models/is-change-set-entity.function';
+import { isSoftDeleteEntityNewable } from '../change-sets/models/is-soft-delete-entity.function';
+import { SoftDeleteEntity } from '../change-sets/models/soft-delete-entity.model';
+import { SoftDeleteRepository } from '../change-sets/soft-delete-repository';
 import { registerRepositoryProvidersFor } from '../entity-ownership.function';
-import { getDefaultBeforeReturnHook, getDefaultBeforeSaveHook } from '../hooks/hooks.default';
 import { indexName, trigramIndexName } from '../index-name.function';
 import { MigratedEntityUtilities } from '../migration/migrated-entity.utilities';
 import { MigrationEntity } from '../migration/migration-entity.model';
@@ -67,6 +68,7 @@ import { UpsertRow } from '../models/upsert-row.model';
 import { Where, WhereFilter } from '../models/where/where-filter.model';
 import { QueryFailedError } from '../query-failed.error';
 import { Repository } from '../repository/repository';
+import { RepositoryForUtilities } from '../repository/repository-for.utilities';
 import { RepositoryClass } from '../repository/repository-class.type';
 import { MistypedStoredValue } from '../stored-value-type-mismatch.error';
 import { RunInTransactionOptions } from '../transaction/run-in-transaction-options.model';
@@ -325,7 +327,6 @@ type UpsertStatement<T extends BaseEntity> = {
 export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> implements DataSourceInterface {
     abstract readonly entities: Newable<BaseEntity>[];
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     abstract readonly repositories: RepositoryClass[];
 
     /**
@@ -666,7 +667,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
      * Every migration the backup has not recorded runs, and the indexes and uniques are made to match
      * what the entities declare, before the restore is done. A backup taken by a newer version of the
      * app is refused.
-     * @param backupData - The data {@link TypeOrmBaseDataSource.createBackupData} produced.
+     * @param backupData - The data BackupResourceInterface.createBackupData produced.
      * @throws When the backup was taken by a newer version of the app, when a migration fails, or when
      * the restored rows break a declared unique or check.
      */
@@ -693,7 +694,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
 
     /**
      * Replaces what this data source stores with what a backup of it holds.
-     * @param backupData - The data {@link TypeOrmBaseDataSource.createBackupData} produced.
+     * @param backupData - The data BackupResourceInterface.createBackupData produced.
      */
     protected abstract applyBackup(backupData: Readable): Promise<void>;
 
@@ -1201,44 +1202,30 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             this.fullOptions.maxBoundValuesPerStatement
         );
 
-        if (isSoftDeleteEntityNewable(cls)) {
-            const res: RepositoryTypeForEntity<T> = new SoftDeleteRepository(
+        const built: RepositoryTypeForEntity<T> = isSoftDeleteEntityNewable(cls)
+            ? new SoftDeleteRepository(
                 cls,
                 driver as unknown as RepositoryDriverInterface<SoftDeleteEntity>,
                 this.logger,
                 this,
-                getDefaultBeforeSaveHook(),
-                getDefaultBeforeReturnHook(),
                 this.authService,
                 this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>;
-            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-            return res;
-        }
-        if (isChangeSetEntityNewable(cls)) {
-            const res: RepositoryTypeForEntity<T> = new ChangeSetRepository(
-                cls,
-                driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
-                this.logger,
-                this,
-                getDefaultBeforeSaveHook(),
-                getDefaultBeforeReturnHook(),
-                this.authService,
-                this.getRepository(ChangeSet)
-            ) as RepositoryTypeForEntity<T>;
-            this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-            return res;
-        }
-        const res: RepositoryTypeForEntity<T> = new Repository<T>(
-            cls,
-            driver,
-            this.logger,
-            this,
-            getDefaultBeforeSaveHook(),
-            getDefaultBeforeReturnHook()
-        ) as RepositoryTypeForEntity<T>;
-        this.builtRepositories.set(cls, res as Repository<BaseEntity>);
-        return res;
+            ) as RepositoryTypeForEntity<T>
+            : isChangeSetEntityNewable(cls)
+                ? new ChangeSetRepository(
+                    cls,
+                    driver as unknown as RepositoryDriverInterface<ChangeSetEntity>,
+                    this.logger,
+                    this,
+                    this.authService,
+                    this.getRepository(ChangeSet)
+                ) as RepositoryTypeForEntity<T>
+                : new Repository<T>(cls, driver, this.logger, this) as RepositoryTypeForEntity<T>;
+        // the class listed for the entity rather than the repository it is built over, so that what it
+        // overrides holds for every row of the entity, those written through a relation included
+        const res: Repository<BaseEntity> = RepositoryForUtilities.resolveRepository(this, cls, built as Repository<BaseEntity>);
+        this.builtRepositories.set(cls, res);
+        return res as RepositoryTypeForEntity<T>;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1910,8 +1897,14 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
         }
 
         const runner: QueryRunner = this.createQueryRunner();
+        let restore: (() => Promise<void>) | undefined;
         try {
             await runner.connect();
+            // outside a transaction, so nothing else gives this connection the schema setup's limit
+            const limit: OperationLimit | undefined = AlsUtilities.findCurrentOperationLimit();
+            if (limit != undefined && limitsStatements(this)) {
+                restore = await this.limitStatementsOn(runner, limit.timeoutInMs, false);
+            }
             const schema: EntitySchema = this.createSchemaForEntity(MigrationEntity);
             const metadata: TOEntityMetadata = this.ds.getMetadata(schema);
             // built the way createEntity builds a table, so the unique on the name is created with it -
@@ -1919,6 +1912,7 @@ export abstract class TypeOrmBaseDataSource<TOptions extends DataSourceOptions> 
             await runner.createTable(Table.create(metadata, this.ds.driver), true);
         }
         finally {
+            await restore?.();
             await runner.release();
         }
     }

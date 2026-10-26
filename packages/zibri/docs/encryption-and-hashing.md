@@ -1,8 +1,8 @@
 # Encryption and hashing
 An encrypted property is stored encrypted and read back as plaintext. A hashed property is stored as
 a one-way hash, for values you only ever compare, such as passwords. You mark both on the
-`@Property.string` decorator. Encryption is envelope encryption: each value is encrypted with a data
-key, and the data keys are encrypted with a master key you provide.
+`@Property.string` decorator. Encryption is [envelope encryption](./glossary.md#envelope-encryption): each value is encrypted with a data
+key, and the data keys are encrypted with a [master key](./glossary.md#master-key) you provide.
 
 ## Key exports
 | Export | Kind | Purpose |
@@ -11,23 +11,43 @@ key, and the data keys are encrypted with a master key you provide.
 | `HashString` | type | Type of a hashed property's value |
 | `ScryptHashStrategy` | class | The default hash, for passwords and everything else guessable |
 | `ScryptCost` | type | What a scrypt hash costs, via `ZIBRI_DI_TOKENS.SCRYPT_COST`. Defaults to `{ n: 131072, r: 8, p: 1 }` |
+| `defaultScryptCost` | constant | The cost a scrypt hash has when you provide no `ZIBRI_DI_TOKENS.SCRYPT_COST`: `{ n: 131072, r: 8, p: 1 }` |
+| `ScryptHashOptions` | type | What a scrypt hash is made with: the salt length, 16 bytes by default, and the cost |
 | `Sha256HashStrategy` | class | Unsalted hash for values that must stay findable. Never for passwords |
 | `BcryptHashStrategy` | class | Deprecated. Verifies bcrypt hashes, such as the password hashes of Zibri 2, see [verifying bcrypt hashes](#verifying-bcrypt-hashes) |
+| `BcryptHashOptions` | type | How many salt rounds a bcrypt hash uses |
+| `HashStrategyInterface` | interface | What a hash algorithm implements |
 | `AesGcmEncryptionStrategy` | class | The default encryption, AES-256-GCM, for values and for the master key |
+| `AesGcmEncryptOptions`, `AesGcmDecryptOptions` | type, type | What AES-256-GCM encrypts and decrypts with: the options every strategy is handed, and additional authenticated data the value is bound to |
 | `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` | DI token | The key that encrypts the encryption keys. Required |
+| `EncryptionMasterOptions`, `EncryptionMasterKey` | type, type | What `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` takes: the current master key and strategy and the old ones, and a master key: its id and what its strategy needs to use it |
 | `MasterKeyReference` | class | Names a master key and its strategy without holding either, as a backup records the keys it needs |
 | `EncryptionStrategyInterface` | interface | What an encryption algorithm implements, including a KMS or HSM backed one |
 | `BaseEncryptOptions`, `BaseDecryptOptions` | type | What a strategy's `encrypt` and `decrypt` are handed: the key, its id, and the row the value is bound to |
+| `EncryptionPropertyValue`, `EncryptAndDecryptOptions`, `EncryptPropertyValue`, `DecryptPropertyValue` | type, type, type, type | What the `encryption` option of `@Property.string` takes: `true`, or how the value is encrypted and decrypted |
+| `HashPropertyValue` | type | What the `hash` option of `@Property.string` takes |
+| `EncryptionBinding` | type | The row an encrypted value belongs to, so the value copied into another row is refused |
 | `EncryptionString` | type | An encrypted value as it is stored, inside its envelope |
+| `EncryptionContent`, `EncryptionUtilities` | type, class | What an encrypted value holds, its strategy, version, key id and the encrypted value, and turns an `EncryptionString` into it and back |
 | `EncryptionServiceInterface`, `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` | interface, DI token | Encrypts and decrypts values, and creates, deprecates and counts the data keys |
+| `EncryptionService` | class | Encrypts and decrypts values, and keeps the data keys. Replaceable through `ZIBRI_DI_TOKENS.ENCRYPTION_SERVICE` |
+| `EncryptOptions`, `DeleteEncryptionKeyOptions` | type, type | Which strategy encrypts a value and with what options, and whether deleting keys may delete the default one |
+| `KeysInUse` | type | The keys the encrypted values depend on: the current master key, every master key a [data key](./glossary.md#data-key) is encrypted under, the data keys, and the data source storing them |
 | `HashServiceInterface`, `ZIBRI_DI_TOKENS.HASH_SERVICE` | interface, DI token | Hashes values, compares a value with a hash, and says when a hash needs to be made again |
+| `HashService` | class | Hashes values and compares them with hashes. Replaceable through `ZIBRI_DI_TOKENS.HASH_SERVICE` |
+| `HashOptions` | type | Which strategy hashes a value, and with what options |
+| `HashContent`, `HashUtilities` | type, class | What a hashed value holds, its strategy, version and the hash, and turns a `HashString` into it and back |
 | `ZIBRI_DI_TOKENS.ENCRYPTION_STRATEGIES` | DI token | Overrides the available encryption algorithms |
 | `ZIBRI_DI_TOKENS.HASH_STRATEGIES` | DI token | Overrides the available hash algorithms |
 | `EncryptionKey`, `EncryptionKeyStatus` | entity, enum | A data key of a strategy, and whether it is the default, active or deprecated |
-| `HashStrategyEntity`, `HashStrategyEntityCreateData`, `HashStrategyStatus` | entity, type, enum | A hash strategy as stored, and whether it is the default, active or deprecated |
+| `EncryptionKeyCreateData` | type | What a data key is created with |
+| `EncryptionStrategyEntity`, `EncryptionStrategyStatus` | entity, enum | An encryption strategy as stored, with its keys, and whether it is the default, active or deprecated |
+| `HashStrategyEntity`, `HashStrategyStatus` | entity, enum | A hash strategy as stored, and whether it is the default, active or deprecated |
+| `EncryptionRotationCronJob` | cron job | Rewrites the values encrypted under deprecated keys and strategies, a bounded number of rows per run. Registered for you |
 | `EncryptionRotationProgress` | entity | How far the rotation job is through the stored values |
 | `EncryptionRotationFailure` | entity | A row the rotation job could not rewrite, and when it tries again |
 | `RetiredKeyUsage` | type | What is still encrypted under the keys being retired, see [telling when a rotation is done](#telling-when-a-rotation-is-done) |
+| `RetiredDataKeyUsage`, `RetiredMasterUsage`, `RetiredMasterKeyUsage`, `RetiredMasterStrategyUsage` | type, type, type, type | The parts of `RetiredKeyUsage`: a deprecated data key and how many values it encrypts, and the data keys and backups an old master key or strategy is needed for |
 
 ## Setting the master key
 `ZIBRI_DI_TOKENS.ENCRYPTION_MASTER_OPTIONS` is required, whether or not anything is encrypted:
@@ -61,7 +81,7 @@ restored with it, so keep an old key listed for as long as you keep backups take
 import { BaseTenantEntity, Entity, HashString, Property } from 'zibri';
 
 @Entity()
-export class Integration extends BaseTenantEntity {
+export class Integration extends BaseTenantEntity() {
     @Property.string({ encryption: true })
     accessToken!: string;
 
@@ -76,7 +96,7 @@ so it is hashed. `encryption` and `hash` also take an options object in place of
 
 Every value stored through a repository is encrypted or hashed. The same flags work on the string items of an array and on a string shape of `@Property.oneOf`, and each shape can name a strategy of its own.
 
-A property holding an encrypted or hashed value stays out of change sets unless it declares `excludeFromChangeSets: false`.
+A property holding an encrypted or hashed value stays out of [change sets](./glossary.md#change-set) unless it declares `excludeFromChangeSets: false`.
 
 ## Typing the create data
 A hashed property is typed as `HashString` on the entity (a branded type), but you pass a plain `string` when you create one. The value only becomes a `HashString` once it is hashed.
@@ -125,7 +145,7 @@ Turn the binding off with `bindToRow: false`, for a property you update in bulk:
 import { BaseTenantEntity, Entity, Property } from 'zibri';
 
 @Entity()
-export class Project extends BaseTenantEntity {
+export class Project extends BaseTenantEntity() {
     @Property.string({ encryption: { bindToRow: false } })
     webhookSigningKey!: string;
 }
@@ -253,7 +273,7 @@ stays searchable:
 import { BaseTenantEntity, Entity, HashString, Property, Sha256HashStrategy } from 'zibri';
 
 @Entity()
-export class ApiToken extends BaseTenantEntity {
+export class ApiToken extends BaseTenantEntity() {
     @Property.string({ unique: true, hash: { strategy: Sha256HashStrategy } })
     value!: HashString;
 }
@@ -395,8 +415,8 @@ defineProvider({
 Raising or lowering the cost keeps stored hashes valid. Each hash records the cost it was made at and
 is verified with that, so a change applies to hashes written afterwards.
 
-Existing accounts upgrade as they sign in. A successful login checks `needsRehash` and replaces the
-stored hash. A user who never signs in keeps their old hash.
+Existing accounts upgrade as they log in. A successful login checks `needsRehash` and replaces the
+stored hash. A user who never logs in keeps their old hash.
 
 The same applies to retiring a whole strategy: marking one `DEPRECATED` in the hash strategy table
 makes `needsRehash` return true for every hash it produced, and those accounts move to the current
@@ -407,7 +427,7 @@ default strategy on their next login.
 deprecated. It needs the `bcryptjs` package, which you install. It hashes with 10 rounds, and each
 bcrypt check holds up the requests running beside it. Keep it registered while stored hashes need it,
 with bcrypt marked `DEPRECATED` in the hash strategy table: each of its hashes is replaced with a
-scrypt hash the next time its user signs in. The [upgrade migration](./upgrading-to-3.md#the-migration)
+scrypt hash the next time its user logs in. The [upgrade migration](./upgrading-to-3.md#the-migration)
 does both.
 
 ## Requirements
@@ -421,6 +441,8 @@ Your data source declares these entities:
 |---|---|
 | `HashStrategyEntity` | Every application |
 | `EncryptionStrategyEntity`, `EncryptionKey`, `EncryptionRotationProgress`, `EncryptionRotationFailure` | Every application |
+
+How large each table grows, and what deletes its rows, is in [framework tables](./framework-tables.md).
 
 ## See also
 - [Excluding properties](./excluding-properties.md) — an alternative/addition to decryption for controlling who can read a value

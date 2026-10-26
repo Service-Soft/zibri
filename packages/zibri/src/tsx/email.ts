@@ -22,7 +22,9 @@ export { Mjml,
     MjAttributes,
     EmailLayoutContext,
     $raw,
-    createContext } from 'zibri-tsx';
+    createContext,
+    provideContext,
+    useContext } from 'zibri-tsx';
 
 // eslint-disable-next-line jsdoc/require-jsdoc
 export type { MjmlProps,

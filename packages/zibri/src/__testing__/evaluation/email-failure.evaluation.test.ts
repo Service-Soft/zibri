@@ -12,8 +12,8 @@ import { EmailConfigInput } from '../../email/models/email-config.model';
 import { EmailStatus } from '../../email/models/email-status.enum';
 import { Email } from '../../email/models/email.model';
 import { SmtpEmailTransport } from '../../email/transports/smtp.email-transport';
-import { defaultTestServerProviders } from '../test-server/providers';
 import { TestTimeouts } from '../constants';
+import { defaultTestServerProviders } from '../test-server/providers';
 import { StartedTestServer, startTestServer } from '../test-server/start-test-server.function';
 
 /**

@@ -51,10 +51,10 @@ import { FederationOptions } from '../federated/federation-options.model';
 // wherever the server ended up listening
 const PUBLIC_URL: string = 'http://zibri.test';
 const SP_ENTITY_ID: string = 'https://app.example.com/saml';
-const REDIRECT_TO: string = 'https://app.example.com/signed-in';
+const REDIRECT_TO: string = 'https://app.example.com/logged-in';
 const REGISTRATION_URL: string = 'https://app.example.com/register';
-const ERROR_URL: string = 'https://app.example.com/sign-in-failed';
-const SIGNED_OUT_URL: string = 'https://app.example.com/signed-out';
+const ERROR_URL: string = 'https://app.example.com/login-failed';
+const LOGGED_OUT_URL: string = 'https://app.example.com/logged-out';
 const MAX_AUTHENTICATION_AGE_IN_MS: number = 3600000;
 const MFA_CONTEXT: string = 'urn:oasis:names:tc:SAML:2.0:ac:classes:TimeSyncToken';
 
@@ -92,7 +92,7 @@ class StrictAuthenticator extends BaseSamlAuthenticator<string, JwtUser> {
     }
 
     get identityProvider(): SamlIdentityProvider {
-        return { signInUrl: strictIdp.signInUrl, certificates: [strictIdp.certificate], logoutUrl: strictIdp.logoutUrl };
+        return { loginUrl: strictIdp.loginUrl, certificates: [strictIdp.certificate], logoutUrl: strictIdp.logoutUrl };
     }
 
     // read as the authenticator is built, which is once the keys are made
@@ -200,7 +200,7 @@ class GuardedController {
 @Auth.skip({ allowRedundant: true })
 @Controller('/register', { allowOrphan: true })
 class RegistrationController {
-    // what an application writes: read who signed in, create the user and link the identity in one
+    // what an application writes: read who logged in, create the user and link the identity in one
     // transaction, and log in once that is committed
     @Post('/')
     async register(
@@ -213,7 +213,7 @@ class RegistrationController {
         try {
             const registration: FederatedRegistration = await authService.resolveRegistration(CompanyAuthenticator, credentials, transaction);
             const user: JwtUser = await users.create({ email: registration.email ?? '', roles: [Roles.USER] }, { transaction });
-            await authService.linkIdentity(CompanyAuthenticator, credentials, user.id, transaction);
+            await authService.linkTicketIdentity(CompanyAuthenticator, credentials, user.id, transaction);
             await transaction.commit();
         }
         catch (error) {
@@ -225,9 +225,9 @@ class RegistrationController {
 }
 
 /**
- * The hops of one sign-in.
+ * The hops of one login.
  */
-type SignIn = {
+type ProviderLogin = {
     /**
      * What the identity provider answered, the form its page posts.
      */
@@ -255,7 +255,7 @@ function newBrowser(): TestBrowser {
  * @returns The url.
  */
 function authorizeUrl(provider: string, query: Record<string, string> = {}): string {
-    return `${baseUrl}/auth/federated/authorize?${new URLSearchParams({ authenticator: provider, redirectTo: REDIRECT_TO, ...query }).toString()}`;
+    return `${baseUrl}/auth/federated/login/request?${new URLSearchParams({ authenticator: provider, redirectTo: REDIRECT_TO, ...query }).toString()}`;
 }
 
 /**
@@ -294,20 +294,20 @@ async function askProvider(browser: TestBrowser, url: string, at: FakeSamlProvid
 }
 
 /**
- * Signs in at the identity provider, the way a browser does: to the authorize route, on to the
+ * Logs in at the identity provider, the way a browser does: to the authorize route, on to the
  * provider, and its answer posted back to the callback.
  * @param browser - The browser.
  * @param url - The authorize route.
  * @param at - The identity provider.
  * @returns The hops.
  */
-async function signIn(browser: TestBrowser, url: string, at: FakeSamlProvider = idp): Promise<SignIn> {
+async function logInAtProvider(browser: TestBrowser, url: string, at: FakeSamlProvider = idp): Promise<ProviderLogin> {
     const answer: FakeSamlAnswer = await askProvider(browser, url, at);
     return { answer, landing: await postAnswer(browser, answer, new URL(at.entityId).origin) };
 }
 
 /**
- * Creates a user, linked to the NameID the provider signs in next.
+ * Creates a user, linked to the NameID the provider logs in next.
  * @param at - The identity provider the user is linked at.
  * @returns The user.
  */
@@ -315,14 +315,14 @@ async function createLinkedUser(at: FakeSamlProvider = idp): Promise<JwtUser> {
     const nameId: string = `name-id-${randomBytes(6).toString('hex')}`;
     const user: JwtUser = await inject(repositoryTokenFor(JwtUser)).create({ email: `${nameId}@example.com`, roles: [Roles.USER] });
     await inject<Repository<FederatedIdentity, FederatedIdentityCreateData>>(repositoryTokenFor(FederatedIdentity))
-        .create({ issuer: at.entityId, subject: nameId, userId: user.id, signIn: true, grantedScopes: [] });
+        .create({ issuer: at.entityId, subject: nameId, userId: user.id, forLogin: true, grantedScopes: [] });
     at.identity = { nameId, attributes: { email: `${nameId}@example.com` } };
     return user;
 }
 
 /**
- * The error a sign-in landed on the error url with.
- * @param landing - Where the sign-in landed.
+ * The error a login landed on the error url with.
+ * @param landing - Where the login landed.
  * @returns The error, or undefined when it did not land on the error url.
  */
 function errorOf(landing: string): string | undefined {
@@ -375,8 +375,8 @@ async function rotateLogin(browser: TestBrowser, userId: string): Promise<void> 
 }
 
 /**
- * Starts an application signing in through the fake identity providers.
- * @param strategy - The strategy the sign-ins log in with.
+ * Starts an application logging in through the fake identity providers.
+ * @param strategy - The strategy the logins log in with.
  * @param controllers - The controllers, which go with that strategy.
  * @returns The server, started.
  */
@@ -399,7 +399,7 @@ async function startApp(strategy: typeof CookieAuthStrategy | typeof JwtAuthStra
         allowedRedirects: ['https://app.example.com'],
         registrationUrl: REGISTRATION_URL,
         errorUrl: ERROR_URL,
-        signedOutUrl: SIGNED_OUT_URL,
+        loggedOutUrl: LOGGED_OUT_URL,
         maxAuthenticationAgeInMs: MAX_AUTHENTICATION_AGE_IN_MS
     };
     const server: StartedTestServer = await startTestServer({
@@ -503,7 +503,7 @@ describe('BaseSamlAuthenticator', () => {
         const reads: number = idp.metadataReads;
         const browser: TestBrowser = newBrowser();
 
-        const { landing } = await signIn(browser, authorizeUrl('company'));
+        const { landing } = await logInAtProvider(browser, authorizeUrl('company'));
 
         expect(landing).toBe(REDIRECT_TO);
         expect(await isLoggedIn(browser)).toBe(true);
@@ -514,8 +514,8 @@ describe('BaseSamlAuthenticator', () => {
             nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent'
         });
         await createLinkedUser();
-        expect((await signIn(newBrowser(), authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
-        // read for the first sign-in this application did at all, and kept since
+        expect((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
+        // read for the first login this application did at all, and kept since
         expect(idp.metadataReads - reads).toBeLessThanOrEqual(1);
     });
 
@@ -524,11 +524,11 @@ describe('BaseSamlAuthenticator', () => {
         idp.identity = { nameId, attributes: { mail: `${nameId}@example.com`, givenName: 'Ada', sn: 'Lovelace' } };
         const browser: TestBrowser = newBrowser();
 
-        const { landing } = await signIn(browser, authorizeUrl('company'));
+        const { landing } = await logInAtProvider(browser, authorizeUrl('company'));
 
         expect(landing.startsWith(REGISTRATION_URL)).toBe(true);
         const ticket: string = new URL(landing).searchParams.get('ticket') ?? '';
-        // the registration page of the application, in the browser the sign-in was started in
+        // the registration page of the application, in the browser the login was started in
         const registered: Response = await browser.open(`${baseUrl}/register`, {
             method: 'POST',
             headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },
@@ -546,7 +546,7 @@ describe('BaseSamlAuthenticator', () => {
     it('refuses an answer posted a second time', async () => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        const { answer, landing } = await signIn(browser, authorizeUrl('company'));
+        const { answer, landing } = await logInAtProvider(browser, authorizeUrl('company'));
         expect(landing).toBe(REDIRECT_TO);
 
         expect(errorOf(await postAnswer(browser, answer, new URL(idp.entityId).origin))).toBe('expired');
@@ -576,7 +576,7 @@ describe('BaseSamlAuthenticator', () => {
         await createLinkedUser();
         idp.changeNextAnswer({ unsolicited: true });
 
-        expect(errorOf((await signIn(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
+        expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
     });
 
     it.each([
@@ -585,12 +585,12 @@ describe('BaseSamlAuthenticator', () => {
         ['that has expired', { notOnOrAfter: new Date(Date.now() - 600000) }],
         ['that is not signed', { unsigned: true }],
         ['signed by a key the metadata does not name', { signedByAnotherKey: true }],
-        ['without when the user signed in', { omitAuthnStatement: true }]
+        ['without when the user logged in', { omitAuthnStatement: true }]
     ])('refuses an answer %s', async (_, changes) => {
         await createLinkedUser();
         idp.changeNextAnswer(changes);
 
-        expect(errorOf((await signIn(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
+        expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
     });
 
     it('refuses an answer changed after it was signed', async () => {
@@ -601,34 +601,34 @@ describe('BaseSamlAuthenticator', () => {
         idp.changeNextAnswer({ tamper: xml => xml.replace(/(<saml:NameID[^>]*>)[^<]*/, `$1${victimNameId}`) });
         const browser: TestBrowser = newBrowser();
 
-        expect(errorOf((await signIn(browser, authorizeUrl('company'))).landing)).toBe('invalid');
+        expect(errorOf((await logInAtProvider(browser, authorizeUrl('company'))).landing)).toBe('invalid');
         expect(await isLoggedIn(browser)).toBe(false);
         void victim;
     });
 
-    it('refuses a NameID that is new for every sign-in', async () => {
+    it('refuses a NameID that is new for every login', async () => {
         await createLinkedUser();
         idp.identity = { ...idp.identity, nameIdFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:transient' };
 
-        expect(errorOf((await signIn(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
+        expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('invalid');
     });
 
     it('tells the error page that the provider refused the user', async () => {
         await createLinkedUser();
         idp.denyNext('urn:oasis:names:tc:SAML:2.0:status:RequestDenied');
 
-        expect(errorOf((await signIn(newBrowser(), authorizeUrl('company'))).landing)).toBe('cancelled');
+        expect(errorOf((await logInAtProvider(newBrowser(), authorizeUrl('company'))).landing)).toBe('cancelled');
     });
 
-    it('sends a user whose sign-in at the provider is too old back there to sign in again, and lands them where they wanted', async () => {
+    it('sends a user whose login at the provider is too old back there to log in again, and lands them where they wanted', async () => {
         await createLinkedUser();
         idp.authenticatedAt = new Date(Date.now() - (MAX_AUTHENTICATION_AGE_IN_MS * 2));
         const browser: TestBrowser = newBrowser();
 
         try {
-            const { landing } = await signIn(browser, authorizeUrl('company'));
-            // straight back to the provider, asking for a new sign-in
-            expect(landing.startsWith(idp.signInUrl)).toBe(true);
+            const { landing } = await logInAtProvider(browser, authorizeUrl('company'));
+            // straight back to the provider, asking for a new login
+            expect(landing.startsWith(idp.loginUrl)).toBe(true);
             const res: Response = await browser.open(landing);
             expect(res.status).toBe(200);
             expect(idp.requests.at(-1)?.forceAuthn).toBe(true);
@@ -646,10 +646,10 @@ describe('BaseSamlAuthenticator', () => {
         }
     });
 
-    it('asks the provider for a new sign-in when the frontend says so', async () => {
+    it('asks the provider for a new login when the frontend says so', async () => {
         await createLinkedUser();
 
-        await signIn(newBrowser(), authorizeUrl('company', { reauthenticate: 'true' }));
+        await logInAtProvider(newBrowser(), authorizeUrl('company', { reauthenticate: 'true' }));
 
         expect(idp.requests.at(-1)?.forceAuthn).toBe(true);
     });
@@ -658,7 +658,7 @@ describe('BaseSamlAuthenticator', () => {
         const user: JwtUser = await createLinkedUser();
         idp.identity = { ...idp.identity, authnContextClassRef: MFA_CONTEXT };
         const browser: TestBrowser = newBrowser();
-        expect((await signIn(browser, authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
+        expect((await logInAtProvider(browser, authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
 
         expect((await browser.open(`${baseUrl}/guarded/mfa`)).status).toBe(200);
         await rotateLogin(browser, user.id);
@@ -667,17 +667,17 @@ describe('BaseSamlAuthenticator', () => {
         // a password alone
         await createLinkedUser();
         const other: TestBrowser = newBrowser();
-        expect((await signIn(other, authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
+        expect((await logInAtProvider(other, authorizeUrl('company'))).landing).toBe(REDIRECT_TO);
         expect((await other.open(`${baseUrl}/guarded/mfa`)).status).toBe(401);
     });
 
     it('asks the identity provider for the classes of authentication the authenticator names', async () => {
         await createLinkedUser();
 
-        await signIn(newBrowser(), authorizeUrl('step-up'));
+        await logInAtProvider(newBrowser(), authorizeUrl('step-up'));
         expect(idp.requests.at(-1)?.requestedAuthnContext).toEqual([MFA_CONTEXT]);
 
-        await signIn(newBrowser(), authorizeUrl('company'));
+        await logInAtProvider(newBrowser(), authorizeUrl('company'));
         expect(idp.requests.at(-1)?.requestedAuthnContext).toEqual([]);
     });
 
@@ -685,7 +685,7 @@ describe('BaseSamlAuthenticator', () => {
         await createLinkedUser(strictIdp);
         const browser: TestBrowser = newBrowser();
 
-        const { answer, landing } = await signIn(browser, authorizeUrl('strict'), strictIdp);
+        const { answer, landing } = await logInAtProvider(browser, authorizeUrl('strict'), strictIdp);
 
         expect(strictIdp.requests.at(-1)?.signed).toBe(true);
         expect(answer.xml).toContain('EncryptedAssertion');
@@ -723,7 +723,7 @@ describe('BaseSamlAuthenticator', () => {
         expect(metadata.replaceAll(/\s/g, '')).toContain(certificateBody(decryptionKey.certificate));
     });
 
-    it('starts no sign-in through metadata that describes another identity provider', async () => {
+    it('starts no login through metadata that describes another identity provider', async () => {
         const res: Response = await newBrowser().open(authorizeUrl('elsewhere'));
 
         expect(res.status).toBe(500);
@@ -734,9 +734,9 @@ describe('BaseSamlAuthenticator', () => {
     it('ends exactly the login of the session the provider logs the user out of, and tells the provider', async () => {
         await createLinkedUser();
         const loggedOut: TestBrowser = newBrowser();
-        const { answer } = await signIn(loggedOut, authorizeUrl('company'));
+        const { answer } = await logInAtProvider(loggedOut, authorizeUrl('company'));
         const stillIn: TestBrowser = newBrowser();
-        await signIn(stillIn, authorizeUrl('company'));
+        await logInAtProvider(stillIn, authorizeUrl('company'));
 
         // the provider's page sends it in whichever browser the user logged out at the provider
         const landing: string = await newBrowser()
@@ -752,7 +752,7 @@ describe('BaseSamlAuthenticator', () => {
     it('ends a login the provider logs the user out of after it was refreshed', async () => {
         const user: JwtUser = await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        const { answer } = await signIn(browser, authorizeUrl('company'));
+        const { answer } = await logInAtProvider(browser, authorizeUrl('company'));
         await rotateLogin(browser, user.id);
 
         await newBrowser().follow(idp.createLogoutRequestUrl({ nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex }));
@@ -763,7 +763,7 @@ describe('BaseSamlAuthenticator', () => {
     it('answers where to log out at the provider, for a refreshed login too', async () => {
         const user: JwtUser = await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        await signIn(browser, authorizeUrl('company'));
+        await logInAtProvider(browser, authorizeUrl('company'));
         await rotateLogin(browser, user.id);
 
         const { providerLogoutUrl } = await logOut(browser);
@@ -774,12 +774,12 @@ describe('BaseSamlAuthenticator', () => {
     it('ends every login of the user when the provider names no session, and nobody else\'s', async () => {
         await createLinkedUser();
         const somebodyElse: TestBrowser = newBrowser();
-        await signIn(somebodyElse, authorizeUrl('company'));
+        await logInAtProvider(somebodyElse, authorizeUrl('company'));
         await createLinkedUser();
         const first: TestBrowser = newBrowser();
-        await signIn(first, authorizeUrl('company'));
+        await logInAtProvider(first, authorizeUrl('company'));
         const second: TestBrowser = newBrowser();
-        await signIn(second, authorizeUrl('company'));
+        await logInAtProvider(second, authorizeUrl('company'));
 
         await newBrowser().follow(idp.createLogoutRequestUrl({ nameId: idp.identity.nameId }));
 
@@ -794,7 +794,7 @@ describe('BaseSamlAuthenticator', () => {
     ])('refuses a logout request %s', async (_, changes) => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        const { answer } = await signIn(browser, authorizeUrl('company'));
+        const { answer } = await logInAtProvider(browser, authorizeUrl('company'));
 
         const res: Response = await newBrowser()
             .open(idp.createLogoutRequestUrl({ nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex, ...changes }));
@@ -803,10 +803,10 @@ describe('BaseSamlAuthenticator', () => {
         expect(await isLoggedIn(browser)).toBe(true);
     });
 
-    it('logs the user out at the provider too, and lands them on the signed-out page once it ended the session', async () => {
+    it('logs the user out at the provider too, and lands them on the logged-out page once it ended the session', async () => {
         await createLinkedUser();
         const browser: TestBrowser = newBrowser();
-        const { answer } = await signIn(browser, authorizeUrl('company'));
+        const { answer } = await logInAtProvider(browser, authorizeUrl('company'));
 
         const { providerLogoutUrl } = await logOut(browser);
 
@@ -814,19 +814,19 @@ describe('BaseSamlAuthenticator', () => {
         expect(providerLogoutUrl?.startsWith(idp.logoutUrl)).toBe(true);
         const landing: string = await browser.follow(await browser.follow(providerLogoutUrl ?? ''));
         expect(idp.logoutRequests.at(-1)).toMatchObject({ issuer: SP_ENTITY_ID, nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex });
-        expect(landing).toBe(SIGNED_OUT_URL);
+        expect(landing).toBe(LOGGED_OUT_URL);
     });
 
     it('signs its logout requests, for a provider that asks for it', async () => {
         await createLinkedUser(strictIdp);
         const browser: TestBrowser = newBrowser();
-        await signIn(browser, authorizeUrl('strict'), strictIdp);
+        await logInAtProvider(browser, authorizeUrl('strict'), strictIdp);
 
         const { providerLogoutUrl } = await logOut(browser);
         const landing: string = await browser.follow(await browser.follow(providerLogoutUrl ?? ''));
 
         expect(strictIdp.logoutRequests.at(-1)?.signed).toBe(true);
-        expect(landing).toBe(SIGNED_OUT_URL);
+        expect(landing).toBe(LOGGED_OUT_URL);
     });
 
     // evaluation/03-auth-and-security H23: the metadata named the logout url for posted messages only,
@@ -847,9 +847,9 @@ describe('BaseSamlAuthenticator', () => {
         it('ends exactly the login of the session a posted logout request names, and tells the provider', async () => {
             await createLinkedUser();
             const loggedOut: TestBrowser = newBrowser();
-            const { answer } = await signIn(loggedOut, authorizeUrl('company'));
+            const { answer } = await logInAtProvider(loggedOut, authorizeUrl('company'));
             const stillIn: TestBrowser = newBrowser();
-            await signIn(stillIn, authorizeUrl('company'));
+            await logInAtProvider(stillIn, authorizeUrl('company'));
 
             const res: Response = await postLogout(
                 newBrowser(),
@@ -872,7 +872,7 @@ describe('BaseSamlAuthenticator', () => {
         ])('refuses a posted logout request %s', async (_, changes) => {
             await createLinkedUser();
             const browser: TestBrowser = newBrowser();
-            const { answer } = await signIn(browser, authorizeUrl('company'));
+            const { answer } = await logInAtProvider(browser, authorizeUrl('company'));
 
             const form: FakeSamlLogoutForm = idp.createLogoutRequestForm({ nameId: idp.identity.nameId, sessionIndex: answer.sessionIndex, ...changes });
             const res: Response = await postLogout(newBrowser(), form, idp);
@@ -881,10 +881,10 @@ describe('BaseSamlAuthenticator', () => {
             expect(await isLoggedIn(browser)).toBe(true);
         });
 
-        it('lands on the signed-out page once a provider that answers with a form ended the session', async () => {
+        it('lands on the logged-out page once a provider that answers with a form ended the session', async () => {
             await createLinkedUser(postAnsweringIdp);
             const browser: TestBrowser = newBrowser();
-            await signIn(browser, authorizeUrl('post-answering'), postAnsweringIdp);
+            await logInAtProvider(browser, authorizeUrl('post-answering'), postAnsweringIdp);
             const { providerLogoutUrl } = await logOut(browser);
 
             await browser.open(providerLogoutUrl ?? '');
@@ -892,13 +892,13 @@ describe('BaseSamlAuthenticator', () => {
             const res: Response = await postLogout(browser, posted ?? { url: '', fields: new URLSearchParams() }, postAnsweringIdp);
 
             expect(res.status).toBe(303);
-            expect(res.headers.get(KnownHeader.LOCATION)).toBe(SIGNED_OUT_URL);
+            expect(res.headers.get(KnownHeader.LOCATION)).toBe(LOGGED_OUT_URL);
         });
 
         it('answers a provider that takes posted forms only with a page posting the signed answer', async () => {
             await createLinkedUser(postOnlyIdp);
             const browser: TestBrowser = newBrowser();
-            const { answer } = await signIn(browser, authorizeUrl('post-only'), postOnlyIdp);
+            const { answer } = await logInAtProvider(browser, authorizeUrl('post-only'), postOnlyIdp);
             const form: FakeSamlLogoutForm = postOnlyIdp.createLogoutRequestForm({ nameId: postOnlyIdp.identity.nameId, sessionIndex: answer.sessionIndex });
 
             const res: Response = await postLogout(newBrowser(), form, postOnlyIdp);
@@ -922,9 +922,9 @@ describe('BaseSamlAuthenticator', () => {
         it('ends exactly the login of the session a logout request sent server to server names, and answers in SOAP', async () => {
             await createLinkedUser();
             const loggedOut: TestBrowser = newBrowser();
-            const { answer } = await signIn(loggedOut, authorizeUrl('company'));
+            const { answer } = await logInAtProvider(loggedOut, authorizeUrl('company'));
             const stillIn: TestBrowser = newBrowser();
-            await signIn(stillIn, authorizeUrl('company'));
+            await logInAtProvider(stillIn, authorizeUrl('company'));
 
             const answered: FakeSamlBackChannelAnswer = await idp.sendBackChannelLogout(
                 `${baseUrl}/auth/federated/company/logout/soap`,
@@ -944,7 +944,7 @@ describe('BaseSamlAuthenticator', () => {
         it('signs its SOAP answer, for a provider that asks for signed messages', async () => {
             await createLinkedUser(strictIdp);
             const browser: TestBrowser = newBrowser();
-            const { answer } = await signIn(browser, authorizeUrl('strict'), strictIdp);
+            const { answer } = await logInAtProvider(browser, authorizeUrl('strict'), strictIdp);
 
             const answered: FakeSamlBackChannelAnswer = await strictIdp.sendBackChannelLogout(
                 `${baseUrl}/auth/federated/strict/logout/soap`,
@@ -962,7 +962,7 @@ describe('BaseSamlAuthenticator', () => {
         ])('refuses a logout request sent server to server %s', async (_, changes) => {
             await createLinkedUser();
             const browser: TestBrowser = newBrowser();
-            const { answer } = await signIn(browser, authorizeUrl('company'));
+            const { answer } = await logInAtProvider(browser, authorizeUrl('company'));
 
             const answered: FakeSamlBackChannelAnswer = await idp.sendBackChannelLogout(
                 `${baseUrl}/auth/federated/company/logout/soap`,
@@ -1003,7 +1003,7 @@ describe('BaseSamlAuthenticator with the jwt strategy', () => {
      */
     type JwtLogin = {
         /**
-         * The session at the identity provider it was signed in with.
+         * The session at the identity provider it was logged in with.
          */
         sessionIndex: string | undefined,
         /**
@@ -1013,14 +1013,14 @@ describe('BaseSamlAuthenticator with the jwt strategy', () => {
     };
 
     /**
-     * Signs in the way a frontend does, with a PKCE verifier it keeps, and exchanges the code.
+     * Logs in the way a frontend does, with a PKCE verifier it keeps, and exchanges the code.
      * @returns The login.
      */
     async function logIn(): Promise<JwtLogin> {
         const verifier: string = randomBytes(32).toString('base64url');
         const codeChallenge: string = createHash('sha256').update(verifier)
             .digest('base64url');
-        const { answer, landing } = await signIn(newBrowser(), authorizeUrl('company', { codeChallenge }));
+        const { answer, landing } = await logInAtProvider(newBrowser(), authorizeUrl('company', { codeChallenge }));
         const res: Response = await fetch(`${baseUrl}/auth/login?authenticator=company`, {
             method: 'POST',
             headers: { [KnownHeader.CONTENT_TYPE]: MimeType.JSON },

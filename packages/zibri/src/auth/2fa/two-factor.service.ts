@@ -4,6 +4,7 @@ import { type AuditServiceInterface } from '../../audit/audit-service.interface'
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { Repository } from '../../data-source/repository/repository';
+import { Transaction } from '../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { Inject } from '../../di/decorators/inject.decorator';
 import { Injectable } from '../../di/decorators/injectable.decorator';
@@ -84,55 +85,55 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async requestRegisterTwoFactorMethodForUser<
+    async requestTwoFactorRegistration<
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        TwoFactorRequestRegisterResult
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        TwoFactorRegistrationRequestResult
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, TwoFactorRequestRegisterResult, unknown>,
-        data: TwoFactorRequestRegisterData
-    ): Promise<TwoFactorRequestRegisterResult> {
-        return await method.requestRegisterForUser(user, data);
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, TwoFactorRegistrationRequestResult, unknown>,
+        data: TwoFactorRegistrationRequestData
+    ): Promise<TwoFactorRegistrationRequestResult> {
+        return await method.requestRegistration(user, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async startSecondFactor<
+    async requestSecondFactor<
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData,
-        SecondFactorStartType
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData,
+        SecondFactorRequestType
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, SecondFactorStartType>
-    ): Promise<SecondFactorStartType> {
-        return await method.startSecondFactor(user);
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, SecondFactorRequestType>
+    ): Promise<SecondFactorRequestType> {
+        return await method.requestSecondFactor(user);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async confirmRegisterTwoFactorMethodForUser<
+    async confirmTwoFactorRegistration<
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>,
-        data: TwoFactorConfirmRegisterData
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>,
+        data: TwoFactorRegistrationConfirmData
     ): Promise<void> {
-        await method.confirmRegisterForUser(user, data);
+        await method.confirmRegistration(user, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unregisterTwoFactorMethodForUser<
+    async removeTwoFactorRegistration<
         UserType extends UserAccount,
-        TwoFactorRequestRegisterData,
-        TwoFactorConfirmRegisterData
+        TwoFactorRegistrationRequestData,
+        TwoFactorRegistrationConfirmData
     >(
         user: UserType,
-        method: TwoFactorMethod<TwoFactorRequestRegisterData, TwoFactorConfirmRegisterData, unknown, unknown>
+        method: TwoFactorMethod<TwoFactorRegistrationRequestData, TwoFactorRegistrationConfirmData, unknown, unknown>
     ): Promise<void> {
-        await method.unregisterForUser(user);
+        await method.removeRegistration(user);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -142,7 +143,7 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findRegisteredMethods(user: UserAccount, allowedMethods: TwoFactorMethods = this.twoFactorMethods): Promise<TwoFactorMethods> {
-        const registered: boolean[] = await Promise.all(allowedMethods.map(async m => await inject(m).isRegisteredForUser(user)));
+        const registered: boolean[] = await Promise.all(allowedMethods.map(async m => await inject(m).isRegistered(user)));
         return allowedMethods.filter((_, index) => registered[index] === true);
     }
 
@@ -354,13 +355,27 @@ export class TwoFactorService implements TwoFactorServiceInterface, OnAppInit {
         await this.failureStreakRepository.deleteAll({ userId: user.id });
     }
 
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    async deleteUserRows(userIds: string[], transaction: Transaction): Promise<void> {
+        // an application without methods declares no streaks to delete
+        if (!this.twoFactorMethods.length) {
+            return;
+        }
+        // one after the other rather than together: they share the one transaction, which runs one
+        // statement at a time
+        for (const method of this.twoFactorMethods) {
+            await inject(method).deleteUserRows?.(userIds, transaction);
+        }
+        await this.failureStreakRepository.deleteAll({ userId: { oneOf: userIds } }, { transaction });
+    }
+
     /**
      * Removes the given methods from a user, and records it.
      * @param user - The user.
      * @param methods - The methods to remove.
      */
     private async removeSecondFactors(user: UserAccount, methods: TwoFactorMethods): Promise<void> {
-        await Promise.all(methods.map(async m => await inject(m).unregisterForUser(user)));
+        await Promise.all(methods.map(async m => await inject(m).removeRegistration(user)));
         this.auditService.record({ action: AuditAction.TWO_FACTOR_RESET, outcome: AuditOutcome.SUCCESS, userId: user.id });
     }
 
